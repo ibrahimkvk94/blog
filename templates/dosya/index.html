@@ -1,0 +1,122 @@
+{% extends 'base2.html' %}
+{% block title %} Anasayfa - {{block.super}} {% endblock %}
+{% block head %}
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+#myInput {
+  background-image: url('https://www.w3schools.com/howto/css/searchicon.png');
+  background-position: 10px 10px;
+  background-repeat: no-repeat;
+  width: 100%;
+  font-size: 16px;
+  padding: 12px 20px 12px 40px;
+  border: 1px solid #ddd;
+  margin-bottom: 12px;
+}
+
+#myTable {
+  border-collapse: collapse;
+  width: 100%;
+  border: 1px solid #ddd;
+  font-size: 18px;
+}
+
+#myTable th, #myTable td {
+  text-align: left;
+  padding: 12px;
+}
+
+#myTable tr {
+  border-bottom: 1px solid #ddd;
+}
+
+#myTable tr.header, #myTable tr:hover {
+  background-color: #f1f1f1;
+}
+</style>
+{%endblock%}
+
+{% block body%}
+
+<div class="banner-inner">
+	</div>
+	<ol class="breadcrumb">
+		<li class="breadcrumb-item">
+			<a href="{% url 'home' %}">Anasayfa</a>
+		</li>
+		<li class="breadcrumb-item active">Dosyalar</li>
+	</ol>
+	<!--//banner-->
+
+	<!--/main-->
+	<section class="main-content-w3layouts-agileits">
+		<div class="container">
+			<h3 class="tittle">Paylaşılan Dosyalar</h3>
+			<div class="inner-sec">
+				<!--left-->
+				<div class="input-group">
+						<div class="input-group-prepend">
+							<span class="input-group-text" id="">Dosyalarda Ara</span>
+						</div>
+						<input type="text" class="form-control" id="myInput" onkeyup="myFunction()" placeholder="Dosya arama" title="Type in a name">
+				<br>
+					</div><br>
+				<table id="myTable"  class="table">
+					<thead class="thead-dark">
+							<tr scope="col" class="header">
+							<th scope="col" style="width:40%;">Dosya Adı</th>
+							<th scope="col" style="width:20%;">Tarih</th>
+							<th scope="col" style="width:40%;">İndirme Linki</th>
+							</tr>
+					</thead>
+
+					{% for dosya in dosyas %}
+						<tr>
+							<td scope="row"><span style="color:steelblue" data-toggle="collapse" data-target="#{{dosya.id}}" >{{dosya.baslik}}</a></td>
+							<td scope="row">{{dosya.tarih}} </td>
+							<td scope="row"><a href="{{dosya.dosya.url}}">Buradan İndirebilirsiniz. </a></td>
+
+						</tr><tr>
+						<td scope="row" colspan="4" id="{{dosya.id}}" class="collapse">
+								{{dosya.metin|safe}}
+						</td>	
+						</tr>
+					{% endfor %}
+				</table>
+				
+
+
+			</div>
+		</div>
+	</section>
+	<!--//main-->
+	<script>
+			function myFunction() {
+			  var input, filter, table, tr, td, i;
+			  input = document.getElementById("myInput");
+			  filter = input.value.toUpperCase();
+			  table = document.getElementById("myTable");
+			  tr = table.getElementsByTagName("tr");
+			  for (i = 0; i < tr.length; i++) {
+				td = tr[i].getElementsByTagName("td")[0];
+				if (td) {
+				  if (td.innerHTML.toUpperCase().indexOf(filter) > -1) {
+					tr[i].style.display = "";
+				  } else {
+					tr[i].style.display = "none";
+				  }
+				}       
+			  }
+			}
+	</script>
+	<script>
+		$(document).ready(function(){
+				$('[data-toggle="popover"]').popover();   
+		});
+		</script>
+		
+	{% endblock %}
