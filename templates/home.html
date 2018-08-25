@@ -1,0 +1,173 @@
+{% extends 'base.html' %}
+{% block title %} Anasayfa - {{block.super}} {% endblock %}
+{% block body%}
+
+
+<section class="main-content-w3layouts-agileits">
+		<div class="container">
+			<div class="row">
+				<div class="col-lg-8 left-blog-info-w3layouts-agileits text-left">
+
+					{% for post in posts%}
+
+					<div class="blog-grid-top">
+						<div class="b-grid-top">
+							<div class="blog_info_left_grid">
+								<a href="{%if post.kategori == 'video' %}{{ post.link|safe }}{% else %}{{post.get_absolute_url }}{%endif%}">
+									<img src="{{ post.image.url }}" class="img-fluid" alt="{{post.baslik}}">
+								</a>
+							</div>
+							<div class="blog-info-middle">
+								<ul>
+									<li>
+										<a href="{%if post.kategori == 'video' %}{{ post.link|safe }}{% else %}{{post.get_absolute_url }}{%endif%}">
+											<i class="far fa-calendar-alt"></i> {{post.tarih}}</a>
+									</li>
+									<li class="mx-2">
+										<a href="#">
+											<i class="far fa-thumbs-up"></i></a>
+									</li>
+									<li>
+										<a href="{%if post.kategori == 'video' %}{{ post.link|safe }}{% else %}{{post.get_absolute_url }}{%endif%}">
+											<i class="far fa-comment"></i> {{ post.comments.count }} Yorum</a>
+									</li>	
+	
+
+									<li>
+										<a href="?q={{post.user.get_full_name}}">
+											<i class="far fa-comment"></i>&nbsp;{{post.user.get_full_name}}</a>
+									</li>
+
+								</ul>
+							</div>
+						</div>
+
+						<h3>
+							<a href="{%if post.kategori == 'video' %}{{ post.link|safe }}{% else %}{{post.get_absolute_url }}{%endif%}">{{post.baslik}} </a>
+						</h3>
+						<p>{{ post.metin|safe|truncatechars:231 }}</p>
+						<br>
+						<center><a href="{%if post.kategori == 'video' %}{{ post.link|safe }}{% else %}{{post.get_absolute_url }}{%endif%}" style="width:50%"  class="btn btn-primary read-m">Oku</a></center>
+					</div>
+					<hr>
+			{% endfor%}
+				<!--//left-->
+				<!--right-->
+<div class="row">
+        <div class="col-md-9 offset-md-1">
+        <div class="pagination">
+            <span class="step-links Page navigation example">
+				<ul class="pagination justify-content-left mt-4">
+					<li class="page-item">
+							{% if posts.has_previous %}
+								<a class="page-link" href="?page={{ posts.previous_page_number }}{% if request.GET.r %}&r={{ request.GET.r}} {% endif %}{% if request.GET.q %}&q={{ request.GET.q}} {% endif %}">previous</a>
+							{% else %}
+								<a class="page-link disabled" href="">previous</a>
+							{% endif %}
+					</li>
+					
+					{%  for pagess in range  %}
+					
+						<li class="page-item">
+							<a class="page-link" href="?page={{pagess}}">{{pagess}}</a>
+						</li>
+					{%endfor %}
+
+				
+
+				
+
+				<li class="page-item">
+                {% if posts.has_next %}
+                    <a class="page-link"  href="?page={{ posts.next_page_number }}{% if request.GET.r %}&r={{ request.GET.r}} {% endif %}{% if request.GET.q %}&q={{ request.GET.q}} {% endif %}">next</a>
+				{% endif %}
+			</li> 	
+			</ul> 
+            </span>
+        </div>
+</div>
+    </div>
+
+
+				</div>
+
+				<aside class="col-lg-4 agileits-w3ls-right-blog-con text-right">
+					<div class="right-blog-info text-left">
+						<div class="tech-btm">
+							<img src="static/images/banner1.jpg" class="img-fluid" alt="">
+						</div>
+						<div class="tech-btm">
+							<h4>Mail servisimize abone ol!</h4>
+							<p>Gelişmelerden haberdar ol</p>
+							<form method="POST" action="abone/">
+								{% csrf_token %}
+								<input type="email" name="baslik" placeholder="Email" required="">
+								<input type="submit" value="ABONE OL">
+							</form>
+
+						</div>
+						<div class="tech-btm widget_social">
+							<h4>Sosyal Medyada Takip Et</h4>
+							<ul>
+
+								<li>
+									<a class="twitter" href="https://www.twitter.com/ibrahimkvk9">
+										<i class="fab fa-twitter"></i>
+										<span class="count"></span> Twitter Follow</a>
+								</li>
+								<li>
+									<a class="facebook" href="https://www.facebook.com/ibrahim.kavak.94064">
+										<i class="fab fa-facebook-f"></i>
+										<span class="count"></span> Facebook Follow</a>
+								</li>
+								<li>
+									<a class="pin" href="www.instagram.com/ibrahimkvk">
+										<i class="fab fa-dribbble"></i>
+
+										<span class="count"></span> İnstagram Follow</a>
+								</li>
+
+
+							</ul>
+						</div>
+						<div class="tech-btm">
+							<h4>En Çok Okunanlar</h4>
+
+							{% for post in posts2%}
+							<div class="blog-grids row mb-3">
+								<div class="col-md-5 blog-grid-left">
+									<a href="{{post.get_absolute_url }}">
+										<img src="{{ post.image.url }}" class="img-fluid" alt="{{post.baslik}">
+									</a>
+								</div>
+								<div class="col-md-7 blog-grid-right">
+
+									<h5>
+										<a href="{{post.get_absolute_url }}">{{post.baslik}}</a>
+									</h5>
+									<div class="sub-meta">
+										<span>
+											<i class="far fa-clock"></i> {{post.tarih}}</span>
+									</div>
+								</div>
+
+							</div>	
+						{% endfor%}
+
+
+							
+
+
+						</div>
+					</div>
+
+				</aside>
+				<!--//right-->
+			</div>
+		</div>
+	</section>
+
+
+
+{% endblock %}
+

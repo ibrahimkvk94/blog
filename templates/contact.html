@@ -1,0 +1,97 @@
+<head>
+		<link href="../../static/css/contact.css" rel='stylesheet' type='text/css' />
+</head>
+{% extends 'base2.html' %}
+{% block title %} Anasayfa - {{block.super}} {% endblock %}
+{% load crispy_forms_tags %}
+{% block body%}
+
+<div class="banner-inner">
+	</div>
+	<ol class="breadcrumb">
+		<li class="breadcrumb-item">
+			<a href="{% url 'home' %}">Anasayfa</a>
+		</li>
+		<li class="breadcrumb-item active">İletişim</li>
+	</ol>
+	<!--//banner-->
+
+	<!--//banner-->
+	<!--/main-->
+	<section class="main-content-w3layouts-agileits">
+
+		<h3 class="tittle">İletişim</h3>
+		<p class="sub text-center">Fikirlerinizi tartışmayı seviyoruz.</p>
+		<div class="contact-map inner-sec">
+
+			<iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3131.313190166287!2d27.16820303758689!3d38.29541088737524!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x14bbe01cd23ea2af%3A0x69767a2b969b3da2!2sMenderes+Mahallesi%2C+1039%2F1.+Sk.+5-1%2C+35410+Gaziemir%2F%C4%B0zmir!5e0!3m2!1str!2str!4v1535027390624"
+			    class="map" style="border:0" allowfullscreen=""></iframe>
+		</div>
+		<div class="ad-inf-sec bg-light">
+			<div class="container">
+				<div class="address row">
+
+					<div class="col-lg-4 address-grid">
+						<div class="row address-info">
+							<div class="col-md-4 address-left text-center">
+								<i class="far fa-map"></i>
+							</div>
+							<div class="col-md-8 address-right text-left">
+								<h6>Adres</h6>
+								<p> İzmir, Türkiye
+
+								</p>
+							</div>
+						</div>
+
+					</div>
+					<div class="col-lg-4 address-grid">
+						<div class="row address-info">
+							<div class="col-md-4 address-left text-center">
+								<i class="far fa-envelope"></i>
+							</div>
+							<div class="col-md-8 address-right text-left">
+								<h6>Email</h6>
+								<p>									<a href="mailto:mail@ibrahimkavak.com"> mail@ibrahimkavak.com</a>
+
+								</p>
+							</div>
+
+						</div>
+					</div>
+					<div class="col-lg-4 address-grid">
+						<div class="row address-info">
+							<div class="col-md-4 address-left text-center">
+								<i class="fas fa-mobile-alt"></i>
+							</div>
+							<div class="col-md-8 address-right text-left">
+								<h6>Phone</h6>
+								<p>531 964 5958</p>
+
+							</div>
+
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="container">
+			<br>
+				{% include 'messages.html' %}
+			<br>
+				<form method="post">
+					
+						<div class="col-md-10">
+							{% csrf_token %}
+							{{form|crispy}}
+							{{ form.media }}
+						<input class="form-control" type="submit" value="Submit">
+
+						</div>
+					
+				</form>
+			
+		</div>
+	</section>
+	<!--//main-->
+	{%endblock%}
