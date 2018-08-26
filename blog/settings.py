@@ -25,11 +25,11 @@ SECRET_KEY = '***KALDIRILDI***'
 DEBUG = True
 
 EMAIL_HOST ="smtp.gmail.com"
-EMAIL_PORT =587
+EMAIL_PORT =465
 EMAIL_HOST_USER ='ibrahimkvk94@gmail.com'
 EMAIL_HOST_PASSWORD="***KALDIRILDI***"
-EMAIL_USE_TLS =True
-EMAIL_USE_SSL = False
+EMAIL_USE_TLS = False
+EMAIL_USE_SSL = True
 SERVER_EMAIL = 'ibrahimkvk94@gmail.com'
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 # Application definition
