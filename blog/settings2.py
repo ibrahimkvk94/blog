@@ -77,6 +77,12 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'blog.wsgi.application'
 
+EMAIL_HOST ="smtp.gmail.com"
+EMAIL_PORT =587
+EMAIL_HOST_USER ='ibrahimkvk94@gmail.com'
+EMAIL_HOST_PASSWORD="0052521562k"
+EMAIL_USE_TLS =True
+EMAIL_USE_SSL = False
 
 # Database
 # https://docs.djangoproject.com/en/1.10/ref/settings/#databases
