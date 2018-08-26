@@ -30,8 +30,8 @@ EMAIL_HOST_USER ='ibrahimkvk94@gmail.com'
 EMAIL_HOST_PASSWORD="0052521562k"
 EMAIL_USE_TLS =True
 EMAIL_USE_SSL = False
-
-
+SERVER_EMAIL = 'ibrahimkvk94@gmail.com'
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 # Application definition
 
 INSTALLED_APPS = [
@@ -129,9 +129,9 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/1.10/howto/static-files/
 
 STATIC_URL = '/static/'
-#STATICFILES_DIRS = [
-#    os.path.join(BASE_DIR, "static"),
-#]
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, "static"),
+]
 
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
