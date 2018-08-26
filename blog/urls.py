@@ -12,6 +12,7 @@ urlpatterns = [
     url(r'^hakkimda/', hakkimda_view, name='hakkimda'),
     url(r'^post/', include('post.urls')),
     url(r'^abone/', views.abone_create),
+    url(r'^send/', views.mail_sender),
     url(r'^admin/', admin.site.urls),
     url(r'^dosyalar/', include('dosya.urls'), name='dosya'),
     url(r'^iletisim/', include('iletisim.urls'), name='iletisim'),
