@@ -79,14 +79,12 @@
 <br>
 						{% for comment in post.comments.all %}			
 							<div class="media">
-								
-									<span class="rounded-circle"><p style="font-color:white; font-size:14px;">K</p></span>
-									<div class="media-body">
+								<div class="media-body">
 									<h5 class="mt-0">&nbsp; {{ comment.name}} | {{comment.created_date|timesince}} önce</small></h5>
 									&nbsp;&nbsp; <p>{{ comment.content|linebreaks}}</p>
 								</div>
 								<hr>
-								<button class="btn btn-outline-success my-2 my-sm-0" type="submit" value="Beğen"></button>
+							
 							</div>
 							<hr>
 							<br>
