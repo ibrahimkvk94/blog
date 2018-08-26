@@ -14,7 +14,7 @@
 						<div class="b-grid-top">
 							<div class="blog_info_left_grid">
 								<a href="{%if post.kategori == 'video' %}{{ post.link|safe }}{% else %}{{post.get_absolute_url }}{%endif%}">
-									<img src="{{ post.image.url }}" class="img-fluid" alt="{{post.baslik}}">
+									<img src="{{ post.image.url }}" style="width:100%" class="img-fluid" alt="{{post.baslik}}">
 								</a>
 							</div>
 							<div class="blog-info-middle">
