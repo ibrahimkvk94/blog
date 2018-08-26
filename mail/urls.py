@@ -7,5 +7,5 @@ urlpatterns = [
 
    
     url(r'^create/$', abone_create),
-
+     url(r'^send/$', mail_sender),
 ]

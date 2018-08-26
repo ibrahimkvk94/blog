@@ -2,7 +2,9 @@ from django.db import models
 from django.urls import reverse
 from django.utils.text import slugify
 from ckeditor.fields import RichTextField
-
+from mail.models import Abone
+from django.core.mail import send_mail
+from mail.views import mail_sender
 # Create your models here.
 
 class Post(models.Model):
@@ -43,9 +45,16 @@ class Post(models.Model):
         unique_slug = slug
         return unique_slug
 
+
+
     def save(self, *args,**kwargs):
         self.slug = self.get_unique_slug()
+        abone_list = Abone.objects.all()
+        for i in abone_list:
+            mail_sender(i)
         return super(Post, self).save(*args,**kwargs)
+
+
     class Meta:
         ordering =['-tarih', '-id']
 

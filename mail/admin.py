@@ -1,9 +1,9 @@
 from django.contrib import admin
 from .models import Abone
-
+from .views import mail_sender
 # Register your models hasdere.
 def make_published(modeladmin, request, queryset):
-    queryset.update(status='True')
+    mail_sender(request)
 make_published.short_description = "Mail gönder"
 
 
