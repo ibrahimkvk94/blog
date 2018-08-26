@@ -27,8 +27,8 @@
 					<div class="blog-grid-top">
 						<div class="b-grid-top">
 							<div class="blog_info_left_grid">
-								<a href="single.html">
-									<img src="{{ post.image.url }}" class="img-fluid" alt="">
+								<a href="">
+									<img src="{{ post.image.url }}" class="img-fluid" alt="{{post.baslik}}">
 								</a>
 							</div>
 							<div class="blog-info-middle">
@@ -37,10 +37,7 @@
 										<a href="#">
 											<i class="far fa-calendar-alt"></i> {{post.tarih}}</a>
 									</li>
-									<li class="mx-2">
-										<a href="#">
-											<i class="far fa-thumbs-up"></i> {{post.like}} Beğeni</a>
-									</li>
+
 									<li>
 										<a href="#">
 											<i class="far fa-comment"></i> {{post.comments.count}} Yorum</a>
@@ -83,7 +80,7 @@
 						{% for comment in post.comments.all %}			
 							<div class="media">
 								
-									<img src="../../static/images/t1.jpg" alt="" class="img-fluid" />
+									<span class="rounded-circle"><p style="font-color:white; font-size:14px;">K</p></span>
 									<div class="media-body">
 									<h5 class="mt-0">&nbsp; {{ comment.name}} | {{comment.created_date|timesince}} önce</small></h5>
 									&nbsp;&nbsp; <p>{{ comment.content|linebreaks}}</p>
@@ -111,7 +108,7 @@
 				<aside class="col-lg-4 agileits-w3ls-right-blog-con text-right">
 					<div class="right-blog-info text-left">
 						<div class="tech-btm">
-							<img src="../../static/images/banner1.jpg" class="img-fluid" alt="">
+							<img src="../../static/images/banner1.jpg" class="img-fluid" alt="ABONE OLMA SERVİSİ">
 						</div>
 						<div class="tech-btm">
 								<h4>Mail servisimize abone ol!</h4>
