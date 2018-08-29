@@ -8,4 +8,6 @@ class Abone(models.Model):
     status = models.BooleanField(verbose_name="Durum", default="False")
     def __str__(self):
         return self.mail
+
+
         
