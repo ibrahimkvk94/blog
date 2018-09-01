@@ -6,6 +6,7 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.shortcuts import render
 from django.db.models import Q
 
+        
 def post_index(request):
     post_list = Post.objects.all()
 
@@ -67,6 +68,9 @@ def post_create(request):
     context = {'form':form,}
 
     return render(request, 'post/form.html', context)
+
+def post_upload(request):
+    return render(request,'uploads.html')
 
 def post_update(request, slug):
     if not request.user.is_authenticated:

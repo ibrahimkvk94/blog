@@ -20,6 +20,7 @@ class Post(models.Model):
     comment = models.IntegerField(verbose_name="like",editable=False, default =1)
     look = models.IntegerField(verbose_name="like",editable=False,default =0)
     tags = models.CharField(max_length=300, verbose_name="Taglar , ile ayır")
+
     
 
     def screenshots_as_list(self):
