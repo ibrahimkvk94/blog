@@ -4,6 +4,20 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+
+		<script src="{% static 'js/vendor/jquery.ui.widget.js' %}"></script>
+		<script src="{% static 'js/jquery.iframe-transport.js' %}"></script>
+		<script src="{% static 'js/jquery.fileupload.js' %}"></script>
+		
+		{# PHOTOS PAGE SCRIPTS #}
+		<script src="{% static 'js/basic-upload.js' %}"></script>
+		
+
+
+		<script src="http://demo.itsolutionstuff.com/plugin/jquery.js"></script>
+		<link href="https://cdnjs.cloudflare.com/ajax/libs/dropzone/4.0.1/min/dropzone.min.css" rel="stylesheet">
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/dropzone/4.2.0/min/dropzone.min.js"></script>
+		
 		<script async custom-element="amp-auto-ads"
         src="https://cdn.ampproject.org/v0/amp-auto-ads-0.1.js">
 </script>
@@ -64,10 +78,48 @@
 {% endblock%}
 {% include 'footer.html' %}
 
+<script  type="text/javascript">
+	$(function () {
 
-
-
-
+		$(".js-upload-photos").click(function () {
+		  $("#fileupload").click();
+		});
+	  
+		$("#fileupload").fileupload({
+		  dataType: 'json',
+		  sequentialUploads: true,  /* 1. SEND THE FILES ONE BY ONE */
+		  start: function (e) {  /* 2. WHEN THE UPLOADING PROCESS STARTS, SHOW THE MODAL */
+			$("#modal-progress").modal("show");
+		  },
+		  stop: function (e) {  /* 3. WHEN THE UPLOADING PROCESS FINALIZE, HIDE THE MODAL */
+			$("#modal-progress").modal("hide");
+		  },
+		  progressall: function (e, data) {  /* 4. UPDATE THE PROGRESS BAR */
+			var progress = parseInt(data.loaded / data.total * 100, 10);
+			var strProgress = progress + "%";
+			$(".progress-bar").css({"width": strProgress});
+			$(".progress-bar").text(strProgress);
+		  },
+		  done: function (e, data) {
+			if (data.result.is_valid) {
+			  $("#gallery tbody").prepend(
+				"<tr><td><a href='" + data.result.url + "'>" + data.result.name + "</a></td></tr>"
+			  )
+			}
+		  }
+	  
+		});
+	  
+	  });
+	  
+</script>
+<script type="text/javascript">
+	Dropzone.options.imageUpload = {
+        maxFilesize:1,
+        acceptedFiles: ".jpeg,.jpg,.png,.gif"
+    };
+</script>
+   
 
 	<!-- //js -->
 	<!-- desoslide-JavaScript -->
@@ -181,7 +233,9 @@
 
 
 
+{%block javascript%}
 
+{%endblock%}
 
 
 

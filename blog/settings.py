@@ -41,11 +41,15 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    # uygulamalar
     'dosya',
     'post',
     'iletisim',
     'home',
     'mail',
+    'photo',
+    'photos',
+    # includelar.
     'crispy_forms',
     'django_cleanup',
     'ckeditor',
@@ -133,7 +137,7 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR, "static"),
 ]
 
-STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+#STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 ALLOWED_HOSTS = ['ibrahimkavak.com','www.ibrahimkavak.com']
 
