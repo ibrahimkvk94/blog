@@ -29,6 +29,7 @@
           {% endif %}
         {% endwith %}
         <a href="{% url 'timetable:substitutions' school.pk %}" class="{% if nav == 'subs' %}active{% endif %}">{% include "timetable/icon.html" with name="swap" %} Vekâlet</a>
+        <a href="{% url 'timetable:duties' school.pk %}" class="{% if nav == 'duties' %}active{% endif %}">{% include "timetable/icon.html" with name="users" %} Nöbet çizelgesi</a>
       </nav>
       <div class="nav-section">Veri</div>
       <nav class="side-nav">

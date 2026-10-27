@@ -9,6 +9,7 @@ from .models import (
     CardRelationship,
     Classroom,
     Division,
+    DutyPlace,
     Group,
     Lesson,
     Period,
@@ -153,4 +154,8 @@ def create_demo_school(name="Örnek Anadolu Lisesi"):
         Availability.objects.create(
             school=school, teacher=teachers["HÖZ"], day=d, period=7, state=Availability.MAYBE
         )
+
+    # Nöbet yerleri: bahçede her gün iki, koridorda bir öğretmen.
+    DutyPlace.objects.create(school=school, name="Bahçe", teachers_per_day=2, order=0)
+    DutyPlace.objects.create(school=school, name="Koridor", teachers_per_day=1, order=1)
     return school

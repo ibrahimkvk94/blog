@@ -23,6 +23,9 @@ class School(models.Model):
         "hafta döngüsü", default=1, help_text="1 = her hafta aynı, 2 = A/B haftası"
     )
     terms_count = models.PositiveSmallIntegerField("dönem sayısı", default=1)
+    duties_per_teacher = models.PositiveSmallIntegerField(
+        "öğretmen başına haftalık nöbet", default=1, help_text="Nöbet dağıtımında öğretmen başına üst sınır (öğretmende ayrıca belirlenebilir)."
+    )
     active_timetable = models.ForeignKey(
         "Timetable",
         on_delete=models.SET_NULL,
@@ -638,3 +641,42 @@ class Substitution(models.Model):
 
     def __str__(self):
         return f"{self.absence} – {self.period + 1}. saat → {self.substitute or 'boş'}"
+
+
+class DutyPlace(models.Model):
+    """Nöbet yeri (aSc'de "room supervision" alanı): ör. Bahçe, 1. kat koridoru."""
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="duty_places")
+    name = models.CharField("ad", max_length=100)
+    teachers_per_day = models.PositiveSmallIntegerField("günlük nöbetçi sayısı", default=1)
+    days = models.JSONField("nöbet günleri", default=list, blank=True, help_text="Boş = okulun tüm günleri")
+    order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "id"]
+        verbose_name = "nöbet yeri"
+        verbose_name_plural = "nöbet yerleri"
+
+    def __str__(self):
+        return self.name
+
+    def active_days(self):
+        days = range(self.school.days_per_week)
+        return [d for d in days if not self.days or d in self.days]
+
+
+class Duty(models.Model):
+    """Bir öğretmenin bir günde bir nöbet yerindeki görevi."""
+
+    place = models.ForeignKey(DutyPlace, on_delete=models.CASCADE, related_name="duties")
+    day = models.PositiveSmallIntegerField("gün")
+    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, related_name="duties")
+
+    class Meta:
+        ordering = ["day", "place__order", "id"]
+        verbose_name = "nöbet"
+        verbose_name_plural = "nöbetler"
+        constraints = [models.UniqueConstraint(fields=["place", "day", "teacher"], name="unique_duty")]
+
+    def __str__(self):
+        return f"{self.teacher} – {self.place} ({DAY_NAMES[self.day]})"

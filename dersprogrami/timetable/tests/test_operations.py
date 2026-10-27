@@ -150,3 +150,30 @@ class OperationViewTests(TestCase):
         self.client.post(reverse("timetable:api_card_lock", args=[card.pk]))
         grid = self.client.get(reverse("timetable:api_grid", args=[self.timetable.pk])).json()
         self.assertIn("kilit", grid["history"]["undo"])
+
+
+class PrintOptionTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = build_school()
+        cls.timetable = generate_timetable(cls.school, "ilk", time_limit=10)
+        cls.user = User.objects.create_user("yazdir", password="parola-123456")
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def test_print_variants(self):
+        teacher = self.school.teachers.first()
+        SchoolClass.objects.filter(school=self.school, name="9-A").update(class_teacher=teacher)
+        url = reverse("timetable:print", args=[self.timetable.pk])
+        page = self.client.get(url + "?tur=sinif")
+        self.assertContains(page, f"Sınıf öğretmeni: {teacher.full_name}")
+        self.assertContains(page, "Matematik")
+        rows = self.client.get(url + "?tur=sinif&gunler=satir")
+        self.assertContains(rows, "<th class=\"p\">Pazartesi")
+        bare = self.client.get(url + "?tur=sinif&ayrinti=0&derslik=0")
+        self.assertNotContains(bare, "Derslik 9-A</span>")
+        summary = self.client.get(url + "?tur=sinif&ozet=1")
+        self.assertContains(summary, "özet çizelge")
+        self.assertContains(summary, "9-B")
+        self.assertEqual(self.client.get(url + "?tur=ogretmen&ozet=1").status_code, 200)

@@ -10,10 +10,10 @@ from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
-from . import analysis, asc_xml, editing, excel, jobs, substitutes
+from . import analysis, asc_xml, duty, editing, excel, jobs, substitutes
 from .demo import create_demo_school
 from .grid import KINDS, card_payload, grid_data, room_names
-from .models import Absence, Card, School, Teacher, Timetable
+from .models import Absence, Card, Duty, DutyPlace, School, Teacher, Timetable
 from .services import check_school, refresh_stale, repair_timetable, request_stop, start_generation
 
 KIND_LABELS = {"sinif": "Sınıflar", "ogretmen": "Öğretmenler", "derslik": "Derslikler"}
@@ -162,8 +162,14 @@ def publish(request, pk):
 def print_view(request, pk):
     timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
     kind = request.GET.get("tur", "sinif")
+    summary = request.GET.get("ozet") == "1"
     if kind not in KINDS:
         kind = "sinif"
+    options = {
+        "days_as_rows": request.GET.get("gunler") == "satir",
+        "show_detail": request.GET.get("ayrinti", "1") != "0",
+        "show_room": request.GET.get("derslik", "1") != "0",
+    }
     school = timetable.school
     periods = list(school.periods.all())
     names = room_names(school)
@@ -173,21 +179,58 @@ def print_view(request, pk):
         .select_related("lesson__subject", "classroom")
         .prefetch_related("lesson__classes", "lesson__teachers", "lesson__groups")
     ]
+    objects = list(getattr(school, KINDS[kind]).all())
+    if kind == "sinif":
+        objects = list(school.classes.select_related("class_teacher", "home_classroom"))
+
+    def at(mine, d, p):
+        return [c for c in mine if c["day"] == d and c["period"] <= p < c["period"] + c["length"]]
+
     pages = []
-    for obj in getattr(school, KINDS[kind]).all():
+    for obj in objects:
         mine = [c for c in cards if obj.id in c["rows"]]
-        rows = [
-            {
-                "period": period,
-                "cells": [
-                    [c for c in mine if c["day"] == d and c["period"] <= period.index < c["period"] + c["length"]]
-                    for d in range(school.days_per_week)
-                ],
-            }
-            for period in periods
-        ]
-        title = f"{obj.first_name} {obj.last_name}" if kind == "ogretmen" else str(obj)
-        pages.append({"title": title, "rows": rows})
+        if options["days_as_rows"]:
+            rows = [{"head": day, "sub": "", "cells": [at(mine, d, p.index) for p in periods]} for d, day in enumerate(school.day_names)]
+        else:
+            rows = [
+                {
+                    "head": f"{period.index + 1}.",
+                    "sub": f"{period.start_time:%H:%M}–{period.end_time:%H:%M}" if period.start_time and period.end_time else "",
+                    "cells": [at(mine, d, period.index) for d in range(school.days_per_week)],
+                }
+                for period in periods
+            ]
+        info = []
+        if kind == "ogretmen":
+            title = f"{obj.first_name} {obj.last_name}"
+            info.append(f"Haftalık {sum(c['length'] for c in mine)} saat")
+        else:
+            title = (obj.short or obj.name) if kind == "sinif" else str(obj)
+            if kind == "sinif":
+                if obj.short and obj.short != obj.name:
+                    info.append(obj.name)
+                if obj.class_teacher:
+                    info.append(f"Sınıf öğretmeni: {obj.class_teacher.full_name}")
+                if obj.home_classroom:
+                    info.append(f"Derslik: {obj.home_classroom}")
+        pages.append({"title": title, "info": info, "rows": rows})
+
+    columns = [p for p in periods] if options["days_as_rows"] else school.day_names
+    overview = None
+    if summary:
+        overview = []
+        for obj, page in zip(objects, pages):
+            mine = [c for c in cards if obj.id in c["rows"]]
+            cells = []
+            for d in range(school.days_per_week):
+                p = 0
+                while p < len(periods):
+                    starting = [c for c in mine if c["day"] == d and c["period"] == p]
+                    span = max((c["length"] for c in starting), default=1)
+                    covered = at(mine, d, p)
+                    cells.append({"cards": starting or ([] if not covered else covered), "span": span, "day_start": p == 0})
+                    p += span
+            overview.append({"title": page["title"], "cells": cells})
     return render(
         request,
         "timetable/print.html",
@@ -195,9 +238,14 @@ def print_view(request, pk):
             "timetable": timetable,
             "school": school,
             "pages": pages,
+            "overview": overview,
             "kind": kind,
             "kind_label": KIND_LABELS[kind],
             "days": school.day_names,
+            "periods": periods,
+            "columns": columns,
+            "options": options,
+            "summary": summary,
         },
     )
 
@@ -259,6 +307,71 @@ def substitutions(request, pk):
             day_name=school.day_names[date.weekday()] if weekday_ok else "",
         ),
     )
+
+
+# --- nöbet çizelgesi ---------------------------------------------------------------------------
+
+
+def _int_or(value, default):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def duties(request, pk):
+    school = get_object_or_404(School, pk=pk)
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "add_place":
+            name = (request.POST.get("name") or "").strip()
+            if name:
+                DutyPlace.objects.create(
+                    school=school, name=name[:100], teachers_per_day=max(1, _int_or(request.POST.get("teachers_per_day"), 1)),
+                    order=school.duty_places.count(),
+                )
+                messages.success(request, f"Nöbet yeri eklendi: {name}")
+        elif action == "update_place":
+            place = get_object_or_404(DutyPlace, pk=request.POST.get("place"), school=school)
+            place.name = (request.POST.get("name") or place.name).strip()[:100]
+            place.teachers_per_day = max(1, _int_or(request.POST.get("teachers_per_day"), place.teachers_per_day))
+            days = sorted({d for d in (_int_or(x, -1) for x in request.POST.getlist("days")) if 0 <= d < school.days_per_week})
+            if not days:
+                messages.error(request, "Nöbet yeri için en az bir gün seçin.")
+            else:
+                place.days = [] if len(days) == school.days_per_week else days
+                place.save()
+                Duty.objects.filter(place=place).exclude(day__in=days).delete()
+                messages.success(request, f"{place.name} güncellendi.")
+        elif action == "delete_place":
+            DutyPlace.objects.filter(pk=request.POST.get("place"), school=school).delete()
+        elif action == "settings":
+            school.duties_per_teacher = max(0, _int_or(request.POST.get("duties_per_teacher"), school.duties_per_teacher))
+            school.save(update_fields=["duties_per_teacher"])
+            messages.success(request, "Nöbet ayarı kaydedildi.")
+        elif action == "generate":
+            result = duty.generate(school)
+            (messages.success if result["ok"] else messages.error)(request, result["message"])
+        elif action == "clear":
+            Duty.objects.filter(place__school=school).delete()
+            messages.info(request, "Tüm nöbetler silindi.")
+        elif action == "set":
+            place = get_object_or_404(DutyPlace, pk=request.POST.get("place"), school=school)
+            day = _int_or(request.POST.get("day"), -1)
+            if 0 <= day < school.days_per_week:
+                ids = {_int_or(x, None) for x in request.POST.getlist("teachers")} - {None}
+                valid = set(school.teachers.filter(pk__in=ids).values_list("pk", flat=True))
+                Duty.objects.filter(place=place, day=day).exclude(teacher_id__in=valid).delete()
+                existing = set(Duty.objects.filter(place=place, day=day).values_list("teacher_id", flat=True))
+                Duty.objects.bulk_create(Duty(place=place, day=day, teacher_id=t) for t in valid - existing)
+        return redirect("timetable:duties", pk=school.pk)
+    data = duty.roster(school)
+    return render(request, "timetable/duties.html", _nav(school, "duties", **data, teachers_all=list(school.teachers.all())))
+
+
+def duties_print(request, pk):
+    school = get_object_or_404(School, pk=pk)
+    return render(request, "timetable/duties_print.html", {"school": school, **duty.roster(school)})
 
 
 # --- JSON API ----------------------------------------------------------------------------------

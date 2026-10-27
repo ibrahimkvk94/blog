@@ -1,0 +1,111 @@
+{% extends "timetable/base.html" %}
+{% block title %}Nöbet çizelgesi{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_list' %}">Okullar</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
+{% block heading %}<h1>Nöbet çizelgesi</h1>{% endblock %}
+{% block actions %}
+  {% if rows %}
+    <form method="post" data-confirm="Mevcut nöbetler silinip yeniden dağıtılsın mı?">{% csrf_token %}<input type="hidden" name="action" value="generate">
+      <button class="btn btn-primary">{% include "timetable/icon.html" with name="wand" %} Otomatik dağıt</button></form>
+    <a class="btn" href="{% url 'timetable:duties_print' school.pk %}" target="_blank">{% include "timetable/icon.html" with name="printer" %} Yazdır</a>
+  {% endif %}
+{% endblock %}
+{% block content %}
+{% if not timetable %}
+  <div class="alert alert-warning">Henüz üretilmiş program yok. Nöbetler yine dağıtılabilir, ancak öğretmenlerin derse geldiği günler bilinmediği için gün tercihi yapılamaz.</div>
+{% else %}
+  <p class="muted small" style="margin-top:0">Dağıtım “{{ timetable.name }}” programına göre yapılır: öğretmen derse geldiği, tercihen dersi çok olan güne yazılır; nöbetler eşit dağıtılır, tamamen kapalı günlere ve muaf öğretmenlere nöbet verilmez.</p>
+{% endif %}
+{% if warnings %}
+  <div class="alert alert-warning"><b>Dikkat:</b><ul style="margin:6px 0 0 18px;padding:0">{% for w in warnings %}<li>{{ w }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+{% if rows %}
+<div class="panel" style="margin-bottom:18px">
+  <div class="panel-head"><h2>Çizelge</h2><span class="subtle small">Hücreye tıklayıp nöbetçileri elle değiştirebilirsiniz</span></div>
+  <div class="panel-body flush table-wrap">
+    <table class="table duty-table">
+      <thead><tr><th>Nöbet yeri</th>{% for d in days %}<th>{{ d }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <th><b>{{ row.place.name }}</b><div class="subtle small">günde {{ row.place.teachers_per_day }} öğretmen</div></th>
+            {% for cell in row.cells %}
+              <td class="{% if not cell.active %}off{% elif cell.missing %}missing{% endif %}">
+                {% if cell.active %}
+                  <details class="duty-cell">
+                    <summary>
+                      {% for d in cell.duties %}<span class="duty-chip">{{ d.teacher.full_name }}</span>{% empty %}<span class="subtle">boş</span>{% endfor %}
+                      {% if cell.missing and cell.duties %}<span class="subtle small">+{{ cell.missing }} eksik</span>{% endif %}
+                    </summary>
+                    <form method="post">{% csrf_token %}
+                      <input type="hidden" name="action" value="set"><input type="hidden" name="place" value="{{ row.place.pk }}"><input type="hidden" name="day" value="{{ cell.day }}">
+                      <select class="select" name="teachers" multiple size="8">
+                        {% for t in teachers_all %}<option value="{{ t.pk }}"{% for d in cell.duties %}{% if d.teacher_id == t.pk %} selected{% endif %}{% endfor %}>{{ t.full_name }}{% if t.duty_exempt %} (muaf){% endif %}</option>{% endfor %}
+                      </select>
+                      <div class="subtle small" style="margin:4px 0">Ctrl ile birden çok seçin.</div>
+                      <button class="btn btn-sm btn-primary">Kaydet</button>
+                    </form>
+                  </details>
+                {% else %}<span class="subtle small">nöbet yok</span>{% endif %}
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="grid-2">
+  <div class="panel">
+    <div class="panel-head"><h2>Öğretmenlerin nöbetleri</h2>
+      <form method="post" style="display:flex;gap:6px;align-items:center">{% csrf_token %}<input type="hidden" name="action" value="settings">
+        <label class="subtle small" for="dpt">Öğretmen başına haftada</label>
+        <input class="input" id="dpt" type="number" min="0" max="7" name="duties_per_teacher" value="{{ school.duties_per_teacher }}" style="width:64px;height:32px">
+        <button class="btn btn-sm">Kaydet</button></form>
+    </div>
+    <div class="panel-body flush table-wrap">
+      <table class="table stats-table">
+        <thead><tr><th>Öğretmen</th><th class="num">Nöbet</th>{% for d in days %}<th class="num" title="{{ d }} günü ders saati">{{ d|slice:":3" }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for r in teachers %}
+            <tr>
+              <td><a href="{% url 'timetable:data_edit' school.pk 'ogretmenler' r.teacher.pk %}">{{ r.teacher.full_name }}</a></td>
+              <td class="num">{% if r.exempt %}<span class="pill">muaf</span>{% else %}<span class="pill {% if r.count > r.limit %}failed{% elif r.count == r.limit %}ok{% endif %}">{{ r.count }} / {{ r.limit }}</span>{% endif %}</td>
+              {% for h in r.lesson_days %}<td class="num{% if not h %} subtle{% endif %}">{{ h|default:"–" }}</td>{% endfor %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><h2>Nöbet yerleri</h2></div>
+    <div class="panel-body">
+      {% for row in rows %}
+        <form method="post" class="duty-place">{% csrf_token %}<input type="hidden" name="place" value="{{ row.place.pk }}">
+          <div class="dialog-row">
+            <input class="input" name="name" value="{{ row.place.name }}" aria-label="Ad">
+            <input class="input" type="number" min="1" max="20" name="teachers_per_day" value="{{ row.place.teachers_per_day }}" style="width:70px" title="Günlük nöbetçi sayısı">
+          </div>
+          <div class="chips-field" data-chips><div class="chip-list">
+            {% for cell in row.cells %}<label class="chip-opt"><input type="checkbox" name="days" value="{{ cell.day }}"{% if cell.active %} checked{% endif %}> {{ cell.name }}</label>{% endfor %}
+          </div></div>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <button class="btn btn-sm" name="action" value="update_place">Kaydet</button>
+            <button class="btn btn-sm btn-ghost" name="action" value="delete_place" onclick="return confirm('Nöbet yeri ve nöbetleri silinsin mi?')">Sil</button>
+          </div>
+        </form>
+      {% endfor %}
+      <form method="post" class="dialog-row" style="margin-top:12px">{% csrf_token %}<input type="hidden" name="action" value="add_place">
+        <input class="input" name="name" placeholder="ör. Bahçe, 1. kat koridoru" required>
+        <input class="input" type="number" min="1" max="20" name="teachers_per_day" value="1" style="width:70px" title="Günlük nöbetçi sayısı">
+        <button class="btn btn-primary">{% include "timetable/icon.html" with name="plus" %} Ekle</button>
+      </form>
+      <p class="subtle small" style="margin-bottom:0">Öğretmenin nöbetten muafiyeti ve kişisel haftalık sınırı öğretmen formunda girilir. Vekâlet önerilerinde o gün nöbetçi olan öğretmenler önceliklidir.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}{% load static %}<script src="{% static 'timetable/data.js' %}"></script>{% endblock %}

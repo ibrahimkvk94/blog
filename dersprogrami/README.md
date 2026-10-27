@@ -60,13 +60,16 @@ Testler: `python manage.py test timetable`
 | **Excel aktarımı** | Okul verisini beş sayfalı Excel olarak indirme (şablon olarak da kullanılır) ve geri yükleme; adlara göre ekleme/güncelleme, hatada hiçbir değişiklik kaydedilmez |
 | **Sınıf ders tablosu** | Bir sınıfın tek öğretmenli derslerini tek tabloda saat, blok, öğretmen ve derslik seçerek girme; başka sınıftan saatleri kopyalama; toplam saat / kapasite göstergesi |
 | **Genel bakış** | Okul özeti, veri denetimi, program sürümleri, yeni üretim (katı/gevşek mod, süre, başlangıç sürümü) |
-| **Ana görünüm** | Satırlarda sınıflar / öğretmenler / derslikler, sütunlarda gün × saat. Başlık ve satır adları sabit, tüm ızgara yatay ve dikey kaydırılır. Satır arama, üç yakınlaştırma düzeyi |
+| **Ana görünüm** | Satırlarda sınıflar / öğretmenler / derslikler, sütunlarda gün × saat. Başlık ve satır adları sabit, tüm ızgara yatay ve dikey kaydırılır. Satır arama; “Haftayı sığdır” (tüm hafta ekran genişliğinde) ve S/M/L yakınlaştırma; gizlenebilen sol menü ve tam ekran |
+| **Program işlemleri** | Geri al / yinele (Ctrl+Z / Ctrl+Y); iki günü ya da iki ders saatini yer değiştirme; tümünü kilitle / kilitleri aç; kilitsiz kartları çıkarma; başka sürümle karşılaştırma (değişen kartlar vurgulanır ve listelenir); istatistik sayfası (öğretmen/sınıf boşlukları, günlük saatler, derslik doluluğu) |
+| **Nöbet çizelgesi** | Nöbet yerleri ve günlük nöbetçi sayısı; öğretmenin derse geldiği ve dersi çok olan güne, eşit sayıda ve muafiyet/müsaitliğe uyarak otomatik dağıtım; elle düzeltme; yazdırma. Vekâlet önerisinde o gün nöbetçi olanlar önceliklidir |
 | **Kart düzenleme** | Kart sürüklenir ya da tıklanıp hedef hücreye tıklanır. Seçili kart için her hücre renklenir: uygun / uyarılı / çakışmalı (çakışan kartlar bekleyenlere düşer) / uygun değil. Kilitleme, programdan çıkarma, "Bekleyenleri yerleştir" |
 | **Üretim ekranı** | Arka planda çalışan üretimin canlı ilerlemesi (süre, bulunan çözüm, en iyi ceza) ve "Durdur ve en iyisini al" |
 | **Doğrulama** | Programın sert/yumuşak kural ihlalleri; her düzenlemeden sonra güncellenir |
 | **Vekâlet** | Tarihe göre devamsızlık girişi, her ders saati için sıralı vekil önerisi, kaydetme ve yazdırma |
-| **Dışa aktarma** | Excel (sınıf/öğretmen/derslik genel görünümleri + kart listesi), aSc TimeTables XML, sınıf ve öğretmen bazlı yazdırılabilir / PDF sayfalar |
-| **İçe aktarma** | aSc TimeTables XML dosyasından okul verisi ve yerleşmiş kartlar |
+| **Dışa aktarma** | Excel (sınıf/öğretmen/derslik genel görünümleri + kart listesi), aSc TimeTables XML, sınıf/öğretmen/derslik bazlı yazdırılabilir / PDF sayfalar (günler satırda ya da sütunda, ayrıntı/derslik seçimi, sınıf öğretmeni başlıkta) ve tek sayfalık özet çizelge |
+| **İçe aktarma** | aSc TimeTables XML (2012 ve sonrası) dosyasından okul verisi ve yerleşmiş kartlar: sınıf kısa adları, sınıf öğretmeni, gruplar, gün kısıtları; kartlarda paylaşılan derslikler (spor salonu) otomatik algılanır |
+| **Veri özellikleri (aSc)** | Kart dağılımı (2+2+1), sınıfsız ders (zümre toplantısı), ders adı / öğretmen varsayılan derslikleri, aynı anda birden çok derslik isteyen ders, aynı anda birden çok ders alan derslik, okul geneli kapalı saatler, öğretmen branşı ve hedef ders yükü, sınıf öğretmeni, bölünmeleri kopyalama, danışman uyarıları (grupların saat/uzunluk farkı, dersliksiz dersler, kapalı saatler) |
 
 ## Kavramlar
 

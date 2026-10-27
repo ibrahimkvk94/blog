@@ -8,10 +8,11 @@ müsaitliği "yasak" olmayan öğretmendir. Sıralama:
 
 from collections import defaultdict
 
-from .models import Availability, Substitution
+from .models import Availability, Duty, Substitution
 
 SCORE_SAME_SUBJECT = 100
 SCORE_KNOWS_CLASS = 40
+SCORE_ON_DUTY = 25
 SCORE_IN_GAP = 30
 SCORE_AT_SCHOOL = 10
 SCORE_PER_LOAD = 5
@@ -51,6 +52,9 @@ def day_plan(school, timetable, date):
         )
     )
 
+    on_duty = set(
+        Duty.objects.filter(place__school=school, day=weekday).values_list("teacher_id", flat=True)
+    )
     subject_teachers = defaultdict(set)
     class_teachers = defaultdict(set)
     for teacher in teachers:
@@ -86,6 +90,9 @@ def day_plan(school, timetable, date):
                     if any(teacher.id in class_teachers[c] for c in class_ids):
                         score += SCORE_KNOWS_CLASS
                         reasons.append("sınıfa giriyor")
+                    if teacher.id in on_duty:
+                        score += SCORE_ON_DUTY
+                        reasons.append("bugün nöbetçi")
                     if own and min(own) < period < max(own):
                         score += SCORE_IN_GAP
                         reasons.append("boş saatinde")

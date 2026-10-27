@@ -29,6 +29,8 @@
         <a href="{% url 'timetable:print' timetable.pk %}?tur=sinif" target="_blank">{% include "timetable/icon.html" with name="printer" %} Yazdır / PDF – sınıflar</a>
         <a href="{% url 'timetable:print' timetable.pk %}?tur=ogretmen" target="_blank">{% include "timetable/icon.html" with name="printer" %} Yazdır / PDF – öğretmenler</a>
         <a href="{% url 'timetable:print' timetable.pk %}?tur=derslik" target="_blank">{% include "timetable/icon.html" with name="printer" %} Yazdır / PDF – derslikler</a>
+        <a href="{% url 'timetable:print' timetable.pk %}?tur=sinif&ozet=1" target="_blank">{% include "timetable/icon.html" with name="printer" %} Özet çizelge – tüm sınıflar</a>
+        <a href="{% url 'timetable:print' timetable.pk %}?tur=ogretmen&ozet=1" target="_blank">{% include "timetable/icon.html" with name="printer" %} Özet çizelge – tüm öğretmenler</a>
       </div>
     </div>
     {% if timetable.pk != school.active_timetable_id %}

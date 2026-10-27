@@ -7,38 +7,89 @@
   @page { size: A4 landscape; margin: 12mm; }
   * { box-sizing: border-box; }
   body { font: 11px/1.35 "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1c2230; margin: 0; background: #eef0f4; }
-  .bar { position: sticky; top: 0; background: #141a2a; color: #fff; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+  .bar { position: sticky; top: 0; z-index: 5; background: #141a2a; color: #fff; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .bar form { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 12.5px; }
+  .bar select { font: inherit; padding: 4px 6px; border-radius: 6px; border: 0; }
+  .bar label { display: inline-flex; gap: 5px; align-items: center; }
   .bar button { background: #4f46e5; color: #fff; border: 0; border-radius: 7px; padding: 8px 14px; font: 600 13px inherit; cursor: pointer; }
   .page { background: #fff; width: 277mm; min-height: 180mm; margin: 16px auto; padding: 10mm 12mm; box-shadow: 0 2px 10px rgba(0,0,0,.08); page-break-after: always; }
   .page:last-child { page-break-after: auto; }
-  header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #1c2230; padding-bottom: 6px; margin-bottom: 10px; }
+  .page.wide { width: auto; max-width: none; margin: 16px; min-height: 0; }
+  header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #1c2230; padding-bottom: 6px; margin-bottom: 10px; gap: 20px; }
   header h1 { font-size: 22px; margin: 0; }
+  header .info { color: #3b4352; font-size: 12px; margin-top: 2px; }
   header .meta { color: #5b6474; text-align: right; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   th, td { border: 1px solid #cfd4dd; padding: 4px; vertical-align: top; }
   th { background: #f4f5f8; font-size: 11.5px; }
-  th.p { width: 64px; text-align: left; }
+  th.p { width: 72px; text-align: left; }
+  th.p span { font-weight: 400; color: #5b6474; }
   td { height: 46px; }
   .c { border-radius: 4px; padding: 3px 5px; margin-bottom: 2px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .c b { display: block; font-size: 11.5px; }
   .c span { color: #444; font-size: 10px; }
+  .overview th, .overview td { padding: 1px 2px; font-size: 9px; height: auto; text-align: center; vertical-align: middle; }
+  .overview th.row { text-align: left; width: 70px; font-size: 10px; }
+  .overview .ds { border-left: 2px solid #1c2230; }
+  .overview .c { margin: 0; padding: 1px 2px; border-radius: 2px; font-weight: 700; white-space: nowrap; overflow: hidden; }
   footer { margin-top: 8px; color: #8a93a3; font-size: 9.5px; display: flex; justify-content: space-between; }
   @media print { body { background: #fff; } .bar { display: none; } .page { box-shadow: none; margin: 0; width: auto; min-height: 0; padding: 0; } }
 </style>
 </head>
 <body>
-<div class="bar"><span>{{ school }} · {{ timetable.name }} · {{ kind_label }} ({{ pages|length }} sayfa)</span><button onclick="window.print()">Yazdır / PDF olarak kaydet</button></div>
+<div class="bar">
+  <span>{{ school }} · {{ timetable.name }} · {{ kind_label }}{% if summary %} (özet){% else %} ({{ pages|length }} sayfa){% endif %}</span>
+  <form method="get">
+    <select name="tur" onchange="this.form.submit()">
+      <option value="sinif"{% if kind == "sinif" %} selected{% endif %}>Sınıflar</option>
+      <option value="ogretmen"{% if kind == "ogretmen" %} selected{% endif %}>Öğretmenler</option>
+      <option value="derslik"{% if kind == "derslik" %} selected{% endif %}>Derslikler</option>
+    </select>
+    <select name="ozet" onchange="this.form.submit()">
+      <option value="0">Her biri ayrı sayfa</option>
+      <option value="1"{% if summary %} selected{% endif %}>Özet çizelge (tek sayfa)</option>
+    </select>
+    {% if not summary %}
+      <select name="gunler" onchange="this.form.submit()">
+        <option value="sutun">Günler sütunda</option>
+        <option value="satir"{% if options.days_as_rows %} selected{% endif %}>Günler satırda</option>
+      </select>
+      <label><input type="checkbox" name="ayrinti" value="0" onchange="this.form.submit()"{% if not options.show_detail %} checked{% endif %}> Öğretmen/sınıf yazma</label>
+      <label><input type="checkbox" name="derslik" value="0" onchange="this.form.submit()"{% if not options.show_room %} checked{% endif %}> Derslik yazma</label>
+    {% endif %}
+  </form>
+  <button onclick="window.print()">Yazdır / PDF olarak kaydet</button>
+</div>
+{% if summary %}
+  <section class="page wide">
+    <header><div><h1>{{ kind_label }} – özet çizelge</h1></div><div class="meta">{{ school }}<br>{{ timetable.name }}</div></header>
+    <table class="overview">
+      <thead>
+        <tr><th class="row"></th>{% for d in days %}<th colspan="{{ periods|length }}" class="ds">{{ d }}</th>{% endfor %}</tr>
+        <tr><th class="row"></th>{% for d in days %}{% for p in periods %}<th class="{% if forloop.first %}ds{% endif %}">{{ p.index|add:1 }}</th>{% endfor %}{% endfor %}</tr>
+      </thead>
+      <tbody>
+        {% for row in overview %}
+          <tr><th class="row">{{ row.title }}</th>
+            {% for cell in row.cells %}<td colspan="{{ cell.span }}" class="{% if cell.day_start %}ds{% endif %}">{% for c in cell.cards %}<div class="c" style="background:{{ c.color }}" title="{{ c.title }}">{{ c.subject }}</div>{% endfor %}</td>{% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <footer><span>Ders Programı</span><span>{% now "d.m.Y" %}</span></footer>
+  </section>
+{% else %}
 {% for page in pages %}
   <section class="page">
-    <header><h1>{{ page.title }}</h1><div class="meta">{{ school }}<br>{{ timetable.name }}</div></header>
+    <header><div><h1>{{ page.title }}</h1>{% if page.info %}<div class="info">{{ page.info|join:" · " }}</div>{% endif %}</div><div class="meta">{{ school }}<br>{{ timetable.name }}</div></header>
     <table>
-      <thead><tr><th class="p">Saat</th>{% for d in days %}<th>{{ d }}</th>{% endfor %}</tr></thead>
+      <thead><tr><th class="p">{% if options.days_as_rows %}Gün{% else %}Saat{% endif %}</th>{% for col in columns %}<th>{% if options.days_as_rows %}{{ col.index|add:1 }}.<br><span style="font-weight:400;color:#5b6474">{{ col.start_time|time:"H:i" }}</span>{% else %}{{ col }}{% endif %}</th>{% endfor %}</tr></thead>
       <tbody>
         {% for row in page.rows %}
           <tr>
-            <th class="p">{{ row.period.index|add:1 }}.<br><span style="font-weight:400;color:#5b6474">{{ row.period.start_time|time:"H:i" }}–{{ row.period.end_time|time:"H:i" }}</span></th>
+            <th class="p">{{ row.head }}{% if row.sub %}<br><span>{{ row.sub }}</span>{% endif %}</th>
             {% for cell in row.cells %}
-              <td>{% for c in cell %}<div class="c" style="background:{{ c.color }}"><b>{{ c.subject_name }}</b><span>{% if kind == "sinif" %}{{ c.teachers }}{% if c.groups %} · {{ c.groups }}{% endif %}{% else %}{{ c.classes }}{% if c.groups %} · {{ c.groups }}{% endif %}{% endif %}{% if c.room and kind != "derslik" %} · {{ c.room }}{% endif %}</span></div>{% endfor %}</td>
+              <td>{% for c in cell %}<div class="c" style="background:{{ c.color }}"><b>{{ c.subject_name }}</b>{% if options.show_detail or options.show_room %}<span>{% if options.show_detail %}{% if kind == "sinif" %}{{ c.teachers }}{% else %}{{ c.classes }}{% endif %}{% if c.groups %} · {{ c.groups }}{% endif %}{% endif %}{% if options.show_room and c.room and kind != "derslik" %}{% if options.show_detail %} · {% endif %}{{ c.room }}{% endif %}</span>{% endif %}</div>{% endfor %}</td>
             {% endfor %}
           </tr>
         {% endfor %}
@@ -47,5 +98,6 @@
     <footer><span>Ders Programı</span><span>{% now "d.m.Y" %}</span></footer>
   </section>
 {% endfor %}
+{% endif %}
 </body>
 </html>

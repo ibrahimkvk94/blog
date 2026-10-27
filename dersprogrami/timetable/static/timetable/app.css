@@ -417,3 +417,15 @@ html.focus-mode .shell { grid-template-columns: minmax(0, 1fr); }
 html.focus-mode .content { padding: 10px 12px 12px; }
 html.focus-mode .tt-toolbar { margin-bottom: 8px; }
 html.focus-mode .tt-scroll { max-height: calc(100vh - 110px); }
+
+.duty-table th:first-child { width: 190px; }
+.duty-table td { vertical-align: top; min-width: 140px; }
+.duty-table td.off { background: repeating-linear-gradient(135deg, #f6f7f9 0 5px, #fff 5px 10px); }
+.duty-table td.missing { background: var(--warning-soft); }
+.duty-cell summary { cursor: pointer; list-style: none; display: flex; flex-wrap: wrap; gap: 4px; }
+.duty-cell summary::-webkit-details-marker { display: none; }
+.duty-cell[open] summary { margin-bottom: 8px; }
+.duty-cell select { min-width: 180px; }
+.duty-chip { background: var(--primary-soft); color: var(--primary-2); border-radius: 99px; padding: 2px 9px; font-size: 12.5px; font-weight: 600; }
+.duty-place { padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--border); }
+.duty-place .chip-list { margin-top: 8px; }
