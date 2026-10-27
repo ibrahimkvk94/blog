@@ -1,8 +1,8 @@
 {% extends "timetable/base.html" %}
 {% load static %}
-{% block title %}{% if creating %}Yeni okul{% else %}Okul ve ders saatleri{% endif %}{% endblock %}
-{% block crumbs %}{% if creating %}<a href="{% url 'timetable:school_list' %}">Okullar</a>{% else %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / Veri{% endif %}{% endblock %}
-{% block heading %}<h1>{% if creating %}Yeni okul{% else %}Okul ve ders saatleri{% endif %}</h1>{% endblock %}
+{% block title %}{% if creating %}Yeni okul{% else %}Program ayarları ve ders saatleri{% endif %}{% endblock %}
+{% block crumbs %}{% if creating %}<a href="{% url 'timetable:school_list' %}">Kurumlarım</a>{% else %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / Veri{% endif %}{% endblock %}
+{% block heading %}<h1>{% if creating %}Yeni okul{% else %}Program ayarları ve ders saatleri{% endif %}</h1>{% endblock %}
 {% block content %}
 {% if not creating %}{% include "timetable/data/subnav.html" %}{% endif %}
 <form method="post" class="data-form">
@@ -10,7 +10,7 @@
   {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors|join:" " }}</div>{% endif %}
   <div class="grid-2">
     <div class="panel">
-      <div class="panel-head"><h2>Okul</h2></div>
+      <div class="panel-head"><h2>Program</h2></div>
       <div class="panel-body">
         {% for field in form %}{% include "timetable/data/field.html" %}{% endfor %}
         {% if creating %}<p class="muted small" style="margin-bottom:0">Okul 08:30'da başlayan, 40 dakikalık 8 ders saatiyle oluşturulur; sonraki adımda saatleri değiştirebilirsiniz.</p>{% endif %}
@@ -46,5 +46,12 @@
   {% if availability %}<div style="margin-top:18px">{% include "timetable/data/availability.html" %}</div>{% endif %}
   <div class="form-actions"><div><button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} {% if creating %}Okulu oluştur{% else %}Kaydet{% endif %}</button></div></div>
 </form>
+{% if not creating and can.programlar %}
+  <form method="post" action="{% url 'timetable:program_delete' school.pk %}" class="danger-zone" onsubmit="return confirm('Program, tüm verisi ve sürümleriyle silinsin mi?')">
+    {% csrf_token %}
+    <div><b>Programı sil</b><div class="subtle small">Sınıflar, öğretmenler, dersler ve tüm sürümler silinir. Onay için program adını yazın.</div></div>
+    <div class="dialog-row"><input class="input" name="confirm" placeholder="{{ school.name }}" required><button class="btn btn-danger">Sil</button></div>
+  </form>
+{% endif %}
 {% endblock %}
 {% block scripts %}<script src="{% static 'timetable/data.js' %}"></script>{% endblock %}

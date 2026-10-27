@@ -1,44 +1,38 @@
 {% extends "timetable/base.html" %}
-{% block title %}Okullar{% endblock %}
-{% block heading %}<h1>Okullar</h1>{% endblock %}
+{% block title %}Kurumlarım{% endblock %}
+{% block heading %}<h1>Kurumlarım</h1>{% endblock %}
 {% block actions %}
   {% if user.is_superuser %}
   <a class="btn" href="{% url 'timetable:central' %}">{% include "timetable/icon.html" with name="users" %} Merkez paneli</a>
   <form method="post" action="{% url 'timetable:create_demo' %}">{% csrf_token %}
     <button class="btn">{% include "timetable/icon.html" with name="plus" %} Örnek okul oluştur</button>
   </form>
-  <a class="btn btn-primary" href="{% url 'timetable:school_create' %}">{% include "timetable/icon.html" with name="plus" %} Yeni okul</a>
   {% endif %}
 {% endblock %}
 {% block content %}
 <div class="stack">
-  {% if schools %}
-    <div class="school-cards">
-      {% for s in schools %}
-        <a class="panel school-card" href="{% url 'timetable:school_detail' s.pk %}">
-          <h2>{{ s }}</h2>
-          <div class="meta">
-            <span>{{ s.n_classes }} sınıf</span><span>{{ s.n_teachers }} öğretmen</span><span>{{ s.n_timetables }} program</span>
-          </div>
-        </a>
-      {% endfor %}
-    </div>
-  {% else %}
-    <div class="panel"><div class="empty">{% if user.is_superuser %}Henüz okul yok. Örnek bir okul oluşturabilir, yeni okul ekleyebilir ya da aSc TimeTables XML dosyası içe aktarabilirsiniz.{% else %}Henüz size atanmış bir okul yok. Okul yöneticinizden ya da merkezden yetki isteyin.{% endif %}</div></div>
-  {% endif %}
-
-  {% if user.is_superuser %}
-  <div class="panel" style="max-width:640px">
-    <div class="panel-head"><h2>aSc TimeTables'tan içe aktar</h2></div>
-    <form class="panel-body" method="post" enctype="multipart/form-data" action="{% url 'timetable:import_asc' %}">
-      {% csrf_token %}
-      <p class="muted small" style="margin-top:0">aSc'de <i>Dosya → Dışa aktar → aSc TimeTables XML</i> ile alınan dosyayı yükleyin. Ders saatleri, ders adları, öğretmenler, derslikler, sınıflar (kısa adlarıyla), gruplar, dersler ve (varsa) yerleşmiş kartlar yeni bir okul olarak içe aktarılır. aSc 2012 ve sonraki sürümlerin XML biçimi desteklenir. Kartlarda aynı anda birden çok derse ev sahipliği yapan derslikler (ör. spor salonu) buna göre ayarlanır.</p>
-      <div class="input-inline">
-        <input class="input" type="file" name="file" accept=".xml" required>
-        <button class="btn btn-primary">{% include "timetable/icon.html" with name="upload" %} İçe aktar</button>
+  {% for item in institutions %}
+    <section class="panel institution-block">
+      <div class="panel-head">
+        <h2><a href="{% url 'timetable:institution_detail' item.institution.pk %}">{{ item.institution }}</a> <span class="pill">{{ item.programs|length }} program</span></h2>
+        <a class="btn btn-sm" href="{% url 'timetable:institution_detail' item.institution.pk %}">Kurum sayfası{% if "programlar" in item.perms %} · program ekle / aSc aktar{% endif %}</a>
       </div>
-    </form>
-  </div>
-  {% endif %}
+      <div class="panel-body">
+        <div class="school-cards">
+          {% for s in item.programs %}
+            <a class="panel school-card" href="{% if s.active_timetable_id %}{% url 'timetable:timetable_detail' s.active_timetable_id %}{% else %}{% url 'timetable:school_detail' s.pk %}{% endif %}">
+              <h2>{{ s.name }}</h2>
+              <div class="meta">
+                <span>{{ s.n_classes }} sınıf</span><span>{{ s.n_teachers }} öğretmen</span><span>{{ s.n_timetables }} sürüm</span>
+              </div>
+              {% if s.active_timetable %}<div class="subtle small" style="margin-top:6px">★ Yayında: {{ s.active_timetable.name }}</div>{% endif %}
+            </a>
+          {% empty %}<p class="muted" style="margin:0">Henüz program yok.</p>{% endfor %}
+        </div>
+      </div>
+    </section>
+  {% empty %}
+    <div class="panel"><div class="empty">{% if user.is_superuser %}Henüz kurum yok. Merkez panelinden kurum ekleyin ya da örnek okul oluşturun.{% else %}Henüz size atanmış bir kurum yok. Kurum yöneticinizden ya da merkezden yetki isteyin.{% endif %}</div></div>
+  {% endfor %}
 </div>
 {% endblock %}

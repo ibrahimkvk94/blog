@@ -56,8 +56,8 @@ TEACHERS = [
 
 
 @transaction.atomic
-def create_demo_school(name="Örnek Anadolu Lisesi"):
-    school = School.objects.create(name=name, days_per_week=5)
+def create_demo_school(name="Örnek Anadolu Lisesi", institution=None):
+    school = School.objects.create(name=name, days_per_week=5, institution=institution)
 
     start = datetime.datetime(2000, 1, 1, 8, 30)
     for i in range(8):

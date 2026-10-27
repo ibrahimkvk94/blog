@@ -212,7 +212,7 @@ def _int(value, default=0):
         return default
 
 
-def import_school(data, name=None):
+def import_school(data, name=None, institution=None):
     try:
         root = ET.fromstring(data)
     except ET.ParseError as exc:
@@ -236,7 +236,10 @@ def import_school(data, name=None):
     terms = max([len(part) for t in rows("termsdefs", "termsdef") for part in _ids(t.get("terms"))] or [1])
 
     with transaction.atomic():
-        school = School.objects.create(name=root.get("name") or name or "aSc içe aktarımı", days_per_week=days, weeks_count=weeks, terms_count=terms)
+        school = School.objects.create(
+            institution=institution, name=root.get("name") or name or "aSc içe aktarımı",
+            days_per_week=days, weeks_count=weeks, terms_count=terms,
+        )
         for i, p in enumerate(period_rows):
             Period.objects.create(school=school, index=i, name=p.get("name") or f"{i + 1}. saat", start_time=_time(p.get("starttime")), end_time=_time(p.get("endtime")))
 

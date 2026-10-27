@@ -1,9 +1,10 @@
-"""Çok okullu yapı: okul bazlı yetkilendirme.
+"""Çok kurumlu yapı: kurum bazlı yetkilendirme.
 
-- Merkez yönetici (süper kullanıcı) tüm okulları görür, okul ekler ve okul yöneticisi atar.
-- Diğer kullanıcılar yalnızca üyesi oldukları okulları görür; her okulda ayrı yetki setleri vardır.
-- "kullanici" yetkisi olan, o okulda yeni kullanıcı açıp yalnızca kendi sahip olduğu yetkileri
-  verebilir (yetki devri).
+- Merkez yönetici (süper kullanıcı) tüm kurumları görür, kurum ekler ve kurum yöneticisi atar.
+- Diğer kullanıcılar yalnızca üyesi oldukları kurumların programlarını görür (üyelik belirli
+  programlarla sınırlanabilir); yetkiler kurum düzeyindedir.
+- "kullanici" yetkisi olan, o kurumda yeni kullanıcı açıp yalnızca kendi sahip olduğu yetkileri
+  verebilir (yetki devri). "programlar" yetkisi olan program ekler, aSc'den içe aktarır, siler.
 
 Denetim tek yerde, SchoolAccessMiddleware'de yapılır: her istekte URL adından okul ve gereken yetki
 çıkarılır. Yeni bir URL eklenince aşağıdaki tablolara da eklenmelidir; tabloda olmayan bir okul
@@ -14,7 +15,7 @@ from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
 from django.shortcuts import render
 
-from .models import Card, Membership, School, Timetable, TimetableVersion
+from .models import Card, Institution, Membership, School, Timetable, TimetableVersion
 
 M = Membership
 
@@ -42,6 +43,14 @@ SCHOOL_ROUTES = {
     "data_edit": (M.VIEW, M.DATA),
     "data_delete": (M.DATA, M.DATA),
     "school_users": (M.USERS, M.USERS),
+    "program_delete": (M.PROGRAMS, M.PROGRAMS),
+}
+# pk = kurum
+INSTITUTION_ROUTES = {
+    "institution_detail": (M.VIEW, M.PROGRAMS),
+    "institution_users": (M.USERS, M.USERS),
+    "program_new": (M.PROGRAMS, M.PROGRAMS),
+    "program_import": (M.PROGRAMS, M.PROGRAMS),
 }
 TIMETABLE_ROUTES = {
     "timetable_detail": (M.VIEW, M.VIEW),
@@ -78,19 +87,57 @@ OPEN_ROUTES = {"school_list", "login", "logout", "account"}
 CENTRAL_ROUTES = {"create_demo", "import_asc", "school_create", "central", "central_school_new"}
 
 
+def _membership(user, institution_id):
+    return M.objects.filter(user=user, institution_id=institution_id).prefetch_related("programs").first()
+
+
 def school_permissions(user, school):
+    """Kullanıcının bir programdaki yetkileri (kurum üyeliğinden; program kısıtı varsa ona göre)."""
     if not user.is_authenticated:
         return set()
     if user.is_superuser:
         return set(M.ALL)
-    membership = M.objects.filter(user=user, school=school).first()
-    return membership.perms if membership else set()
+    institution_id = school.institution_id if school.institution_id else (
+        School.objects.filter(pk=school.pk).values_list("institution_id", flat=True).first()
+    )
+    membership = _membership(user, institution_id)
+    if membership is None:
+        return set()
+    allowed = {p.pk for p in membership.programs.all()}
+    if allowed and school.pk not in allowed:
+        return set()
+    return membership.perms
+
+
+def institution_permissions(user, institution):
+    """Kurum düzeyindeki yetkiler. Belirli programlarla sınırlı üyeler kurum işlerini (program ekleme,
+    kullanıcı yönetimi) yapamaz, yalnızca görüntüler."""
+    if not user.is_authenticated:
+        return set()
+    if user.is_superuser:
+        return set(M.ALL)
+    membership = _membership(user, institution.pk)
+    if membership is None:
+        return set()
+    if membership.programs.exists():
+        return {M.VIEW}
+    return membership.perms
 
 
 def visible_schools(user):
     if user.is_superuser:
         return School.objects.all()
-    return School.objects.filter(memberships__user=user)
+    ids = set()
+    for m in M.objects.filter(user=user).prefetch_related("programs", "institution__programs"):
+        restricted = list(m.programs.all())
+        ids.update(p.pk for p in (restricted or m.institution.programs.all()))
+    return School.objects.filter(pk__in=ids)
+
+
+def visible_institutions(user):
+    if user.is_superuser:
+        return Institution.objects.all()
+    return Institution.objects.filter(memberships__user=user)
 
 
 def _school_id(name, kwargs):
@@ -107,7 +154,7 @@ def _school_id(name, kwargs):
 
 
 def _routes(name):
-    for table in (SCHOOL_ROUTES, TIMETABLE_ROUTES, CARD_ROUTES, VERSION_ROUTES):
+    for table in (SCHOOL_ROUTES, TIMETABLE_ROUTES, CARD_ROUTES, VERSION_ROUTES, INSTITUTION_ROUTES):
         if name in table:
             return table[name]
     return None
@@ -139,14 +186,21 @@ class SchoolAccessMiddleware:
         routes = _routes(name)
         if routes is None:  # tabloda olmayan okul sayfası: güvenli varsayılan
             return None if request.user.is_superuser else _deny(request, "Bu sayfaya erişim yetkiniz yok.")
-        school_id = _school_id(name, view_kwargs)
-        if school_id is None:
-            return None  # kayıt yok: görünüm 404 verir
-        perms = school_permissions(request.user, School(pk=school_id))
+        if name in INSTITUTION_ROUTES:
+            institution = Institution.objects.filter(pk=view_kwargs.get("pk")).first()
+            if institution is None:
+                return None
+            perms = institution_permissions(request.user, institution)
+        else:
+            school_id = _school_id(name, view_kwargs)
+            if school_id is None:
+                return None  # kayıt yok: görünüm 404 verir
+            perms = school_permissions(request.user, School(pk=school_id))
+            request.current_school_id = school_id
         request.school_perms = perms
         needed = routes[1] if request.method not in ("GET", "HEAD", "OPTIONS") else routes[0]
         if not perms:
-            return _deny(request, "Bu okula erişim yetkiniz yok.")
+            return _deny(request, "Bu kuruma ya da programa erişim yetkiniz yok.")
         if needed not in perms:
             label = dict(M.PERMISSIONS)[needed]
             return _deny(request, f"Bu işlem için “{label}” yetkiniz yok.")
@@ -154,14 +208,19 @@ class SchoolAccessMiddleware:
 
 
 def can(request):
-    """Şablonlar için: {{ can.veri }} gibi."""
+    """Şablonlar için: {{ can.veri }} ve kenar çubuğundaki program değiştirici."""
     perms = getattr(request, "school_perms", set())
-    return {"can": {p: p in perms for p in M.ALL}}
+    context = {"can": {p: p in perms for p in M.ALL}}
+    school_id = getattr(request, "current_school_id", None)
+    if school_id and request.user.is_authenticated:
+        institution_id = School.objects.filter(pk=school_id).values_list("institution_id", flat=True).first()
+        context["sibling_programs"] = visible_schools(request.user).filter(institution_id=institution_id).order_by("name")
+    return context
 
 
-def grantable(user, school):
-    """Kullanıcının bu okulda başkasına verebileceği yetkiler."""
-    perms = school_permissions(user, school)
+def grantable(user, institution):
+    """Kullanıcının bu kurumda başkasına verebileceği yetkiler."""
+    perms = institution_permissions(user, institution)
     if M.USERS not in perms:
         return set()
     return perms

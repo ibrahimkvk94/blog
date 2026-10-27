@@ -1,0 +1,120 @@
+"""Kurum sayfası: kurumun programları, yeni program, aSc'den içe aktarma ve program silme."""
+
+from django.contrib import messages
+from django.db import transaction
+from django.db.models import Count
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
+
+from . import access, asc_xml
+from .data_views import default_periods
+from .models import DutyPlace, Institution, Period, ReportPreset, School
+
+MAX_UPLOAD = 20 * 1024 * 1024
+
+
+def _programs(request, institution):
+    visible = access.visible_schools(request.user).filter(institution=institution)
+    return visible.annotate(
+        n_classes=Count("classes", distinct=True), n_teachers=Count("teachers", distinct=True),
+        n_timetables=Count("timetables", distinct=True),
+    ).select_related("active_timetable").order_by("name")
+
+
+def institution_detail(request, pk):
+    institution = get_object_or_404(Institution, pk=pk)
+    perms = access.institution_permissions(request.user, institution)
+    programs = list(_programs(request, institution))
+    return render(request, "timetable/institution.html", {
+        "institution": institution, "programs": programs, "nav": "institution",
+        "can_programs": "programlar" in perms, "can_users": "kullanici" in perms,
+    })
+
+
+@require_POST
+def program_new(request, pk):
+    institution = get_object_or_404(Institution, pk=pk)
+    name = (request.POST.get("name") or "").strip()[:200]
+    if not name:
+        messages.error(request, "Program adı girin.")
+        return redirect("timetable:institution_detail", pk=institution.pk)
+    source = institution.programs.filter(pk=request.POST.get("copy_periods") or 0).first()
+    with transaction.atomic():
+        school = School.objects.create(
+            institution=institution, name=name,
+            days_per_week=source.days_per_week if source else 5,
+        )
+        if source:
+            Period.objects.bulk_create(
+                Period(school=school, index=p.index, name=p.name, start_time=p.start_time, end_time=p.end_time,
+                       long_break_after=p.long_break_after)
+                for p in source.periods.all()
+            )
+        else:
+            default_periods(school)
+    messages.success(request, f"“{school}” programı oluşturuldu. Verileri girin ya da aSc'den aktarın.")
+    return redirect("timetable:school_settings", pk=school.pk)
+
+
+@require_POST
+def program_import(request, pk):
+    """aSc TimeTables XML'i kurumun içine aktarır: yeni program olarak ya da seçilen programın yerine."""
+    institution = get_object_or_404(Institution, pk=pk)
+    upload = request.FILES.get("file")
+    if not upload:
+        messages.error(request, "Dosya seçilmedi.")
+        return redirect("timetable:institution_detail", pk=institution.pk)
+    if upload.size > MAX_UPLOAD:
+        messages.error(request, "Dosya çok büyük (en fazla 20 MB).")
+        return redirect("timetable:institution_detail", pk=institution.pk)
+    target = request.POST.get("target") or "new"
+    old = None
+    if target != "new":
+        old = get_object_or_404(School, pk=target, institution=institution)
+        if not access.school_permissions(request.user, old):
+            messages.error(request, "Bu programa erişim yetkiniz yok.")
+            return redirect("timetable:institution_detail", pk=institution.pk)
+    name = (request.POST.get("name") or "").strip() or (old.name if old else upload.name.rsplit(".", 1)[0])
+    try:
+        with transaction.atomic():
+            school, timetable = asc_xml.import_school(upload.read(), name=name, institution=institution)
+            school.name = name[:200]
+            school.save(update_fields=["name"])
+            if old is not None:
+                _replace(old, school)
+    except asc_xml.AscImportError as exc:
+        messages.error(request, f"İçe aktarılamadı: {exc}")
+        return redirect("timetable:institution_detail", pk=institution.pk)
+    verb = "yerine aktarıldı" if old else "yeni program olarak aktarıldı"
+    messages.success(request, f"“{school}” {verb}.")
+    if timetable:
+        return redirect("timetable:timetable_detail", pk=timetable.pk)
+    return redirect("timetable:school_detail", pk=school.pk)
+
+
+def _replace(old, new):
+    """Eski programın kurumdaki bağlantılarını yenisine taşır ve eskisini siler."""
+    for membership in old.restricted_memberships.all():
+        membership.programs.add(new)
+    new.linked_programs.set(old.linked_programs.all())
+    ReportPreset.objects.filter(school=old).update(school=new)
+    for place in DutyPlace.objects.filter(school=old):  # nöbet yerleri korunur; nöbetler yeni öğretmenlerle yeniden dağıtılır
+        place.duties.all().delete()
+        place.school = new
+        place.save(update_fields=["school"])
+    new.duties_per_teacher = old.duties_per_teacher
+    new.save(update_fields=["duties_per_teacher"])
+    old.delete()
+
+
+@require_POST
+def program_delete(request, pk):
+    school = get_object_or_404(School, pk=pk)
+    institution = school.institution
+    if request.POST.get("confirm") != school.name:
+        messages.error(request, "Silmek için program adını aynen yazın.")
+        return redirect("timetable:school_settings", pk=school.pk)
+    name = school.name
+    school.delete()
+    messages.success(request, f"“{name}” programı silindi.")
+    return redirect("timetable:institution_detail", pk=institution.pk)

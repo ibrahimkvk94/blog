@@ -1,6 +1,6 @@
 {% extends "timetable/base.html" %}
 {% block title %}Nöbet çizelgesi{% endblock %}
-{% block crumbs %}<a href="{% url 'timetable:school_list' %}">Okullar</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:institution_detail' school.institution_id %}">{{ school.institution }}</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
 {% block heading %}<h1>Nöbet çizelgesi</h1>{% endblock %}
 {% block actions %}
   {% if rows %}

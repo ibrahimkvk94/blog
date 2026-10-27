@@ -16,13 +16,43 @@ from django.db import models
 DAY_NAMES = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
 
 
+class Institution(models.Model):
+    """Kurum (okul): altında birbirinden bağımsız ders programları (School) bulunur.
+
+    Ör. "Örnek MYO" kurumunda "2026/2027 1.YY", "2.YY", "Gece öğretimi" programları. Kullanıcı
+    yetkileri kurum düzeyindedir (istenirse belirli programlarla sınırlanır).
+    """
+
+    name = models.CharField("ad", max_length=200)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "kurum"
+        verbose_name_plural = "kurumlar"
+
+    def __str__(self):
+        return self.name
+
+
 class School(models.Model):
+    """Bir ders programı (aSc'deki bir program dosyası): kendi saatleri, sınıfları, öğretmenleri,
+    dersleri ve üretilmiş sürümleri vardır. Model adı tarihsel olarak School'dur."""
+
+    institution = models.ForeignKey(
+        Institution, on_delete=models.CASCADE, null=True, blank=True, related_name="programs", verbose_name="kurum"
+    )
     name = models.CharField("ad", max_length=200)
     days_per_week = models.PositiveSmallIntegerField("haftadaki gün sayısı", default=5)
     weeks_count = models.PositiveSmallIntegerField(
         "hafta döngüsü", default=1, help_text="1 = her hafta aynı, 2 = A/B haftası"
     )
     terms_count = models.PositiveSmallIntegerField("dönem sayısı", default=1)
+    linked_programs = models.ManyToManyField(
+        "self", blank=True, verbose_name="birlikte çalışan programlar",
+        help_text="Aynı anda yürüyen programlar: bu programların yayındaki programında dolu olan öğretmen (ad soyada "
+        "göre) ve derslik (ada göre) saatleri burada kapalı sayılır.",
+    )
     duties_per_teacher = models.PositiveSmallIntegerField(
         "öğretmen başına haftalık nöbet", default=1, help_text="Nöbet dağıtımında öğretmen başına üst sınır (öğretmende ayrıca belirlenebilir)."
     )
@@ -37,11 +67,17 @@ class School(models.Model):
     )
 
     class Meta:
-        verbose_name = "okul"
-        verbose_name_plural = "okullar"
+        verbose_name = "program"
+        verbose_name_plural = "programlar"
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        # Her program bir kuruma bağlıdır; kurum verilmezse aynı adla yeni kurum açılır.
+        if self.institution_id is None:
+            self.institution = Institution.objects.create(name=self.name)
+        super().save(*args, **kwargs)
 
     def clean(self):
         if not 1 <= self.days_per_week <= len(DAY_NAMES):
@@ -721,7 +757,7 @@ class ReportPreset(models.Model):
 
 
 class Membership(models.Model):
-    """Kullanıcının bir okuldaki yetkileri. Merkez yönetici (süper kullanıcı) tüm okullara erişir."""
+    """Kullanıcının bir kurumdaki yetkileri. Merkez yönetici (süper kullanıcı) tüm kurumlara erişir."""
 
     VIEW = "goruntule"
     DATA = "veri"
@@ -730,6 +766,7 @@ class Membership(models.Model):
     SUBSTITUTE = "vekalet"
     DUTY = "nobet"
     USERS = "kullanici"
+    PROGRAMS = "programlar"
     PERMISSIONS = [
         (VIEW, "Görüntüleme ve raporlar"),
         (DATA, "Veri girişi (sınıf, öğretmen, ders, kart ilişkileri)"),
@@ -737,13 +774,18 @@ class Membership(models.Model):
         (PUBLISH, "Programı yayınlama"),
         (SUBSTITUTE, "Vekâlet işlemleri"),
         (DUTY, "Nöbet çizelgesi"),
+        (PROGRAMS, "Program ekleme, aSc'den içe aktarma ve silme"),
         (USERS, "Kullanıcı yönetimi (kendi yetkileri kadar)"),
     ]
     ALL = [key for key, _ in PERMISSIONS]
 
     user = models.ForeignKey("auth.User", on_delete=models.CASCADE, related_name="memberships")
-    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="memberships")
+    institution = models.ForeignKey(Institution, on_delete=models.CASCADE, related_name="memberships")
     permissions = models.JSONField("yetkiler", default=list)
+    programs = models.ManyToManyField(
+        School, blank=True, related_name="restricted_memberships", verbose_name="yalnızca bu programlar",
+        help_text="Boş = kurumun tüm programları.",
+    )
     granted_by = models.ForeignKey(
         "auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="granted_memberships"
     )
@@ -753,10 +795,10 @@ class Membership(models.Model):
         ordering = ["user__username"]
         verbose_name = "okul yetkisi"
         verbose_name_plural = "okul yetkileri"
-        constraints = [models.UniqueConstraint(fields=["user", "school"], name="unique_membership")]
+        constraints = [models.UniqueConstraint(fields=["user", "institution"], name="unique_membership")]
 
     def __str__(self):
-        return f"{self.user} @ {self.school}"
+        return f"{self.user} @ {self.institution}"
 
     @property
     def perms(self):

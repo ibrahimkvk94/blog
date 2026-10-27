@@ -1,0 +1,72 @@
+{% extends "timetable/base.html" %}
+{% block title %}{{ institution }}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_list' %}">Kurumlarım</a>{% endblock %}
+{% block heading %}<h1>{{ institution }}</h1>{% endblock %}
+{% block actions %}
+  {% if can_users %}<a class="btn" href="{% url 'timetable:institution_users' institution.pk %}">{% include "timetable/icon.html" with name="users" %} Kullanıcılar</a>{% endif %}
+{% endblock %}
+{% block content %}
+<p class="muted small" style="margin-top:0">Kurumdaki her program (ör. 1. yarıyıl, 2. yarıyıl, gece öğretimi) kendi saatleri, sınıfları, öğretmenleri, dersleri, sürümleri ve yayını olan bağımsız bir ders programıdır; hepsi aynı anda açık ve yayında olabilir. Aynı öğretmen ve derslikleri paylaşan programları programın ayarlarında “birlikte çalışan programlar” olarak bağlayın: biri diğerinin dolu saatlerine ders koymaz.</p>
+<div class="grid-2">
+  <div class="panel">
+    <div class="panel-head"><h2>Programlar</h2></div>
+    <div class="panel-body flush table-wrap">
+      <table class="table">
+        <thead><tr><th>Program</th><th class="num">Sınıf</th><th class="num">Öğretmen</th><th>Yayında</th><th></th></tr></thead>
+        <tbody>
+          {% for p in programs %}
+            <tr>
+              <td><a href="{% url 'timetable:school_detail' p.pk %}"><b>{{ p.name }}</b></a></td>
+              <td class="num">{{ p.n_classes }}</td><td class="num">{{ p.n_teachers }}</td>
+              <td>{% if p.active_timetable %}<a href="{% url 'timetable:timetable_detail' p.active_timetable_id %}">★ {{ p.active_timetable.name }}</a>{% else %}<span class="subtle">–</span>{% endif %}</td>
+              <td><a class="btn btn-sm" href="{% url 'timetable:school_detail' p.pk %}">Aç</a></td>
+            </tr>
+          {% empty %}<tr><td colspan="5" class="subtle">Henüz program yok.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% if can_programs %}
+  <div class="stack">
+    <div class="panel">
+      <div class="panel-head"><h2>aSc TimeTables'tan içe aktar</h2></div>
+      <form class="panel-body" method="post" enctype="multipart/form-data" action="{% url 'timetable:program_import' institution.pk %}" id="asc-import">
+        {% csrf_token %}
+        <p class="muted small" style="margin-top:0">aSc'de <i>Dosya → Dışa aktar → aSc TimeTables XML</i> ile alınan dosyayı yükleyin (aSc 2012 ve sonrası). Saatler, ders adları, öğretmenler, derslikler, sınıflar ve gruplar, dersler ve yerleşmiş kartlar bu kurumun içine aktarılır.</p>
+        <label class="label" for="asc-file">XML dosyası</label>
+        <input class="input" id="asc-file" type="file" name="file" accept=".xml" required>
+        <label class="label" for="asc-target">Nereye</label>
+        <select class="select" id="asc-target" name="target">
+          <option value="new">Yeni program olarak ekle</option>
+          {% for p in programs %}<option value="{{ p.pk }}">“{{ p.name }}” programının yerine (eski veri silinir)</option>{% endfor %}
+        </select>
+        <label class="label" for="asc-name">Program adı</label>
+        <input class="input" id="asc-name" name="name" placeholder="ör. 2026/2027 MYO 1.YY (boş = dosya ya da hedef programın adı)">
+        <button class="btn btn-primary" style="margin-top:12px">{% include "timetable/icon.html" with name="upload" %} İçe aktar</button>
+      </form>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Boş program ekle</h2></div>
+      <form class="panel-body" method="post" action="{% url 'timetable:program_new' institution.pk %}">
+        {% csrf_token %}
+        <label class="label" for="pn">Program adı</label>
+        <input class="input" id="pn" name="name" required placeholder="ör. 2026/2027 MYO 2.YY">
+        {% if programs %}
+          <label class="label" for="pc">Ders saatlerini kopyala</label>
+          <select class="select" id="pc" name="copy_periods"><option value="">Varsayılan (08:30, 8 saat)</option>{% for p in programs %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</select>
+        {% endif %}
+        <button class="btn" style="margin-top:12px">{% include "timetable/icon.html" with name="plus" %} Oluştur</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  document.getElementById("asc-import")?.addEventListener("submit", (e) => {
+    const target = e.target.target;
+    if (target.value !== "new" && !confirm(target.options[target.selectedIndex].text + " — mevcut veri ve sürümler silinip dosyadaki veriyle değiştirilsin mi?")) e.preventDefault();
+  });
+</script>
+{% endblock %}

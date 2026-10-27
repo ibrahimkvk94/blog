@@ -1,9 +1,9 @@
 {% extends "timetable/base.html" %}
 {% block title %}{{ school }}{% endblock %}
-{% block crumbs %}<a href="{% url 'timetable:school_list' %}">Okullar</a>{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:institution_detail' school.institution_id %}">{{ school.institution }}</a>{% endblock %}
 {% block heading %}<h1>{{ school }}</h1>{% endblock %}
 {% block actions %}
-  <a class="btn" href="{% url 'timetable:school_settings' school.pk %}">Okul ve saatler</a>
+  <a class="btn" href="{% url 'timetable:school_settings' school.pk %}">Program ayarları ve saatler</a>
   {% with main_tt=school.active_timetable|default:latest_timetable %}{% if main_tt %}
     <a class="btn btn-primary" href="{% url 'timetable:timetable_detail' main_tt.pk %}">{% include "timetable/icon.html" with name="grid" %} Ana görünüm</a>
   {% endif %}{% endwith %}
@@ -19,7 +19,7 @@
   <div class="stack">
     <div class="panel">
       <div class="panel-head">
-        <h2>Programlar</h2>
+        <h2>Sürümler</h2>
         <span class="subtle small">{{ timetables|length }} sürüm</span>
       </div>
       <div class="panel-body flush">

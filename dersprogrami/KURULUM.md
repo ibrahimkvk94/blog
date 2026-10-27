@@ -93,13 +93,13 @@ Tarayıcı birkaç saniye içinde kendiliğinden **http://127.0.0.1:8000/** adre
 
    Veriler Excel'deyse: **Veri → Excel aktarımı → Excel dosyasını indir**, dosyayı doldur ve aynı sayfadan yükle.
 
-## Kullanıcılar ve okullar (çok okullu kullanım)
+## Kurumlar, programlar ve kullanıcılar
 
-- Kurulumda (4. adım) oluşturduğun hesap **merkez yönetici**dir: tüm okulları görür.
-- **Merkez paneli** (sol menü → Merkez paneli): yeni okul ekle ve aynı formda okul yöneticisinin kullanıcı adı ve parolasını belirle.
-- Okul yöneticisi kendi okulunda **Kullanıcılar** sayfasından öğretmenlere ya da müdür yardımcılarına hesap açar. Yalnızca kendi sahip olduğu yetkileri verebilir; "Kullanıcı yönetimi" yetkisi verdiği kişi de kendi ekibine aynı şekilde yetki dağıtabilir.
-- Yetkiler: görüntüleme ve raporlar (herkeste), veri girişi, program üretme/düzenleme, yayınlama, vekâlet, nöbet, kullanıcı yönetimi.
-- Tek sunucu yeter: her okul aynı adrese kendi kullanıcı adıyla girer ve yalnızca kendi okulunu görür.
+- Kurumda (okulda) birden çok bağımsız **program** olabilir, ör. "2026/2027 MYO 1.YY", "2.YY", "Gece öğretimi". Her programın kendi saatleri, sınıfları, öğretmenleri, dersleri, sürümleri ve yayını vardır; hepsi aynı anda açık ve yayında olabilir. Sol menüdeki program seçicisiyle programlar arasında geçilir.
+- **aSc'den aktarma:** Kurum sayfasında (sol menü → Kurumlarım → kurum adı) "aSc TimeTables'tan içe aktar": XML dosyası yeni program olarak ya da var olan bir programın yerine aktarılır. Yeni okul/kurum açılmaz.
+- **Aynı öğretmenleri paylaşan programlar:** programın ayarlarında "Birlikte çalışan programlar" seçilirse, diğer programın yayındaki programında dolu olan öğretmen (ad soyada göre) ve derslik (ada göre) saatleri bu programda kapalı sayılır.
+- Kurulumda (4. adım) oluşturduğun hesap **merkez yönetici**dir: tüm kurumları görür. **Merkez paneli**nden kurum ekleyip kurum yöneticisini atar.
+- Kurum yöneticisi **Kurum kullanıcıları** sayfasından hesap açar; yalnızca kendi sahip olduğu yetkileri verebilir ve istenirse kullanıcıyı belirli programlarla sınırlar. Yetkiler: görüntüleme ve raporlar (herkeste), veri girişi, program üretme/düzenleme, yayınlama, vekâlet, nöbet, program ekleme ve aSc aktarma, kullanıcı yönetimi.
 
 ## Sık karşılaşılan sorunlar
 

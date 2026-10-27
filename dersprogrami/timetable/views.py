@@ -30,12 +30,22 @@ def _nav(school, nav, **extra):
 
 
 def school_list(request):
+    """Kurumlarım: her kurumun görünür programları."""
     schools = access.visible_schools(request.user).annotate(
         n_classes=Count("classes", distinct=True),
         n_teachers=Count("teachers", distinct=True),
         n_timetables=Count("timetables", distinct=True),
-    )
-    return render(request, "timetable/school_list.html", {"schools": schools})
+    ).select_related("institution", "active_timetable").order_by("name")
+    groups = {}
+    for school in schools:
+        groups.setdefault(school.institution, []).append(school)
+    for institution in access.visible_institutions(request.user):
+        groups.setdefault(institution, [])
+    institutions = [
+        {"institution": inst, "programs": progs, "perms": access.institution_permissions(request.user, inst)}
+        for inst, progs in sorted(groups.items(), key=lambda kv: kv[0].name)
+    ]
+    return render(request, "timetable/school_list.html", {"institutions": institutions})
 
 
 @require_POST

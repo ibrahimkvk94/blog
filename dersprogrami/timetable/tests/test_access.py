@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
-from timetable.models import Membership, School
+from timetable.models import Institution, Membership, School
 from timetable.services import generate_timetable
 from timetable.tests.test_operations import build_school
 
@@ -21,9 +21,9 @@ class AccessTests(TestCase):
         cls.timetable = generate_timetable(cls.school, "ilk", time_limit=10)
         cls.central = User.objects.create_superuser("merkez", password="parola-123456")
         cls.admin = User.objects.create_user("mudur", password="parola-123456")
-        M.objects.create(user=cls.admin, school=cls.school, permissions=M.ALL)
+        M.objects.create(user=cls.admin, institution=cls.school.institution, permissions=M.ALL)
         cls.viewer = User.objects.create_user("izleyici", password="parola-123456")
-        M.objects.create(user=cls.viewer, school=cls.school, permissions=[])
+        M.objects.create(user=cls.viewer, institution=cls.school.institution, permissions=[])
 
     def test_login_page_and_school_list_filtering(self):
         self.assertEqual(self.client.get(reverse("timetable:login")).status_code, 200)
@@ -49,13 +49,13 @@ class AccessTests(TestCase):
         self.assertEqual(response.status_code, 403)
         page = self.client.get(reverse("timetable:school_detail", args=[self.school.pk]))
         self.assertNotContains(page, "Ders dağıtımı")  # veri menüsü gizli
-        self.assertEqual(self.client.get(reverse("timetable:school_users", args=[self.school.pk])).status_code, 403)
+        self.assertEqual(self.client.get(reverse("timetable:institution_users", args=[self.school.institution_id])).status_code, 403)
 
     def test_delegation_is_limited_to_own_permissions(self):
         lead = User.objects.create_user("zumre", password="parola-123456")
-        M.objects.create(user=lead, school=self.school, permissions=[M.DATA, M.USERS])
+        M.objects.create(user=lead, institution=self.school.institution, permissions=[M.DATA, M.USERS])
         self.client.force_login(lead)
-        url = reverse("timetable:school_users", args=[self.school.pk])
+        url = reverse("timetable:institution_users", args=[self.school.institution_id])
         response = self.client.post(url, {"action": "add", "username": "ogretmen1", "password": "Guclu-Parola-2026",
                                           "permissions": [M.DATA, M.PROGRAM, M.PUBLISH]})
         self.assertRedirects(response, url)
@@ -80,17 +80,16 @@ class AccessTests(TestCase):
 
     def test_central_creates_school_with_admin(self):
         self.client.force_login(self.central)
-        self.assertContains(self.client.get(reverse("timetable:central")), "Okul ekle")
+        self.assertContains(self.client.get(reverse("timetable:central")), "Kurum ekle")
         response = self.client.post(reverse("timetable:central_school_new"), {
             "school_name": "Yeni Lise", "username": "yenimudur", "password": "Guclu-Parola-2026", "permissions": M.ALL,
         })
         self.assertRedirects(response, reverse("timetable:central"))
-        school = School.objects.get(name="Yeni Lise")
-        self.assertEqual(school.periods.count(), 8)
-        membership = M.objects.get(school=school)
+        institution = Institution.objects.get(name="Yeni Lise")
+        membership = M.objects.get(institution=institution)
         self.assertEqual(membership.user.username, "yenimudur")
         self.client.force_login(membership.user)
-        self.assertEqual(self.client.get(reverse("timetable:school_users", args=[school.pk])).status_code, 200)
+        self.assertEqual(self.client.get(reverse("timetable:institution_users", args=[institution.pk])).status_code, 200)
         self.assertEqual(self.client.get(reverse("timetable:school_detail", args=[self.school.pk])).status_code, 403)
 
     def test_account_page(self):
@@ -101,3 +100,101 @@ class AccessTests(TestCase):
         })
         self.assertRedirects(response, reverse("timetable:account"))
         self.assertTrue(User.objects.get(username="izleyici").check_password("Baska-Parola-2026"))
+
+
+class InstitutionProgramTests(TestCase):
+    """Kurum altında birden çok program, kurum içine aSc aktarımı, program kısıtı ve bağlı programlar."""
+
+    def setUp(self):
+        self.school = build_school()
+        self.institution = self.school.institution
+        self.manager = User.objects.create_user("kurum", password="parola-123456")
+        M.objects.create(user=self.manager, institution=self.institution, permissions=M.ALL)
+        self.client.force_login(self.manager)
+
+    def test_program_new_and_import_into_institution(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        from timetable.tests.test_asc_import import SAMPLE
+
+        url = reverse("timetable:institution_detail", args=[self.institution.pk])
+        page = self.client.get(url)
+        self.assertContains(page, "aSc TimeTables")
+        self.client.post(reverse("timetable:program_new", args=[self.institution.pk]), {"name": "2.YY", "copy_periods": self.school.pk})
+        second = School.objects.get(name="2.YY")
+        self.assertEqual(second.institution, self.institution)
+        self.assertEqual(second.periods.count(), self.school.periods.count())
+
+        response = self.client.post(reverse("timetable:program_import", args=[self.institution.pk]),
+                                    {"file": SimpleUploadedFile("asc.xml", SAMPLE), "target": "new", "name": "MYO 1.YY"})
+        imported = School.objects.get(name="MYO 1.YY")
+        self.assertEqual(imported.institution, self.institution)
+        self.assertEqual(Institution.objects.count(), 1)  # yeni kurum açılmadı
+        self.assertIn("/program/", response["Location"])
+
+        # Var olan programın yerine aktarma: ad korunur, kısıtlı üyelik yeni programa taşınır
+        limited = User.objects.create_user("sinirli", password="parola-123456")
+        membership = M.objects.create(user=limited, institution=self.institution, permissions=[])
+        membership.programs.set([second])
+        self.client.post(reverse("timetable:program_import", args=[self.institution.pk]),
+                         {"file": SimpleUploadedFile("asc.xml", SAMPLE), "target": second.pk})
+        self.assertFalse(School.objects.filter(pk=second.pk).exists())
+        replaced = School.objects.get(name="2.YY")
+        self.assertEqual(replaced.classes.count(), 2)
+        self.assertEqual(list(membership.programs.all()), [replaced])
+
+        # Ana sayfa kurumu ve programlarını gösterir
+        home = self.client.get(reverse("timetable:school_list"))
+        for name in (self.school.name, "2.YY", "MYO 1.YY"):
+            self.assertContains(home, name)
+
+    def test_program_restricted_membership(self):
+        other = School.objects.create(name="Gece", institution=self.institution)
+        user = User.objects.create_user("gece", password="parola-123456")
+        membership = M.objects.create(user=user, institution=self.institution, permissions=[M.DATA])
+        membership.programs.set([other])
+        self.client.force_login(user)
+        self.assertEqual(self.client.get(reverse("timetable:school_detail", args=[other.pk])).status_code, 200)
+        self.assertEqual(self.client.get(reverse("timetable:school_detail", args=[self.school.pk])).status_code, 403)
+        self.assertEqual(self.client.post(reverse("timetable:program_new", args=[self.institution.pk]), {"name": "X"}).status_code, 403)
+
+    def test_linked_programs_block_shared_teacher_and_room(self):
+        from timetable.solver.builder import build_problem
+
+        timetable = generate_timetable(self.school, "ilk", time_limit=10)
+        School.objects.filter(pk=self.school.pk).update(active_timetable=timetable)
+        other = School.objects.create(name="Gece", institution=self.institution)
+        teacher = self.school.teachers.first()
+        busy = {(c.day, c.period + i) for c in timetable.cards.filter(lesson__teachers=teacher, day__isnull=False) for i in range(c.length)}
+        self.assertTrue(busy)
+        from timetable.models import Lesson, Period, SchoolClass, Subject, Teacher
+
+        for i in range(6):
+            Period.objects.create(school=other, index=i, name=f"{i + 1}")
+        same = Teacher.objects.create(school=other, first_name=teacher.first_name, last_name=teacher.last_name)
+        cls = SchoolClass.objects.create(school=other, name="G-1")
+        lesson = Lesson.objects.create(school=other, subject=Subject.objects.create(school=other, name="Mat"), periods_per_week=2)
+        lesson.classes.set([cls])
+        lesson.teachers.set([same])
+        starts = set(build_problem(other).cards[0].starts)
+        self.assertTrue(busy <= starts)  # henüz bağlı değil
+        response = self.client.post(reverse("timetable:school_settings", args=[other.pk]), {
+            "name": "Gece", "days_per_week": "5", "weeks_count": "1", "terms_count": "1", "linked_programs": [self.school.pk],
+            "periods-TOTAL_FORMS": "6", "periods-INITIAL_FORMS": "6", "periods-MIN_NUM_FORMS": "0", "periods-MAX_NUM_FORMS": "1000",
+            **{f"periods-{i}-id": p.pk for i, p in enumerate(other.periods.all())},
+            **{f"periods-{i}-name": p.name for i, p in enumerate(other.periods.all())},
+        })
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(self.school, other.linked_programs.all())
+        starts = set(build_problem(other).cards[0].starts)
+        self.assertFalse(busy & starts)  # diğer programdaki dolu saatler kapalı
+        self.assertIn(other, self.school.linked_programs.all())  # bağ iki yönlü
+
+    def test_program_delete_requires_name(self):
+        other = School.objects.create(name="Silinecek", institution=self.institution)
+        url = reverse("timetable:program_delete", args=[other.pk])
+        self.client.post(url, {"confirm": "yanlış"})
+        self.assertTrue(School.objects.filter(pk=other.pk).exists())
+        response = self.client.post(url, {"confirm": "Silinecek"})
+        self.assertRedirects(response, reverse("timetable:institution_detail", args=[self.institution.pk]))
+        self.assertFalse(School.objects.filter(pk=other.pk).exists())

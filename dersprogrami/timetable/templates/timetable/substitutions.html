@@ -1,7 +1,7 @@
 {% extends "timetable/base.html" %}
 {% block title %}Vekâlet{% endblock %}
 {% block head %}<style>@media print { .sidebar, .topbar .actions, .no-print { display: none !important; } .shell { display: block; } .panel { box-shadow: none; break-inside: avoid; } }</style>{% endblock %}
-{% block crumbs %}<a href="{% url 'timetable:school_list' %}">Okullar</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:institution_detail' school.institution_id %}">{{ school.institution }}</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
 {% block heading %}<h1>Vekâlet · {{ date|date:"d F Y" }}</h1>{% if day_name %}<span class="pill">{{ day_name }}</span>{% endif %}{% endblock %}
 {% block actions %}
   <a class="btn" href="?tarih={{ prev_date|date:'Y-m-d' }}">‹ Önceki gün</a>

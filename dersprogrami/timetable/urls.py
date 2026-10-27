@@ -1,7 +1,7 @@
 from django.contrib.auth import views as auth_views
 from django.urls import path
 
-from . import accounts, data_views, views
+from . import accounts, data_views, institutions, views
 
 app_name = "timetable"
 
@@ -13,6 +13,11 @@ urlpatterns = [
     path("merkez/", accounts.central, name="central"),
     path("merkez/okul-ekle/", accounts.central_school_new, name="central_school_new"),
     path("okul/<int:pk>/kullanicilar/", accounts.school_users, name="school_users"),
+    path("kurum/<int:pk>/", institutions.institution_detail, name="institution_detail"),
+    path("kurum/<int:pk>/kullanicilar/", accounts.institution_users, name="institution_users"),
+    path("kurum/<int:pk>/program-ekle/", institutions.program_new, name="program_new"),
+    path("kurum/<int:pk>/ice-aktar/", institutions.program_import, name="program_import"),
+    path("okul/<int:pk>/sil/", institutions.program_delete, name="program_delete"),
     path("ornek-okul/", views.create_demo, name="create_demo"),
     path("ice-aktar/", views.import_asc, name="import_asc"),
     path("okul/<int:pk>/", views.school_detail, name="school_detail"),

@@ -14,13 +14,13 @@
     </form>
   </div>
   <div class="panel">
-    <div class="panel-head"><h2>Okullarım ve yetkilerim</h2></div>
+    <div class="panel-head"><h2>Kurumlarım ve yetkilerim</h2></div>
     <div class="panel-body">
-      {% if user.is_superuser %}<p><span class="pill ok">Merkez yönetici</span> Tüm okullara tam erişim.</p>{% endif %}
+      {% if user.is_superuser %}<p><span class="pill ok">Merkez yönetici</span> Tüm kurumlara tam erişim.</p>{% endif %}
       {% for m in memberships %}
-        <div style="margin-bottom:10px"><a href="{% url 'timetable:school_detail' m.school.pk %}"><b>{{ m.school }}</b></a>
+        <div style="margin-bottom:10px"><a href="{% url 'timetable:institution_detail' m.institution.pk %}"><b>{{ m.institution }}</b></a>{% if m.programs.all %} <span class="subtle small">yalnızca: {% for p in m.programs.all %}{{ p.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</span>{% endif %}
           <div class="chips" style="margin-top:4px">{% for label in m.labels %}<span class="chip">{{ label }}</span>{% endfor %}</div></div>
-      {% empty %}{% if not user.is_superuser %}<p class="muted">Henüz bir okula atanmadınız.</p>{% endif %}{% endfor %}
+      {% empty %}{% if not user.is_superuser %}<p class="muted">Henüz bir kuruma atanmadınız.</p>{% endif %}{% endfor %}
     </div>
   </div>
 </div>

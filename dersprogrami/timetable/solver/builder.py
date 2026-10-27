@@ -27,6 +27,38 @@ def _availability_index(school):
     return index
 
 
+def _norm(name):
+    return " ".join(str(name or "").casefold().split())
+
+
+def linked_busy(school):
+    """Birlikte çalışan programların yayındaki programında dolu öğretmen/derslik hücreleri.
+
+    Programlar ayrı veri tuttuğu için eşleştirme ada göre yapılır: öğretmen ad soyadı, derslik adı.
+    Dönüş: {("teacher", id) | ("classroom", id): {(gün, saat), ...}}
+    """
+    busy = defaultdict(set)
+    linked = list(school.linked_programs.all()) if school.pk else []
+    if not linked:
+        return busy
+    teachers = {_norm(t.full_name): t.id for t in school.teachers.all()}
+    rooms = {_norm(r.name): r.id for r in school.classrooms.all()}
+    for other in linked:
+        timetable = other.active_timetable or other.timetables.filter(status__in=["ok", "partial"]).first()
+        if timetable is None:
+            continue
+        other_rooms = {r.id: _norm(r.name) for r in other.classrooms.all()}
+        for card in timetable.cards.filter(day__isnull=False).prefetch_related("lesson__teachers"):
+            cells = {(card.day, card.period + i) for i in range(card.length)}
+            for t in card.lesson.teachers.all():
+                if _norm(t.full_name) in teachers:
+                    busy[("teacher", teachers[_norm(t.full_name)])] |= cells
+            for room_id in card.room_ids:
+                if other_rooms.get(room_id) in rooms:
+                    busy[("classroom", rooms[other_rooms[room_id]])] |= cells
+    return busy
+
+
 def lesson_label(lesson):
     classes = ", ".join(c.name for c in lesson.classes.all())
     if classes:
@@ -82,6 +114,10 @@ def build_problem(school, timetable=None, base=None):
     notes = []
     all_universes = card_universes(None, None, school.weeks_count, school.terms_count)
     avail = _availability_index(school)
+    # Aynı anda yürüyen (bağlı) programlarda dolu olan öğretmen/derslik saatleri burada kapalıdır.
+    for entity, cells in linked_busy(school).items():
+        for cell in cells:
+            avail[entity][cell] = Availability.NO
     all_cells = [(d, p) for d in range(days) for p in range(periods)]
 
     school_entity = ("school", school.id)

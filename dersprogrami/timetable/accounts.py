@@ -12,9 +12,9 @@ from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from .access import grantable, school_permissions
+from .access import grantable, institution_permissions
 from .data_views import default_periods
-from .models import Membership, School
+from .models import Institution, Membership, School
 from .views import _nav
 
 M = Membership
@@ -42,7 +42,7 @@ def _perm_choices(allowed):
     return [(key, label) for key, label in M.PERMISSIONS if key in allowed and key != M.VIEW]
 
 
-def _create_or_attach(form, school, granter, allowed):
+def _create_or_attach(form, institution, granter, allowed, programs=()):
     """Formdaki kullanıcıyı oluşturur ya da var olanı okula ekler. Dönüş: (membership, hata)."""
     data = form.cleaned_data
     username = data["username"].strip()
@@ -57,53 +57,69 @@ def _create_or_attach(form, school, granter, allowed):
             return None, " ".join(exc.messages)
         user = User.objects.create_user(username, password=data["password"],
                                         first_name=data["first_name"], last_name=data["last_name"])
-    elif M.objects.filter(user=user, school=school).exists():
-        return None, f"{username} zaten bu okulun kullanıcısı."
+    elif M.objects.filter(user=user, institution=institution).exists():
+        return None, f"{username} zaten bu kurumun kullanıcısı."
     elif user.is_superuser:
-        return None, "Merkez yönetici okul kullanıcısı olarak eklenemez."
-    membership = M.objects.create(user=user, school=school, permissions=perms, granted_by=granter)
+        return None, "Merkez yönetici kurum kullanıcısı olarak eklenemez."
+    membership = M.objects.create(user=user, institution=institution, permissions=perms, granted_by=granter)
+    if programs:
+        membership.programs.set(programs)
     return membership, None
 
 
-def _can_manage(request, school, membership):
+def _can_manage(request, institution, membership):
     """Başkasının yetkisini yalnızca, onun yetkileri kendi yetkilerinin alt kümesiyse değiştirebilir."""
     if request.user.is_superuser:
         return True
     if membership.user_id == request.user.id or membership.user.is_superuser:
         return False
-    return membership.perms <= school_permissions(request.user, school)
+    return membership.perms <= institution_permissions(request.user, institution)
+
+
+def _selected_programs(request, institution):
+    ids = [int(x) for x in request.POST.getlist("programs") if str(x).isdigit()]
+    return list(institution.programs.filter(pk__in=ids))
 
 
 def school_users(request, pk):
+    """Eski adres: programın kurumunun kullanıcı sayfasına yönlendirir."""
     school = get_object_or_404(School, pk=pk)
-    allowed = grantable(request.user, school)
+    return redirect("timetable:institution_users", pk=school.institution_id)
+
+
+def institution_users(request, pk):
+    institution = get_object_or_404(Institution, pk=pk)
+    allowed = grantable(request.user, institution)
     choices = _perm_choices(allowed)
     form = NewUserForm(request.POST or None, choices=choices)
     if request.method == "POST":
         action = request.POST.get("action", "add")
         if action == "add":
             if form.is_valid():
-                membership, error = _create_or_attach(form, school, request.user, allowed)
+                membership, error = _create_or_attach(
+                    form, institution, request.user, allowed, _selected_programs(request, institution)
+                )
                 if error:
                     messages.error(request, error)
                 else:
                     messages.success(request, f"{membership.user.username} eklendi.")
-                    return redirect("timetable:school_users", pk=school.pk)
+                    return redirect("timetable:institution_users", pk=institution.pk)
         else:
-            membership = get_object_or_404(M, pk=request.POST.get("membership"), school=school)
-            if not _can_manage(request, school, membership):
+            membership = get_object_or_404(M, pk=request.POST.get("membership"), institution=institution)
+            if not _can_manage(request, institution, membership):
                 messages.error(request, "Bu kullanıcının yetkilerini değiştiremezsiniz (kendiniz ya da sizden yetkili).")
             elif action == "update":
                 membership.permissions = [p for p in request.POST.getlist("permissions") if p in allowed]
                 membership.save(update_fields=["permissions"])
+                membership.programs.set(_selected_programs(request, institution))
                 messages.success(request, f"{membership.user.username} yetkileri güncellendi.")
             elif action == "remove":
                 membership.delete()
-                messages.info(request, f"{membership.user.username} okuldan çıkarıldı.")
+                messages.info(request, f"{membership.user.username} kurumdan çıkarıldı.")
             elif action == "password":
                 user = membership.user
-                if user.memberships.exclude(school=school).exists() and not request.user.is_superuser:
-                    messages.error(request, "Başka okullarda da kayıtlı kullanıcının parolasını yalnızca merkez değiştirebilir.")
+                if user.memberships.exclude(institution=institution).exists() and not request.user.is_superuser:
+                    messages.error(request, "Başka kurumlarda da kayıtlı kullanıcının parolasını yalnızca merkez değiştirebilir.")
                 else:
                     try:
                         validate_password(request.POST.get("password", ""), user)
@@ -113,20 +129,21 @@ def school_users(request, pk):
                         user.set_password(request.POST["password"])
                         user.save(update_fields=["password"])
                         messages.success(request, f"{user.username} parolası değiştirildi.")
-            return redirect("timetable:school_users", pk=school.pk)
+            return redirect("timetable:institution_users", pk=institution.pk)
     members = []
-    for m in school.memberships.select_related("user", "granted_by"):
-        members.append({"m": m, "manageable": _can_manage(request, school, m)})
-    return render(request, "timetable/users.html", _nav(
-        school, "users", form=form, members=members, choices=choices, all_perms=M.PERMISSIONS,
-    ))
+    for m in institution.memberships.select_related("user", "granted_by").prefetch_related("programs"):
+        members.append({"m": m, "manageable": _can_manage(request, institution, m),
+                        "program_ids": [p.pk for p in m.programs.all()]})
+    return render(request, "timetable/users.html", {
+        "institution": institution, "nav": "users", "form": form, "members": members, "choices": choices,
+        "programs": list(institution.programs.order_by("name")),
+    })
 
 
 def central(request):
-    """Merkez paneli: tüm okullar, okul ekleme ve okul yöneticisi atama."""
-    schools = School.objects.annotate(
-        n_users=Count("memberships", distinct=True), n_classes=Count("classes", distinct=True),
-        n_teachers=Count("teachers", distinct=True), n_timetables=Count("timetables", distinct=True),
+    """Merkez paneli: tüm kurumlar, kurum ekleme ve kurum yöneticisi atama."""
+    schools = Institution.objects.annotate(
+        n_users=Count("memberships", distinct=True), n_programs=Count("programs", distinct=True),
     ).order_by("name")
     users = User.objects.annotate(n_schools=Count("memberships")).order_by("-is_superuser", "username")
     form = NewUserForm(choices=_perm_choices(set(M.ALL)), initial={"permissions": M.ALL})
@@ -141,8 +158,10 @@ def central_school_new(request):
         messages.error(request, "Okul adı girin.")
         return redirect("timetable:central")
     with transaction.atomic():
-        school = School.objects.create(name=name[:200])
-        default_periods(school)
+        school = Institution.objects.create(name=name[:200])
+        program_name = (request.POST.get("program_name") or "").strip()
+        if program_name:
+            default_periods(School.objects.create(institution=school, name=program_name[:200]))
         if form.is_valid() and form.cleaned_data["username"].strip():
             membership, error = _create_or_attach(form, school, request.user, set(M.ALL))
             if error:
@@ -164,5 +183,5 @@ def account(request):
         update_session_auth_hash(request, user)
         messages.success(request, "Parolanız değiştirildi.")
         return redirect("timetable:account")
-    memberships = request.user.memberships.select_related("school")
+    memberships = request.user.memberships.select_related("institution").prefetch_related("programs")
     return render(request, "timetable/account.html", {"form": form, "memberships": memberships, "nav": "account"})

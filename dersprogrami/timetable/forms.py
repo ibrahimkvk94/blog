@@ -57,13 +57,22 @@ class StyledFormMixin:
 class SchoolForm(StyledFormMixin, forms.ModelForm):
     class Meta:
         model = School
-        fields = ["name", "days_per_week", "weeks_count", "terms_count"]
+        fields = ["name", "days_per_week", "weeks_count", "terms_count", "linked_programs"]
         widgets = {"days_per_week": forms.Select(choices=[(n, f"{n} gün ({', '.join(DAY_NAMES[:n])})") for n in range(1, 8)])}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["weeks_count"].widget = forms.Select(choices=[(1, "Her hafta aynı"), (2, "İki haftalık (A/B)")])
         self.fields["terms_count"].widget = forms.Select(choices=[(1, "Tek dönem"), (2, "İki dönem")])
+        others = School.objects.none()
+        if self.instance.pk and self.instance.institution_id:
+            others = School.objects.filter(institution_id=self.instance.institution_id).exclude(pk=self.instance.pk)
+        if others.exists():
+            self.fields["linked_programs"].queryset = others
+            self.fields["linked_programs"].widget = ChipSelectMultiple(searchable=False)
+            self.fields["linked_programs"].widget.choices = self.fields["linked_programs"].choices
+        else:
+            del self.fields["linked_programs"]
         self._style()
 
 
