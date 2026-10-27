@@ -87,7 +87,13 @@ def grid_data(timetable, kind):
         sub = f"{hours} saat"
         if pending[obj.id]:
             sub += f" · {pending[obj.id]} bekliyor"
-        rows.append({"id": obj.id, "label": str(obj) if kind != "ogretmen" else f"{obj.first_name} {obj.last_name}", "sub": sub})
+        if kind == "ogretmen":
+            label = f"{obj.first_name} {obj.last_name}"
+        elif kind == "sinif" and obj.short:
+            label, sub = obj.short, f"{obj.name} · {sub}"
+        else:
+            label = str(obj)
+        rows.append({"id": obj.id, "label": label, "sub": sub})
 
     violations, stats = verify_timetable(timetable)
     return {

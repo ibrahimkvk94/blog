@@ -67,7 +67,8 @@ def validate(problem, placements):
 
     reported = set()
     for (kind, res, _universe, day, period), keys in occupancy.items():
-        if len(keys) > 1 and (kind, res, day, period) not in reported:
+        limit = problem.room_slots.get(res, 1) if kind == "room" else 1
+        if len(keys) > limit and (kind, res, day, period) not in reported:
             reported.add((kind, res, day, period))
             lessons = ", ".join(problem.label("lesson", problem.cards[k].lesson_id) for k in keys)
             violations.append(

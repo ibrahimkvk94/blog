@@ -317,6 +317,7 @@ def build_problem(school, timetable=None, base=None):
         teacher_limits=teacher_limits,
         lesson_max_per_day=lesson_max_per_day,
         room_blocked=room_blocked,
+        room_slots={r.id: r.max_lessons for r in school.classrooms.all() if r.max_lessons > 1},
         teacher_available={t.id: free_cells(("teacher", t.id)) for t in teachers},
         atom_available=atom_available,
         labels={

@@ -64,7 +64,7 @@ class Board:
             needed = max(1, min(pc.rooms_needed, len(ordered)))
             free = [
                 r for r in ordered
-                if not self._occupants(pc, "room", r, cells)
+                if len(self._occupants(pc, "room", r, cells)) < self.problem.room_slots.get(r, 1)
                 and not any(c in self.problem.room_blocked.get(r, ()) for c in cells)
             ]
             rooms = free[:needed]

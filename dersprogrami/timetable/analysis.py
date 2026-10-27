@@ -139,7 +139,7 @@ def statistics(timetable):
     capacity = days * periods
     rooms = []
     for r in school.classrooms.all():
-        free = capacity - len(problem.room_blocked.get(r.id, ()))
+        free = (capacity - len(problem.room_blocked.get(r.id, ()))) * r.max_lessons
         hours = room_hours.get(r.id, 0)
         rooms.append({"obj": r, "name": str(r), "hours": hours, "free": free, "pct": round(100 * hours / free) if free else 0})
     placed = sum(1 for c in problem.cards if c.key in placements)

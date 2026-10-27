@@ -28,7 +28,7 @@
     <div class="panel-head"><h2>aSc TimeTables'tan içe aktar</h2></div>
     <form class="panel-body" method="post" enctype="multipart/form-data" action="{% url 'timetable:import_asc' %}">
       {% csrf_token %}
-      <p class="muted small" style="margin-top:0">aSc'de <i>Dosya → Dışa aktar → aSc TimeTables XML</i> ile alınan dosyayı yükleyin. Ders saatleri, ders adları, öğretmenler, derslikler, sınıflar, gruplar, dersler ve (varsa) yerleşmiş kartlar yeni bir okul olarak içe aktarılır.</p>
+      <p class="muted small" style="margin-top:0">aSc'de <i>Dosya → Dışa aktar → aSc TimeTables XML</i> ile alınan dosyayı yükleyin. Ders saatleri, ders adları, öğretmenler, derslikler, sınıflar (kısa adlarıyla), gruplar, dersler ve (varsa) yerleşmiş kartlar yeni bir okul olarak içe aktarılır. aSc 2012 ve sonraki sürümlerin XML biçimi desteklenir. Kartlarda aynı anda birden çok derse ev sahipliği yapan derslikler (ör. spor salonu) buna göre ayarlanır.</p>
       <div class="input-inline">
         <input class="input" type="file" name="file" accept=".xml" required>
         <button class="btn btn-primary">{% include "timetable/icon.html" with name="upload" %} İçe aktar</button>

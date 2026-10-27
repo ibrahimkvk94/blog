@@ -153,7 +153,7 @@ class ClassroomForm(SchoolScopedForm):
 
     class Meta:
         model = Classroom
-        fields = ["name", "short", "capacity", "building"]
+        fields = ["name", "short", "capacity", "max_lessons", "building"]
 
 
 class SchoolClassForm(SchoolScopedForm):
@@ -161,7 +161,7 @@ class SchoolClassForm(SchoolScopedForm):
 
     class Meta:
         model = SchoolClass
-        fields = ["name", "grade", "class_teacher", "home_classroom", "student_count", "min_periods_per_day", "max_periods_per_day"]
+        fields = ["name", "short", "grade", "class_teacher", "home_classroom", "student_count", "min_periods_per_day", "max_periods_per_day"]
         help_texts = {"home_classroom": "Derslik seçilmemiş tek sınıflık dersler bu derslikte yapılır."}
 
     def __init__(self, *args, **kwargs):

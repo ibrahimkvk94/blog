@@ -8,6 +8,8 @@ Temel kavramlar (aSc TimeTables ile aynı mantık):
 - Availability: gün x saat ızgarasında uygun / yasak / koşullu (?) hücreler.
 """
 
+import re
+
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -82,9 +84,13 @@ class Building(models.Model):
 class Classroom(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="classrooms")
     name = models.CharField("ad", max_length=100)
-    short = models.CharField("kısa ad", max_length=20, blank=True)
+    short = models.CharField("kısa ad", max_length=60, blank=True)
     capacity = models.PositiveIntegerField("kapasite", null=True, blank=True)
     building = models.ForeignKey(Building, on_delete=models.SET_NULL, null=True, blank=True)
+    max_lessons = models.PositiveSmallIntegerField(
+        "aynı anda en fazla ders", default=1,
+        help_text="Spor salonu gibi birden çok dersin aynı anda yapılabildiği derslikler için 2 ya da daha fazla.",
+    )
 
     class Meta:
         ordering = ["name"]
@@ -98,7 +104,7 @@ class Classroom(models.Model):
 class Subject(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="subjects")
     name = models.CharField("ad", max_length=100)
-    short = models.CharField("kısa ad", max_length=20, blank=True)
+    short = models.CharField("kısa ad", max_length=60, blank=True)
     color = models.CharField("renk", max_length=7, default="#dfe7fd")
     classrooms = models.ManyToManyField(
         Classroom,
@@ -121,7 +127,7 @@ class Teacher(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="teachers")
     first_name = models.CharField("ad", max_length=100)
     last_name = models.CharField("soyad", max_length=100)
-    short = models.CharField("kısa ad", max_length=20, blank=True)
+    short = models.CharField("kısa ad", max_length=60, blank=True)
     max_periods_per_day = models.PositiveSmallIntegerField("günde en fazla ders", null=True, blank=True)
     max_gaps_per_day = models.PositiveSmallIntegerField("günde en fazla boşluk", null=True, blank=True)
     max_gaps_per_week = models.PositiveSmallIntegerField("haftada en fazla boşluk", null=True, blank=True)
@@ -168,6 +174,7 @@ class Teacher(models.Model):
 class SchoolClass(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="classes")
     name = models.CharField("ad", max_length=50)
+    short = models.CharField("kısa ad", max_length=30, blank=True, help_text="Ana görünüm ve çıktılarda kullanılır (ör. 1SVN).")
     grade = models.PositiveSmallIntegerField("sınıf seviyesi", null=True, blank=True)
     home_classroom = models.ForeignKey(
         Classroom, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="sınıf dersliği"
@@ -182,13 +189,26 @@ class SchoolClass(models.Model):
         verbose_name="sınıf öğretmeni", help_text="Çıktılarda sınıf programının başlığında yazar.",
     )
 
+    # Doğal sıralama için: "2.KISIM" "10.KISIM"dan önce gelsin (sayılar sıfırla doldurulur).
+    sort_key = models.CharField(max_length=120, blank=True, editable=False)
+
     class Meta:
-        ordering = ["grade", "name"]
+        ordering = ["grade", "sort_key", "name"]
         verbose_name = "sınıf"
         verbose_name_plural = "sınıflar"
 
     def __str__(self):
         return self.name
+
+    @staticmethod
+    def natural_key(name):
+        return re.sub(r"\d+", lambda m: m.group(0).zfill(8), (name or "").casefold())[:120]
+
+    def save(self, *args, **kwargs):
+        self.sort_key = self.natural_key(self.name)
+        if kwargs.get("update_fields") is not None and "name" in kwargs["update_fields"]:
+            kwargs["update_fields"] = list(kwargs["update_fields"]) + ["sort_key"]
+        super().save(*args, **kwargs)
 
 
 class Division(models.Model):

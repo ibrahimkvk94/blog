@@ -110,12 +110,13 @@ def export_school(school, timetable=None):
     grades = _table(root, "grades", ["grade", "name", "short"])
     for grade in sorted({c.grade for c in classes if c.grade is not None}):
         ET.SubElement(grades, "grade", grade=str(grade), name=f"{grade}. sınıf", short=str(grade))
-    classes_el = _table(root, "classes", ["id", "name", "short", "classroomids", "grade"])
+    classes_el = _table(root, "classes", ["id", "name", "short", "classroomids", "teacherid", "grade"])
     groups_el = _table(root, "groups", ["id", "classid", "name", "entireclass", "divisiontag", "studentcount"])
     for c in classes:
         ET.SubElement(
-            classes_el, "class", id=f"C{c.pk}", name=c.name, short=c.name,
+            classes_el, "class", id=f"C{c.pk}", name=c.name, short=c.short or c.name,
             classroomids=f"R{c.home_classroom_id}" if c.home_classroom_id else "", grade=str(c.grade or ""),
+            teacherid=f"T{c.class_teacher_id}" if c.class_teacher_id else "",
         )
         ET.SubElement(groups_el, "group", id=f"G{c.pk}_0", classid=f"C{c.pk}", name="Tüm sınıf", entireclass="1", divisiontag="0", studentcount="")
         for tag, division in enumerate(c.divisions.all(), start=1):
@@ -249,13 +250,13 @@ def import_school(data, name=None):
             first, last = t.get("firstname") or "", t.get("lastname") or ""
             if not first and not last:
                 first, _, last = (t.get("name") or t.get("short") or "?").partition(" ")
-            teachers[t.get("id")] = Teacher.objects.create(school=school, first_name=first, last_name=last, short=(t.get("short") or "")[:20])
+            teachers[t.get("id")] = Teacher.objects.create(school=school, first_name=first, last_name=last, short=(t.get("short") or "")[:60])
 
         buildings = {b.get("id"): Building.objects.create(school=school, name=b.get("name") or "?") for b in rows("buildings", "building")}
         rooms = {}
         for r in rows("classrooms", "classroom"):
             rooms[r.get("id")] = Classroom.objects.create(
-                school=school, name=r.get("name") or "?", short=(r.get("short") or "")[:20],
+                school=school, name=r.get("name") or "?", short=(r.get("short") or "")[:60],
                 capacity=_int(r.get("capacity"), None) if (r.get("capacity") or "").strip("*") else None,
                 building=buildings.get(r.get("buildingid")),
             )
@@ -263,8 +264,11 @@ def import_school(data, name=None):
         classes = {}
         for c in rows("classes", "class"):
             home = next((rooms[r] for r in _ids(c.get("classroomids")) if r in rooms), None)
+            short = (c.get("short") or "").strip()
             classes[c.get("id")] = SchoolClass.objects.create(
-                school=school, name=c.get("name") or c.get("short") or "?", grade=_int(c.get("grade"), None), home_classroom=home
+                school=school, name=c.get("name") or short or "?", short=short[:30] if short != c.get("name") else "",
+                grade=_int(c.get("grade"), None), home_classroom=home,
+                class_teacher=teachers.get(c.get("teacherid")),
             )
 
         groups = {}  # aSc grup kimliği -> Group (tüm sınıf grupları için None)
@@ -282,6 +286,13 @@ def import_school(data, name=None):
             groups[g.get("id")] = Group.objects.create(
                 division=divisions[(cls.pk, tag)], name=g.get("name") or "?", student_count=_int(g.get("studentcount"), None) or None
             )
+
+        # aSc bölünmeleri yalnızca numara taşır; adı grup adlarından oluşturulur (ör. "Grup 1 / Grup 2").
+        for division in divisions.values():
+            names = list(division.groups.values_list("name", flat=True))
+            if names:
+                division.name = " / ".join(names)[:50]
+                division.save(update_fields=["name"])
 
         days_defs = {d.get("id"): _union_bits(d.get("days")) for d in rows("daysdefs", "daysdef")}
         weeks_defs = {w.get("id"): _union_bits(w.get("weeks")) for w in rows("weeksdefs", "weeksdef")}
@@ -315,8 +326,32 @@ def import_school(data, name=None):
                 )
             lessons[item.get("id")] = lesson
 
+        _infer_shared_rooms(rows("cards", "card"), lessons, rooms, period_index)
         timetable = _import_cards(school, rows("cards", "card"), lessons, rooms, period_index)
     return school, timetable
+
+
+def _infer_shared_rooms(card_rows, lessons, rooms, period_index):
+    """aSc'de bir derslik aynı anda birden çok dersi alabilir (spor salonu gibi); XML bu ayarı taşımaz.
+    Kartlarda aynı anda aynı derslikte görülen en çok ders sayısı dersliğin sınırı olarak alınır."""
+    usage = defaultdict(set)
+    for row in card_rows:
+        lesson = lessons.get(row.get("lessonid"))
+        period = period_index.get(row.get("period"))
+        if lesson is None or period is None:
+            continue
+        for day in _bit_set(row.get("days")):
+            for room_id in _ids(row.get("classroomids")):
+                if room_id in rooms:
+                    usage[(room_id, day, period, row.get("weeks"), row.get("terms"))].add(lesson.pk)
+    most = defaultdict(int)
+    for (room_id, *_rest), lesson_ids in usage.items():
+        most[room_id] = max(most[room_id], len(lesson_ids))
+    for room_id, count in most.items():
+        if count > 1:
+            room = rooms[room_id]
+            room.max_lessons = count
+            room.save(update_fields=["max_lessons"])
 
 
 def _import_cards(school, card_rows, lessons, rooms, period_index):

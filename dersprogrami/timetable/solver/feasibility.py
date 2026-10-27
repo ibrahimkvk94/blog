@@ -119,7 +119,7 @@ def check(problem):
             single_room[card.room_options[0]].append(card.key)
     for room_id, keys in single_room.items():
         load = _load_per_universe(problem, keys)
-        free = total_cells - len(problem.room_blocked.get(room_id, ()))
+        free = (total_cells - len(problem.room_blocked.get(room_id, ()))) * problem.room_slots.get(room_id, 1)
         if load > free:
             issues.append(
                 Issue(

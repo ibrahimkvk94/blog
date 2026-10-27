@@ -318,12 +318,13 @@ class _Builder:
                     self.m.Add(w <= y)
                     usage[(key, cell)] = w
             self.room_usage[room] = usage
+            slots = self.problem.room_slots.get(room, 1)
             for subset in self._universe_subsets(keys):
                 cells = {cell for (k, cell) in usage if k in subset}
                 for cell in cells:
                     terms = [usage[(k, cell)] for k in subset if (k, cell) in usage]
-                    if len(terms) > 1:
-                        self.m.Add(sum(terms) <= 1)
+                    if len(terms) > slots:
+                        self.m.Add(sum(terms) <= slots)
 
     def lesson_spread(self):
         by_lesson = {}

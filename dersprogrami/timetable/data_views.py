@@ -131,7 +131,7 @@ ENTITIES = {
     "siniflar": Entity(
         "siniflar", SchoolClass, forms.SchoolClassForm, "Sınıflar", "Sınıf",
         [
-            ("Sınıf", lambda c, ctx: c.name),
+            ("Sınıf", lambda c, ctx: c.name + (f" ({c.short})" if c.short else "")),
             ("Seviye", lambda c, ctx: c.grade or "–"),
             ("Sınıf öğretmeni", lambda c, ctx: c.class_teacher.full_name if c.class_teacher else "–"),
             ("Sınıf dersliği", lambda c, ctx: c.home_classroom or "–"),
@@ -142,7 +142,7 @@ ENTITIES = {
     ),
     "derslikler": Entity(
         "derslikler", Classroom, forms.ClassroomForm, "Derslikler", "Derslik",
-        [("Ad", lambda r, ctx: r.name), ("Kısa ad", lambda r, ctx: r.short), ("Kapasite", lambda r, ctx: r.capacity or "–"), ("Bina", lambda r, ctx: r.building or "–")],
+        [("Ad", lambda r, ctx: r.name), ("Kısa ad", lambda r, ctx: r.short), ("Kapasite", lambda r, ctx: r.capacity or "–"), ("Aynı anda", lambda r, ctx: r.max_lessons if r.max_lessons > 1 else "–"), ("Bina", lambda r, ctx: r.building or "–")],
         availability="classroom", order=("name",),
     ),
     "binalar": Entity(

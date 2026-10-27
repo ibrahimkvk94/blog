@@ -82,6 +82,7 @@ class Problem:
     teacher_limits: dict[int, TeacherLimits] = field(default_factory=dict)
     lesson_max_per_day: dict[int, int] = field(default_factory=dict)
     room_blocked: dict[int, frozenset[Slot]] = field(default_factory=dict)
+    room_slots: dict[int, int] = field(default_factory=dict)  # derslik → aynı anda en fazla ders (yoksa 1)
     teacher_available: dict[int, int] = field(default_factory=dict)
     atom_available: dict[str, int] = field(default_factory=dict)
     relationships: list[RelationshipSpec] = field(default_factory=list)
