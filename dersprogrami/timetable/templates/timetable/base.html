@@ -3,21 +3,64 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Ders Programı{% endblock %}</title>
+  <title>{% block title %}Ders Programı{% endblock %} · Ders Programı</title>
   <link href="{% static 'timetable/app.css' %}" rel="stylesheet">
+  {% block head %}{% endblock %}
 </head>
 <body>
-<nav class="navbar">
-  <div class="container">
-    <a class="navbar-brand" href="{% url 'timetable:school_list' %}">Ders Programı</a>
-    <a class="nav-link" href="{% url 'admin:index' %}">Veri girişi (admin)</a>
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="{% url 'timetable:school_list' %}">
+      <span class="brand-mark">{% include "timetable/icon.html" with name="grid" %}</span>
+      Ders Programı
+    </a>
+    {% if school %}
+      <div class="side-school">
+        <div class="label">Okul</div>
+        <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>
+      </div>
+      <div class="nav-section">Program</div>
+      <nav class="side-nav">
+        <a href="{% url 'timetable:school_detail' school.pk %}" class="{% if nav == 'dashboard' %}active{% endif %}">{% include "timetable/icon.html" with name="home" %} Genel bakış</a>
+        {% with main_tt=school.active_timetable|default:latest_timetable %}
+          {% if main_tt %}
+            <a href="{% url 'timetable:timetable_detail' main_tt.pk %}" class="{% if nav == 'timetable' %}active{% endif %}">{% include "timetable/icon.html" with name="grid" %} Ana görünüm</a>
+          {% endif %}
+        {% endwith %}
+        <a href="{% url 'timetable:substitutions' school.pk %}" class="{% if nav == 'subs' %}active{% endif %}">{% include "timetable/icon.html" with name="swap" %} Vekâlet</a>
+      </nav>
+      <div class="nav-section">Veri</div>
+      <nav class="side-nav">
+        <a href="{% url 'admin:timetable_lesson_changelist' %}?school__id__exact={{ school.pk }}">{% include "timetable/icon.html" with name="list" %} Dersler</a>
+        <a href="{% url 'admin:timetable_teacher_changelist' %}?school__id__exact={{ school.pk }}">{% include "timetable/icon.html" with name="users" %} Öğretmenler</a>
+        <a href="{% url 'admin:timetable_cardrelationship_changelist' %}?school__id__exact={{ school.pk }}">{% include "timetable/icon.html" with name="link" %} Kart ilişkileri</a>
+        <a href="{% url 'admin:index' %}">{% include "timetable/icon.html" with name="database" %} Tüm veriler</a>
+      </nav>
+    {% else %}
+      <nav class="side-nav">
+        <a href="{% url 'timetable:school_list' %}" class="active">{% include "timetable/icon.html" with name="home" %} Okullar</a>
+        <a href="{% url 'admin:index' %}">{% include "timetable/icon.html" with name="database" %} Veri girişi</a>
+      </nav>
+    {% endif %}
+    <div class="sidebar-foot">aSc mantığıyla · CP-SAT çözücü</div>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <div class="crumbs">{% block crumbs %}{% endblock %}</div>
+        <div class="title-row">{% block heading %}{% endblock %}</div>
+      </div>
+      <div class="actions">{% block actions %}{% endblock %}</div>
+    </header>
+    <main class="content">
+      {% for message in messages %}
+        <div class="alert alert-{{ message.tags|default:'info' }}">{{ message }}</div>
+      {% endfor %}
+      {% block content %}{% endblock %}
+    </main>
   </div>
-</nav>
-<main class="container">
-  {% for message in messages %}
-    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %}">{{ message }}</div>
-  {% endfor %}
-  {% block content %}{% endblock %}
-</main>
+</div>
+<div class="toast-wrap" id="toasts"></div>
+{% block scripts %}{% endblock %}
 </body>
 </html>

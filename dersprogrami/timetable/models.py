@@ -21,6 +21,15 @@ class School(models.Model):
         "hafta döngüsü", default=1, help_text="1 = her hafta aynı, 2 = A/B haftası"
     )
     terms_count = models.PositiveSmallIntegerField("dönem sayısı", default=1)
+    active_timetable = models.ForeignKey(
+        "Timetable",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name="yayındaki program",
+        help_text="Vekâlet işlemlerinde esas alınan program.",
+    )
 
     class Meta:
         verbose_name = "okul"
@@ -106,6 +115,9 @@ class Teacher(models.Model):
     max_periods_per_day = models.PositiveSmallIntegerField("günde en fazla ders", null=True, blank=True)
     max_gaps_per_day = models.PositiveSmallIntegerField("günde en fazla boşluk", null=True, blank=True)
     max_gaps_per_week = models.PositiveSmallIntegerField("haftada en fazla boşluk", null=True, blank=True)
+    max_days_per_week = models.PositiveSmallIntegerField(
+        "haftada en fazla gün", null=True, blank=True, help_text="Ör. 4 = haftada bir boş gün"
+    )
 
     class Meta:
         ordering = ["last_name", "first_name"]
@@ -252,16 +264,41 @@ class Timetable(models.Model):
     """Bir üretim sonucu (sürüm). Kullanıcı sürümleri karşılaştırıp birini seçebilir."""
 
     DRAFT = "draft"
+    RUNNING = "running"
     OK = "ok"
+    PARTIAL = "partial"
     FAILED = "failed"
-    STATUS_CHOICES = [(DRAFT, "Taslak"), (OK, "Üretildi"), (FAILED, "Üretilemedi")]
+    STATUS_CHOICES = [
+        (DRAFT, "Taslak"),
+        (RUNNING, "Üretiliyor"),
+        (OK, "Üretildi"),
+        (PARTIAL, "Kısmen üretildi"),
+        (FAILED, "Üretilemedi"),
+    ]
+
+    STRICT = "strict"
+    RELAXED = "relaxed"
+    MODE_CHOICES = [(STRICT, "Katı"), (RELAXED, "Gevşek (taslak)")]
 
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="timetables")
     name = models.CharField("ad", max_length=200)
     created_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=DRAFT)
+    mode = models.CharField("üretim modu", max_length=10, choices=MODE_CHOICES, default=STRICT)
+    time_limit = models.PositiveIntegerField("süre sınırı (sn)", default=60)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    cancel_requested = models.BooleanField(default=False)
     objective = models.IntegerField("ceza puanı", null=True, blank=True)
     report = models.JSONField("rapor", default=dict, blank=True)
+
+    @property
+    def has_grid(self):
+        return self.status in (self.OK, self.PARTIAL, self.DRAFT)
+
+    @property
+    def is_running(self):
+        return self.status == self.RUNNING
 
     class Meta:
         ordering = ["-created_at"]
@@ -296,3 +333,96 @@ class Card(models.Model):
 
     def covers(self, day, period):
         return self.is_placed and self.day == day and self.period <= period < self.period + self.length
+
+
+class CardRelationship(models.Model):
+    """Seçilen kartlara toplu uygulanan kural (aSc'deki "kart ilişkileri").
+
+    Kart kümesi: seçilen dersler ve/veya ders adları; sınıf ve öğretmen seçimi kümeyi daraltır.
+    "Uygula" alanı kümeyi parçalara böler: ör. "her sınıf için ayrı" seçilirse kural her sınıfın
+    kartlarına ayrı ayrı uygulanır.
+    """
+
+    MAX_PER_DAY = "max_per_day"
+    DIFFERENT_DAYS = "different_days"
+    MAX_CONSECUTIVE = "max_consecutive"
+    SAME_TIME = "same_time"
+    CONDITION_CHOICES = [
+        (MAX_PER_DAY, "Günde en fazla N kart"),
+        (DIFFERENT_DAYS, "Farklı günlerde"),
+        (MAX_CONSECUTIVE, "Art arda en fazla N saat"),
+        (SAME_TIME, "Aynı anda (seçilen dersler)"),
+    ]
+
+    ALL = "all"
+    EACH_CLASS = "each_class"
+    EACH_TEACHER = "each_teacher"
+    APPLY_CHOICES = [(ALL, "Tüm seçime birlikte"), (EACH_CLASS, "Her sınıf için ayrı"), (EACH_TEACHER, "Her öğretmen için ayrı")]
+
+    STRICT = "strict"
+    HIGH = "high"
+    NORMAL = "normal"
+    LOW = "low"
+    IMPORTANCE_CHOICES = [(STRICT, "Kesin"), (HIGH, "Yüksek"), (NORMAL, "Normal"), (LOW, "Düşük")]
+    WEIGHTS = {HIGH: 300, NORMAL: 60, LOW: 15}
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="relationships")
+    name = models.CharField("ad", max_length=200)
+    active = models.BooleanField("etkin", default=True)
+    condition = models.CharField("koşul", max_length=20, choices=CONDITION_CHOICES, default=MAX_PER_DAY)
+    param = models.PositiveSmallIntegerField("N", default=1)
+    apply_to = models.CharField("uygula", max_length=20, choices=APPLY_CHOICES, default=EACH_CLASS)
+    importance = models.CharField("önem", max_length=10, choices=IMPORTANCE_CHOICES, default=STRICT)
+    lessons = models.ManyToManyField(Lesson, blank=True, related_name="relationships", verbose_name="dersler")
+    subjects = models.ManyToManyField(Subject, blank=True, related_name="relationships", verbose_name="ders adları")
+    classes = models.ManyToManyField(SchoolClass, blank=True, related_name="relationships", verbose_name="yalnızca bu sınıflar")
+    teachers = models.ManyToManyField(Teacher, blank=True, related_name="relationships", verbose_name="yalnızca bu öğretmenler")
+
+    class Meta:
+        verbose_name = "kart ilişkisi"
+        verbose_name_plural = "kart ilişkileri"
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def weight(self):
+        """None = sert kısıt."""
+        return self.WEIGHTS.get(self.importance)
+
+
+class Absence(models.Model):
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="absences")
+    date = models.DateField("tarih")
+    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, related_name="absences", verbose_name="öğretmen")
+    reason = models.CharField("neden", max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["date", "teacher"]
+        unique_together = [("date", "teacher")]
+        verbose_name = "devamsızlık"
+        verbose_name_plural = "devamsızlıklar"
+
+    def __str__(self):
+        return f"{self.teacher} – {self.date:%d.%m.%Y}"
+
+
+class Substitution(models.Model):
+    """Devamsız öğretmenin tek bir ders saatine atanan vekil öğretmen."""
+
+    absence = models.ForeignKey(Absence, on_delete=models.CASCADE, related_name="substitutions")
+    card = models.ForeignKey(Card, on_delete=models.CASCADE, related_name="substitutions")
+    period = models.PositiveSmallIntegerField("saat")
+    substitute = models.ForeignKey(
+        Teacher, on_delete=models.SET_NULL, null=True, blank=True, related_name="substitutions", verbose_name="vekil"
+    )
+    note = models.CharField("not", max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["period"]
+        unique_together = [("absence", "card", "period")]
+        verbose_name = "vekâlet"
+        verbose_name_plural = "vekâletler"
+
+    def __str__(self):
+        return f"{self.absence} – {self.period + 1}. saat → {self.substitute or 'boş'}"

@@ -1,79 +1,103 @@
 {% extends "timetable/base.html" %}
+{% load static %}
 {% block title %}{{ timetable.name }}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_list' %}">Okullar</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
+{% block heading %}
+  <h1>{{ timetable.name }}</h1>
+  {% include "timetable/status_pill.html" with t=timetable %}
+  <span class="pill">{{ timetable.get_mode_display }}</span>
+{% endblock %}
+{% block actions %}
+  {% if timetable.has_grid %}
+    <button class="btn" id="btn-repair" title="Bekleyen kartları programa yerleştir">{% include "timetable/icon.html" with name="wand" %} Bekleyenleri yerleştir</button>
+    <div class="dropdown" id="export-menu">
+      <button class="btn" type="button" data-toggle="dropdown">{% include "timetable/icon.html" with name="download" %} Dışa aktar {% include "timetable/icon.html" with name="chevron" %}</button>
+      <div class="dropdown-menu">
+        <a href="{% url 'timetable:export_excel' timetable.pk %}">{% include "timetable/icon.html" with name="download" %} Excel (.xlsx)</a>
+        <a href="{% url 'timetable:export_asc' timetable.pk %}">{% include "timetable/icon.html" with name="download" %} aSc TimeTables XML</a>
+        <a href="{% url 'timetable:print' timetable.pk %}?tur=sinif" target="_blank">{% include "timetable/icon.html" with name="printer" %} Yazdır / PDF – sınıflar</a>
+        <a href="{% url 'timetable:print' timetable.pk %}?tur=ogretmen" target="_blank">{% include "timetable/icon.html" with name="printer" %} Yazdır / PDF – öğretmenler</a>
+      </div>
+    </div>
+    {% if timetable.pk != school.active_timetable_id %}
+      <form method="post" action="{% url 'timetable:publish' timetable.pk %}">{% csrf_token %}
+        <button class="btn btn-primary">{% include "timetable/icon.html" with name="star" %} Yayınla</button>
+      </form>
+    {% endif %}
+  {% endif %}
+{% endblock %}
+
 {% block content %}
-<p><a href="{% url 'timetable:school_detail' school.pk %}">&larr; {{ school }}</a></p>
-<h1 class="h3">{{ timetable.name }} <span class="badge bg-{% if timetable.status == 'ok' %}success{% else %}danger{% endif %}">{{ timetable.get_status_display }}</span></h1>
-
-{% if timetable.report.solver %}
-  <p class="text-muted small">
-    Çözücü: {{ timetable.report.solver.status }} · {{ timetable.report.solver.cards }} kart ·
-    {{ timetable.report.solver.wall_time }} sn{% if timetable.objective is not None %} · ceza {{ timetable.objective }}{% endif %}
-    {% if stats %} · öğretmen boşluğu {{ stats.teacher_gaps }} · sınıf boşluğu {{ stats.class_gaps }} · geç başlayan sınıf-gün {{ stats.class_late_starts }}{% endif %}
-  </p>
-{% endif %}
-
-{% for issue in timetable.report.issues %}
-  <div class="alert alert-{% if issue.level == 'error' %}danger{% else %}warning{% endif %} py-2">{{ issue.message }}</div>
-{% endfor %}
-
-{% if timetable.status == 'ok' %}
-  <ul class="nav nav-tabs mb-3">
-    {% for key, value in kinds.items %}
-      <li class="nav-item"><a class="nav-link {% if key == kind %}active{% endif %}" href="?tur={{ key }}">{{ value.0 }}</a></li>
-    {% endfor %}
-  </ul>
-
-  <form method="get" class="mb-3 d-flex gap-2">
-    <input type="hidden" name="tur" value="{{ kind }}">
-    <select name="id" class="form-select w-auto" onchange="this.form.submit()">
-      {% for obj in objects %}<option value="{{ obj.pk }}" {% if obj == selected %}selected{% endif %}>{{ obj }}</option>{% endfor %}
-    </select>
-  </form>
-
-  <div class="table-responsive">
-    <table class="table table-bordered tt-grid">
-      <thead>
-        <tr><th></th>{% for day in school.day_names %}<th>{{ day }}</th>{% endfor %}</tr>
-      </thead>
-      <tbody>
-        {% for row in rows %}
-          <tr>
-            <th class="small">{{ row.period.name }}<br><span class="text-muted">{{ row.period.start_time|time:"H:i" }}</span></th>
-            {% for cell in row.cells %}
-              <td>
-                {% for card in cell %}
-                  <div class="tt-card" style="background: {{ card.lesson.subject.color }}">
-                    <strong>{{ card.lesson.subject }}</strong>
-                    <form method="post" action="{% url 'timetable:toggle_lock' card.pk %}">
-                      {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
-                      <button class="tt-lock" title="Kilitle / kilidi aç">{% if card.locked %}🔒{% else %}🔓{% endif %}</button>
-                    </form>
-                    <div class="meta">
-                      {% if kind != 'sinif' %}{% for c in card.lesson.classes.all %}{{ c }} {% endfor %}{% endif %}
-                      {{ card.group_names|join:", " }}
-                      {% if kind != 'ogretmen' %}{% for t in card.lesson.teachers.all %}{{ t }} {% endfor %}{% endif %}
-                      {% if kind != 'derslik' and card.classroom %}· {{ card.classroom }}{% endif %}
-                    </div>
-                  </div>
-                {% endfor %}
-              </td>
-            {% endfor %}
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+{% if timetable.is_running %}
+  <div class="panel running-card" id="running" data-status-url="{% url 'timetable:api_status' timetable.pk %}">
+    <div class="panel-head"><div style="display:flex;gap:10px;align-items:center"><span class="spinner"></span><h2>Program üretiliyor</h2></div>
+      <form method="post" action="{% url 'timetable:stop' timetable.pk %}">{% csrf_token %}<button class="btn btn-danger btn-sm">{% include "timetable/icon.html" with name="stop" %} Durdur ve en iyisini al</button></form>
+    </div>
+    <div class="panel-body">
+      <div class="progress"><div id="run-bar" style="width:0%"></div></div>
+      <p class="muted small" id="run-text">Veri hazırlanıyor…</p>
+      <div class="running-stats">
+        <div class="tile"><div class="k">Geçen süre</div><div class="v" id="run-elapsed">0 sn</div><div class="h">sınır {{ timetable.time_limit }} sn</div></div>
+        <div class="tile"><div class="k">Bulunan çözüm</div><div class="v" id="run-solutions">0</div></div>
+        <div class="tile"><div class="k">En iyi ceza</div><div class="v" id="run-objective">–</div></div>
+      </div>
+    </div>
+  </div>
+{% elif not timetable.has_grid %}
+  <div class="panel" style="max-width:820px">
+    <div class="panel-head"><h2>Program üretilemedi</h2></div>
+    <div class="panel-body">
+      {% if timetable.report.error %}<div class="alert alert-error">{{ timetable.report.error }}</div>{% endif %}
+      {% if timetable.report.issues %}
+        <ul class="issues">{% for issue in timetable.report.issues %}<li class="{{ issue.level }}"><span class="dot"></span>{{ issue.message }}</li>{% endfor %}</ul>
+      {% endif %}
+      <p class="muted">Veriyi düzeltip yeniden deneyin ya da <b>gevşek modda</b> üreterek hangi kuralların sorun çıkardığını görün.</p>
+      <a class="btn" href="{% url 'timetable:school_detail' school.pk %}">Genel bakışa dön</a>
+    </div>
+  </div>
+{% else %}
+  <div class="tt-toolbar">
+    <div class="left">
+      <div class="segmented" id="kind-switch">
+        <button data-kind="sinif" class="active">Sınıflar</button>
+        <button data-kind="ogretmen">Öğretmenler</button>
+        <button data-kind="derslik">Derslikler</button>
+      </div>
+      <label class="search">{% include "timetable/icon.html" with name="search" %}<input class="input" id="row-filter" placeholder="Satır ara…" autocomplete="off"></label>
+      <div class="segmented" id="zoom-switch" title="Yakınlaştırma">
+        <button data-zoom="compact">S</button><button data-zoom="" class="active">M</button><button data-zoom="roomy">L</button>
+      </div>
+    </div>
+    <div class="right chips" id="stats"></div>
   </div>
 
-  <h2 class="h5 mt-4">Doğrulama</h2>
-  {% if violations %}
-    <ul class="list-group">{% for v in violations %}<li class="list-group-item list-group-item-danger">{{ v.message }}</li>{% endfor %}</ul>
-  {% else %}
-    <div class="alert alert-success">Sert kısıt ihlali yok.</div>
-  {% endif %}
+  <div class="tt-wrap" id="tt-wrap">
+    <div>
+      <div class="tt-scroll" id="tt-scroll"><div class="tt-board" id="tt-board"></div></div>
+      <div style="display:flex;justify-content:space-between;gap:12px;margin-top:10px;flex-wrap:wrap">
+        <div class="legend">
+          <span><i style="background:#dcf5e4"></i>Uygun</span>
+          <span><i style="background:#fdf0c9"></i>Uyarılı</span>
+          <span><i style="background:#fde0cc"></i>Çakışan kartlar bekleyenlere alınır</span>
+          <span><i style="background:repeating-linear-gradient(135deg,#fbe4e4 0 3px,#fff 3px 6px)"></i>Uygun değil</span>
+        </div>
+        <span class="subtle small">Kartı sürükleyin ya da tıklayıp uygun hücreye tıklayın · Esc: seçimi bırak</span>
+      </div>
+      <div class="panel tray">
+        <div class="panel-head"><h2>Yerleşmeyen kartlar <span class="pill" id="tray-count">0</span></h2><span class="subtle small">Bir kartı buraya bırakmak onu programdan çıkarır</span></div>
+        <div class="tray-body" id="tray"></div>
+      </div>
+      <div class="panel" style="margin-top:14px">
+        <div class="panel-head"><h2>Doğrulama</h2><span id="violation-pill"></span></div>
+        <div class="panel-body flush"><ul class="issues" id="violations"></ul></div>
+      </div>
+    </div>
+    <aside class="panel drawer" id="drawer" hidden></aside>
+  </div>
 {% endif %}
+{{ config|json_script:"tt-config" }}
+{% endblock %}
 
-{% if unplaced %}
-  <h2 class="h5 mt-4">Yerleşmeyen kartlar</h2>
-  <ul>{% for card in unplaced %}<li>{{ card.lesson }}</li>{% endfor %}</ul>
-{% endif %}
+{% block scripts %}
+<script src="{% static 'timetable/grid.js' %}"></script>
 {% endblock %}

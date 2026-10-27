@@ -84,6 +84,22 @@ def check(problem):
                     )
                 )
 
+        if limits and limits.max_days_per_week is not None:
+            for lesson_id in {problem.cards[k].lesson_id for k in keys}:
+                count = sum(1 for k in keys if problem.cards[k].lesson_id == lesson_id)
+                per_day = problem.lesson_max_per_day.get(lesson_id, count)
+                needed = -(-count // per_day)
+                if needed > limits.max_days_per_week:
+                    issues.append(
+                        Issue(
+                            ERROR,
+                            "teacher_days",
+                            f"{problem.label('teacher', teacher_id)}: {problem.label('lesson', lesson_id)} dersi "
+                            f"en az {needed} güne yayılmalı, ancak öğretmen haftada en fazla "
+                            f"{limits.max_days_per_week} gün geliyor.",
+                        )
+                    )
+
     for atom_id, keys in problem.cards_by("atoms").items():
         load = _load_per_universe(problem, keys)
         free = problem.atom_available.get(atom_id, total_cells)
@@ -136,5 +152,10 @@ def check(problem):
     return issues
 
 
-def has_errors(issues):
-    return any(issue.level == ERROR for issue in issues)
+# Gevşek modda bile üretimi imkânsız kılan yapısal hatalar. Diğer hatalarda gevşek mod, ilgili
+# kartları yerleştirmeden ya da kuralları kırarak en yakın taslağı üretebilir.
+STRUCTURAL = {"no_periods", "no_class", "no_universe"}
+
+
+def has_errors(issues, relaxed=False):
+    return any(issue.level == ERROR and (not relaxed or issue.code in STRUCTURAL) for issue in issues)

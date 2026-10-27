@@ -26,7 +26,7 @@ class ClassroomAdmin(admin.ModelAdmin):
 
 @admin.register(models.Teacher)
 class TeacherAdmin(admin.ModelAdmin):
-    list_display = ["__str__", "first_name", "last_name", "max_periods_per_day", "max_gaps_per_week"]
+    list_display = ["__str__", "first_name", "last_name", "max_periods_per_day", "max_gaps_per_week", "max_days_per_week"]
     list_filter = ["school"]
 
 
@@ -76,3 +76,35 @@ class TimetableAdmin(admin.ModelAdmin):
     list_display = ["name", "school", "status", "objective", "created_at"]
     list_filter = ["school", "status"]
     inlines = [CardInline]
+
+
+@admin.register(models.CardRelationship)
+class CardRelationshipAdmin(admin.ModelAdmin):
+    list_display = ["name", "condition", "param", "apply_to", "importance", "active"]
+    list_filter = ["school", "condition", "importance", "active"]
+    list_editable = ["active"]
+    filter_horizontal = ["lessons", "subjects", "classes", "teachers"]
+    fieldsets = [
+        (None, {"fields": ["school", "name", "active"]}),
+        ("Kural", {"fields": ["condition", "param", "apply_to", "importance"]}),
+        (
+            "Kartlar",
+            {
+                "fields": ["lessons", "subjects", "classes", "teachers"],
+                "description": "Ders veya ders adı seçin; sınıf ve öğretmen seçimi kümeyi daraltır. "
+                "Hiç ders/ders adı seçilmezse tüm dersler kapsanır.",
+            },
+        ),
+    ]
+
+
+class SubstitutionInline(admin.TabularInline):
+    model = models.Substitution
+    extra = 0
+
+
+@admin.register(models.Absence)
+class AbsenceAdmin(admin.ModelAdmin):
+    list_display = ["teacher", "date", "reason"]
+    list_filter = ["school", "date"]
+    inlines = [SubstitutionInline]

@@ -6,6 +6,7 @@ from ..models import Availability
 from .problem import (
     Problem,
     ProblemCard,
+    RelationshipSpec,
     TeacherLimits,
     card_universes,
     class_atoms,
@@ -95,6 +96,8 @@ def build_problem(school, timetable=None, base=None):
             entities.append(("classroom", rooms[0]))
         states = {cell: cell_state(entities, cell) for cell in all_cells}
         lesson_data[lesson.id] = {
+            "subject": lesson.subject_id,
+            "classes": class_ids,
             "teachers": teacher_ids,
             "atoms": lesson_atoms(
                 class_ids, [g.id for g in lesson.groups.all()], atoms_by_class, class_of_group
@@ -154,7 +157,8 @@ def build_problem(school, timetable=None, base=None):
 
     teachers = list(school.teachers.all())
     teacher_limits = {
-        t.id: TeacherLimits(t.max_periods_per_day, t.max_gaps_per_day, t.max_gaps_per_week) for t in teachers
+        t.id: TeacherLimits(t.max_periods_per_day, t.max_gaps_per_day, t.max_gaps_per_week, t.max_days_per_week)
+        for t in teachers
     }
 
     lesson_card_count = defaultdict(int)
@@ -180,6 +184,7 @@ def build_problem(school, timetable=None, base=None):
             atom_available[atom_id] = free
 
     return Problem(
+        relationships=_relationships(school, cards, lesson_data),
         days=days,
         periods=periods,
         universes=all_universes,
@@ -196,3 +201,46 @@ def build_problem(school, timetable=None, base=None):
             "room": {r.id: str(r) for r in school.classrooms.all()},
         },
     )
+
+
+def _relationships(school, cards, lesson_data):
+    specs = []
+    relationships = school.relationships.filter(active=True).prefetch_related(
+        "lessons", "subjects", "classes", "teachers"
+    )
+    for rel in relationships:
+        lesson_ids = [lesson.id for lesson in rel.lessons.all()]
+        subject_ids = {subject.id for subject in rel.subjects.all()}
+        class_filter = {c.id for c in rel.classes.all()}
+        teacher_filter = {t.id for t in rel.teachers.all()}
+
+        def selected(lesson_id):
+            data = lesson_data[lesson_id]
+            if (lesson_ids or subject_ids) and lesson_id not in lesson_ids and data["subject"] not in subject_ids:
+                return False
+            if class_filter and not class_filter & set(data["classes"]):
+                return False
+            if teacher_filter and not teacher_filter & set(data["teachers"]):
+                return False
+            return True
+
+        chosen = [c for c in cards if selected(c.lesson_id)]
+        if not chosen:
+            continue
+        if rel.condition == rel.SAME_TIME:
+            order = lesson_ids or sorted({c.lesson_id for c in chosen})
+            groups = [[c.key for c in chosen if c.lesson_id == lid] for lid in order]
+            groups = [g for g in groups if g]
+        elif rel.apply_to == rel.ALL:
+            groups = [[c.key for c in chosen]]
+        else:
+            attr = "classes" if rel.apply_to == rel.EACH_CLASS else "teachers"
+            limit_to = class_filter if attr == "classes" else teacher_filter
+            by_owner = defaultdict(list)
+            for card in chosen:
+                for owner in lesson_data[card.lesson_id][attr]:
+                    if not limit_to or owner in limit_to:
+                        by_owner[owner].append(card.key)
+            groups = list(by_owner.values())
+        specs.append(RelationshipSpec(rel.name, rel.condition, rel.param, groups, rel.weight))
+    return specs

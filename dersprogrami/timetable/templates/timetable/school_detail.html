@@ -1,64 +1,93 @@
 {% extends "timetable/base.html" %}
 {% block title %}{{ school }}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_list' %}">Okullar</a>{% endblock %}
+{% block heading %}<h1>{{ school }}</h1>{% endblock %}
+{% block actions %}
+  <a class="btn" href="{% url 'admin:timetable_school_change' school.pk %}">Okul ayarları</a>
+  {% with main_tt=school.active_timetable|default:latest_timetable %}{% if main_tt %}
+    <a class="btn btn-primary" href="{% url 'timetable:timetable_detail' main_tt.pk %}">{% include "timetable/icon.html" with name="grid" %} Ana görünüm</a>
+  {% endif %}{% endwith %}
+{% endblock %}
 {% block content %}
-<h1 class="h3">{{ school }}</h1>
-<p class="text-muted">
-  {{ school.days_per_week }} gün ·
-  {% for label, count in counts.items %}{{ count }} {{ label|lower }}{% if not forloop.last %} · {% endif %}{% endfor %}
-</p>
+<div class="tiles">
+  {% for tile in tiles %}
+    <div class="tile"><div class="k">{{ tile.label }}</div><div class="v">{{ tile.value }}</div>{% if tile.hint %}<div class="h">{{ tile.hint }}</div>{% endif %}</div>
+  {% endfor %}
+</div>
 
-<div class="row g-4">
-  <div class="col-lg-6">
-    <h2 class="h5">Veri denetimi</h2>
-    {% if issues %}
-      <ul class="list-group">
-        {% for issue in issues %}
-          <li class="list-group-item list-group-item-{% if issue.level == 'error' %}danger{% else %}warning{% endif %}">{{ issue.message }}</li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <div class="alert alert-success">Veride üretimi engelleyen bir sorun bulunmadı.</div>
-    {% endif %}
+<div class="grid-2">
+  <div class="stack">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Programlar</h2>
+        <span class="subtle small">{{ timetables|length }} sürüm</span>
+      </div>
+      <div class="panel-body flush">
+        {% if timetables %}
+        <table class="table">
+          <thead><tr><th>Ad</th><th>Durum</th><th>Mod</th><th class="num">Ceza</th><th>Tarih</th></tr></thead>
+          <tbody>
+            {% for t in timetables %}
+              <tr>
+                <td><a href="{% url 'timetable:timetable_detail' t.pk %}"><b>{{ t.name }}</b></a></td>
+                <td>{% include "timetable/status_pill.html" %}</td>
+                <td class="muted">{{ t.get_mode_display }}</td>
+                <td class="num">{{ t.objective|default_if_none:"–" }}</td>
+                <td class="muted nowrap">{{ t.created_at|date:"d.m.Y H:i" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+          <div class="empty">Henüz program üretilmedi. Sağdaki formdan ilk programı üretin.</div>
+        {% endif %}
+      </div>
+    </div>
 
-    <h2 class="h5 mt-4">Program üret</h2>
-    <form method="post" action="{% url 'timetable:generate' school.pk %}" class="card card-body">
-      {% csrf_token %}
-      <div class="mb-2">
-        <label class="form-label">Ad</label>
-        <input class="form-control" name="name" value="Program {{ timetables|length|add:1 }}">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Veri denetimi</h2>
+        {% if errors %}<span class="pill failed">{{ errors }} hata</span>{% elif issues %}<span class="pill warn">{{ issues|length }} uyarı</span>{% else %}<span class="pill ok">Sorun yok</span>{% endif %}
       </div>
-      <div class="mb-2">
-        <label class="form-label">Süre sınırı (saniye)</label>
-        <input class="form-control" type="number" name="time_limit" value="30" min="1" max="600">
+      <div class="panel-body flush">
+        {% if issues %}
+          <ul class="issues">{% for issue in issues %}<li class="{{ issue.level }}"><span class="dot"></span>{{ issue.message }}</li>{% endfor %}</ul>
+        {% else %}
+          <div class="empty">Veride üretimi engelleyen bir sorun bulunmadı.</div>
+        {% endif %}
       </div>
-      <div class="mb-3">
-        <label class="form-label">Temel sürüm (kilitli kartlar korunur)</label>
-        <select class="form-select" name="base">
-          <option value="">— Derslerden sıfırdan üret —</option>
-          {% for t in timetables %}{% if t.status == 'ok' %}<option value="{{ t.pk }}">{{ t.name }}</option>{% endif %}{% endfor %}
-        </select>
-      </div>
-      <button class="btn btn-primary">Üret</button>
-    </form>
+    </div>
   </div>
 
-  <div class="col-lg-6">
-    <h2 class="h5">Programlar</h2>
-    <table class="table table-sm">
-      <thead><tr><th>Ad</th><th>Durum</th><th>Ceza</th><th>Tarih</th></tr></thead>
-      <tbody>
-        {% for t in timetables %}
-          <tr>
-            <td><a href="{% url 'timetable:timetable_detail' t.pk %}">{{ t.name }}</a></td>
-            <td>{{ t.get_status_display }}</td>
-            <td>{{ t.objective|default_if_none:"–" }}</td>
-            <td>{{ t.created_at|date:"d.m.Y H:i" }}</td>
-          </tr>
-        {% empty %}
-          <tr><td colspan="4" class="text-muted">Henüz program üretilmedi.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  <div class="panel">
+    <div class="panel-head"><h2>Yeni program üret</h2></div>
+    <form class="panel-body" method="post" action="{% url 'timetable:generate' school.pk %}">
+      {% csrf_token %}
+      <div class="form-row">
+        <label class="label" for="name">Sürüm adı</label>
+        <input class="input" id="name" name="name" value="Program {{ timetables|length|add:1 }}">
+      </div>
+      <div class="form-row">
+        <span class="label">Üretim modu</span>
+        <div class="choice-cards">
+          <label class="choice"><input type="radio" name="mode" value="strict" checked><b>Katı</b><span>Tüm kurallar sağlanır; mümkün değilse üretilmez.</span></label>
+          <label class="choice"><input type="radio" name="mode" value="relaxed"><b>Gevşek (taslak)</b><span>Sığmayan kartlar bekler, kırılan kurallar raporlanır.</span></label>
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="label" for="time_limit">Süre sınırı (saniye)</label>
+        <input class="input" type="number" id="time_limit" name="time_limit" value="60" min="5" max="1800">
+      </div>
+      <div class="form-row">
+        <label class="label" for="base">Başlangıç sürümü</label>
+        <select class="select" id="base" name="base">
+          <option value="">Derslerden sıfırdan üret</option>
+          {% for t in timetables %}{% if t.has_grid %}<option value="{{ t.pk }}">{{ t.name }} (kilitli kartlar korunur)</option>{% endif %}{% endfor %}
+        </select>
+      </div>
+      <button class="btn btn-primary" style="width:100%">{% include "timetable/icon.html" with name="play" %} Üretimi başlat</button>
+      <p class="subtle small" style="margin-bottom:0">Üretim arka planda çalışır; sayfadan ayrılabilirsiniz.</p>
+    </form>
   </div>
 </div>
 {% endblock %}

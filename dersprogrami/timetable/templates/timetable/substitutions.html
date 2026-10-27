@@ -1,0 +1,75 @@
+{% extends "timetable/base.html" %}
+{% block title %}Vekâlet{% endblock %}
+{% block head %}<style>@media print { .sidebar, .topbar .actions, .no-print { display: none !important; } .shell { display: block; } .panel { box-shadow: none; break-inside: avoid; } }</style>{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_list' %}">Okullar</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
+{% block heading %}<h1>Vekâlet · {{ date|date:"d F Y" }}</h1>{% if day_name %}<span class="pill">{{ day_name }}</span>{% endif %}{% endblock %}
+{% block actions %}
+  <a class="btn" href="?tarih={{ prev_date|date:'Y-m-d' }}">‹ Önceki gün</a>
+  <form method="get" class="no-print"><input class="input" type="date" name="tarih" value="{{ date|date:'Y-m-d' }}" onchange="this.form.submit()" style="height:34px"></form>
+  <a class="btn" href="?tarih={{ next_date|date:'Y-m-d' }}">Sonraki gün ›</a>
+  <button class="btn" onclick="window.print()">{% include "timetable/icon.html" with name="printer" %} Yazdır</button>
+{% endblock %}
+{% block content %}
+{% if not timetable %}
+  <div class="alert alert-warning">Vekâlet için önce bir program üretip <b>yayınlayın</b>.</div>
+{% else %}
+  {% if not school.active_timetable_id %}
+    <div class="alert alert-info no-print">Yayında program yok; en son üretilen “{{ timetable.name }}” kullanılıyor. Ana görünümden “Yayınla” ile sabitleyebilirsiniz.</div>
+  {% endif %}
+  {% if not weekday_ok %}
+    <div class="alert alert-info">Bu tarih okulun ders günü değil.</div>
+  {% else %}
+    <div class="panel no-print" style="margin-bottom:18px">
+      <form class="panel-body" method="post" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        {% csrf_token %}<input type="hidden" name="action" value="add"><input type="hidden" name="tarih" value="{{ date|date:'Y-m-d' }}">
+        <div style="min-width:240px"><label class="label">Devamsız öğretmen</label>
+          <select class="select" name="teacher" required>{% for t in teachers %}<option value="{{ t.pk }}">{{ t.first_name }} {{ t.last_name }} ({{ t }})</option>{% endfor %}</select></div>
+        <div style="flex:1;min-width:200px"><label class="label">Neden</label><input class="input" name="reason" placeholder="Raporlu, izinli, görevli…"></div>
+        <button class="btn btn-primary">{% include "timetable/icon.html" with name="plus" %} Devamsızlık ekle</button>
+      </form>
+    </div>
+
+    {% for item in plan %}
+      <div class="panel" style="margin-bottom:18px">
+        <div class="panel-head">
+          <div><h2>{{ item.absence.teacher.first_name }} {{ item.absence.teacher.last_name }}</h2>
+            <span class="subtle small">{{ item.absence.reason|default:"Neden belirtilmedi" }} · {{ item.slots|length }} ders saati</span></div>
+          <div style="display:flex;gap:8px;align-items:center">
+            {% if item.assigned == item.slots|length and item.slots %}<span class="pill ok">Tamamlandı</span>{% else %}<span class="pill warn">{{ item.assigned }}/{{ item.slots|length }} atandı</span>{% endif %}
+            <form method="post" class="no-print" onsubmit="return confirm('Devamsızlık silinsin mi?')">{% csrf_token %}
+              <input type="hidden" name="action" value="delete"><input type="hidden" name="absence" value="{{ item.absence.pk }}"><input type="hidden" name="tarih" value="{{ date|date:'Y-m-d' }}">
+              <button class="btn btn-sm btn-danger">Sil</button></form>
+          </div>
+        </div>
+        {% if item.slots %}
+        <form method="post">
+          {% csrf_token %}<input type="hidden" name="action" value="save"><input type="hidden" name="absence" value="{{ item.absence.pk }}"><input type="hidden" name="tarih" value="{{ date|date:'Y-m-d' }}">
+          {% for slot in item.slots %}
+            <div class="sub-slot">
+              <div><div class="p">{{ slot.period|add:1 }}. saat</div><div class="subtle small">{{ slot.period_obj.start_time|time:"H:i" }}</div></div>
+              <div><b>{{ slot.card.lesson.subject.name }}</b> · {{ slot.classes }}{% if slot.groups %} ({{ slot.groups }}){% endif %}<div class="subtle small">{{ slot.card.classroom|default:"Derslik yok" }}</div></div>
+              <select class="select" name="slot-{{ slot.key }}">
+                <option value="">— Vekil seçilmedi —</option>
+                {% for c in slot.candidates %}
+                  <option value="{{ c.teacher.pk }}" {% if slot.current.substitute_id == c.teacher.pk %}selected{% endif %}>{% if forloop.first %}★ {% endif %}{{ c.teacher.first_name }} {{ c.teacher.last_name }} — {{ c.reasons }}</option>
+                {% empty %}
+                  <option value="" disabled>Bu saatte boş öğretmen yok</option>
+                {% endfor %}
+              </select>
+            </div>
+          {% endfor %}
+          <div class="panel-body no-print" style="display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--border)">
+            <button class="btn" type="button" onclick="this.form.querySelectorAll('select').forEach(s=>{if(!s.value&&s.options.length>1&&!s.options[1].disabled)s.selectedIndex=1})">{% include "timetable/icon.html" with name="wand" %} Önerilenleri seç</button>
+            <button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} Kaydet</button>
+          </div>
+        </form>
+        {% else %}
+          <div class="empty">Bu öğretmenin {{ day_name }} günü dersi yok.</div>
+        {% endif %}
+      </div>
+    {% empty %}
+      <div class="panel"><div class="empty">Bu tarih için devamsızlık girilmedi.</div></div>
+    {% endfor %}
+  {% endif %}
+{% endif %}
+{% endblock %}

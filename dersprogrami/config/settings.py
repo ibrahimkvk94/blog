@@ -28,6 +28,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.auth.middleware.LoginRequiredMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -75,5 +76,10 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Tüm sayfalar giriş gerektirir; giriş için yönetim panelinin giriş sayfası kullanılır.
+LOGIN_URL = "admin:login"
+
 # Çözücünün varsayılan süre sınırı (saniye).
 TIMETABLE_SOLVER_TIME_LIMIT = int(os.environ.get("TIMETABLE_SOLVER_TIME_LIMIT", "60"))
+# Web arayüzünden başlatılan üretimler arka planda (ayrı iş parçacığında) çalışır.
+TIMETABLE_RUN_IN_BACKGROUND = os.environ.get("TIMETABLE_RUN_IN_BACKGROUND", "1") == "1"

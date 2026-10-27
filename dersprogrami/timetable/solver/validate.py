@@ -12,9 +12,10 @@ from dataclasses import dataclass
 class Violation:
     code: str
     message: str
+    level: str = "hard"
 
     def as_dict(self):
-        return {"code": self.code, "message": self.message}
+        return {"code": self.code, "message": self.message, "level": self.level}
 
 
 def _day_gaps(busy_periods):
@@ -120,6 +121,17 @@ def validate(problem, placements):
             violations.append(
                 Violation("teacher_week_gaps", f"{problem.label('teacher', teacher_id)}: haftada {gaps} boşluk.")
             )
+        days = sum(1 for (t, _), periods in teacher_busy.items() if t == teacher_id and periods)
+        if limits and limits.max_days_per_week is not None and days > limits.max_days_per_week:
+            violations.append(
+                Violation(
+                    "teacher_days",
+                    f"{problem.label('teacher', teacher_id)}: haftada {days} gün ders "
+                    f"(en fazla {limits.max_days_per_week}).",
+                )
+            )
+
+    violations += _relationship_violations(problem, placements)
 
     atom_busy = busy_map("atoms")
     class_gaps_total = sum(_day_gaps(periods) for periods in atom_busy.values())
@@ -133,3 +145,53 @@ def validate(problem, placements):
         "class_late_starts": class_late_starts,
     }
     return violations, stats
+
+
+def _longest_run(periods):
+    best = run = 0
+    previous = None
+    for period in sorted(periods):
+        run = run + 1 if previous is not None and period == previous + 1 else 1
+        best = max(best, run)
+        previous = period
+    return best
+
+
+def _relationship_violations(problem, placements):
+    violations = []
+    for rel in problem.relationships:
+        level = "hard" if rel.weight is None else "soft"
+        if rel.condition in ("max_per_day", "different_days"):
+            limit = 1 if rel.condition == "different_days" else rel.param
+            for keys in rel.groups:
+                per_day = defaultdict(int)
+                for key in keys:
+                    if key in placements:
+                        per_day[placements[key].day] += 1
+                for day, count in per_day.items():
+                    if count > limit:
+                        violations.append(
+                            Violation("relationship", f"{rel.name}: gün {day + 1} içinde {count} kart (en fazla {limit}).", level)
+                        )
+        elif rel.condition == "max_consecutive":
+            for keys in rel.groups:
+                busy = defaultdict(set)
+                for key in keys:
+                    place = placements.get(key)
+                    if place is not None:
+                        for day, period in problem.cards[key].cells(place.day, place.period):
+                            busy[day].add(period)
+                for day, periods in busy.items():
+                    run = _longest_run(periods)
+                    if run > rel.param:
+                        violations.append(
+                            Violation("relationship", f"{rel.name}: gün {day + 1} içinde art arda {run} saat.", level)
+                        )
+        elif rel.condition == "same_time" and len(rel.groups) > 1:
+            first, *others = rel.groups
+            for other in others:
+                for a, b in zip(first, other):
+                    pa, pb = placements.get(a), placements.get(b)
+                    if pa is None or pb is None or (pa.day, pa.period) != (pb.day, pb.period):
+                        violations.append(Violation("relationship", f"{rel.name}: kartlar aynı anda değil.", level))
+    return violations

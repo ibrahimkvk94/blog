@@ -3,7 +3,7 @@
 from django.test import SimpleTestCase
 
 from timetable.solver import cpsat, feasibility
-from timetable.solver.problem import Problem, ProblemCard, TeacherLimits, class_atoms, lesson_atoms
+from timetable.solver.problem import Problem, ProblemCard, RelationshipSpec, TeacherLimits, class_atoms, lesson_atoms
 from timetable.solver.validate import validate
 
 ALL = frozenset({(0, 0)})
@@ -142,3 +142,74 @@ class FeasibilityTests(SimpleTestCase):
     def test_valid_problem_has_no_errors(self):
         cards = [make_card(0, teachers=[1], atoms=["a"])]
         self.assertFalse(feasibility.has_errors(feasibility.check(make_problem(cards))))
+
+
+class RelaxedAndRelationshipTests(SimpleTestCase):
+    def test_relaxed_mode_returns_partial_solution(self):
+        # Tek hücreye aynı öğretmenin iki kartı sığmaz: katı modda çözüm yok, gevşekte biri bekler.
+        cards = [make_card(0, teachers=[1], atoms=["a"]), make_card(1, teachers=[1], atoms=["b"])]
+        problem = make_problem(cards)
+        self.assertEqual(cpsat.solve(problem, time_limit=5, workers=1).status, "infeasible")
+        solution = cpsat.solve(problem, time_limit=5, workers=1, mode=cpsat.RELAXED)
+        self.assertTrue(solution.ok)
+        self.assertEqual(len(solution.placements), 1)
+        self.assertEqual(len(solution.unplaced), 1)
+        self.assertIn("unplaced", solution.penalties)
+
+    def test_relaxed_mode_breaks_rule_instead_of_failing(self):
+        cards = [make_card(k, lesson_id=k, teachers=[1], atoms=[f"a{k}"], periods=3) for k in range(3)]
+        problem = make_problem(cards, periods=3, teacher_limits={1: TeacherLimits(max_periods_per_day=2)})
+        self.assertEqual(cpsat.solve(problem, time_limit=5, workers=1).status, "infeasible")
+        solution = cpsat.solve(problem, time_limit=5, workers=1, mode=cpsat.RELAXED)
+        self.assertEqual(len(solution.placements), 3)
+        violations, _ = validate(problem, solution.placements)
+        self.assertEqual([v.code for v in violations], ["teacher_daily_max"])
+
+    def test_max_per_day_relationship(self):
+        cards = [make_card(k, lesson_id=k, teachers=[k], atoms=["a"], days=2, periods=2) for k in range(4)]
+        rel = RelationshipSpec("sayısal", "max_per_day", 2, [[0, 1, 2]])
+        problem = make_problem(cards, days=2, periods=2, relationships=[rel])
+        solution = cpsat.solve(problem, time_limit=5, workers=1)
+        days = [solution.placements[k].day for k in (0, 1, 2)]
+        self.assertLessEqual(max(days.count(0), days.count(1)), 2)
+        self.assertEqual(validate(problem, solution.placements)[0], [])
+
+    def test_soft_relationship_is_reported_when_broken(self):
+        cards = [make_card(k, lesson_id=k, teachers=[k], atoms=["a"], periods=2) for k in range(2)]
+        rel = RelationshipSpec("farklı gün", "different_days", 1, [[0, 1]], weight=60)
+        problem = make_problem(cards, periods=2, relationships=[rel])
+        solution = cpsat.solve(problem, time_limit=5, workers=1)
+        self.assertTrue(solution.ok)
+        self.assertEqual(solution.penalties.get("relationship"), 60)
+        violations, _ = validate(problem, solution.placements)
+        self.assertEqual([(v.code, v.level) for v in violations], [("relationship", "soft")])
+
+    def test_same_time_relationship(self):
+        cards = [make_card(0, teachers=[1], atoms=["a"], periods=4), make_card(1, teachers=[2], atoms=["b"], periods=4)]
+        cards[0].starts = [(0, 1), (0, 2)]
+        rel = RelationshipSpec("birlikte", "same_time", 1, [[0], [1]])
+        solution = cpsat.solve(make_problem(cards, periods=4, relationships=[rel]), time_limit=5, workers=1)
+        self.assertEqual(solution.placements[0].period, solution.placements[1].period)
+
+    def test_max_consecutive_relationship(self):
+        cards = [make_card(k, lesson_id=k, teachers=[k], atoms=["a"], periods=4) for k in range(3)]
+        rel = RelationshipSpec("art arda", "max_consecutive", 2, [[0, 1, 2]])
+        problem = make_problem(cards, periods=4, relationships=[rel])
+        solution = cpsat.solve(problem, time_limit=5, workers=1)
+        periods = sorted(p.period for p in solution.placements.values())
+        self.assertNotEqual(periods, [periods[0], periods[0] + 1, periods[0] + 2])
+
+    def test_teacher_max_days(self):
+        cards = [make_card(k, lesson_id=k, teachers=[1], atoms=[f"a{k}"], days=3, periods=2) for k in range(4)]
+        limits = {1: TeacherLimits(max_days_per_week=2)}
+        solution = cpsat.solve(make_problem(cards, days=3, periods=2, teacher_limits=limits), time_limit=5, workers=1)
+        self.assertEqual(len({p.day for p in solution.placements.values()}), 2)
+
+    def test_progress_callback_and_stop(self):
+        cards = [make_card(k, lesson_id=k, teachers=[k % 3], atoms=[f"a{k % 4}"], days=5, periods=8) for k in range(30)]
+        seen = []
+        handle = cpsat.StopHandle()
+        handle.stop()
+        solution = cpsat.solve(make_problem(cards, days=5, periods=8), time_limit=30, workers=1, on_progress=seen.append, stop_handle=handle)
+        self.assertTrue(solution.stats["stopped"])
+        self.assertLess(solution.stats["wall_time"], 10)

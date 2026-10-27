@@ -6,6 +6,7 @@ from django.db import transaction
 
 from .models import (
     Availability,
+    CardRelationship,
     Classroom,
     Division,
     Group,
@@ -129,6 +130,21 @@ def create_demo_school(name="Örnek Anadolu Lisesi"):
         pair = [f"{grade}-A", f"{grade}-B"]
         lesson("ALM", pair, ["MPO"], 2, rooms=[lang1, lang2], groups=[lang_groups[c]["ALM"] for c in pair])
         lesson("FRA", pair, ["GAK"], 2, rooms=[lang1, lang2], groups=[lang_groups[c]["FRA"] for c in pair])
+
+    # Kart ilişkisi: her sınıfta sayısal derslerden günde en fazla 2 kart (önemi normal).
+    numeric = CardRelationship.objects.create(
+        school=school,
+        name="Sayısal dersler günde en fazla 2",
+        condition=CardRelationship.MAX_PER_DAY,
+        param=2,
+        apply_to=CardRelationship.EACH_CLASS,
+        importance=CardRelationship.NORMAL,
+    )
+    numeric.subjects.set([subjects[s] for s in ("MAT", "FİZ", "KİM", "BİY")])
+
+    # Almanca öğretmeni yarı zamanlı: haftada en fazla 2 gün gelir.
+    teachers["MPO"].max_days_per_week = 2
+    teachers["MPO"].save(update_fields=["max_days_per_week"])
 
     # Müsaitlikler: Fizik öğretmeni Cuma gelmiyor; Din öğretmeni için son saat koşullu.
     for p in range(8):

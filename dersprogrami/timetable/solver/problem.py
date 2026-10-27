@@ -39,6 +39,22 @@ class TeacherLimits:
     max_periods_per_day: int | None = None
     max_gaps_per_day: int | None = None
     max_gaps_per_week: int | None = None
+    max_days_per_week: int | None = None
+
+
+@dataclass
+class RelationshipSpec:
+    """Kart ilişkisinin çözücüye hazır hali.
+
+    groups: kuralın ayrı ayrı uygulandığı kart kümeleri (SAME_TIME için her ders bir küme).
+    weight: None ise sert kısıt, değilse ihlal başına ceza.
+    """
+
+    name: str
+    condition: str
+    param: int
+    groups: list[list[int]]
+    weight: int | None = None
 
 
 @dataclass
@@ -52,6 +68,7 @@ class Problem:
     room_blocked: dict[int, frozenset[Slot]] = field(default_factory=dict)
     teacher_available: dict[int, int] = field(default_factory=dict)
     atom_available: dict[str, int] = field(default_factory=dict)
+    relationships: list[RelationshipSpec] = field(default_factory=list)
     labels: dict[str, dict] = field(default_factory=dict)
 
     def label(self, kind, key):
