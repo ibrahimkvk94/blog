@@ -1,0 +1,11 @@
+{% extends "timetable/base.html" %}
+{% block content %}
+<h1 class="h3 mb-3">Okullar</h1>
+<ul class="list-group">
+  {% for school in schools %}
+    <a class="list-group-item list-group-item-action" href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>
+  {% empty %}
+    <li class="list-group-item">Henüz okul yok. <code>python manage.py seed_demo</code> ile örnek veri oluşturabilir ya da admin panelinden okul ekleyebilirsiniz.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

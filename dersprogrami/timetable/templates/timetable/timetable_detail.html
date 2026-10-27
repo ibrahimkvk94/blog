@@ -1,0 +1,79 @@
+{% extends "timetable/base.html" %}
+{% block title %}{{ timetable.name }}{% endblock %}
+{% block content %}
+<p><a href="{% url 'timetable:school_detail' school.pk %}">&larr; {{ school }}</a></p>
+<h1 class="h3">{{ timetable.name }} <span class="badge bg-{% if timetable.status == 'ok' %}success{% else %}danger{% endif %}">{{ timetable.get_status_display }}</span></h1>
+
+{% if timetable.report.solver %}
+  <p class="text-muted small">
+    Çözücü: {{ timetable.report.solver.status }} · {{ timetable.report.solver.cards }} kart ·
+    {{ timetable.report.solver.wall_time }} sn{% if timetable.objective is not None %} · ceza {{ timetable.objective }}{% endif %}
+    {% if stats %} · öğretmen boşluğu {{ stats.teacher_gaps }} · sınıf boşluğu {{ stats.class_gaps }} · geç başlayan sınıf-gün {{ stats.class_late_starts }}{% endif %}
+  </p>
+{% endif %}
+
+{% for issue in timetable.report.issues %}
+  <div class="alert alert-{% if issue.level == 'error' %}danger{% else %}warning{% endif %} py-2">{{ issue.message }}</div>
+{% endfor %}
+
+{% if timetable.status == 'ok' %}
+  <ul class="nav nav-tabs mb-3">
+    {% for key, value in kinds.items %}
+      <li class="nav-item"><a class="nav-link {% if key == kind %}active{% endif %}" href="?tur={{ key }}">{{ value.0 }}</a></li>
+    {% endfor %}
+  </ul>
+
+  <form method="get" class="mb-3 d-flex gap-2">
+    <input type="hidden" name="tur" value="{{ kind }}">
+    <select name="id" class="form-select w-auto" onchange="this.form.submit()">
+      {% for obj in objects %}<option value="{{ obj.pk }}" {% if obj == selected %}selected{% endif %}>{{ obj }}</option>{% endfor %}
+    </select>
+  </form>
+
+  <div class="table-responsive">
+    <table class="table table-bordered tt-grid">
+      <thead>
+        <tr><th></th>{% for day in school.day_names %}<th>{{ day }}</th>{% endfor %}</tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <th class="small">{{ row.period.name }}<br><span class="text-muted">{{ row.period.start_time|time:"H:i" }}</span></th>
+            {% for cell in row.cells %}
+              <td>
+                {% for card in cell %}
+                  <div class="tt-card" style="background: {{ card.lesson.subject.color }}">
+                    <strong>{{ card.lesson.subject }}</strong>
+                    <form method="post" action="{% url 'timetable:toggle_lock' card.pk %}">
+                      {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+                      <button class="tt-lock" title="Kilitle / kilidi aç">{% if card.locked %}🔒{% else %}🔓{% endif %}</button>
+                    </form>
+                    <div class="meta">
+                      {% if kind != 'sinif' %}{% for c in card.lesson.classes.all %}{{ c }} {% endfor %}{% endif %}
+                      {{ card.group_names|join:", " }}
+                      {% if kind != 'ogretmen' %}{% for t in card.lesson.teachers.all %}{{ t }} {% endfor %}{% endif %}
+                      {% if kind != 'derslik' and card.classroom %}· {{ card.classroom }}{% endif %}
+                    </div>
+                  </div>
+                {% endfor %}
+              </td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <h2 class="h5 mt-4">Doğrulama</h2>
+  {% if violations %}
+    <ul class="list-group">{% for v in violations %}<li class="list-group-item list-group-item-danger">{{ v.message }}</li>{% endfor %}</ul>
+  {% else %}
+    <div class="alert alert-success">Sert kısıt ihlali yok.</div>
+  {% endif %}
+{% endif %}
+
+{% if unplaced %}
+  <h2 class="h5 mt-4">Yerleşmeyen kartlar</h2>
+  <ul>{% for card in unplaced %}<li>{{ card.lesson }}</li>{% endfor %}</ul>
+{% endif %}
+{% endblock %}

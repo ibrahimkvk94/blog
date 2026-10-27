@@ -1,0 +1,23 @@
+{% load static %}<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Ders Programı{% endblock %}</title>
+  <link href="{% static 'timetable/app.css' %}" rel="stylesheet">
+</head>
+<body>
+<nav class="navbar">
+  <div class="container">
+    <a class="navbar-brand" href="{% url 'timetable:school_list' %}">Ders Programı</a>
+    <a class="nav-link" href="{% url 'admin:index' %}">Veri girişi (admin)</a>
+  </div>
+</nav>
+<main class="container">
+  {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %}">{{ message }}</div>
+  {% endfor %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>
