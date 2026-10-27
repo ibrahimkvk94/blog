@@ -55,6 +55,11 @@ class Placement:
     day: int
     period: int
     room: int | None
+    extra_rooms: tuple = ()
+
+    @property
+    def rooms(self):
+        return ((self.room,) if self.room is not None else ()) + tuple(self.extra_rooms)
 
 
 @dataclass
@@ -276,17 +281,18 @@ class _Builder:
     def rooms(self):
         for card in self.problem.cards:
             options = card.room_options
-            if card.fixed_room is not None and card.fixed_room in options:
-                options = (card.fixed_room,)
-            if len(options) > 1:
+            needed = max(1, min(card.rooms_needed, len(options))) if options else 0
+            fixed = tuple(r for r in (card.fixed_rooms or ((card.fixed_room,) if card.fixed_room is not None else ())) if r in options)
+            if len(fixed) >= needed and fixed:
+                options = fixed[:needed]
+            if len(options) > needed:
                 ys = {r: self.m.NewBoolVar(f"y{card.key}_{r}") for r in options}
-                self.m.AddExactlyOne(ys.values())
+                self.m.Add(sum(ys.values()) == needed)
                 self.y[card.key] = ys
                 if card.hint is not None and card.hint[2] in ys:
-                    for r, var in ys.items():
-                        self.m.AddHint(var, int(r == card.hint[2]))
+                    self.m.AddHint(ys[card.hint[2]], 1)
             elif options:
-                self.y[card.key] = {options[0]: 1}
+                self.y[card.key] = {r: 1 for r in options}
 
         by_room = {}
         for key, ys in self.y.items():
@@ -755,12 +761,8 @@ def solve(
         if start is None:
             solution.unplaced.append(card.key)
             continue
-        room = None
-        for r, var in builder.y.get(card.key, {}).items():
-            if isinstance(var, int) or solver.Value(var):
-                room = r
-                break
-        solution.placements[card.key] = Placement(start[0], start[1], room)
+        rooms = [r for r, var in builder.y.get(card.key, {}).items() if isinstance(var, int) or solver.Value(var)]
+        solution.placements[card.key] = Placement(start[0], start[1], rooms[0] if rooms else None, tuple(rooms[1:]))
     return solution
 
 

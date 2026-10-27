@@ -103,6 +103,7 @@ def run_generation(timetable_id, base_id=None, seed=0):
                     day=place.day if place else None,
                     period=place.period if place else None,
                     classroom_id=place.room if place else None,
+                    extra_rooms=list(place.extra_rooms) if place else [],
                     locked=card.fixed is not None,
                 )
             )
@@ -144,7 +145,8 @@ def placements_of(problem, timetable):
     for card in problem.cards:
         db_card = db_cards[card.card_id]
         if db_card.is_placed:
-            placements[card.key] = Placement(db_card.day, db_card.period, db_card.classroom_id)
+            rooms = db_card.room_ids
+            placements[card.key] = Placement(db_card.day, db_card.period, rooms[0] if rooms else None, tuple(rooms[1:]))
     return placements
 
 
@@ -166,7 +168,7 @@ def repair_timetable(timetable, time_limit=20):
     for card in problem.cards:
         if card.key in placements:
             place = placements[card.key]
-            card.fixed, card.fixed_room = (place.day, place.period), place.room
+            card.fixed, card.fixed_room, card.fixed_rooms = (place.day, place.period), place.room, place.rooms
     solution = cpsat.solve(problem, time_limit=min(time_limit, 10), mode=cpsat.RELAXED)
     step = 1
     if not solution.ok or solution.unplaced:
@@ -182,11 +184,11 @@ def repair_timetable(timetable, time_limit=20):
     for card in problem.cards:
         db_card = db_cards[card.card_id]
         place = solution.placements.get(card.key)
-        new = (place.day, place.period, place.room) if place else (None, None, None)
-        if (db_card.day, db_card.period, db_card.classroom_id) != new:
-            db_card.day, db_card.period, db_card.classroom_id = new
+        new = (place.day, place.period, place.room, list(place.extra_rooms)) if place else (None, None, None, [])
+        if (db_card.day, db_card.period, db_card.classroom_id, list(db_card.extra_rooms or [])) != new:
+            db_card.day, db_card.period, db_card.classroom_id, db_card.extra_rooms = new
             changed.append(db_card)
-    Card.objects.bulk_update(changed, ["day", "period", "classroom"])
+    Card.objects.bulk_update(changed, ["day", "period", "classroom", "extra_rooms"])
     if not solution.unplaced and timetable.status == Timetable.PARTIAL:
         Timetable.objects.filter(pk=timetable.pk).update(status=Timetable.OK)
     return {
@@ -206,6 +208,8 @@ def _rule_url(school, problem, key):
     kind, target = key
     if kind in ("teacher_max", "teacher_gaps_day", "teacher_gaps_week", "teacher_days", "teacher_consecutive", "teacher_min"):
         return reverse("timetable:data_edit", args=[school.pk, "ogretmenler", target])
+    if kind == "avail" and target[0] == "school":
+        return reverse("timetable:school_settings", args=[school.pk])
     if kind in ("class_max", "class_min"):
         return reverse("timetable:data_edit", args=[school.pk, "siniflar", target])
     if kind == "spread":

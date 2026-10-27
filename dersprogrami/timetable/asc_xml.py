@@ -163,7 +163,7 @@ def export_school(school, timetable=None):
                     days=_bits({card.day}, days),
                     weeks=_mask_string(weeks_mask, weeks),
                     terms=_mask_string(terms_mask, terms),
-                    classroomids=f"R{card.classroom_id}" if card.classroom_id else "",
+                    classroomids=",".join(f"R{r}" for r in card.room_ids),
                     locked="1" if card.locked else "0",
                 )
 
@@ -327,8 +327,8 @@ def _import_cards(school, card_rows, lessons, rooms, period_index):
         day_bits = sorted(_bit_set(row.get("days")))
         if lesson is None or period is None or not day_bits:
             continue
-        room = next((rooms[r] for r in _ids(row.get("classroomids")) if r in rooms), None)
-        slots[(lesson, day_bits[0])].append((period, room, row.get("locked") == "1"))
+        card_rooms = tuple(rooms[r] for r in _ids(row.get("classroomids")) if r in rooms)
+        slots[(lesson, day_bits[0])].append((period, card_rooms, row.get("locked") == "1"))
     if not slots:
         return None
 
@@ -339,7 +339,7 @@ def _import_cards(school, card_rows, lessons, rooms, period_index):
         items = sorted(set(items), key=lambda x: x[0])
         i = 0
         while i < len(items):
-            start, room, locked = items[i]
+            start, card_rooms, locked = items[i]
             length = 1
             while (
                 i + length < len(items)
@@ -347,7 +347,12 @@ def _import_cards(school, card_rows, lessons, rooms, period_index):
                 and items[i + length][0] == start + length
             ):
                 length += 1
-            cards.append(Card(timetable=timetable, lesson=lesson, length=length, day=day, period=start, classroom=room, locked=locked))
+            cards.append(
+                Card(
+                    timetable=timetable, lesson=lesson, length=length, day=day, period=start, locked=locked,
+                    classroom=card_rooms[0] if card_rooms else None, extra_rooms=[r.pk for r in card_rooms[1:]],
+                )
+            )
             used[lesson.pk] += length
             i += length
     for lesson in lessons.values():

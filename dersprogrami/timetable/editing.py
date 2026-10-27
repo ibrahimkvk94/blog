@@ -27,15 +27,12 @@ class Board:
             if not db_card.is_placed:
                 continue
             for cell in pc.cells(db_card.day, db_card.period):
-                for kind, res in self._resources(pc, db_card.classroom_id):
+                for kind, res in self._resources(pc, db_card.room_ids):
                     self.index[(kind, res) + cell].append(pc.card_id)
 
     @staticmethod
-    def _resources(pc, room):
-        resources = [("teacher", t) for t in pc.teachers] + [("atom", a) for a in pc.atoms]
-        if room is not None:
-            resources.append(("room", room))
-        return resources
+    def _resources(pc, rooms=()):
+        return [("teacher", t) for t in pc.teachers] + [("atom", a) for a in pc.atoms] + [("room", r) for r in rooms]
 
     def _occupants(self, pc, kind, res, cells):
         found = set()
@@ -54,28 +51,35 @@ class Board:
             return {"status": BLOCKED, "reasons": ["Müsaitlik nedeniyle uygun değil."], "displace": [], "room": None}
         cells = pc.cells(day, period)
         conflicts = set()
-        for kind, res in self._resources(pc, None):
+        for kind, res in self._resources(pc):
             conflicts |= self._occupants(pc, kind, res, cells)
 
-        room = None
+        rooms = []
         if pc.room_options:
-            current = self.db_cards[card_id].classroom_id
-            ordered = sorted(pc.room_options, key=lambda r: r != current)
+            # Önce kartın şu anki derslikleri, sonra boş olanlar; yetmezse dolu derslikteki kart çıkarılır.
+            current = self.db_cards[card_id].room_ids
+            ordered = sorted(pc.room_options, key=lambda r: r not in current)
+            needed = max(1, min(pc.rooms_needed, len(ordered)))
+            free = [
+                r for r in ordered
+                if not self._occupants(pc, "room", r, cells)
+                and not any(c in self.problem.room_blocked.get(r, ()) for c in cells)
+            ]
+            rooms = free[:needed]
             for option in ordered:
-                blocked = self.problem.room_blocked.get(option, ())
-                if not self._occupants(pc, "room", option, cells) and not any(c in blocked for c in cells):
-                    room = option
+                if len(rooms) >= needed:
                     break
-            if room is None:
-                room = ordered[0]
-                conflicts |= self._occupants(pc, "room", room, cells)
+                if option not in rooms:
+                    rooms.append(option)
+                    conflicts |= self._occupants(pc, "room", option, cells)
+        room = rooms[0] if rooms else None
 
         reasons, warnings = [], []
         locked = [cid for cid in conflicts if self.db_cards[cid].locked]
         for cid in sorted(conflicts):
             reasons.append(self.problem.label("lesson", self.db_cards[cid].lesson_id))
         if locked:
-            return {"status": BLOCKED, "reasons": ["Kilitli kartla çakışıyor."] + reasons, "displace": [], "room": room}
+            return {"status": BLOCKED, "reasons": ["Kilitli kartla çakışıyor."] + reasons, "displace": [], "room": room, "rooms": rooms}
 
         same_day = sum(
             1
@@ -93,7 +97,7 @@ class Board:
             status = WARN
         else:
             status = FREE
-        return {"status": status, "reasons": reasons + warnings, "displace": sorted(conflicts), "room": room}
+        return {"status": status, "reasons": reasons + warnings, "displace": sorted(conflicts), "room": room, "rooms": rooms}
 
     def options(self, card_id):
         pc = self.by_id[card_id]
@@ -111,9 +115,9 @@ def move_card(card, day, period):
     if info["status"] == BLOCKED:
         return {"ok": False, "message": " ".join(info["reasons"])}
     displaced = Card.objects.filter(pk__in=info["displace"])
-    displaced.update(day=None, period=None, classroom=None)
-    card.day, card.period, card.classroom_id = day, period, info["room"]
-    card.save(update_fields=["day", "period", "classroom"])
+    displaced.update(day=None, period=None, classroom=None, extra_rooms=[])
+    card.day, card.period, card.classroom_id, card.extra_rooms = day, period, info["room"], info["rooms"][1:]
+    card.save(update_fields=["day", "period", "classroom", "extra_rooms"])
     return {"ok": True, "displaced": info["displace"], "message": _move_message(info)}
 
 
@@ -127,5 +131,6 @@ def unplace_card(card):
     if card.locked:
         return {"ok": False, "message": "Kilitli kart programdan çıkarılamaz."}
     card.day = card.period = card.classroom = None
-    card.save(update_fields=["day", "period", "classroom"])
+    card.extra_rooms = []
+    card.save(update_fields=["day", "period", "classroom", "extra_rooms"])
     return {"ok": True, "message": "Kart bekleyenlere alındı."}

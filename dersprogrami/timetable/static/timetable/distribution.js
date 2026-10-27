@@ -62,7 +62,9 @@
     if (c && c.hours && !t) classes.push("no-teacher");
     if (!same(c, original[k])) classes.push("changed");
     if (state.brush && state.brush !== "none" && c && String(c.teacher) === state.brush) classes.push("mark");
-    const title = [subject.name + " · " + cls.name, c && c.hours ? c.hours + " saat" + (c.length > 1 ? " (" + c.length + "'li blok)" : "") : "ders yok", t ? t.name : c && c.hours ? "öğretmen yok" : "", cx ? "+" + cx + " saat gruplu/birleşik ders" : ""].filter(Boolean).join("\n");
+    const outOfBranch = t && t.subjects && t.subjects.length && !t.subjects.includes(subject.id);
+    if (c && c.hours && outOfBranch) classes.push("off-branch");
+    const title = [subject.name + " · " + cls.name, c && c.hours ? c.hours + " saat" + (c.length > 1 ? " (" + c.length + "'li blok)" : "") : "ders yok", t ? t.name + (outOfBranch ? " (branş dışı)" : "") : c && c.hours ? "öğretmen yok" : "", cx ? "+" + cx + " saat gruplu/birleşik ders" : ""].filter(Boolean).join("\n");
     return '<button type="button" class="' + classes.join(" ") + '" style="--c:' + subject.color + '" data-k="' + k + '" title="' + esc(title) + '">' +
       (c && c.hours ? '<span class="h">' + c.hours + (c.length > 1 ? "<small>×" + c.length + "</small>" : "") + '</span><span class="t">' + esc(t ? t.short : "öğretmen yok") + "</span>" : '<span class="t">·</span>') +
       (cx ? '<span class="cx">+' + cx + "</span>" : "") + "</button>";
@@ -106,8 +108,12 @@
       .filter((t) => !q || t.name.toLocaleLowerCase("tr").includes(q) || t.short.toLocaleLowerCase("tr").includes(q))
       .map((t) => {
         const load = teacherLoad(t.id);
-        const pct = Math.min(100, Math.round((load / D.capacity) * 100));
-        return '<li data-t="' + t.id + '" class="' + (state.brush === String(t.id) ? "on" : "") + '"><span class="n">' + esc(t.name) + '</span><span class="v">' + load + " saat</span>" +
+        const cap = t.target || D.capacity;
+        const pct = Math.min(100, Math.round((load / cap) * 100));
+        const diff = t.target ? load - t.target : 0;
+        const state_ = !t.target ? "" : diff === 0 ? " full" : diff > 0 ? " over" : " under";
+        const value = t.target ? load + " / " + t.target + " saat" + (diff ? " (" + (diff > 0 ? "+" : "") + diff + ")" : " ✓") : load + " saat";
+        return '<li data-t="' + t.id + '" class="' + (state.brush === String(t.id) ? "on" : "") + state_ + '" title="' + (t.target ? "Hedef yük: " + t.target + " saat" : "Hedef yük girilmemiş") + '"><span class="n">' + esc(t.name) + '</span><span class="v">' + value + "</span>" +
           '<div class="progress"><div style="width:' + pct + '%"></div></div></li>';
       }).join("") || '<li class="subtle">Öğretmen yok.</li>';
   }

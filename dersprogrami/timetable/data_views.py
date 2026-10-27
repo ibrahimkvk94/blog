@@ -65,6 +65,18 @@ def _load_badge(value):
     return format_html('<span class="pill {}">{} / {} saat</span>', css, hours, free)
 
 
+def _target_badge(teacher, ctx):
+    """Öğretmenin ders yükü hedefine göre eksik/fazla saat."""
+    if not teacher.target_periods:
+        return format_html('<span class="subtle">–</span>')
+    hours = (ctx["teacher_loads"].get(teacher.id) or (0, 0))[0]
+    diff = hours - teacher.target_periods
+    if diff == 0:
+        return format_html('<span class="pill ok">{} saat ✓</span>', teacher.target_periods)
+    css = "warn" if diff < 0 else "failed"
+    return format_html('<span class="pill {}">{} saat ({})</span>', css, teacher.target_periods, f"{diff:+d}")
+
+
 def _teacher_name(t):
     return f"{t.first_name} {t.last_name}"
 
@@ -93,8 +105,11 @@ def _swatch(subject, ctx=None):
 ENTITIES = {
     "ders-adlari": Entity(
         "ders-adlari", Subject, forms.SubjectForm, "Ders adları", "Ders adı",
-        [("Ad", _swatch), ("Kısa ad", lambda s, ctx: s.short), ("Ders sayısı", lambda s, ctx: s.n_lessons)],
-        availability="subject", order=("name",),
+        [
+            ("Ad", _swatch), ("Kısa ad", lambda s, ctx: s.short), ("Ders sayısı", lambda s, ctx: s.n_lessons),
+            ("Varsayılan derslik", lambda s, ctx: ", ".join(str(r) for r in s.classrooms.all()) or "–"),
+        ],
+        availability="subject", order=("name",), prefetch=("classrooms",),
         help="Ders adının müsaitliği, bu adı taşıyan tüm dersler için geçerlidir (ör. Beden Eğitimi son saatte olmasın).",
     ),
     "ogretmenler": Entity(
@@ -103,24 +118,27 @@ ENTITIES = {
             ("Ad soyad", lambda t, ctx: _teacher_name(t)),
             ("Kısa ad", lambda t, ctx: t.short),
             ("Haftalık yük", lambda t, ctx: _load_badge(ctx["teacher_loads"].get(t.id))),
+            ("Hedef yük", _target_badge),
+            ("Branş", lambda t, ctx: ", ".join(s.short or s.name for s in t.subjects.all()) or "–"),
             ("Sınırlar", lambda t, ctx: " · ".join(filter(None, [
                 f"günde ≤{t.max_periods_per_day}" if t.max_periods_per_day else "",
                 f"haftada ≤{t.max_days_per_week} gün" if t.max_days_per_week else "",
                 f"boşluk ≤{t.max_gaps_per_week}/hafta" if t.max_gaps_per_week is not None else "",
             ])) or "–"),
         ],
-        availability="teacher", order=("last_name", "first_name"),
+        availability="teacher", order=("last_name", "first_name"), prefetch=("subjects",),
     ),
     "siniflar": Entity(
         "siniflar", SchoolClass, forms.SchoolClassForm, "Sınıflar", "Sınıf",
         [
             ("Sınıf", lambda c, ctx: c.name),
             ("Seviye", lambda c, ctx: c.grade or "–"),
+            ("Sınıf öğretmeni", lambda c, ctx: c.class_teacher.full_name if c.class_teacher else "–"),
             ("Sınıf dersliği", lambda c, ctx: c.home_classroom or "–"),
             ("Bölünmeler", lambda c, ctx: "; ".join(f"{d.name}: {', '.join(g.name for g in d.groups.all())}" for d in c.divisions.all()) or "–"),
             ("Haftalık yük", lambda c, ctx: _load_badge(ctx["class_loads"].get(c.id))),
         ],
-        availability="school_class", order=("grade", "name"), prefetch=("divisions__groups",),
+        availability="school_class", order=("grade", "name"), prefetch=("divisions__groups", "class_teacher"),
     ),
     "derslikler": Entity(
         "derslikler", Classroom, forms.ClassroomForm, "Derslikler", "Derslik",
@@ -175,10 +193,17 @@ def entity_list(request, pk, slug):
     )
 
 
+def _availability_qs(school, field, obj):
+    """field == "school": hedefsiz (okul geneli) kayıtlar."""
+    if field == "school":
+        return Availability.objects.filter(school=school, **{f"{f}__isnull": True for f in Availability.TARGET_FIELDS})
+    return Availability.objects.filter(**{field: obj})
+
+
 def _availability_grid(school, field, obj):
     states = {}
     if obj is not None:
-        for a in Availability.objects.filter(**{field: obj}):
+        for a in _availability_qs(school, field, obj):
             states[f"{a.day}-{a.period}"] = a.state
     return {
         "days": school.day_names,
@@ -188,11 +213,14 @@ def _availability_grid(school, field, obj):
 
 
 def _save_availability(school, field, obj, raw):
+    if raw is None:  # formda ızgara yoksa mevcut kayıtlar korunur
+        return
     try:
         states = json.loads(raw or "{}")
     except json.JSONDecodeError:
         return
-    Availability.objects.filter(**{field: obj}).delete()
+    _availability_qs(school, field, obj).delete()
+    target = {} if field == "school" else {field: obj}
     rows = []
     for key, state in states.items():
         if state not in (Availability.NO, Availability.MAYBE):
@@ -202,7 +230,7 @@ def _save_availability(school, field, obj, raw):
         except ValueError:
             continue
         if day < school.days_per_week and period < school.periods.count():
-            rows.append(Availability(school=school, day=day, period=period, state=state, **{field: obj}))
+            rows.append(Availability(school=school, day=day, period=period, state=state, **target))
     Availability.objects.bulk_create(rows)
 
 
@@ -283,8 +311,34 @@ def entity_edit(request, pk, slug, obj_id=None):
             impact=impact,
             availability=_availability_grid(school, entity.availability, obj) if entity.availability else None,
             divisions=_division_rows(obj) if entity.model is SchoolClass else None,
+            other_classes=school.classes.exclude(pk=obj.pk) if obj is not None and entity.model is SchoolClass else None,
         ),
     )
+
+
+@require_POST
+def copy_divisions(request, pk, class_id):
+    """Sınıfın bölünme ve gruplarını seçilen sınıflara kopyalar (aSc 9.9). Hedefin bölünmeleri değişir."""
+    school = _school(pk)
+    source = get_object_or_404(SchoolClass, pk=class_id, school=school)
+    targets = SchoolClass.objects.filter(school=school, pk__in=request.POST.getlist("targets")).exclude(pk=source.pk)
+    rows = _division_rows(source)
+    with transaction.atomic():
+        for target in targets:
+            existing = {d.name: d for d in target.divisions.prefetch_related("groups")}
+            for row in rows:
+                division = existing.pop(row["name"], None) or Division.objects.create(school_class=target, name=row["name"])
+                names = [g["name"] for g in row["groups"]]
+                division.groups.exclude(name__in=names).delete()
+                have = set(division.groups.values_list("name", flat=True))
+                Group.objects.bulk_create([Group(division=division, name=n) for n in names if n not in have])
+            for division in existing.values():
+                division.delete()
+    if targets:
+        messages.success(request, f"Bölünmeler {len(targets)} sınıfa kopyalandı: {', '.join(t.name for t in targets)}.")
+    else:
+        messages.error(request, "Hedef sınıf seçilmedi.")
+    return redirect("timetable:data_edit", pk=school.pk, slug="siniflar", obj_id=source.pk)
 
 
 def _delete_impact(obj):
@@ -347,6 +401,7 @@ def school_settings(request, pk):
         else:
             with transaction.atomic():
                 form.save()
+                _save_availability(school, "school", school, request.POST.get("availability"))
                 for f in formset.deleted_forms:
                     if f.instance.pk:
                         f.instance.delete()
@@ -366,7 +421,13 @@ def school_settings(request, pk):
     return render(
         request,
         "timetable/data/settings.html",
-        _nav(school, "data", data_nav="okul", form=form, formset=formset, creating=False),
+        _nav(
+            school, "data", data_nav="okul", form=form, formset=formset, creating=False,
+            availability=_availability_grid(school, "school", school),
+            availability_title="Okul geneli kapalı saatler",
+            availability_help="Burada kapatılan saatlere hiçbir ders konmaz (ör. Cuma 6. saatten sonra ders yok, "
+            "toplantı günü son saat boş). Koşullu (?) saatlere mümkünse ders konmaz.",
+        ),
     )
 
 
@@ -655,8 +716,10 @@ def distribution(request, pk):
                 "short": t.short or t.full_name,
                 # Matris dışındaki (gruplu/birleşik) derslerden gelen sabit yük:
                 "fixed": loads_all.get(t.id, 0) - simple_by_teacher.get(t.id, 0),
+                "target": t.target_periods,
+                "subjects": [s.id for s in t.subjects.all()],
             }
-            for t in school.teachers.all()
+            for t in school.teachers.prefetch_related("subjects")
         ],
         "cells": {
             f"{subject_id}-{class_id}": {

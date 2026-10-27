@@ -43,6 +43,7 @@
     </div>
     {% endif %}
   </div>
+  {% if availability %}<div style="margin-top:18px">{% include "timetable/data/availability.html" %}</div>{% endif %}
   <div class="form-actions"><div><button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} {% if creating %}Okulu oluştur{% else %}Kaydet{% endif %}</button></div></div>
 </form>
 {% endblock %}

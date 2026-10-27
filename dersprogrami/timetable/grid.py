@@ -11,7 +11,11 @@ def _join(items):
     return ", ".join(str(i) for i in items)
 
 
-def card_payload(card, kind):
+def room_names(school):
+    return {r.id: str(r) for r in school.classrooms.all()}
+
+
+def card_payload(card, kind, rooms_by_id=None):
     lesson = card.lesson
     classes = list(lesson.classes.all())
     teachers = list(lesson.teachers.all())
@@ -23,9 +27,12 @@ def card_payload(card, kind):
         rows = [t.id for t in teachers]
         line2 = " · ".join(filter(None, [_join(classes), ", ".join(groups)]))
     else:
-        rows = [card.classroom_id] if card.classroom_id else []
+        rows = card.room_ids
         line2 = " · ".join(filter(None, [_join(classes), _join(teachers)]))
-    room = str(card.classroom) if card.classroom else ""
+    if rooms_by_id is not None:
+        room = ", ".join(rooms_by_id.get(r, "?") for r in card.room_ids)
+    else:
+        room = str(card.classroom) if card.classroom else ""
     title = " · ".join(filter(None, [lesson.subject.name, _join(classes), ", ".join(groups), _join(teachers), room]))
     return {
         "id": card.id,
@@ -56,7 +63,8 @@ def grid_data(timetable, kind):
             "lesson__classes", "lesson__teachers", "lesson__groups"
         )
     )
-    payloads = [card_payload(c, kind) for c in cards]
+    names = room_names(school)
+    payloads = [card_payload(c, kind, names) for c in cards]
     placed = [p for p in payloads if p["day"] is not None]
     unplaced = [p for p in payloads if p["day"] is None]
 

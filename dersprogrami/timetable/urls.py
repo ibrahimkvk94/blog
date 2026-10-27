@@ -21,6 +21,7 @@ urlpatterns = [
     path("okul/<int:pk>/veri/dagitim/", data_views.distribution, name="distribution"),
     path("okul/<int:pk>/veri/dagitim/kaydet/", data_views.distribution_save, name="distribution_save"),
     path("okul/<int:pk>/veri/dagitim/yapistir/", data_views.distribution_paste, name="distribution_paste"),
+    path("okul/<int:pk>/veri/siniflar/<int:class_id>/bolunme-kopyala/", data_views.copy_divisions, name="copy_divisions"),
     path("okul/<int:pk>/veri/excel/", data_views.excel_import, name="excel_import"),
     path("okul/<int:pk>/veri/excel/indir/", data_views.excel_export, name="excel_export"),
     path("okul/<int:pk>/veri/<slug:slug>/", data_views.entity_list, name="data_list"),

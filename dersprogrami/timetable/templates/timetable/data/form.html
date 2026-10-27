@@ -44,6 +44,18 @@
     </div>
   </div>
 </form>
+{% if other_classes and divisions %}
+  <form method="post" action="{% url 'timetable:copy_divisions' school.pk obj.pk %}" class="panel" style="margin-top:18px" data-confirm="Seçilen sınıfların bölünmeleri bu sınıfınkiyle değiştirilsin mi? Aynı adlı gruplar korunur, diğerleri silinir.">
+    {% csrf_token %}
+    <div class="panel-head"><h2>Bölünmeleri kopyala</h2><span class="subtle small">Kaydedilmiş bölünmeler kopyalanır</span></div>
+    <div class="panel-body">
+      <div class="chips-field" data-chips><div class="chip-list">
+        {% for c in other_classes %}<label class="chip-opt"><input type="checkbox" name="targets" value="{{ c.pk }}"> {{ c.name }}</label>{% endfor %}
+      </div></div>
+      <button class="btn btn-sm" style="margin-top:10px">{% include "timetable/icon.html" with name="plus" %} Seçili sınıflara kopyala</button>
+    </div>
+  </form>
+{% endif %}
 {% if obj %}
   <form method="post" action="{% url 'timetable:data_delete' school.pk entity.slug obj.pk %}" class="danger-zone" data-confirm="{{ entity.singular }} silinsin mi?{% if impact %} {{ impact }}{% endif %}">
     {% csrf_token %}

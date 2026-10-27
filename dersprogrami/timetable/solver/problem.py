@@ -29,6 +29,9 @@ class ProblemCard:
     fixed_room: int | None = None
     hint: tuple[int, int, int | None] | None = None
     card_id: int | None = None
+    # Aynı anda kaç derslik gerektiği (birleşik derslerde 2 gibi) ve kilitli kartın tüm derslikleri.
+    rooms_needed: int = 1
+    fixed_rooms: tuple = ()
     # Yalnızca müsaitlik yüzünden kapalı başlangıçlar → kapatan varlıklar; "neden çözülemiyor"
     # açıklamasında müsaitlik kuralları tek tek gevşetilebilsin diye tutulur.
     blocked: dict = field(default_factory=dict)

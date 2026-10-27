@@ -22,7 +22,35 @@ def _availability_index(school):
             if target_id:
                 index[(field, target_id)][(a.day, a.period)] = a.state
                 break
+        else:
+            index[("school", school.id)][(a.day, a.period)] = a.state
     return index
+
+
+def lesson_label(lesson):
+    classes = ", ".join(c.name for c in lesson.classes.all())
+    if classes:
+        return f"{lesson.subject} – {classes}"
+    teachers = ", ".join(t.full_name for t in lesson.teachers.all())
+    return f"{lesson.subject} – {teachers or 'sınıfsız'}"
+
+
+def lesson_rooms(lesson, subject_rooms, teacher_home, class_home):
+    """Dersin olası derslikleri: dersin kendi seçimi → ders adının varsayılanları → öğretmen dersliği
+    (tek öğretmenliyse) → sınıf dersliği (tek sınıflıysa; birden çok derslik isteyen birleşik derslerde
+    tüm sınıfların derslikleri)."""
+    rooms = tuple(r.id for r in lesson.classrooms.all())
+    if rooms:
+        return rooms
+    if subject_rooms.get(lesson.subject_id):
+        return subject_rooms[lesson.subject_id]
+    teachers = [t.id for t in lesson.teachers.all()]
+    if len(teachers) == 1 and teacher_home.get(teachers[0]):
+        return (teacher_home[teachers[0]],)
+    homes = [class_home[c.id] for c in lesson.classes.all() if class_home.get(c.id)]
+    if len(homes) == 1 or (homes and lesson.rooms_needed > 1):
+        return tuple(dict.fromkeys(homes))
+    return ()
 
 
 def _match_base_cards(sources, base):
@@ -56,6 +84,8 @@ def build_problem(school, timetable=None, base=None):
     avail = _availability_index(school)
     all_cells = [(d, p) for d in range(days) for p in range(periods)]
 
+    school_entity = ("school", school.id)
+
     def cell_state(entities, cell):
         states = {avail.get(e, {}).get(cell) for e in entities}
         if Availability.NO in states:
@@ -85,6 +115,12 @@ def build_problem(school, timetable=None, base=None):
         school.lessons.select_related("subject").prefetch_related("classes", "groups", "teachers", "classrooms")
     )
     home_room = {cls.id: cls.home_classroom_id for cls in classes}
+    subject_rooms = defaultdict(tuple)
+    for subject in school.subjects.prefetch_related("classrooms"):
+        subject_rooms[subject.id] = tuple(r.id for r in subject.classrooms.all())
+    teacher_names = {t.id: t.full_name for t in school.teachers.all()}
+    teacher_home = {t.id: t.home_classroom_id for t in school.teachers.all() if t.home_classroom_id}
+    qualified = {t.id: {s.id for s in t.subjects.all()} for t in school.teachers.prefetch_related("subjects")}
     class_students = {cls.id: cls.student_count for cls in classes}
     room_capacity = {r.id: r.capacity for r in school.classrooms.all()}
     group_students = {}
@@ -97,9 +133,9 @@ def build_problem(school, timetable=None, base=None):
     for lesson in lessons:
         class_ids = [c.id for c in lesson.classes.all()]
         teacher_ids = tuple(t.id for t in lesson.teachers.all())
-        rooms = tuple(r.id for r in lesson.classrooms.all())
-        if not rooms and len(class_ids) == 1 and home_room.get(class_ids[0]):
-            rooms = (home_room[class_ids[0]],)
+        label = lesson_label(lesson)
+        rooms = lesson_rooms(lesson, subject_rooms, teacher_home, home_room)
+        needed = max(1, lesson.rooms_needed)
         # Derslik kapasitesi: öğrenci sayısı biliniyorsa sığmayan derslikler seçenekten çıkar.
         lesson_groups = list(lesson.groups.all())
         students = 0
@@ -110,18 +146,24 @@ def build_problem(school, timetable=None, base=None):
                 students = None
                 break
             students += sum(counts)
-        if students and rooms:
+        if students and rooms and needed == 1:
             fitting = tuple(r for r in rooms if room_capacity.get(r) is None or room_capacity[r] >= students)
             if not fitting:
-                label = f"{lesson.subject} – {', '.join(c.name for c in lesson.classes.all())}"
                 notes.append(("error", "room_capacity", f"{label}: {students} öğrenci hiçbir seçili dersliğe sığmıyor."))
             else:
                 rooms = fitting
+        if needed > 1 and len(rooms) < needed:
+            notes.append(
+                ("error", "rooms_needed", f"{label}: {needed} derslik gerekiyor, ancak yalnızca {len(rooms)} olası derslik var.")
+            )
+        for t in teacher_ids:
+            if qualified.get(t) and lesson.subject_id not in qualified[t]:
+                notes.append(("warning", "out_of_branch", f"{label}: {teacher_names[t]} bu dersin branşında değil."))
         entities = [("teacher", t) for t in teacher_ids]
         entities += [("school_class", c) for c in class_ids]
-        entities += [("subject", lesson.subject_id), ("lesson", lesson.id)]
-        if len(rooms) == 1:
-            entities.append(("classroom", rooms[0]))
+        entities += [("subject", lesson.subject_id), ("lesson", lesson.id), school_entity]
+        if rooms and len(rooms) <= needed:
+            entities += [("classroom", r) for r in rooms]
         states = {cell: cell_state(entities, cell) for cell in all_cells}
         lesson_data[lesson.id] = {
             "entities": entities,
@@ -132,12 +174,13 @@ def build_problem(school, timetable=None, base=None):
                 class_ids, [g.id for g in lesson.groups.all()], atoms_by_class, class_of_group
             ),
             "rooms": rooms,
+            "rooms_needed": min(needed, len(rooms)) if rooms else 1,
             "universes": card_universes(
                 lesson.weeks_mask, lesson.terms_mask, school.weeks_count, school.terms_count
             ),
             "states": states,
             "maybe": frozenset(c for c, s in states.items() if s == Availability.MAYBE),
-            "label": f"{lesson.subject} – {', '.join(c.name for c in lesson.classes.all())}",
+            "label": label,
         }
 
     def crosses_break(p, length):
@@ -189,6 +232,7 @@ def build_problem(school, timetable=None, base=None):
             teachers=data["teachers"],
             atoms=data["atoms"],
             room_options=data["rooms"],
+            rooms_needed=data["rooms_needed"],
             universes=data["universes"],
             starts=starts_for(lesson_id, length),
             maybe_slots=data["maybe"],
@@ -201,6 +245,7 @@ def build_problem(school, timetable=None, base=None):
                 if db_card.locked:
                     card.fixed = (db_card.day, db_card.period)
                     card.fixed_room = db_card.classroom_id
+                    card.fixed_rooms = tuple(db_card.room_ids)
         cards.append(card)
 
     teachers = list(school.teachers.all())
@@ -234,8 +279,12 @@ def build_problem(school, timetable=None, base=None):
         n = lesson_card_count[lesson.id]
         lesson_max_per_day[lesson.id] = lesson.max_per_day or max(1, -(-n // days))
 
+    school_closed = {c for c, s in avail.get(school_entity, {}).items() if s == Availability.NO}
+
     def free_cells(entity):
-        return sum(1 for cell in all_cells if avail.get(entity, {}).get(cell) != Availability.NO)
+        return sum(
+            1 for cell in all_cells if cell not in school_closed and avail.get(entity, {}).get(cell) != Availability.NO
+        )
 
     room_blocked = {
         r.id: frozenset(c for c, s in avail.get(("classroom", r.id), {}).items() if s == Availability.NO)
@@ -275,6 +324,7 @@ def build_problem(school, timetable=None, base=None):
             "atom": labels_atom,
             "room": {r.id: str(r) for r in school.classrooms.all()},
             "entity": {
+                school_entity: "Okul geneli kapalı saatler",
                 **{("teacher", t.id): f"{t.full_name} (öğretmen)" for t in teachers},
                 **{("school_class", c.id): f"{c.name} (sınıf)" for c in classes},
                 **{("subject", sub.id): f"{sub.name} (ders adı)" for sub in school.subjects.all()},

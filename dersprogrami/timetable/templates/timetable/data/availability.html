@@ -1,5 +1,5 @@
 <div class="panel">
-  <div class="panel-head"><h2>Müsaitlik</h2><span class="subtle small">Hücreye tıklayın: uygun → yasak → koşullu (?) · gün ya da saat başlığına tıklamak tüm satırı/sütunu değiştirir</span></div>
+  <div class="panel-head"><h2>{{ availability_title|default:"Müsaitlik" }}</h2><span class="subtle small">Hücreye tıklayın: uygun → yasak → koşullu (?) · gün ya da saat başlığına tıklamak tüm satırı/sütunu değiştirir</span></div>
   <div class="panel-body">
     {% if availability_help %}<p class="muted small" style="margin-top:0">{{ availability_help }}</p>{% endif %}
     <div class="avail" data-availability>

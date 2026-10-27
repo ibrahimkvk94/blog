@@ -50,17 +50,38 @@
     const preview = $("[data-card-preview]", lessonForm);
     const hours = $("input[name=periods_per_week]", lessonForm);
     const length = $("select[name=card_length]", lessonForm);
+    const split = $("input[name=split]", lessonForm);
+    const parseSplit = (text) => {
+      text = (text || "").trim();
+      if (!text) return [];
+      const parts = /^\d+$/.test(text) ? text.split("") : text.split(/[+, ]+/).filter(Boolean);
+      const values = parts.map(Number);
+      return values.every((v) => Number.isInteger(v) && v > 0) ? values : [];
+    };
     const renderPreview = () => {
       const h = Math.max(0, parseInt(hours.value || "0", 10));
       const l = Math.max(1, parseInt(length.value || "1", 10));
-      const parts = [];
-      for (let i = 0; i < Math.floor(h / l); i++) parts.push(l);
-      for (let i = 0; i < h % l; i++) parts.push(1);
+      let parts = parseSplit(split && split.value);
+      let note = "";
+      if (parts.length && parts.reduce((a, b) => a + b, 0) !== h) {
+        note = ' <span class="error small">Dağılım toplamı haftalık saate eşit değil.</span>';
+        parts = [];
+      }
+      if (!parts.length) {
+        for (let i = 0; i < Math.floor(h / l); i++) parts.push(l);
+        for (let i = 0; i < h % l; i++) parts.push(1);
+      }
+      parts.sort((a, b) => b - a);
       preview.innerHTML = parts.length
-        ? '<span class="subtle small">Kartlar:</span> ' + parts.map((n) => '<span class="mini-card" style="width:' + (18 * n + 6 * (n - 1)) + 'px">' + n + "</span>").join("")
-        : "";
+        ? '<span class="subtle small">Kartlar:</span> ' + parts.map((n) => '<span class="mini-card" style="width:' + (18 * n + 6 * (n - 1)) + 'px">' + n + "</span>").join("") + note
+        : note;
     };
-    if (preview && hours && length) { hours.addEventListener("input", renderPreview); length.addEventListener("change", renderPreview); renderPreview(); }
+    if (preview && hours && length) {
+      hours.addEventListener("input", renderPreview);
+      length.addEventListener("change", renderPreview);
+      if (split) split.addEventListener("input", renderPreview);
+      renderPreview();
+    }
   }
 
   // ---- müsaitlik ızgarası ------------------------------------------------------------------

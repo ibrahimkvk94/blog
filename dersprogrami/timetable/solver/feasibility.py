@@ -40,8 +40,8 @@ def check(problem):
 
     for card in problem.cards:
         label = problem.label("lesson", card.lesson_id)
-        if not card.atoms:
-            issues.append(Issue(ERROR, "no_class", f"{label}: derse sınıf atanmamış."))
+        if not card.atoms and not card.teachers:
+            issues.append(Issue(ERROR, "no_class", f"{label}: derse ne sınıf ne öğretmen atanmış."))
         if not card.universes:
             issues.append(Issue(ERROR, "no_universe", f"{label}: hafta/dönem maskesi hiçbir haftayı kapsamıyor."))
         if card.fixed is not None:

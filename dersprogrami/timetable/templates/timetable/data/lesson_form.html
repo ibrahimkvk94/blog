@@ -17,7 +17,7 @@
           {% include "timetable/data/field.html" with field=form.subject %}
           {% include "timetable/data/field.html" with field=form.classes %}
           <div data-groups-field>{% include "timetable/data/field.html" with field=form.groups %}</div>
-          <p class="help" style="margin:0">Birden çok sınıf seçmek birleşik ders oluşturur. Gruplar yalnızca seçili sınıflar için gösterilir.</p>
+          <p class="help" style="margin:0">Birden çok sınıf seçmek birleşik ders oluşturur. Gruplar yalnızca seçili sınıflar için gösterilir. Sınıf seçilmezse ders yalnızca öğretmenleri bağlar (zümre toplantısı, hazırlık saati).</p>
         </div>
       </div>
       <div class="panel">
@@ -25,7 +25,8 @@
         <div class="panel-body">
           {% include "timetable/data/field.html" with field=form.teachers %}
           {% include "timetable/data/field.html" with field=form.classrooms %}
-          <p class="help" style="margin:0">Birden çok derslik seçilirse çözücü o saatte boş olanı atar.</p>
+          {% include "timetable/data/field.html" with field=form.rooms_needed %}
+          <p class="help" style="margin:0">Birden çok derslik seçilirse çözücü o saatte boş olanı atar. Derslik seçilmezse sırasıyla ders adının varsayılan derslikleri, öğretmen dersliği ve sınıf dersliği kullanılır.</p>
         </div>
       </div>
     </div>
@@ -34,6 +35,7 @@
       <div class="panel-body">
         {% include "timetable/data/field.html" with field=form.periods_per_week %}
         {% include "timetable/data/field.html" with field=form.card_length %}
+        {% include "timetable/data/field.html" with field=form.split %}
         <div class="card-preview" data-card-preview></div>
         {% include "timetable/data/field.html" with field=form.max_per_day %}
         {% if form.weeks_mask %}{% include "timetable/data/field.html" with field=form.weeks_mask %}{% endif %}

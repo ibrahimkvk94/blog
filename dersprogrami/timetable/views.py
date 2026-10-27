@@ -12,7 +12,7 @@ from django.views.decorators.http import require_POST
 
 from . import asc_xml, editing, excel, jobs, substitutes
 from .demo import create_demo_school
-from .grid import KINDS, card_payload, grid_data
+from .grid import KINDS, card_payload, grid_data, room_names
 from .models import Absence, Card, School, Teacher, Timetable
 from .services import check_school, refresh_stale, repair_timetable, request_stop, start_generation
 
@@ -156,8 +156,9 @@ def print_view(request, pk):
         kind = "sinif"
     school = timetable.school
     periods = list(school.periods.all())
+    names = room_names(school)
     cards = [
-        card_payload(c, kind)
+        card_payload(c, kind, names)
         for c in timetable.cards.filter(day__isnull=False)
         .select_related("lesson__subject", "classroom")
         .prefetch_related("lesson__classes", "lesson__teachers", "lesson__groups")

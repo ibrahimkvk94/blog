@@ -40,18 +40,27 @@ def validate(problem, placements):
             violations.append(
                 Violation("blocked_cell", f"{problem.label('lesson', card.lesson_id)}: yasak hücreye yerleşmiş.")
             )
-        if card.room_options and place.room not in card.room_options:
+        rooms = place.rooms
+        if card.room_options and any(r not in card.room_options for r in rooms):
             violations.append(
                 Violation("bad_room", f"{problem.label('lesson', card.lesson_id)}: izin verilmeyen derslik.")
             )
-        resources = [("teacher", t) for t in card.teachers] + [("atom", a) for a in card.atoms]
-        if place.room is not None:
-            resources.append(("room", place.room))
-        for day, period in card.cells(place.day, place.period):
-            if place.room is not None and (day, period) in problem.room_blocked.get(place.room, ()):
-                violations.append(
-                    Violation("room_blocked", f"{problem.label('room', place.room)}: yasak hücrede kullanılmış.")
+        if card.room_options and rooms and len(set(rooms)) < min(card.rooms_needed, len(card.room_options)):
+            violations.append(
+                Violation(
+                    "missing_room",
+                    f"{problem.label('lesson', card.lesson_id)}: {card.rooms_needed} derslik gerekiyor, {len(set(rooms))} atanmış.",
+                    "soft",
                 )
+            )
+        resources = [("teacher", t) for t in card.teachers] + [("atom", a) for a in card.atoms]
+        resources += [("room", r) for r in dict.fromkeys(rooms)]
+        for day, period in card.cells(place.day, place.period):
+            for room in rooms:
+                if (day, period) in problem.room_blocked.get(room, ()):
+                    violations.append(
+                        Violation("room_blocked", f"{problem.label('room', room)}: yasak hücrede kullanılmış.")
+                    )
             for universe in card.universes:
                 for kind, res in resources:
                     occupancy[(kind, res, universe, day, period)].append(card.key)
@@ -191,7 +200,7 @@ def _relationship_violations(problem, placements):
         seen = defaultdict(int)
         for key in keys:
             place = placements.get(key)
-            if place is None or (room_filter is not None and place.room not in room_filter):
+            if place is None or (room_filter is not None and not set(place.rooms) & room_filter):
                 continue
             for cell in problem.cards[key].cells(place.day, place.period):
                 if cells is None or cell in cells:
@@ -286,15 +295,16 @@ def _relationship_violations(problem, placements):
                 if cond == "room_min_week" and total < n:
                     add(rel, level, f"seçili dersliklerde haftada {total} saat (en az {n}).")
             elif cond == "max_rooms_week":
-                rooms = {placements[k].room for k in placed if placements[k].room is not None}
+                rooms = {r for k in placed for r in placements[k].rooms}
                 if len(rooms) > n:
                     add(rel, level, f"{len(rooms)} farklı derslik kullanılıyor (en fazla {n}).")
             elif cond == "max_buildings_day":
                 per_day = defaultdict(set)
                 for k in placed:
-                    building = problem.room_building.get(placements[k].room)
-                    if building is not None:
-                        per_day[placements[k].day].add(building)
+                    for room in placements[k].rooms:
+                        building = problem.room_building.get(room)
+                        if building is not None:
+                            per_day[placements[k].day].add(building)
                 for day, buildings in per_day.items():
                     if len(buildings) > n:
                         add(rel, level, f"gün {day + 1} içinde {len(buildings)} farklı bina (en fazla {n}).")

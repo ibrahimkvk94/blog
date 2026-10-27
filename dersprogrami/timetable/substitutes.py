@@ -53,6 +53,9 @@ def day_plan(school, timetable, date):
 
     subject_teachers = defaultdict(set)
     class_teachers = defaultdict(set)
+    for teacher in teachers:
+        for subject_id in teacher.subjects.values_list("id", flat=True):
+            subject_teachers[subject_id].add(teacher.id)
     for lesson in school.lessons.prefetch_related("teachers", "classes"):
         for teacher in lesson.teachers.all():
             subject_teachers[lesson.subject_id].add(teacher.id)

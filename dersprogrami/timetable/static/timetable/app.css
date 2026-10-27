@@ -363,3 +363,9 @@ input[type=color].input { padding: 3px; width: 80px; }
 .form-row-wide { grid-column: 1 / -1; }
 .av-cell.map-cell { background: var(--surface-2); color: #fff; }
 .av-cell.map-cell.map-on { background: var(--primary); border-color: var(--primary-2); }
+.dcell.off-branch .t { color: var(--danger-strong); text-decoration: underline dotted; }
+.dist-teachers li.under .v { color: var(--warning); font-weight: 600; }
+.dist-teachers li.over .v { color: var(--danger-strong); font-weight: 600; }
+.dist-teachers li.full .v { color: var(--success); font-weight: 600; }
+.dist-teachers li.over .progress > div { background: var(--danger-strong); }
+.dist-teachers li.full .progress > div { background: var(--success); }

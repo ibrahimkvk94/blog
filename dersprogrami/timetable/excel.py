@@ -7,7 +7,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-from .grid import KINDS, card_payload
+from .grid import KINDS, card_payload, room_names
 
 SHEETS = [("sinif", "Sınıflar"), ("ogretmen", "Öğretmenler"), ("derslik", "Derslikler")]
 THIN = Side(style="thin", color="CFD4DD")
@@ -33,6 +33,7 @@ def export(timetable):
             "lesson__classes", "lesson__teachers", "lesson__groups"
         )
     )
+    names = room_names(school)
     wb = Workbook()
     wb.remove(wb.active)
 
@@ -51,7 +52,7 @@ def export(timetable):
                 c.border = Border(left=THICK if j == 0 else THIN, right=THIN, top=THIN, bottom=THIN)
         ws.cell(row=3, column=1).fill = HEADER_FILL
 
-        payloads = [card_payload(c, kind) for c in cards if c.is_placed]
+        payloads = [card_payload(c, kind, names) for c in cards if c.is_placed]
         by_row = defaultdict(lambda: defaultdict(list))
         for p in payloads:
             for row in p["rows"]:

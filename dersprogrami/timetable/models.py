@@ -100,6 +100,13 @@ class Subject(models.Model):
     name = models.CharField("ad", max_length=100)
     short = models.CharField("kısa ad", max_length=20, blank=True)
     color = models.CharField("renk", max_length=7, default="#dfe7fd")
+    classrooms = models.ManyToManyField(
+        Classroom,
+        blank=True,
+        related_name="default_for_subjects",
+        verbose_name="varsayılan derslikler",
+        help_text="Dersliği seçilmemiş bu adlı dersler bu dersliklerden birinde yapılır (ör. Fizik → Fen Lab).",
+    )
 
     class Meta:
         ordering = ["name"]
@@ -127,6 +134,23 @@ class Teacher(models.Model):
     min_periods_per_day = models.PositiveSmallIntegerField(
         "geldiği günlerde en az ders", null=True, blank=True, help_text="Ör. 2 = tek saat için okula gelmesin"
     )
+    target_periods = models.PositiveSmallIntegerField(
+        "haftalık ders yükü (hedef)", null=True, blank=True,
+        help_text="Ör. 15 maaş karşılığı + 6 ek ders = 21. Ders dağıtımında eksik/fazla yük gösterilir.",
+    )
+    subjects = models.ManyToManyField(
+        Subject, blank=True, related_name="qualified_teachers", verbose_name="branşlar",
+        help_text="Öğretmenin okutabildiği dersler. Branş dışı atamalar uyarı verir; vekil önerisinde önceliklidir.",
+    )
+    home_classroom = models.ForeignKey(
+        Classroom, on_delete=models.SET_NULL, null=True, blank=True, related_name="home_teachers",
+        verbose_name="öğretmen dersliği",
+        help_text="Dersliği, ders adının ya da sınıfın dersliği belirlenmemiş dersleri bu derslikte yapılır.",
+    )
+    duty_exempt = models.BooleanField("nöbetten muaf", default=False)
+    max_duties = models.PositiveSmallIntegerField(
+        "haftada en fazla nöbet", null=True, blank=True, help_text="Boş = okulun genel ayarı"
+    )
 
     class Meta:
         ordering = ["last_name", "first_name"]
@@ -153,6 +177,10 @@ class SchoolClass(models.Model):
     )
     min_periods_per_day = models.PositiveSmallIntegerField("günde en az ders", null=True, blank=True)
     max_periods_per_day = models.PositiveSmallIntegerField("günde en fazla ders", null=True, blank=True)
+    class_teacher = models.ForeignKey(
+        Teacher, on_delete=models.SET_NULL, null=True, blank=True, related_name="homeroom_classes",
+        verbose_name="sınıf öğretmeni", help_text="Çıktılarda sınıf programının başlığında yazar.",
+    )
 
     class Meta:
         ordering = ["grade", "name"]
@@ -197,7 +225,10 @@ class Group(models.Model):
 class Lesson(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="lessons")
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, verbose_name="ders adı")
-    classes = models.ManyToManyField(SchoolClass, related_name="lessons", verbose_name="sınıflar")
+    classes = models.ManyToManyField(
+        SchoolClass, blank=True, related_name="lessons", verbose_name="sınıflar",
+        help_text="Boş bırakılırsa ders yalnızca öğretmenleri bağlar (ör. zümre toplantısı, hazırlık saati).",
+    )
     groups = models.ManyToManyField(
         Group,
         blank=True,
@@ -216,6 +247,14 @@ class Lesson(models.Model):
     periods_per_week = models.PositiveSmallIntegerField("haftalık saat", default=1)
     card_length = models.PositiveSmallIntegerField(
         "kart uzunluğu", default=1, help_text="1 = tekil ders, 2 = blok (çift) ders"
+    )
+    split = models.CharField(
+        "kart dağılımı", max_length=40, blank=True,
+        help_text="Ör. 2+2+1 ya da 2+1+1+1. Toplamı haftalık saate eşit olmalı; boşsa kart uzunluğuna göre bölünür.",
+    )
+    rooms_needed = models.PositiveSmallIntegerField(
+        "gereken derslik sayısı", default=1,
+        help_text="Ör. iki sınıfın birleşik dersi iki derslikte: 2. Derslikler olası derslikler arasından seçilir.",
     )
     max_per_day = models.PositiveSmallIntegerField(
         "günde en fazla kart",
@@ -236,15 +275,37 @@ class Lesson(models.Model):
         classes = ", ".join(str(c) for c in self.classes.all())
         return f"{self.subject} – {classes} ({self.periods_per_week} saat)"
 
+    @staticmethod
+    def parse_split(text):
+        """"2+2+1", "2 2 1", "2,2,1" ya da aSc'deki gibi "221" → [2, 2, 1]; geçersizse []."""
+        text = (text or "").strip()
+        if not text:
+            return []
+        if text.isdigit():
+            parts = list(text)
+        else:
+            parts = [p for p in text.replace(",", "+").replace(" ", "+").split("+") if p]
+        try:
+            values = [int(p) for p in parts]
+        except ValueError:
+            return []
+        return values if values and all(v > 0 for v in values) else []
+
     def card_lengths(self):
-        """Haftalık saati kartlara böler: 5 saat / uzunluk 2 → [2, 2, 1]."""
+        """Haftalık saati kartlara böler: 5 saat / uzunluk 2 → [2, 2, 1]; dağılım girilmişse o kullanılır."""
+        parts = self.parse_split(self.split)
+        if parts and sum(parts) == self.periods_per_week:
+            return sorted(parts, reverse=True)
         length = max(1, self.card_length)
         full, rest = divmod(self.periods_per_week, length)
         return [length] * full + [1] * rest
 
 
 class Availability(models.Model):
-    """Bir varlığın tek bir gün/saat hücresindeki müsaitliği. Kayıt yoksa hücre uygundur."""
+    """Bir varlığın tek bir gün/saat hücresindeki müsaitliği. Kayıt yoksa hücre uygundur.
+
+    Hiçbir hedef seçilmemiş kayıt okul genelidir (ör. Cuma 5. saatten sonra ders yok).
+    """
 
     NO = "no"
     MAYBE = "maybe"
@@ -270,11 +331,11 @@ class Availability(models.Model):
 
     def clean(self):
         targets = [f for f in self.TARGET_FIELDS if getattr(self, f + "_id")]
-        if len(targets) != 1:
-            raise ValidationError("Tam olarak bir hedef (öğretmen, sınıf, derslik, ders adı veya ders) seçilmeli.")
+        if len(targets) > 1:
+            raise ValidationError("En fazla bir hedef (öğretmen, sınıf, derslik, ders adı veya ders) seçilmeli; hedefsiz kayıt tüm okul için geçerlidir.")
 
     def __str__(self):
-        target = next((getattr(self, f) for f in self.TARGET_FIELDS if getattr(self, f + "_id")), "?")
+        target = next((getattr(self, f) for f in self.TARGET_FIELDS if getattr(self, f + "_id")), "Okul geneli")
         return f"{target}: gün {self.day + 1}, saat {self.period + 1} = {self.get_state_display()}"
 
 
@@ -334,6 +395,8 @@ class Card(models.Model):
     day = models.PositiveSmallIntegerField(null=True, blank=True)
     period = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Başlangıç saati")
     classroom = models.ForeignKey(Classroom, on_delete=models.SET_NULL, null=True, blank=True)
+    # Birden çok derslik isteyen derslerde ana derslik dışındaki derslikler (kimlik listesi).
+    extra_rooms = models.JSONField(default=list, blank=True)
     locked = models.BooleanField("kilitli", default=False)
 
     class Meta:
@@ -348,6 +411,10 @@ class Card(models.Model):
     @property
     def is_placed(self):
         return self.day is not None and self.period is not None
+
+    @property
+    def room_ids(self):
+        return ([self.classroom_id] if self.classroom_id else []) + [r for r in self.extra_rooms or [] if r != self.classroom_id]
 
     def covers(self, day, period):
         return self.is_placed and self.day == day and self.period <= period < self.period + self.length

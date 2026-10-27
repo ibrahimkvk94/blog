@@ -26,10 +26,20 @@ SHEETS = {
     "Dersler": ["Ders adı", "Sınıflar", "Gruplar", "Öğretmenler", "Derslikler", "Haftalık saat", "Kart uzunluğu", "Günde en fazla"],
 }
 
+# Sonradan eklenen sütunlar: eski dosyalarda yoksa ilgili alan değiştirilmez.
+OPTIONAL = {
+    "Ders adları": ["Varsayılan derslikler"],
+    "Sınıflar": ["Öğrenci sayısı", "Sınıf öğretmeni"],
+    "Öğretmenler": ["Haftalık ders yükü", "Branşlar", "Öğretmen dersliği"],
+    "Dersler": ["Kart dağılımı", "Derslik sayısı"],
+}
+
 NOTES = {
     "Sınıflar": "Bölünmeler: “Yabancı dil 2: Almanca, Fransızca; Beden: Kız, Erkek” biçiminde.",
+    "Öğretmenler": "Branşlar: ders adları ya da kısa adları virgülle. Haftalık ders yükü: ör. 21 (maaş karşılığı + ek ders).",
     "Dersler": "Sınıflar, gruplar, öğretmenler ve derslikler virgülle ayrılır. Öğretmen kısa adı ya da ad soyadı yazılabilir. "
-    "Grup birden çok sınıfta aynı adı taşıyorsa yalnızca grup adı yeterlidir (ör. 9-A, 9-B + Almanca).",
+    "Grup birden çok sınıfta aynı adı taşıyorsa yalnızca grup adı yeterlidir (ör. 9-A, 9-B + Almanca). "
+    "Sınıfsız (yalnızca öğretmenli) satır toplantı/hazırlık saati olur. Kart dağılımı: ör. 2+2+1.",
 }
 
 HEADER_FILL = PatternFill("solid", fgColor="EEF0FF")
@@ -62,7 +72,10 @@ def export_workbook(school):
     wb = Workbook()
     wb.remove(wb.active)
     rows = {
-        "Ders adları": [[s.name, s.short, s.color] for s in school.subjects.order_by("name")],
+        "Ders adları": [
+            [s.name, s.short, s.color, ", ".join(str(r) for r in s.classrooms.all())]
+            for s in school.subjects.prefetch_related("classrooms").order_by("name")
+        ],
         "Derslikler": [[r.name, r.short, r.capacity, r.building.name if r.building else ""] for r in school.classrooms.select_related("building").order_by("name")],
         "Sınıflar": [
             [
@@ -70,12 +83,18 @@ def export_workbook(school):
                 c.grade,
                 str(c.home_classroom) if c.home_classroom else "",
                 "; ".join(f"{d.name}: {', '.join(g.name for g in d.groups.all())}" for d in c.divisions.all()),
+                c.student_count,
+                (c.class_teacher.short or c.class_teacher.full_name) if c.class_teacher else "",
             ]
-            for c in school.classes.select_related("home_classroom").prefetch_related("divisions__groups")
+            for c in school.classes.select_related("home_classroom", "class_teacher").prefetch_related("divisions__groups")
         ],
         "Öğretmenler": [
-            [t.first_name, t.last_name, t.short, t.max_periods_per_day, t.max_days_per_week, t.max_gaps_per_week]
-            for t in school.teachers.all()
+            [
+                t.first_name, t.last_name, t.short, t.max_periods_per_day, t.max_days_per_week, t.max_gaps_per_week,
+                t.target_periods, ", ".join(sub.short or sub.name for sub in t.subjects.all()),
+                str(t.home_classroom) if t.home_classroom else "",
+            ]
+            for t in school.teachers.select_related("home_classroom").prefetch_related("subjects")
         ],
         "Dersler": [
             [
@@ -87,11 +106,14 @@ def export_workbook(school):
                 lesson.periods_per_week,
                 lesson.card_length,
                 lesson.max_per_day,
+                lesson.split,
+                lesson.rooms_needed if lesson.rooms_needed > 1 else None,
             ]
             for lesson in school.lessons.select_related("subject").prefetch_related("classes", "groups", "teachers", "classrooms").order_by("subject__name", "id")
         ],
     }
     for title, headers in SHEETS.items():
+        headers = headers + OPTIONAL.get(title, [])
         ws = wb.create_sheet(title)
         ws.append(headers)
         for cell in ws[1]:
@@ -149,10 +171,11 @@ class _Importer:
         if missing:
             self.errors.append(f"{title}: eksik sütun başlığı: {', '.join(missing)}")
             return []
-        index = {k: headers.index(k) for k in expected}
+        names = SHEETS[title] + [h for h in OPTIONAL.get(title, []) if _key(h) in headers]
+        index = {_key(h): headers.index(_key(h)) for h in names}
         result = []
         for number, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
-            values = {h: (row[index[_key(h)]] if index[_key(h)] < len(row) else None) for h in SHEETS[title]}
+            values = {h: (row[index[_key(h)]] if index[_key(h)] < len(row) else None) for h in names}
             if all(v in (None, "") for v in values.values()):
                 continue
             result.append((number, values))
@@ -181,8 +204,20 @@ class _Importer:
             if t.short:
                 self.teachers.setdefault(_key(t.short), t)
 
+    def lookup(self, title, n, table, value, noun):
+        """Virgüllü adları kayıtlara çevirir; bulunamayan varsa hata yazar ve None döner."""
+        found, missing = [], []
+        for name in _split(value):
+            obj = table.get(_key(name))
+            (found if obj is not None else missing).append(obj if obj is not None else name)
+        if missing:
+            self.error(title, n, ", ".join(f"“{m}”" for m in missing) + f" {noun} bulunamadı.")
+            return None
+        return found
+
     def subjects_sheet(self, wb):
         title = "Ders adları"
+        self.refresh()
         for i, (n, v) in enumerate(self.rows(wb, title)):
             name = str(v["Ad"] or "").strip()
             if not name:
@@ -196,6 +231,11 @@ class _Importer:
             if color.startswith("#") and len(color) == 7:
                 subject.color = color
             subject.save()
+            if "Varsayılan derslikler" in v:
+                rooms = self.lookup(title, n, self.rooms, v["Varsayılan derslikler"], "dersliği")
+                if rooms is None:
+                    continue
+                subject.classrooms.set(rooms)
             self.count(title, created)
 
     def rooms_sheet(self, wb):
@@ -238,8 +278,24 @@ class _Importer:
             except ValueError:
                 self.error(title, n, f"Seviye sayı olmalı: “{v['Seviye']}”.")
                 continue
+            if "Öğrenci sayısı" in v:
+                try:
+                    students = _int(v["Öğrenci sayısı"])
+                except ValueError:
+                    self.error(title, n, f"Öğrenci sayısı sayı olmalı: “{v['Öğrenci sayısı']}”.")
+                    continue
+            class_teacher = None
+            if v.get("Sınıf öğretmeni"):
+                class_teacher = self.teachers.get(_key(v["Sınıf öğretmeni"]))
+                if class_teacher is None:
+                    self.error(title, n, f"“{v['Sınıf öğretmeni']}” öğretmeni bulunamadı.")
+                    continue
             cls, created = SchoolClass.objects.get_or_create(school=self.school, name=name)
             cls.grade, cls.home_classroom = grade, home
+            if "Öğrenci sayısı" in v:
+                cls.student_count = students
+            if "Sınıf öğretmeni" in v:
+                cls.class_teacher = class_teacher
             cls.save()
             for part in _split(v["Bölünmeler"], ";"):
                 division_name, _, groups = part.partition(":")
@@ -265,13 +321,33 @@ class _Importer:
             except ValueError:
                 self.error(title, n, "Sınır sütunları sayı olmalı.")
                 continue
+            try:
+                target = _int(v.get("Haftalık ders yükü"))
+            except ValueError:
+                self.error(title, n, "Haftalık ders yükü sayı olmalı.")
+                continue
+            subjects = self.lookup(title, n, self.subjects, v.get("Branşlar"), "ders adı")
+            home = None
+            if v.get("Öğretmen dersliği"):
+                home = self.rooms.get(_key(v["Öğretmen dersliği"]))
+                if home is None:
+                    self.error(title, n, f"“{v['Öğretmen dersliği']}” dersliği bulunamadı.")
+                    continue
+            if subjects is None:
+                continue
             teacher = Teacher.objects.filter(school=self.school, first_name=first, last_name=last).first()
             created = teacher is None
             if created:
                 teacher = Teacher(school=self.school, first_name=first, last_name=last)
             teacher.short = str(v["Kısa ad"] or "").strip()[:20]
             teacher.max_periods_per_day, teacher.max_days_per_week, teacher.max_gaps_per_week = limits
+            if "Haftalık ders yükü" in v:
+                teacher.target_periods = target
+            if "Öğretmen dersliği" in v:
+                teacher.home_classroom = home
             teacher.save()
+            if "Branşlar" in v:
+                teacher.subjects.set(subjects)
             self.count(title, created)
 
     def lessons_sheet(self, wb):
@@ -295,8 +371,8 @@ class _Importer:
                     problems.append(f"“{name}” sınıfı bulunamadı")
                 else:
                     classes.append(cls)
-            if not _split(v["Sınıflar"]):
-                problems.append("en az bir sınıf yazılmalı")
+            if not _split(v["Sınıflar"]) and not _split(v["Öğretmenler"]):
+                problems.append("en az bir sınıf ya da öğretmen yazılmalı")
             groups = []
             for name in _split(v["Gruplar"]):
                 found = [
@@ -333,6 +409,18 @@ class _Importer:
                 problems.append("haftalık saat boş olamaz")
             if length is not None and not 1 <= length <= 4:
                 problems.append("kart uzunluğu 1–4 arasında olmalı")
+            split = str(v.get("Kart dağılımı") or "").strip()
+            if split:
+                parts = Lesson.parse_split(split)
+                if not parts or (hours and sum(parts) != hours):
+                    problems.append(f"kart dağılımı “{split}” geçersiz ya da toplamı haftalık saate eşit değil")
+                else:
+                    split = "+".join(str(p) for p in parts)
+            try:
+                rooms_needed = _int(v.get("Derslik sayısı")) or 1
+            except ValueError:
+                problems.append("derslik sayısı sayı olmalı")
+                rooms_needed = 1
             if problems:
                 self.error(title, n, "; ".join(problems) + ".")
                 continue
@@ -345,6 +433,10 @@ class _Importer:
                 lesson.groups.set(groups)
                 existing[key] = lesson
             lesson.periods_per_week, lesson.card_length, lesson.max_per_day = hours, length, per_day
+            if "Kart dağılımı" in v:
+                lesson.split = split
+            if "Derslik sayısı" in v:
+                lesson.rooms_needed = rooms_needed
             lesson.save()
             lesson.teachers.set(teachers)
             lesson.classrooms.set(rooms)
@@ -363,10 +455,10 @@ class _Importer:
         if not any(title in wb.sheetnames for title in SHEETS):
             raise ImportFailed([f"Dosyada beklenen sayfalardan hiçbiri yok ({', '.join(SHEETS)})."])
         with transaction.atomic():
-            self.subjects_sheet(wb)
             self.rooms_sheet(wb)
-            self.classes_sheet(wb)
+            self.subjects_sheet(wb)
             self.teachers_sheet(wb)
+            self.classes_sheet(wb)
             self.lessons_sheet(wb)
             if self.errors:
                 transaction.set_rollback(True)

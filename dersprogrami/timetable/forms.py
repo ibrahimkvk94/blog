@@ -115,10 +115,12 @@ class SchoolScopedForm(StyledFormMixin, forms.ModelForm):
 
 
 class SubjectForm(SchoolScopedForm):
+    scoped = {"classrooms": (Classroom, "school")}
+
     class Meta:
         model = Subject
-        fields = ["name", "short", "color"]
-        widgets = {"color": forms.TextInput(attrs={"type": "color"})}
+        fields = ["name", "short", "color", "classrooms"]
+        widgets = {"color": forms.TextInput(attrs={"type": "color"}), "classrooms": ChipSelectMultiple()}
 
 
 class BuildingForm(SchoolScopedForm):
@@ -128,12 +130,16 @@ class BuildingForm(SchoolScopedForm):
 
 
 class TeacherForm(SchoolScopedForm):
+    scoped = {"subjects": (Subject, "school"), "home_classroom": (Classroom, "school")}
+
     class Meta:
         model = Teacher
         fields = [
-            "first_name", "last_name", "short", "max_periods_per_day", "min_periods_per_day", "max_consecutive",
-            "max_gaps_per_day", "max_gaps_per_week", "max_days_per_week",
+            "first_name", "last_name", "short", "target_periods", "home_classroom",
+            "max_periods_per_day", "min_periods_per_day", "max_consecutive",
+            "max_gaps_per_day", "max_gaps_per_week", "max_days_per_week", "duty_exempt", "max_duties", "subjects",
         ]
+        widgets = {"subjects": ChipSelectMultiple()}
         help_texts = {
             "max_periods_per_day": "Boş = sınır yok",
             "max_gaps_per_day": "Boş = sınır yok",
@@ -151,12 +157,16 @@ class ClassroomForm(SchoolScopedForm):
 
 
 class SchoolClassForm(SchoolScopedForm):
-    scoped = {"home_classroom": (Classroom, "school")}
+    scoped = {"home_classroom": (Classroom, "school"), "class_teacher": (Teacher, "school")}
 
     class Meta:
         model = SchoolClass
-        fields = ["name", "grade", "home_classroom", "student_count", "min_periods_per_day", "max_periods_per_day"]
+        fields = ["name", "grade", "class_teacher", "home_classroom", "student_count", "min_periods_per_day", "max_periods_per_day"]
         help_texts = {"home_classroom": "Derslik seçilmemiş tek sınıflık dersler bu derslikte yapılır."}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["class_teacher"].label_from_instance = lambda t: t.full_name
 
 
 class LessonForm(SchoolScopedForm):
@@ -170,7 +180,10 @@ class LessonForm(SchoolScopedForm):
 
     class Meta:
         model = Lesson
-        fields = ["subject", "classes", "groups", "teachers", "classrooms", "periods_per_week", "card_length", "max_per_day", "weeks_mask", "terms_mask"]
+        fields = [
+            "subject", "classes", "groups", "teachers", "classrooms", "periods_per_week", "card_length", "split",
+            "max_per_day", "rooms_needed", "weeks_mask", "terms_mask",
+        ]
         widgets = {
             "classes": ChipSelectMultiple(),
             "groups": ChipSelectMultiple(searchable=False),
@@ -185,7 +198,8 @@ class LessonForm(SchoolScopedForm):
         self.fields["groups"].queryset = self.fields["groups"].queryset.select_related("division__school_class")
         self.fields["groups"].label_from_instance = lambda g: f"{g.division.school_class} · {g.name}"
         self.fields["teachers"].label_from_instance = lambda t: f"{t.first_name} {t.last_name}"
-        self.fields["classes"].required = True
+        self.fields["split"].widget.attrs["placeholder"] = "ör. 2+2+1"
+        self.fields["rooms_needed"].required = False
         weeks, terms = self.school.weeks_count, self.school.terms_count
         if weeks > 1:
             self.fields["weeks_mask"] = forms.TypedChoiceField(
@@ -208,9 +222,24 @@ class LessonForm(SchoolScopedForm):
         for group in data.get("groups") or []:
             if group.division.school_class not in classes:
                 self.add_error("groups", f"“{group}” grubu seçilen sınıflardan birine ait değil.")
+        if not classes and not data.get("teachers"):
+            self.add_error("classes", "En az bir sınıf ya da (toplantı gibi sınıfsız dersler için) bir öğretmen seçin.")
         periods = self.school.periods.count()
         if data.get("card_length") and periods and data["card_length"] > periods:
             self.add_error("card_length", f"Kart uzunluğu günlük ders saatinden ({periods}) uzun olamaz.")
+        split = (data.get("split") or "").strip()
+        if split:
+            parts = Lesson.parse_split(split)
+            if not parts:
+                self.add_error("split", "Dağılımı “2+2+1” biçiminde yazın.")
+            elif data.get("periods_per_week") and sum(parts) != data["periods_per_week"]:
+                self.add_error("split", f"Dağılımın toplamı ({sum(parts)}) haftalık saate ({data['periods_per_week']}) eşit olmalı.")
+            elif periods and max(parts) > periods:
+                self.add_error("split", f"Bir kart günlük ders saatinden ({periods}) uzun olamaz.")
+            else:
+                data["split"] = "+".join(str(p) for p in parts)
+        if not data.get("rooms_needed"):
+            data["rooms_needed"] = 1
         if data.get("periods_per_week") == 0:
             self.add_error("periods_per_week", "Haftalık saat en az 1 olmalı.")
         return data
