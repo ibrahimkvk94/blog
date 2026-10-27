@@ -7,6 +7,7 @@ from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
@@ -14,7 +15,7 @@ from . import analysis, asc_xml, duty, editing, excel, jobs, substitutes
 from .demo import create_demo_school
 from .grid import KINDS, card_payload, grid_data, room_names
 from .models import Absence, Card, Duty, DutyPlace, School, Teacher, Timetable
-from .services import check_school, refresh_stale, repair_timetable, request_stop, start_generation
+from .services import check_school, refresh_stale, repair_timetable, request_stop, start_generation, verify_timetable
 
 KIND_LABELS = {"sinif": "Sınıflar", "ogretmen": "Öğretmenler", "derslik": "Derslikler"}
 
@@ -126,6 +127,18 @@ def timetable_detail(request, pk):
         "undoUrl": reverse("timetable:api_undo", args=[timetable.pk]),
         "redoUrl": reverse("timetable:api_redo", args=[timetable.pk]),
         "bulkUrl": reverse("timetable:api_bulk", args=[timetable.pk]),
+        "infoUrl": reverse("timetable:api_card_info", args=[0]),
+        "roomUrl": reverse("timetable:api_card_room", args=[0]),
+        "quickUrl": reverse("timetable:api_lesson_quick", args=[0]),
+        "rowUrl": reverse("timetable:api_row_action", args=[timetable.pk]),
+        "cellUrl": reverse("timetable:api_cell_candidates", args=[timetable.pk]),
+        "printUrl": reverse("timetable:print", args=[timetable.pk]),
+        "lessonsUrl": reverse("timetable:lessons", args=[school.pk]),
+        "entityUrl": {
+            "sinif": reverse("timetable:data_edit", args=[school.pk, "siniflar", 0]),
+            "ogretmen": reverse("timetable:data_edit", args=[school.pk, "ogretmenler", 0]),
+            "derslik": reverse("timetable:data_edit", args=[school.pk, "derslikler", 0]),
+        },
         "days": school.day_names,
         "periodCount": school.periods.count(),
         "versions": [
@@ -159,6 +172,7 @@ def publish(request, pk):
     return redirect("timetable:timetable_detail", pk=pk)
 
 
+@xframe_options_sameorigin
 def print_view(request, pk):
     timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
     kind = request.GET.get("tur", "sinif")
@@ -182,6 +196,9 @@ def print_view(request, pk):
     objects = list(getattr(school, KINDS[kind]).all())
     if kind == "sinif":
         objects = list(school.classes.select_related("class_teacher", "home_classroom"))
+    only = request.GET.get("id")
+    if only:
+        objects = [o for o in objects if str(o.pk) == only]
 
     def at(mine, d, p):
         return [c for c in mine if c["day"] == d and c["period"] <= p < c["period"] + c["length"]]
@@ -246,6 +263,7 @@ def print_view(request, pk):
             "columns": columns,
             "options": options,
             "summary": summary,
+            "embedded": request.GET.get("gomulu") == "1",
         },
     )
 
@@ -468,8 +486,80 @@ def api_card_move(request, pk):
         return JsonResponse({"ok": False, "message": "Geçersiz hedef."}, status=400)
     if card.locked:
         return JsonResponse({"ok": False, "message": "Kilitli kart taşınamaz."}, status=400)
-    result = editing.move_card(card, day, period)
+    mode = body.get("mode", "displace")
+    if mode not in ("displace", "ignore", "swap", "ask"):
+        mode = "displace"
+    result = editing.move_card(card, day, period, mode)
+    if result.get("ask"):
+        return JsonResponse(result, status=409)
     return JsonResponse(result, status=200 if result["ok"] else 400)
+
+
+def api_card_info(request, pk):
+    """Sağ tık menüsü için kartın ilişkili kayıtları, derslik durumları ve ilgili ihlaller."""
+    card = _card(pk)
+    lesson = card.lesson
+    board = editing.Board(card.timetable)
+    label = board.problem.label("lesson", lesson.id)
+    violations, _ = verify_timetable(card.timetable)
+    school = card.timetable.school
+    return JsonResponse({
+        "ok": True,
+        "label": label,
+        "lesson": lesson.id,
+        "lesson_url": reverse("timetable:lesson_edit", args=[school.pk, lesson.id]),
+        "subject": {"id": lesson.subject_id, "name": lesson.subject.name,
+                    "url": reverse("timetable:data_edit", args=[school.pk, "ders-adlari", lesson.subject_id])},
+        "teachers": [{"id": t.id, "name": t.full_name, "url": reverse("timetable:data_edit", args=[school.pk, "ogretmenler", t.id])}
+                     for t in lesson.teachers.all()],
+        "classes": [{"id": c.id, "name": c.short or c.name, "url": reverse("timetable:data_edit", args=[school.pk, "siniflar", c.id])}
+                    for c in lesson.classes.all()],
+        "rooms": board.room_choices(card.id),
+        "all_teachers": [{"id": t.id, "name": t.full_name} for t in school.teachers.all()],
+        "violations": [v.message for v in violations if label in v.message],
+    })
+
+
+@require_POST
+def api_card_room(request, pk):
+    card = _card(pk)
+    room = _json_body(request).get("room")
+    result = editing.set_room(card, int(room) if str(room).isdigit() else None)
+    return JsonResponse(result, status=200 if result["ok"] else 400)
+
+
+@require_POST
+def api_lesson_quick(request, pk):
+    """Hızlı değişiklik: dersin öğretmenlerini değiştirir (aSc "Hızlı Değişiklik Yap")."""
+    card = _card(pk)
+    school = card.timetable.school
+    ids = [int(x) for x in _json_body(request).get("teachers", []) if str(x).isdigit()]
+    teachers = list(school.teachers.filter(pk__in=ids))
+    card.lesson.teachers.set(teachers)
+    names = ", ".join(t.full_name for t in teachers) or "öğretmensiz"
+    return JsonResponse({"ok": True, "message": f"Dersin öğretmeni güncellendi: {names}. Bu dersin tüm kartları etkilenir."})
+
+
+@require_POST
+def api_row_action(request, pk):
+    timetable = get_object_or_404(Timetable, pk=pk)
+    body = _json_body(request)
+    if body.get("kind") not in KINDS or not str(body.get("row", "")).isdigit():
+        return JsonResponse({"ok": False, "message": "Geçersiz satır."}, status=400)
+    result = editing.row_action(timetable, body["kind"], int(body["row"]), body.get("action"))
+    return JsonResponse(result, status=200 if result["ok"] else 400)
+
+
+def api_cell_candidates(request, pk):
+    timetable = get_object_or_404(Timetable, pk=pk)
+    try:
+        kind, row = request.GET["tur"], int(request.GET["satir"])
+        day, period = int(request.GET["gun"]), int(request.GET["saat"])
+    except (KeyError, ValueError):
+        return JsonResponse({"ok": False, "message": "Geçersiz hücre."}, status=400)
+    if kind not in KINDS:
+        return JsonResponse({"ok": False, "message": "Geçersiz görünüm."}, status=400)
+    return JsonResponse({"ok": True, "cards": editing.cell_candidates(timetable, kind, row, day, period)})
 
 
 @require_POST

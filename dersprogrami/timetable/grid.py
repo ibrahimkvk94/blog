@@ -37,6 +37,9 @@ def card_payload(card, kind, rooms_by_id=None):
     return {
         "id": card.id,
         "lesson_id": lesson.id,
+        "subject_id": lesson.subject_id,
+        "teacher_ids": [t.id for t in teachers],
+        "class_ids": [c.id for c in classes],
         "rows": rows,
         "day": card.day,
         "period": card.period,

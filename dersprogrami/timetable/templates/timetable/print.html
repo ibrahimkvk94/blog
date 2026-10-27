@@ -34,9 +34,12 @@
   .overview .c { margin: 0; padding: 1px 2px; border-radius: 2px; font-weight: 700; white-space: nowrap; overflow: hidden; }
   footer { margin-top: 8px; color: #8a93a3; font-size: 9.5px; display: flex; justify-content: space-between; }
   @media print { body { background: #fff; } .bar { display: none; } .page { box-shadow: none; margin: 0; width: auto; min-height: 0; padding: 0; } }
+  body.embedded { background: #fff; }
+  body.embedded .bar, body.embedded footer { display: none; }
+  body.embedded .page { box-shadow: none; margin: 0; width: auto; min-height: 0; padding: 4px; }
 </style>
 </head>
-<body>
+<body{% if embedded %} class="embedded"{% endif %}>
 <div class="bar">
   <span>{{ school }} · {{ timetable.name }} · {{ kind_label }}{% if summary %} (özet){% else %} ({{ pages|length }} sayfa){% endif %}</span>
   <form method="get">

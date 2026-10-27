@@ -47,4 +47,9 @@ urlpatterns = [
     path("api/kart/<int:pk>/tasi/", views.api_card_move, name="api_card_move"),
     path("api/kart/<int:pk>/cikar/", views.api_card_unplace, name="api_card_unplace"),
     path("api/kart/<int:pk>/kilit/", views.api_card_lock, name="api_card_lock"),
+    path("api/kart/<int:pk>/bilgi/", views.api_card_info, name="api_card_info"),
+    path("api/kart/<int:pk>/derslik/", views.api_card_room, name="api_card_room"),
+    path("api/kart/<int:pk>/hizli/", views.api_lesson_quick, name="api_lesson_quick"),
+    path("api/program/<int:pk>/satir/", views.api_row_action, name="api_row_action"),
+    path("api/program/<int:pk>/hucre/", views.api_cell_candidates, name="api_cell_candidates"),
 ]

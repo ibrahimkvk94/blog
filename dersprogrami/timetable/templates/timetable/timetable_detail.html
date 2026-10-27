@@ -91,11 +91,6 @@
 {% else %}
   <div class="tt-toolbar">
     <div class="left">
-      <div class="segmented" id="kind-switch">
-        <button data-kind="sinif" class="active">Sınıflar</button>
-        <button data-kind="ogretmen">Öğretmenler</button>
-        <button data-kind="derslik">Derslikler</button>
-      </div>
       <label class="search">{% include "timetable/icon.html" with name="search" %}<input class="input" id="row-filter" placeholder="Satır ara…" autocomplete="off"></label>
       <div class="segmented" id="zoom-switch" title="Yakınlaştırma">
         <button data-zoom="fit" title="Tüm haftayı ekran genişliğine sığdır">Haftayı sığdır</button><button data-zoom="compact">S</button><button data-zoom="" class="active">M</button><button data-zoom="roomy">L</button>
@@ -116,15 +111,22 @@
 
   <div class="tt-wrap" id="tt-wrap">
     <div>
-      <div class="tt-scroll" id="tt-scroll"><div class="tt-board" id="tt-board"></div></div>
+      <div class="tt-frame">
+        <nav class="tt-side" id="kind-switch" aria-label="Görünüm">
+          <button data-kind="sinif" class="active">Sınıflar</button>
+          <button data-kind="ogretmen">Öğretmenler</button>
+          <button data-kind="derslik">Derslikler</button>
+        </nav>
+        <div class="tt-scroll" id="tt-scroll"><div class="tt-board" id="tt-board"></div></div>
+      </div>
       <div style="display:flex;justify-content:space-between;gap:12px;margin-top:10px;flex-wrap:wrap">
         <div class="legend">
-          <span><i style="background:#dcf5e4"></i>Uygun</span>
-          <span><i style="background:#fdf0c9"></i>Uyarılı</span>
-          <span><i style="background:#fde0cc"></i>Çakışan kartlar bekleyenlere alınır</span>
-          <span><i style="background:repeating-linear-gradient(135deg,#fbe4e4 0 3px,#fff 3px 6px)"></i>Uygun değil</span>
+          <span><i class="lg-free"></i>Uygun</span>
+          <span><i class="lg-warn"></i>Koşullu / uyarılı</span>
+          <span><i class="lg-conflict"></i>Çakışma (sorulur)</span>
+          <span><i class="lg-blocked"></i>Kapalı / mazeretli</span>
         </div>
-        <span class="subtle small">Kartı sürükleyin ya da tıklayıp uygun hücreye tıklayın · Esc: seçimi bırak</span>
+        <span class="subtle small">Kartı sürükleyin ya da tıklayıp hücreye tıklayın · Sağ tık: işlemler · Esc: seçimi bırak</span>
       </div>
       <div class="panel compare-panel" id="compare-panel" hidden>
         <div class="panel-head"><h2>Karşılaştırma <span class="pill" id="compare-summary"></span></h2><button class="btn btn-sm btn-ghost" id="compare-close">Kapat</button></div>
@@ -142,6 +144,24 @@
     <aside class="panel drawer" id="drawer" hidden></aside>
   </div>
 {% endif %}
+<dialog class="dialog" id="conflict-dialog">
+  <form method="dialog">
+    <h3>Çakışma var</h3>
+    <p class="muted small" id="conflict-intro" style="margin-top:0"></p>
+    <ul class="conflict-items" id="conflict-items"></ul>
+    <div class="dialog-actions wrap">
+      <button class="btn btn-ghost" value="cancel">Yerleşimi iptal et</button>
+      <button class="btn" value="swap" id="conflict-swap">Yer değiştir</button>
+      <button class="btn" value="ignore">Görmezden gel (çakışsa da yerleştir)</button>
+      <button class="btn btn-primary" value="displace" id="conflict-displace">Çakışan kartları kaldır</button>
+    </div>
+  </form>
+</dialog>
+<dialog class="dialog dialog-wide" id="view-dialog">
+  <div class="dialog-head"><h3 id="view-title"></h3><form method="dialog"><button class="btn btn-sm btn-ghost">Kapat ✕</button></form></div>
+  <div id="view-body"></div>
+</dialog>
+<div class="ctx-menu" id="ctx-menu" hidden></div>
 <dialog class="dialog" id="swap-dialog">
   <form method="dialog">
     <h3 id="swap-title">Yer değiştir</h3>

@@ -30,7 +30,12 @@
     }, options || {}));
     let data = {};
     try { data = await res.json(); } catch (e) { /* boş yanıt */ }
-    if (!res.ok || data.ok === false) throw new Error(data.message || "İşlem başarısız oldu.");
+    if (!res.ok || data.ok === false) {
+      const err = new Error(data.message || "İşlem başarısız oldu.");
+      err.data = data;
+      err.status = res.status;
+      throw err;
+    }
     return data;
   }
 
@@ -106,6 +111,10 @@
     const D = d.days.length;
     board.className = "tt-board " + state.zoom;
     board.style.setProperty("--cols", P * D);
+    // Satır başlığı en uzun ada göre daralır (aSc'deki gibi yalnızca kısa ad); ayrıntı ipucunda.
+    const longest = d.rows.reduce((m, r) => Math.max(m, r.label.length), 4);
+    const charW = state.zoom === "roomy" ? 8.2 : state.zoom === "" ? 7.8 : 7.2;
+    board.style.setProperty("--label", Math.round(Math.min(170, Math.max(54, longest * charW + 18))) + "px");
     board.innerHTML = "";
 
     const head = el("div", "tt-head");
@@ -120,6 +129,8 @@
       d.periods.forEach((p, j) => {
         const cell = el("div", "tt-period" + (j === 0 ? " day-start" : ""), "<b>" + (p.index + 1) + "</b>" + esc(p.start || ""));
         cell.title = d.days[i] + ", " + (p.index + 1) + ". saat" + (p.start ? " · " + p.start : "");
+        cell.dataset.day = i;
+        cell.dataset.period = j;
         cell.style.gridColumn = String(2 + i * P + j);
         cell.style.gridRow = "2";
         hr.appendChild(cell);
@@ -150,7 +161,8 @@
       rowEl.dataset.search = (row.label + " " + (row.sub || "")).toLocaleLowerCase("tr");
       rowEl.style.setProperty("--lanes", Math.max(1, laneEnds.length));
       const label = el("div", "tt-label", '<span class="n">' + esc(row.label) + '</span><span class="s">' + esc(row.sub || "") + "</span>");
-      label.title = row.label;
+      label.title = row.label + (row.sub ? "\n" + row.sub : "") + "\nSağ tık: işlemler";
+      label.dataset.row = row.id;
       rowEl.appendChild(label);
       for (let day = 0; day < D; day++) {
         for (let p = 0; p < P; p++) {
@@ -266,7 +278,7 @@
 
   // ---- seçim ve seçenekler ----------------------------------------------------------------
   function clearOptions() {
-    board.querySelectorAll(".tt-cell[class*=opt-]").forEach((c) => { c.className = c.className.replace(/\s?opt-\w+/g, ""); c.removeAttribute("title"); });
+    board.querySelectorAll(".tt-cell[class*=opt-], .tt-period[class*=opt-]").forEach((c) => { c.className = c.className.replace(/\s?opt-\w+/g, ""); if (c.classList.contains("tt-cell")) c.removeAttribute("title"); });
     board.querySelectorAll(".tt-row.focus").forEach((r) => r.classList.remove("focus"));
   }
 
@@ -296,6 +308,11 @@
   }
 
   function paintOptions(card) {
+    // Sütun başlıkları da kartın o saatteki durumunu gösterir (aSc 13.3): yeşil uygun, kırmızı çakışma, gri kapalı.
+    board.querySelectorAll(".tt-period").forEach((cell) => {
+      const o = state.options.get(cell.dataset.day + "-" + cell.dataset.period);
+      cell.classList.add("opt-" + (o ? o.status : "blocked"));
+    });
     card.rows.forEach((rowId) => {
       const row = board.querySelector('.tt-row[data-row="' + rowId + '"]');
       if (!row) return;
@@ -304,7 +321,7 @@
         const o = state.options.get(cell.dataset.day + "-" + cell.dataset.period);
         const status = o ? o.status : "blocked";
         cell.classList.add("opt-" + status);
-        cell.title = o && o.reasons.length ? o.reasons.join("\n") : (status === "free" ? "Uygun" : "Kart buraya sığmıyor");
+        cell.title = o && o.reasons.length ? o.reasons.join("\n") : (status === "free" ? "Uygun" : "Kapalı: kart buraya konamaz");
       });
     });
   }
@@ -363,8 +380,42 @@
     await load();
   }
 
-  const moveCard = (id, day, period) =>
-    run(api(urlFor(cfg.moveUrl, id), { method: "POST", body: JSON.stringify({ day: Number(day), period: Number(period) }) }));
+  const postMove = (id, day, period, mode) =>
+    api(urlFor(cfg.moveUrl, id), { method: "POST", body: JSON.stringify({ day: Number(day), period: Number(period), mode }) });
+
+  // Çakışmada kart doğrudan kaldırılmaz; kullanıcıya ne yapılacağı sorulur.
+  const conflictDialog = $("#conflict-dialog");
+  function askConflict(info, card, day, period) {
+    return new Promise((resolve) => {
+      const where = state.data.days[day] + " " + (period + 1) + ". saat";
+      $("#conflict-intro").textContent = (card ? card.subject_name + " (" + card.classes + ")" : "Kart") + " → " + where + " şu kartlarla çakışıyor:";
+      $("#conflict-items").innerHTML = info.conflicts.map((c) =>
+        "<li><b>" + esc(c.lesson) + "</b>" + (c.locked ? ' <span class="pill">kilitli</span>' : "") +
+        '<div class="subtle small">' + esc(c.resources.join(" · ")) + "</div></li>").join("");
+      $("#conflict-displace").disabled = !info.can_displace;
+      $("#conflict-displace").title = info.can_displace ? "" : "Kilitli kart kaldırılamaz";
+      $("#conflict-swap").hidden = !info.can_swap;
+      conflictDialog.onclose = () => resolve(conflictDialog.returnValue || "cancel");
+      conflictDialog.returnValue = "";
+      conflictDialog.showModal();
+    });
+  }
+
+  async function moveCard(id, day, period) {
+    try {
+      const r = await postMove(id, day, period, "ask");
+      if (r.message) toast(r.message);
+    } catch (e) {
+      if (e.status === 409 && e.data && e.data.ask) {
+        const choice = await askConflict(e.data, state.cards.get(id), Number(day), Number(period));
+        if (choice === "cancel") return;
+        return run(postMove(id, day, period, choice));
+      }
+      toast(e.message, "error");
+    }
+    state.selected = null;
+    await load();
+  }
   const unplaceCard = (id) => run(api(urlFor(cfg.unplaceUrl, id), { method: "POST" }));
 
   drawer.addEventListener("click", (e) => {
@@ -553,6 +604,187 @@
       repairBtn.textContent = "Bekleyenleri yerleştir";
     });
   }
+
+  // ---- sağ tık menüleri (aSc 13.5, 13.7, 13.9) -------------------------------------------
+  const ctx = $("#ctx-menu");
+  const KIND_ENTITY = { sinif: "Sınıf", ogretmen: "Öğretmen", derslik: "Derslik" };
+  function hideMenu() { ctx.hidden = true; ctx.innerHTML = ""; }
+
+  // items: {label, action, disabled, hint, sub: [...], sep, head}
+  function buildMenu(items) {
+    const ul = el("ul", "ctx-list");
+    items.forEach((it) => {
+      if (it.sep) { ul.appendChild(el("li", "ctx-sep")); return; }
+      if (it.head) { ul.appendChild(el("li", "ctx-head", esc(it.head))); return; }
+      const li = el("li", "ctx-item" + (it.disabled ? " disabled" : "") + (it.sub ? " has-sub" : "") + (it.cls ? " " + it.cls : ""),
+        "<span>" + esc(it.label) + "</span>" + (it.hint ? '<small>' + esc(it.hint) + "</small>" : "") + (it.sub ? "<b>›</b>" : ""));
+      if (it.sub) li.appendChild(buildMenu(it.sub));
+      else if (!it.disabled && it.action) li.addEventListener("click", (e) => { e.stopPropagation(); hideMenu(); it.action(); });
+      ul.appendChild(li);
+    });
+    return ul;
+  }
+
+  function showMenu(x, y, items) {
+    ctx.innerHTML = "";
+    ctx.appendChild(buildMenu(items));
+    ctx.hidden = false;
+    const r = ctx.getBoundingClientRect();
+    ctx.style.left = Math.min(x, window.innerWidth - r.width - 8) + "px";
+    ctx.style.top = Math.min(y, window.innerHeight - r.height - 8) + "px";
+    ctx.classList.toggle("flip", x > window.innerWidth - 2 * r.width - 20);
+  }
+  document.addEventListener("click", (e) => { if (!ctx.contains(e.target)) hideMenu(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") { hideMenu(); clearFind(); } });
+  window.addEventListener("scroll", hideMenu, true);
+
+  // "Bul": ilgili kartları vurgular
+  function find(predicate, what) {
+    const ids = new Set(state.data.cards.filter(predicate).map((c) => c.id));
+    board.classList.add("finding");
+    board.querySelectorAll(".tt-card").forEach((n) => n.classList.toggle("found", ids.has(Number(n.dataset.card))));
+    toast(ids.size + " kart bulundu: " + what + " (Esc ile kapat)");
+  }
+  function clearFind() {
+    board.classList.remove("finding");
+    board.querySelectorAll(".tt-card.found").forEach((n) => n.classList.remove("found"));
+  }
+
+  // "Zaman tablosu": ilgili sınıf/öğretmen/dersliğin haftalık programı açılır pencerede
+  const viewDialog = $("#view-dialog");
+  function showTimetable(kind, id, title) {
+    $("#view-title").textContent = title;
+    $("#view-body").innerHTML = '<iframe class="view-frame" src="' + cfg.printUrl + "?tur=" + kind + "&id=" + id + '&gomulu=1"></iframe>';
+    viewDialog.showModal();
+  }
+  function showInfo(card, info) {
+    $("#view-title").textContent = card.subject_name + " – " + card.classes;
+    $("#view-body").innerHTML = info.violations.length
+      ? '<ul class="issues">' + info.violations.map((v) => '<li class="hard"><span class="dot"></span>' + esc(v) + "</li>").join("") + "</ul>"
+      : '<p class="muted">Bu kartla ilgili kural ihlali yok.</p>';
+    viewDialog.showModal();
+  }
+  function quickChange(card, info) {
+    const current = new Set(info.teachers.map((t) => t.id));
+    $("#view-title").textContent = "Hızlı değişiklik: " + info.label;
+    $("#view-body").innerHTML = '<form id="quick-form"><label class="label">Öğretmen(ler)</label>' +
+      '<select class="select" name="teachers" multiple size="10" style="width:100%">' +
+      info.all_teachers.map((t) => '<option value="' + t.id + '"' + (current.has(t.id) ? " selected" : "") + ">" + esc(t.name) + "</option>").join("") +
+      '</select><p class="subtle small">Ctrl ile birden çok seçin. Değişiklik bu dersin tüm kartlarına uygulanır.</p>' +
+      '<div class="dialog-actions"><button class="btn btn-primary">Kaydet</button></div></form>';
+    $("#quick-form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const teachers = Array.from(e.target.teachers.selectedOptions).map((o) => Number(o.value));
+      viewDialog.close();
+      run(api(urlFor(cfg.quickUrl, card.id), { method: "POST", body: JSON.stringify({ teachers }) }), true);
+    });
+    viewDialog.showModal();
+  }
+
+  async function cardMenu(card, rowId, x, y) {
+    select(card.id);
+    showMenu(x, y, [{ head: card.subject + " (" + card.classes + ")" }, { label: "Yükleniyor…", disabled: true }]);
+    let info;
+    try { info = await api(urlFor(cfg.infoUrl, card.id)); } catch (e) { hideMenu(); toast(e.message, "error"); return; }
+    const placed = card.day != null;
+    const back = "?back=" + encodeURIComponent(location.pathname);
+    const items = [
+      { head: card.subject + " (" + card.classes + ")" },
+      { label: "Kaldır", hint: "bekleyenlere al", disabled: !placed || card.locked, action: () => unplaceCard(card.id) },
+      { label: card.locked ? "Kilidi aç" : "Kartı kilitle", action: () => run(api(urlFor(cfg.lockUrl, card.id), { method: "POST" }), true) },
+      { label: "Bilgi", hint: info.violations.length ? info.violations.length + " ihlal" : "ihlal yok", action: () => showInfo(card, info) },
+    ];
+    if (rowId != null && placed) items.push({ label: "Satırı temizle", hint: "kilitsiz kartlar", action: () => rowAction(rowId, "clear") });
+    items.push({ sep: true });
+    if (placed) {
+      items.push({
+        label: "Derslik", sub: info.rooms.map((r) => ({
+          label: (r.current ? "✓ " : r.occupied.length ? "✕ " : "   ") + r.name,
+          hint: r.occupied.length ? "dolu: " + r.occupied[0] : "",
+          disabled: r.current,
+          action: () => run(api(urlFor(cfg.roomUrl, card.id), { method: "POST", body: JSON.stringify({ room: r.id }) }), true),
+        })).concat([{ sep: true }, { label: "Dersliği boşalt", disabled: !card.room, action: () => run(api(urlFor(cfg.roomUrl, card.id), { method: "POST", body: JSON.stringify({ room: null }) }), true) }]),
+      });
+    }
+    items.push({ label: "Dersi güncelle", action: () => { location.href = info.lesson_url + back; } });
+    items.push({ label: "Hızlı değişiklik yap", hint: "öğretmen", action: () => quickChange(card, info) });
+    items.push({ sep: true });
+    items.push({
+      label: "Bul", sub: [
+        { label: "Bu dersin kartları", action: () => find((c) => c.lesson_id === card.lesson_id, info.label) },
+        { label: "Ders adı: " + info.subject.name, action: () => find((c) => c.subject_id === info.subject.id, info.subject.name) },
+      ].concat(info.teachers.map((t) => ({ label: "Öğretmen: " + t.name, action: () => find((c) => c.teacher_ids.includes(t.id), t.name) })))
+        .concat(info.classes.map((k) => ({ label: "Sınıf: " + k.name, action: () => find((c) => c.class_ids.includes(k.id), k.name) }))),
+    });
+    items.push({
+      label: "Zaman tablosu", sub: info.classes.map((k) => ({ label: "✓ " + k.name, action: () => showTimetable("sinif", k.id, k.name) }))
+        .concat(info.teachers.map((t) => ({ label: "✓ " + t.name, action: () => showTimetable("ogretmen", t.id, t.name) })))
+        .concat(info.rooms.filter((r) => r.current).map((r) => ({ label: "✓ " + r.name, action: () => showTimetable("derslik", r.id, r.name) }))),
+    });
+    items.push({
+      label: "Düzenle / müsaitlik", sub: [{ label: "Ders adı: " + info.subject.name, action: () => { location.href = info.subject.url; } }]
+        .concat(info.teachers.map((t) => ({ label: "Öğretmen: " + t.name, action: () => { location.href = t.url; } })))
+        .concat(info.classes.map((k) => ({ label: "Sınıf: " + k.name, action: () => { location.href = k.url; } }))),
+    });
+    if (ctx.hidden) return; // kullanıcı bu arada kapattıysa
+    showMenu(x, y, items);
+  }
+
+  const rowAction = (rowId, action) =>
+    run(api(cfg.rowUrl, { method: "POST", body: JSON.stringify({ kind: state.kind, row: rowId, action }) }));
+
+  function rowMenu(rowId, x, y) {
+    const row = state.data.rows.find((r) => String(r.id) === String(rowId));
+    if (!row) return;
+    const param = state.kind === "sinif" ? "sinif" : state.kind === "ogretmen" ? "ogretmen" : null;
+    showMenu(x, y, [
+      { head: KIND_ENTITY[state.kind] + ": " + row.label },
+      { label: "Zaman tablosu", action: () => showTimetable(state.kind, row.id, row.label) },
+      { label: "Bilgileri / müsaitliği düzenle", action: () => { location.href = urlFor(cfg.entityUrl[state.kind], row.id); } },
+      { label: "Dersleri", disabled: !param, action: () => { location.href = cfg.lessonsUrl + "?" + param + "=" + row.id; } },
+      { sep: true },
+      { label: "Satırı temizle", hint: "kilitsiz kartlar bekleyenlere", action: () => { if (confirm(row.label + " satırındaki kilitsiz kartlar kaldırılsın mı?")) rowAction(row.id, "clear"); } },
+      { label: "Satırı kilitle", action: () => rowAction(row.id, "lock") },
+      { label: "Satırın kilitlerini aç", action: () => rowAction(row.id, "unlock") },
+      { sep: true },
+      { label: "Yazdır", action: () => window.open(cfg.printUrl + "?tur=" + state.kind + "&id=" + row.id, "_blank") },
+    ]);
+  }
+
+  async function cellMenu(rowId, day, period, x, y) {
+    showMenu(x, y, [{ head: state.data.days[day] + " " + (period + 1) + ". saat" }, { label: "Yükleniyor…", disabled: true }]);
+    let res;
+    try {
+      res = await api(cfg.cellUrl + "?tur=" + state.kind + "&satir=" + rowId + "&gun=" + day + "&saat=" + period);
+    } catch (e) { hideMenu(); toast(e.message, "error"); return; }
+    if (ctx.hidden) return;
+    const items = [{ head: state.data.days[day] + " " + (period + 1) + ". saat – buraya konabilecek kartlar" }];
+    if (!res.cards.length) items.push({ label: "Bu satırda buraya konabilecek bekleyen kart yok", disabled: true });
+    res.cards.forEach((c) => items.push({
+      label: c.lesson + (c.length > 1 ? " (" + c.length + " saat)" : ""),
+      hint: c.status === "free" ? "uygun" : c.status === "warn" ? "uyarılı" : "çakışma",
+      cls: "st-" + c.status,
+      action: () => moveCard(c.card, day, period),
+    }));
+    showMenu(x, y, items);
+  }
+
+  function onContext(e) {
+    const cardNode = e.target.closest(".tt-card");
+    const labelNode = e.target.closest(".tt-label");
+    const rowNode = e.target.closest(".tt-row");
+    if (cardNode) {
+      e.preventDefault();
+      const card = state.cards.get(Number(cardNode.dataset.card));
+      if (card) cardMenu(card, rowNode ? rowNode.dataset.row : null, e.clientX, e.clientY);
+      return;
+    }
+    if (labelNode) { e.preventDefault(); rowMenu(labelNode.dataset.row, e.clientX, e.clientY); return; }
+    const cell = cellAt(e.clientX, e.clientY);
+    if (cell && rowNode) { e.preventDefault(); cellMenu(rowNode.dataset.row, Number(cell.dataset.day), Number(cell.dataset.period), e.clientX, e.clientY); }
+  }
+  board.addEventListener("contextmenu", onContext);
+  $("#tray").addEventListener("contextmenu", onContext);
 
   load();
 })();

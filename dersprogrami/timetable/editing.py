@@ -44,21 +44,32 @@ class Board:
                     found.add(other_id)
         return found
 
+    RESOURCE_NAMES = {"teacher": "Öğretmen", "atom": "Sınıf", "room": "Derslik"}
+
+    def _resource_label(self, kind, res):
+        if kind == "atom":
+            label = self.problem.label("class", self.problem.atom_class(res))
+        else:
+            label = self.problem.label(kind, res)
+        return f"{self.RESOURCE_NAMES[kind]} {label}"
+
     def evaluate(self, card_id, day, period):
-        """Kartın (gün, saat)'e konmasının sonucu: durum, gerekçeler, çıkarılacak kartlar, derslik."""
+        """Kartın (gün, saat)'e konmasının sonucu: durum, gerekçeler, çakışan kartlar (kaynağıyla), derslik."""
         pc = self.by_id[card_id]
+        empty = {"displace": [], "conflicts": [], "room": None, "rooms": [], "locked": []}
         if period + pc.length > self.problem.periods or day >= self.problem.days:
-            return {"status": BLOCKED, "reasons": ["Gün sonunu aşıyor."], "displace": [], "room": None}
+            return {"status": BLOCKED, "reasons": ["Gün sonunu aşıyor."], **empty}
         if (day, period) not in pc.starts:
-            return {"status": BLOCKED, "reasons": ["Müsaitlik nedeniyle uygun değil."], "displace": [], "room": None}
+            return {"status": BLOCKED, "reasons": ["Müsaitlik nedeniyle uygun değil (kapalı saat)."], **empty}
         cells = pc.cells(day, period)
-        conflicts = set()
+        conflicts = defaultdict(set)  # kart → çakıştığı kaynaklar
         for kind, res in self._resources(pc):
-            conflicts |= self._occupants(pc, kind, res, cells)
+            for cid in self._occupants(pc, kind, res, cells):
+                conflicts[cid].add(self._resource_label(kind, res))
 
         rooms = []
         if pc.room_options:
-            # Önce kartın şu anki derslikleri, sonra boş olanlar; yetmezse dolu derslikteki kart çıkarılır.
+            # Önce kartın şu anki derslikleri, sonra boş olanlar; yetmezse dolu derslikteki kartla çakışır.
             current = self.db_cards[card_id].room_ids
             ordered = sorted(pc.room_options, key=lambda r: r not in current)
             needed = max(1, min(pc.rooms_needed, len(ordered)))
@@ -73,16 +84,11 @@ class Board:
                     break
                 if option not in rooms:
                     rooms.append(option)
-                    conflicts |= self._occupants(pc, "room", option, cells)
+                    for cid in self._occupants(pc, "room", option, cells):
+                        conflicts[cid].add(self._resource_label("room", option))
         room = rooms[0] if rooms else None
 
-        reasons, warnings = [], []
-        locked = [cid for cid in conflicts if self.db_cards[cid].locked]
-        for cid in sorted(conflicts):
-            reasons.append(self.problem.label("lesson", self.db_cards[cid].lesson_id))
-        if locked:
-            return {"status": BLOCKED, "reasons": ["Kilitli kartla çakışıyor."] + reasons, "displace": [], "room": room, "rooms": rooms}
-
+        warnings = []
         same_day = sum(
             1
             for other in self.db_cards.values()
@@ -93,13 +99,42 @@ class Board:
         if any(cell in pc.maybe_slots for cell in cells):
             warnings.append("Koşullu (?) hücre.")
 
-        if conflicts:
-            status = CONFLICT
-        elif warnings:
-            status = WARN
-        else:
-            status = FREE
-        return {"status": status, "reasons": reasons + warnings, "displace": sorted(conflicts), "room": room, "rooms": rooms}
+        details = [
+            {
+                "card": cid,
+                "lesson": self.problem.label("lesson", self.db_cards[cid].lesson_id),
+                "resources": sorted(res),
+                "locked": self.db_cards[cid].locked,
+                "where": [self.db_cards[cid].day, self.db_cards[cid].period, self.db_cards[cid].length],
+            }
+            for cid, res in sorted(conflicts.items())
+        ]
+        reasons = [f"{', '.join(d['resources'])}: {d['lesson']}" + (" (kilitli)" if d["locked"] else "") for d in details]
+        status = CONFLICT if conflicts else WARN if warnings else FREE
+        return {
+            "status": status,
+            "reasons": reasons + warnings,
+            "displace": sorted(conflicts),
+            "conflicts": details,
+            "locked": [d["card"] for d in details if d["locked"]],
+            "room": room,
+            "rooms": rooms,
+        }
+
+    def room_choices(self, card_id):
+        """Kartın olası derslikleri ve o saatteki durumları (aSc 13.7: ✓ bu derslikte, ✕ dolu)."""
+        pc = self.by_id[card_id]
+        db_card = self.db_cards[card_id]
+        result = []
+        for r in pc.room_options or [r for r in self.problem.labels.get("room", {})]:
+            occupied = []
+            if db_card.is_placed:
+                cells = pc.cells(db_card.day, db_card.period)
+                occupied = [self.problem.label("lesson", self.db_cards[c].lesson_id) for c in self._occupants(pc, "room", r, cells)]
+                if len(occupied) < self.problem.room_slots.get(r, 1):
+                    occupied = []
+            result.append({"id": r, "name": self.problem.label("room", r), "current": r in db_card.room_ids, "occupied": occupied})
+        return result
 
     def options(self, card_id):
         pc = self.by_id[card_id]
@@ -177,18 +212,111 @@ def history_info(timetable):
 # --- kart işlemleri ---------------------------------------------------------------------------
 
 
-def move_card(card, day, period):
+def move_card(card, day, period, mode="displace"):
+    """Kartı taşır. mode: "displace" çakışan kartları bekleyenlere alır, "ignore" çakışmaya rağmen
+    yerleştirir, "swap" tek çakışan kartla yer değiştirir, "ask" çakışma varsa hiçbir şey yapmadan
+    çakışmaları döndürür (kullanıcıya sorulur)."""
     board = Board(card.timetable)
     info = board.evaluate(card.id, day, period)
     if info["status"] == BLOCKED:
         return {"ok": False, "message": " ".join(info["reasons"])}
-    affected = [card] + list(Card.objects.filter(pk__in=info["displace"]))
-    record(card.timetable, f"{board.problem.label('lesson', card.lesson_id)} taşındı", snapshot(affected))
-    displaced = Card.objects.filter(pk__in=info["displace"])
-    displaced.update(day=None, period=None, classroom=None, extra_rooms=[])
+    conflicts = info["conflicts"]
+    swap_with = None
+    if conflicts and card.is_placed and len(conflicts) == 1:
+        other = board.db_cards[conflicts[0]["card"]]
+        if other.length == card.length and not other.locked:
+            swap_with = other
+    if conflicts and mode == "ask":
+        return {
+            "ok": False, "ask": True, "conflicts": conflicts, "can_displace": not info["locked"],
+            "can_swap": swap_with is not None, "message": "Çakışma var.",
+        }
+    if mode == "displace" and info["locked"]:
+        return {"ok": False, "message": "Kilitli kartla çakışıyor; önce kilidi açın ya da “görmezden gel” seçin."}
+    label = board.problem.label("lesson", card.lesson_id)
+    if mode == "swap" and swap_with is not None:
+        record(card.timetable, f"{label} yer değiştirdi", snapshot([card, swap_with]))
+        old = (card.day, card.period, card.classroom_id, list(card.extra_rooms or []))
+        swap_with.day, swap_with.period, swap_with.classroom_id, swap_with.extra_rooms = old
+        card.day, card.period, card.classroom_id, card.extra_rooms = day, period, info["room"], info["rooms"][1:]
+        Card.objects.bulk_update([card, swap_with], ["day", "period", "classroom", "extra_rooms"])
+        return {"ok": True, "displaced": [], "message": f"Kartlar yer değiştirdi ({board.problem.label('lesson', swap_with.lesson_id)})."}
+    displace = info["displace"] if mode == "displace" else []
+    affected = [card] + list(Card.objects.filter(pk__in=displace))
+    record(card.timetable, f"{label} taşındı", snapshot(affected))
+    Card.objects.filter(pk__in=displace).update(day=None, period=None, classroom=None, extra_rooms=[])
     card.day, card.period, card.classroom_id, card.extra_rooms = day, period, info["room"], info["rooms"][1:]
     card.save(update_fields=["day", "period", "classroom", "extra_rooms"])
-    return {"ok": True, "displaced": info["displace"], "message": _move_message(info)}
+    message = _move_message(info) if mode == "displace" else (
+        f"Kart çakışmayla yerleştirildi ({len(conflicts)} kart). Doğrulamada görünür." if conflicts else "Kart taşındı."
+    )
+    return {"ok": True, "displaced": displace, "message": message}
+
+
+def set_room(card, room_id):
+    """Kartın dersliğini değiştirir (aSc 13.7); None dersliği boşaltır."""
+    if not card.is_placed:
+        return {"ok": False, "message": "Önce kartı yerleştirin."}
+    if room_id is not None and not card.timetable.school.classrooms.filter(pk=room_id).exists():
+        return {"ok": False, "message": "Derslik bulunamadı."}
+    record(card.timetable, "derslik değişti", snapshot([card]))
+    card.classroom_id = room_id
+    card.extra_rooms = [r for r in card.extra_rooms or [] if r != room_id] if room_id else []
+    card.save(update_fields=["classroom", "extra_rooms"])
+    return {"ok": True, "message": "Derslik değiştirildi." if room_id else "Derslik boşaltıldı."}
+
+
+def row_cards(timetable, kind, row_id):
+    """Ana görünümdeki bir satırın (sınıf/öğretmen/derslik) yerleşmiş kartları."""
+    cards = timetable.cards.filter(day__isnull=False)
+    if kind == "sinif":
+        return list(cards.filter(lesson__classes__id=row_id).distinct())
+    if kind == "ogretmen":
+        return list(cards.filter(lesson__teachers__id=row_id).distinct())
+    return [c for c in cards if row_id in c.room_ids]
+
+
+def row_action(timetable, kind, row_id, action):
+    cards = row_cards(timetable, kind, row_id)
+    if action == "clear":
+        changed = [c for c in cards if not c.locked]
+        record(timetable, "satır temizlendi", snapshot(changed))
+        for c in changed:
+            c.day = c.period = c.classroom_id = None
+            c.extra_rooms = []
+        _save(changed, ["day", "period", "classroom", "extra_rooms"])
+        return {"ok": True, "message": f"{len(changed)} kart bekleyenlere alındı."}
+    if action in ("lock", "unlock"):
+        lock = action == "lock"
+        changed = [c for c in cards if c.locked != lock]
+        record(timetable, "satır kilitlendi" if lock else "satır kilidi açıldı", snapshot(changed))
+        for c in changed:
+            c.locked = lock
+        _save(changed, ["locked"])
+        return {"ok": True, "message": f"{len(changed)} kart {'kilitlendi' if lock else 'kilidi açıldı'}."}
+    return {"ok": False, "message": "Bilinmeyen işlem."}
+
+
+def cell_candidates(timetable, kind, row_id, day, period):
+    """Boş hücreye sağ tıklanınca: o satırın bekleyen kartlarından buraya konabilenler (aSc 13.5)."""
+    board = Board(timetable)
+    unplaced = [c for c in board.db_cards.values() if not c.is_placed]
+    if kind == "sinif":
+        mine = set(timetable.cards.filter(day__isnull=True, lesson__classes__id=row_id).values_list("id", flat=True))
+    elif kind == "ogretmen":
+        mine = set(timetable.cards.filter(day__isnull=True, lesson__teachers__id=row_id).values_list("id", flat=True))
+    else:
+        mine = {c.id for c in unplaced if row_id in board.by_id[c.id].room_options}
+    result = []
+    for card in unplaced:
+        if card.id not in mine:
+            continue
+        info = board.evaluate(card.id, day, period)
+        if info["status"] != BLOCKED:
+            result.append({"card": card.id, "lesson": board.problem.label("lesson", card.lesson_id), "length": card.length,
+                           "status": info["status"], "reasons": info["reasons"]})
+    result.sort(key=lambda r: (r["status"] != FREE, r["lesson"]))
+    return result
 
 
 def _move_message(info):
