@@ -244,11 +244,11 @@ class SchoolClass(models.Model):
         return self.name
 
     @staticmethod
-    def natural_key(name):
+    def sort_key_of(name):
         return re.sub(r"\d+", lambda m: m.group(0).zfill(8), (name or "").casefold())[:120]
 
     def save(self, *args, **kwargs):
-        self.sort_key = self.natural_key(self.name)
+        self.sort_key = self.sort_key_of(self.name)
         if kwargs.get("update_fields") is not None and "name" in kwargs["update_fields"]:
             kwargs["update_fields"] = list(kwargs["update_fields"]) + ["sort_key"]
         super().save(*args, **kwargs)
@@ -433,6 +433,9 @@ class Timetable(models.Model):
     cancel_requested = models.BooleanField(default=False)
     objective = models.IntegerField("ceza puanı", null=True, blank=True)
     report = models.JSONField("rapor", default=dict, blank=True)
+    # İş kuyruğu (TIMETABLE_JOB_BACKEND="worker"): "queued" → "running"; çalışan süreç nabız yazar.
+    job_state = models.CharField(max_length=10, blank=True, db_index=True)
+    heartbeat = models.DateTimeField(null=True, blank=True)
     # Elle düzenleme geçmişi (geri al / yinele): her adım {"label", "cards": [[id, gün, saat, derslik, ek derslikler, kilit]]}
     history = models.JSONField(default=list, blank=True)
     redo_stack = models.JSONField(default=list, blank=True)

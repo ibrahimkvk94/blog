@@ -285,3 +285,38 @@ class AuditTests(TestCase):
         self.assertIsNone(entry.school)
         self.assertEqual(entry.program_name, "Silinecek")
         self.assertEqual(entry.institution, self.school.institution)
+
+
+class BackupTests(TestCase):
+    def test_backup_create_download_restore(self):
+        import gzip
+        import json
+        import tempfile
+        from pathlib import Path
+
+        from django.core.management import call_command
+        from django.test import override_settings
+
+        with tempfile.TemporaryDirectory() as tmp, override_settings(BACKUP_DIR=Path(tmp), BACKUP_KEEP=2):
+            school = build_school()
+            central = User.objects.create_superuser("yedekci", password="parola-123456")
+            self.client.force_login(central)
+            for _ in range(3):
+                self.client.post(reverse("timetable:backups"))
+            files = sorted(Path(tmp).iterdir())
+            self.assertLessEqual(len(files), 2)  # eskiler silindi
+            page = self.client.get(reverse("timetable:backups"))
+            self.assertContains(page, files[-1].name)
+            response = self.client.get(reverse("timetable:backups") + f"?indir={files[-1].name}")
+            data = json.loads(gzip.decompress(b"".join(response.streaming_content)))
+            self.assertTrue(any(row["model"] == "timetable.school" and row["fields"]["name"] == school.name for row in data))
+            self.assertEqual(self.client.get(reverse("timetable:backups") + "?indir=../settings.py").status_code, 404)
+            # Geri yükleme: veriyi silip yedekten dön
+            name = school.name
+            School.objects.all().delete()
+            call_command("loaddata", str(files[-1]), verbosity=0)
+            self.assertTrue(School.objects.filter(name=name).exists())
+            # Merkez dışı kullanıcı yedeklere erişemez
+            user = User.objects.create_user("normal", password="parola-123456")
+            self.client.force_login(user)
+            self.assertEqual(self.client.get(reverse("timetable:backups")).status_code, 403)

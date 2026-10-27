@@ -12,6 +12,7 @@ urlpatterns = [
     path("hesabim/", accounts.account, name="account"),
     path("merkez/", accounts.central, name="central"),
     path("merkez/gunluk/", accounts.central_log, name="central_log"),
+    path("merkez/yedekler/", accounts.backups, name="backups"),
     path("kurum/<int:pk>/gunluk/", accounts.institution_log, name="institution_log"),
     path("merkez/okul-ekle/", accounts.central_school_new, name="central_school_new"),
     path("okul/<int:pk>/kullanicilar/", accounts.school_users, name="school_users"),

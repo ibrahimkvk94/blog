@@ -555,3 +555,4 @@ html.focus-mode .tt-scroll { max-height: calc(100vh - 110px); }
 .pager { display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 12px; }
 .qr-box { display: grid; place-items: center; }
 .qr-box img, .qr-box svg { width: 260px; height: 260px; }
+pre.code { background: #141a2a; color: #e2e8f0; padding: 10px 14px; border-radius: 8px; font-size: 13px; overflow-x: auto; }

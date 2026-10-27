@@ -1,0 +1,29 @@
+{% extends "timetable/base.html" %}
+{% block title %}Yedekler{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:central' %}">Merkez paneli</a>{% endblock %}
+{% block heading %}<h1>Yedekler</h1>{% endblock %}
+{% block actions %}<form method="post">{% csrf_token %}<button class="btn btn-primary">{% include "timetable/icon.html" with name="download" %} Şimdi yedek al</button></form>{% endblock %}
+{% block content %}
+<p class="muted small" style="margin-top:0">Yedek tüm kurumları, programları, sürümleri ve kullanıcıları içerir. Sunucu kurulumunda her gün otomatik yedek alınır; son {{ keep }} yedek saklanır. Yedekleri ara sıra indirip başka bir yerde de saklayın.</p>
+<div class="panel">
+  <div class="panel-body flush table-wrap">
+    <table class="table">
+      <thead><tr><th>Yedek</th><th>Tarih</th><th class="num">Boyut</th><th></th></tr></thead>
+      <tbody>
+        {% for b in items %}
+          <tr><td><b>{{ b.name }}</b></td><td>{{ b.created|date:"d.m.Y H:i" }}</td><td class="num">{{ b.size|filesizeformat }}</td>
+            <td style="display:flex;gap:6px;justify-content:flex-end"><a class="btn btn-sm" href="?indir={{ b.name }}">İndir</a>
+              <form method="post" onsubmit="return confirm('Yedek silinsin mi?')">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="name" value="{{ b.name }}"><button class="btn btn-sm btn-ghost">Sil</button></form></td></tr>
+        {% empty %}<tr><td colspan="4" class="subtle">Henüz yedek yok.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="panel" style="margin-top:14px"><div class="panel-body">
+  <b>Geri yükleme</b>
+  <p class="muted small">Boş bir kurulumda (yeni sunucu ya da bilgisayar) yedek dosyasını sunucuya kopyalayıp şu komutu çalıştırın:</p>
+  <pre class="code">python manage.py migrate
+python manage.py loaddata yedek-....json.gz</pre>
+  <p class="subtle small" style="margin-bottom:0">Yedek klasörü: {{ dir }}</p>
+</div></div>
+{% endblock %}

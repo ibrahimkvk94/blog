@@ -146,11 +146,27 @@ def _finish(timetable, status, report):
 def request_stop(timetable):
     Timetable.objects.filter(pk=timetable.pk).update(cancel_requested=True)
     jobs.stop(timetable.pk)
+    # Sırada bekleyen (henüz başlamamış) iş hemen iptal edilir.
+    if Timetable.objects.filter(pk=timetable.pk, job_state="queued").update(job_state=""):
+        report = dict(Timetable.objects.get(pk=timetable.pk).report)
+        report["error"] = "Üretim sırada beklerken iptal edildi."
+        _finish(timetable, Timetable.FAILED, report)
 
 
 def refresh_stale(timetable):
     """Sunucu yeniden başlatılınca yarıda kalan üretimleri "üretilemedi" olarak işaretler."""
-    if timetable.status != Timetable.RUNNING or jobs.is_alive(timetable.pk) or not timetable.started_at:
+    if timetable.status != Timetable.RUNNING or not timetable.started_at:
+        return timetable
+    # Çalışan kipte iş başka süreçtedir; bu sürecin bellekteki kaydı bir şey söylemez.
+    if jobs.worker_mode():
+        if jobs.queued_or_alive(timetable):
+            return timetable
+        report = dict(timetable.report)
+        report["error"] = "Üretim yarıda kesildi (çalışan süreç durmuş olabilir)."
+        _finish(timetable, Timetable.FAILED, report)
+        timetable.refresh_from_db()
+        return timetable
+    if jobs.is_alive(timetable.pk):
         return timetable
     if timezone.now() > timetable.started_at + timedelta(seconds=timetable.time_limit) + STALE_GRACE:
         report = dict(timetable.report)

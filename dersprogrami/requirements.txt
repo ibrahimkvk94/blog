@@ -4,3 +4,4 @@ openpyxl>=3.1
 whitenoise>=6.7
 gunicorn>=23
 segno>=1.6
+psycopg[binary]>=3.2

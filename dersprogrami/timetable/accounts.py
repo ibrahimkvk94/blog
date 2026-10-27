@@ -226,3 +226,32 @@ def central_log(request):
     from .models import AuditLog
 
     return _audit_page(request, AuditLog.objects.all(), {"nav": "central", "central": True})
+
+
+def backups(request):
+    """Merkez → Yedekler: şimdi yedek al, indir, sil."""
+    from django.http import FileResponse, Http404
+
+    from . import backup
+
+    if request.method == "POST":
+        if request.POST.get("action") == "delete":
+            path = backup.path_of(request.POST.get("name"))
+            if path:
+                path.unlink()
+                messages.info(request, f"{path.name} silindi.")
+        else:
+            path = backup.create()
+            messages.success(request, f"Yedek alındı: {path.name}")
+        return redirect("timetable:backups")
+    name = request.GET.get("indir")
+    if name:
+        path = backup.path_of(name)
+        if path is None:
+            raise Http404
+        return FileResponse(open(path, "rb"), as_attachment=True, filename=path.name)
+    from django.conf import settings
+
+    return render(request, "timetable/backups.html", {
+        "items": backup.listing(), "nav": "central", "keep": settings.BACKUP_KEEP, "dir": str(backup.directory()),
+    })

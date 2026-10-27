@@ -25,6 +25,11 @@ yapılır (sol menü → Veri); yönetim paneli (`/admin/`) yalnızca ileri düz
 
 ### Kendi sunucunda yayına alma (Docker)
 
+**Önerilen:** PostgreSQL, ayrı üretim süreci (çalışan), otomatik HTTPS ve günlük yedekle tam
+kurulum için [YAYIN.md](YAYIN.md) rehberini izleyin (`docker compose up -d`).
+
+Tek kapsayıcılı basit kurulum (SQLite):
+
 ```bash
 cd dersprogrami
 docker build -t ders-programi .
@@ -45,7 +50,9 @@ ters vekili sağlar.
 Komut satırından üretim: `python manage.py generate_timetable <okul_id> [--mode relaxed] [--time-limit 60]`
 
 Ortam değişkenleri: `DJANGO_SECRET_KEY`, `DJANGO_DEBUG` (`1`/`0`), `DJANGO_ALLOWED_HOSTS`,
-`TIMETABLE_SOLVER_TIME_LIMIT` (saniye, varsayılan 60), `TIMETABLE_RUN_IN_BACKGROUND` (`1`/`0`).
+`TIMETABLE_SOLVER_TIME_LIMIT` (saniye, varsayılan 60), `TIMETABLE_RUN_IN_BACKGROUND` (`1`/`0`),
+`DATABASE_URL` (ör. `postgres://kullanici:parola@db:5432/dersprogrami`; yoksa SQLite),
+`TIMETABLE_JOB_BACKEND` (`thread` ya da `worker`), `BACKUP_DIR`, `BACKUP_KEEP`.
 
 Testler: `python manage.py test timetable`
 

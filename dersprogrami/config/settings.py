@@ -5,6 +5,7 @@ Gizli değerler ortam değişkenlerinden okunur; geliştirme için güvenli vars
 
 import os
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -58,14 +59,32 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-DATABASES = {
-    "default": {
+def _database():
+    """DATABASE_URL verilirse PostgreSQL (çok kullanıcılı sunucu), yoksa yerel SQLite dosyası.
+
+    Ör. DATABASE_URL=postgres://kullanici:parola@db:5432/dersprogrami
+    """
+    url = os.environ.get("DATABASE_URL", "")
+    if url.startswith(("postgres://", "postgresql://")):
+        parsed = urlparse(url)
+        return {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": parsed.path.lstrip("/"),
+            "USER": unquote(parsed.username or ""),
+            "PASSWORD": unquote(parsed.password or ""),
+            "HOST": parsed.hostname or "",
+            "PORT": str(parsed.port or ""),
+            "CONN_MAX_AGE": 60,
+        }
+    return {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": os.environ.get("DJANGO_DB_PATH", BASE_DIR / "db.sqlite3"),
         # Arka plan üretimi ile web istekleri aynı anda yazabilir; kilit beklemesi tanı.
         "OPTIONS": {"timeout": 20},
     }
-}
+
+
+DATABASES = {"default": _database()}
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -103,3 +122,10 @@ LOGOUT_REDIRECT_URL = "timetable:login"
 TIMETABLE_SOLVER_TIME_LIMIT = int(os.environ.get("TIMETABLE_SOLVER_TIME_LIMIT", "60"))
 # Web arayüzünden başlatılan üretimler arka planda (ayrı iş parçacığında) çalışır.
 TIMETABLE_RUN_IN_BACKGROUND = os.environ.get("TIMETABLE_RUN_IN_BACKGROUND", "1") == "1"
+# "thread": üretim web sürecinde çalışır (yerel kurulum). "worker": üretimler veritabanında sıraya
+# girer ve ayrı `python manage.py calisan` süreci çalıştırır (sunucu kurulumu; web yeniden başlasa da sürer).
+TIMETABLE_JOB_BACKEND = os.environ.get("TIMETABLE_JOB_BACKEND", "thread")
+
+# Yedekler (merkez paneli → Yedekler ya da `python manage.py yedekle`)
+BACKUP_DIR = Path(os.environ.get("BACKUP_DIR", BASE_DIR / "yedekler"))
+BACKUP_KEEP = int(os.environ.get("BACKUP_KEEP", "30"))
