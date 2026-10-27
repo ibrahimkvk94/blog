@@ -17,6 +17,7 @@ boşlukları, koşullu (?) hücre kullanımı, önemi "kesin" olmayan kart iliş
 """
 
 import threading
+import time
 from dataclasses import dataclass, field
 
 from ortools.sat.python import cp_model
@@ -688,6 +689,25 @@ class _Progress(cp_model.CpSolverSolutionCallback):
             self.StopSearch()
 
 
+class _FirstSolution(cp_model.CpSolverSolutionCallback):
+    """1. aşama: ilk geçerli çözümde durur."""
+
+    def __init__(self, on_progress):
+        super().__init__()
+        self.on_progress = on_progress
+        self.found = False
+
+    def on_solution_callback(self):
+        self.found = True
+        if self.on_progress:
+            self.on_progress({"phase": "feasible", "elapsed": round(self.WallTime(), 1)})
+        self.StopSearch()
+
+
+# İki aşamalı arama bu kart sayısından itibaren kullanılır (küçük programlarda gerek yok).
+TWO_PHASE_MIN_CARDS = 150
+
+
 class StopHandle:
     """Çalışan bir çözümü başka bir iş parçacığından durdurmak için."""
 
@@ -723,11 +743,41 @@ def solve(
     on_progress=None,
     should_stop=None,
     stop_handle=None,
+    two_phase=None,
 ):
     builder = _Builder(problem, mode)
     model = builder.build()
+    started = time.monotonic()
+    phase1 = first = callback1 = None
+    if two_phase is None:
+        two_phase = mode == STRICT and bool(builder.penalties) and len(problem.cards) >= TWO_PHASE_MIN_CARDS
+    if two_phase:
+        # 1. aşama: amaç fonksiyonu olmadan ilk geçerli programı bul (çok daha hızlı); bulunamazsa
+        # veri imkânsızdır ve bunu erken söyleriz. 2. aşama bu programı ipucu alıp iyileştirir.
+        feasibility = model.clone()
+        feasibility.ClearObjective()
+        first = cp_model.CpSolver()
+        first.parameters.max_time_in_seconds = float(time_limit) * 0.6
+        first.parameters.num_workers = workers
+        first.parameters.random_seed = seed
+        if stop_handle is not None:
+            stop_handle.attach(first)
+        callback1 = _FirstSolution(on_progress)
+        status1 = first.Solve(feasibility, callback1)
+        phase1 = {"status": STATUS_NAMES.get(status1, "unknown"), "wall_time": round(first.WallTime(), 2)}
+        if status1 == cp_model.INFEASIBLE:
+            return Solution(status="infeasible", stats={"wall_time": phase1["wall_time"], "cards": len(problem.cards),
+                                                        "solutions": 0, "mode": mode, "phase1": phase1, "stopped": False})
+        if callback1.found:
+            values = list(first.ResponseProto().solution)
+            model.ClearHints()
+            for index, value in enumerate(values):
+                model.AddHint(model.GetIntVarFromProtoIndex(index), value)
+    remaining = max(1.0, float(time_limit) - (time.monotonic() - started))
     solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = float(time_limit)
+    solver.parameters.max_time_in_seconds = remaining
+    if phase1:
+        solver.parameters.repair_hint = True
     solver.parameters.num_workers = workers
     solver.parameters.random_seed = seed
     solver.parameters.log_search_progress = log
@@ -735,22 +785,28 @@ def solve(
         stop_handle.attach(solver)
     callback = _Progress(on_progress, should_stop)
     status = solver.Solve(model, callback)
+    status_name = STATUS_NAMES.get(status, "unknown")
+    if status_name not in ("optimal", "feasible") and phase1 and callback1.found:
+        # 2. aşama sonuç veremediyse (ör. durdurma) 1. aşamanın geçerli programı kullanılır;
+        # değişken sıraları iki modelde aynı olduğundan değerler oradan okunur.
+        solver, status_name = first, "feasible"
     solution = Solution(
-        status=STATUS_NAMES.get(status, "unknown"),
+        status=status_name,
         stats={
-            "wall_time": round(solver.WallTime(), 2),
+            "wall_time": round(time.monotonic() - started, 2),
             "conflicts": solver.NumConflicts(),
             "branches": solver.NumBranches(),
             "cards": len(problem.cards),
             "solutions": callback.solutions,
             "mode": mode,
             "stopped": bool(stop_handle and stop_handle.stopped),
+            **({"phase1": phase1} if phase1 else {}),
         },
     )
     if not solution.ok:
         return solution
     if builder.penalties:
-        solution.objective = int(solver.ObjectiveValue())
+        solution.objective = int(solver.ObjectiveValue()) if solver is not first else _objective(solver, builder)
         totals = {}
         for category, weight, expr in builder.penalties:
             value = expr if isinstance(expr, int) else solver.Value(expr)
@@ -765,6 +821,10 @@ def solve(
         rooms = [r for r, var in builder.y.get(card.key, {}).items() if isinstance(var, int) or solver.Value(var)]
         solution.placements[card.key] = Placement(start[0], start[1], rooms[0] if rooms else None, tuple(rooms[1:]))
     return solution
+
+
+def _objective(solver, builder):
+    return sum(weight * (expr if isinstance(expr, int) else solver.Value(expr)) for _, weight, expr in builder.penalties)
 
 
 @dataclass

@@ -85,6 +85,21 @@
           {% for t in timetables %}{% if t.has_grid %}<option value="{{ t.pk }}">{{ t.name }} (kilitli kartlar korunur)</option>{% endif %}{% endfor %}
         </select>
       </div>
+      <div class="form-row" id="partial-row" hidden>
+        <span class="label">Yalnızca bunları yeniden yerleştir (hızlı)</span>
+        <p class="subtle small" style="margin:0 0 6px">Seçilen kısımların ya da öğretmenlerin kartları yeniden yerleşir; diğer tüm kartlar başlangıç sürümündeki yerinde sabit kalır. Boş = hepsi.</p>
+        <div class="dialog-row" style="align-items:flex-start">
+          <select class="select" name="only_classes" multiple size="6" title="Kısımlar">{% for c in school.classes.all %}<option value="{{ c.pk }}">{{ c.short|default:c.name }}</option>{% endfor %}</select>
+          <select class="select" name="only_teachers" multiple size="6" title="Öğretmenler">{% for t in school.teachers.all %}<option value="{{ t.pk }}">{{ t.full_name }}</option>{% endfor %}</select>
+        </div>
+      </div>
+      <script>
+        (function () {
+          const base = document.getElementById("base"), row = document.getElementById("partial-row");
+          const sync = () => { row.hidden = !base.value; };
+          base.addEventListener("change", sync); sync();
+        })();
+      </script>
       <button class="btn btn-primary" style="width:100%">{% include "timetable/icon.html" with name="play" %} Üretimi başlat</button>
       <p class="subtle small" style="margin-bottom:0">Üretim arka planda çalışır; sayfadan ayrılabilirsiniz.</p>
     </form>

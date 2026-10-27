@@ -117,7 +117,11 @@ def generate(request, pk):
     if mode not in (Timetable.STRICT, Timetable.RELAXED):
         mode = Timetable.STRICT
     name = (request.POST.get("name") or "").strip() or "Yeni program"
-    timetable = start_generation(school, name, time_limit=time_limit, mode=mode, base=base)
+    only = {
+        "classes": [int(x) for x in request.POST.getlist("only_classes") if x.isdigit()],
+        "teachers": [int(x) for x in request.POST.getlist("only_teachers") if x.isdigit()],
+    } if base else None
+    timetable = start_generation(school, name, time_limit=time_limit, mode=mode, base=base, only=only)
     return redirect("timetable:timetable_detail", pk=timetable.pk)
 
 

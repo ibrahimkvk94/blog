@@ -21,8 +21,11 @@ def check_school(school):
     return feasibility.check(build_problem(school))
 
 
-def start_generation(school, name, time_limit=None, mode=Timetable.STRICT, base=None, seed=0):
-    """Yeni bir program sürümü oluşturur ve üretimi arka planda başlatır."""
+def start_generation(school, name, time_limit=None, mode=Timetable.STRICT, base=None, seed=0, only=None):
+    """Yeni bir program sürümü oluşturur ve üretimi arka planda başlatır.
+
+    only: {"classes": [...], "teachers": [...]} — yalnızca bunların kartları yeniden yerleşir, diğerleri
+    başlangıç sürümündeki yerinde sabitlenir (kısmi üretim; büyük programlarda çok daha hızlı)."""
     timetable = Timetable.objects.create(
         school=school,
         name=name,
@@ -30,7 +33,7 @@ def start_generation(school, name, time_limit=None, mode=Timetable.STRICT, base=
         mode=mode,
         time_limit=time_limit or settings.TIMETABLE_SOLVER_TIME_LIMIT,
         started_at=timezone.now(),
-        report={"base": base.pk if base else None},
+        report={"base": base.pk if base else None, **({"only": only} if only and any(only.values()) else {})},
     )
     jobs.start(timetable.pk, run_generation, base.pk if base else None, seed)
     return timetable
@@ -51,6 +54,21 @@ def generate_timetable(school, name, time_limit=None, base=None, seed=0, mode=Ti
     return timetable
 
 
+def freeze_except(problem, only):
+    """Kısmi üretim: seçilen kısım/öğretmenlere dokunmayan kartları başlangıç yerinde sabitler."""
+    classes, teachers = set(only.get("classes") or []), set(only.get("teachers") or [])
+    frozen = 0
+    for card in problem.cards:
+        if card.fixed is not None or card.hint is None:
+            continue
+        touches = bool(teachers & set(card.teachers)) or bool(classes & {problem.atom_class(a) for a in card.atoms})
+        if not touches:
+            card.fixed = (card.hint[0], card.hint[1])
+            card.fixed_room = card.hint[2]
+            frozen += 1
+    return frozen
+
+
 def run_generation(timetable_id, base_id=None, seed=0):
     timetable = Timetable.objects.select_related("school").get(pk=timetable_id)
     base = Timetable.objects.filter(pk=base_id).first() if base_id else None
@@ -58,6 +76,8 @@ def run_generation(timetable_id, base_id=None, seed=0):
     report = dict(timetable.report)
     try:
         problem = build_problem(timetable.school, base=base)
+        if base is not None and report.get("only"):
+            report["frozen"] = freeze_except(problem, report["only"])
         issues = feasibility.check(problem)
         report["issues"] = [i.as_dict() for i in issues]
         if feasibility.has_errors(issues, relaxed=relaxed):

@@ -65,6 +65,8 @@
       $("#run-objective").textContent = p.objective != null ? p.objective.toLocaleString("tr-TR") : "–";
       $("#run-text").textContent = p.phase === "explain"
         ? "Bu kurallarla program mümkün değil; hangi kuralların çeliştiği aranıyor…"
+        : p.phase === "feasible"
+        ? "Geçerli bir program bulundu (" + p.elapsed + " sn); şimdi boşluklar ve tercihler iyileştiriliyor…"
         : p.solutions
         ? "Geçerli bir program bulundu; ceza puanı düşürülüyor. İstediğiniz an durdurup en iyisini alabilirsiniz."
         : "İlk geçerli program aranıyor…";
