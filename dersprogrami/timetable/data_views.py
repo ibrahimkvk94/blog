@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Count, Q
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.html import format_html
@@ -135,7 +135,9 @@ ENTITIES = {
         "kart-iliskileri", CardRelationship, forms.RelationshipForm, "Kart ilişkileri", "Kart ilişkisi",
         [
             ("Ad", lambda r, ctx: r.name),
-            ("Koşul", lambda r, ctx: r.get_condition_display() + (f" (N={r.param})" if r.condition in (r.MAX_PER_DAY, r.MAX_CONSECUTIVE) else "")),
+            ("Koşul", lambda r, ctx: r.get_condition_display()
+                + (f" · N={r.param}" if r.condition in r.USES_N else "")
+                + (f" · {r.period_from}–{r.period_to}. saat" if r.condition in r.USES_RANGE else "")),
             ("Uygula", lambda r, ctx: r.get_apply_to_display()),
             ("Önem", lambda r, ctx: r.get_importance_display()),
             ("Durum", lambda r, ctx: format_html('<span class="pill {}">{}</span>', "ok" if r.active else "", "Etkin" if r.active else "Kapalı")),
@@ -605,3 +607,224 @@ def excel_export(request, pk):
     )
     response["Content-Disposition"] = f'attachment; filename="okul-verisi-{school.pk}.xlsx"'
     return response
+
+
+# --- ders dağıtım çizelgesi (toplu öğretmen/ders ataması) ---------------------------------------
+
+
+def _simple_lessons(school):
+    """(ders adı, sınıf) → basit ders; basit olmayanlar (gruplu/birleşik/çok öğretmenli) ayrı sayılır."""
+    simple, complex_hours = {}, defaultdict(int)
+    lessons = Lesson.objects.filter(school=school).prefetch_related("classes", "groups", "teachers", "classrooms")
+    for lesson in lessons:
+        classes = list(lesson.classes.all())
+        if len(classes) == 1 and not lesson.groups.all() and len(lesson.teachers.all()) <= 1 and len(lesson.classrooms.all()) <= 1:
+            key = (lesson.subject_id, classes[0].id)
+            if key not in simple:
+                simple[key] = lesson
+                continue
+        for cls in classes:
+            complex_hours[(lesson.subject_id, cls.id)] += lesson.periods_per_week
+    return simple, complex_hours
+
+
+def _teacher_loads_all(school):
+    loads_ = defaultdict(int)
+    for lesson in Lesson.objects.filter(school=school).prefetch_related("teachers"):
+        for teacher in lesson.teachers.all():
+            loads_[teacher.id] += lesson.periods_per_week
+    return loads_
+
+
+def distribution(request, pk):
+    school = _school(pk)
+    simple, complex_hours = _simple_lessons(school)
+    loads_all = _teacher_loads_all(school)
+    simple_by_teacher = defaultdict(int)
+    for lesson in simple.values():
+        for teacher in lesson.teachers.all():
+            simple_by_teacher[teacher.id] += lesson.periods_per_week
+    classes = list(school.classes.all())
+    data = {
+        "subjects": [{"id": s.id, "name": s.name, "short": s.short or s.name[:4], "color": s.color} for s in school.subjects.order_by("name")],
+        "classes": [{"id": c.id, "name": c.name, "grade": c.grade} for c in classes],
+        "teachers": [
+            {
+                "id": t.id,
+                "name": t.full_name,
+                "short": t.short or t.full_name,
+                # Matris dışındaki (gruplu/birleşik) derslerden gelen sabit yük:
+                "fixed": loads_all.get(t.id, 0) - simple_by_teacher.get(t.id, 0),
+            }
+            for t in school.teachers.all()
+        ],
+        "cells": {
+            f"{subject_id}-{class_id}": {
+                "hours": lesson.periods_per_week,
+                "length": lesson.card_length,
+                "teacher": next((t.id for t in lesson.teachers.all()), None),
+            }
+            for (subject_id, class_id), lesson in simple.items()
+        },
+        "complex": {f"{s}-{c}": h for (s, c), h in complex_hours.items()},
+        "capacity": school.days_per_week * school.periods.count(),
+        "saveUrl": reverse("timetable:distribution_save", args=[school.pk]),
+        "classUrl": reverse("timetable:class_lessons", args=[school.pk, 0]),
+    }
+    return render(request, "timetable/data/distribution.html", _nav(school, "data", data_nav="dagitim", data=data))
+
+
+@require_POST
+def distribution_save(request, pk):
+    school = _school(pk)
+    try:
+        cells = json.loads(request.body or b"{}").get("cells", [])
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "message": "Geçersiz istek."}, status=400)
+    subjects = {s.id: s for s in school.subjects.all()}
+    classes = {c.id: c for c in school.classes.all()}
+    teachers = {t.id: t for t in school.teachers.all()}
+    simple, _ = _simple_lessons(school)
+    counts = defaultdict(int)
+    with transaction.atomic():
+        for cell in cells:
+            subject = subjects.get(cell.get("subject"))
+            cls = classes.get(cell.get("class"))
+            if subject is None or cls is None:
+                continue
+            try:
+                hours = max(0, int(cell.get("hours") or 0))
+                length = min(4, max(1, int(cell.get("length") or 1)))
+            except (TypeError, ValueError):
+                continue
+            teacher = teachers.get(cell.get("teacher"))
+            lesson = simple.get((subject.id, cls.id))
+            if hours == 0:
+                if lesson is not None:
+                    lesson.delete()
+                    counts["silinen"] += 1
+                continue
+            if lesson is None:
+                lesson = Lesson.objects.create(school=school, subject=subject, periods_per_week=hours, card_length=length)
+                lesson.classes.set([cls])
+                counts["eklenen"] += 1
+            else:
+                lesson.periods_per_week, lesson.card_length = hours, length
+                lesson.save(update_fields=["periods_per_week", "card_length"])
+                counts["güncellenen"] += 1
+            lesson.teachers.set([teacher] if teacher else [])
+    summary = ", ".join(f"{n} {label}" for label, n in counts.items()) or "değişiklik yok"
+    return JsonResponse({"ok": True, "message": f"Ders dağıtımı kaydedildi: {summary}.", "counts": counts})
+
+
+def _split_classes(text, known):
+    """"9-A, 9-B" / "9-A 9-B" / "Hazırlık 1" gibi yazımları sınıf adlarına ayırır (known: küçük harfli adlar)."""
+    import re
+
+    result = []
+    for part in re.split(r"[,;/]+", str(text or "")):
+        part = part.strip()
+        if not part:
+            continue
+        if part.casefold() in known:
+            result.append(part)
+        else:
+            result.extend(token for token in part.split() if token)
+    return result
+
+
+@require_POST
+def distribution_paste(request, pk):
+    """Excel'den yapıştırılan "Öğretmen | Ders | Sınıflar | Saat | Blok" satırlarını önizler ya da uygular."""
+    school = _school(pk)
+    try:
+        body = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "message": "Geçersiz istek."}, status=400)
+    apply = body.get("apply") is True
+    text = str(body.get("text") or "")
+
+    def key(value):
+        return str(value or "").strip().casefold()
+
+    teachers = {}
+    for t in school.teachers.all():
+        teachers[key(t.full_name)] = t
+        if t.short:
+            teachers.setdefault(key(t.short), t)
+    subjects = {}
+    for s in school.subjects.all():
+        subjects[key(s.name)] = s
+        if s.short:
+            subjects.setdefault(key(s.short), s)
+    classes = {key(c.name): c for c in school.classes.all()}
+
+    rows, new_teachers, new_subjects = [], {}, {}
+    for number, line in enumerate(text.splitlines(), start=1):
+        if not line.strip():
+            continue
+        parts = [p.strip() for p in (line.split("\t") if "\t" in line else line.split(";"))]
+        parts += [""] * (5 - len(parts))
+        teacher_name, subject_name, class_text, hours_text, length_text = parts[:5]
+        if number == 1 and key(teacher_name) in ("öğretmen", "ogretmen") and not hours_text.strip().isdigit():
+            continue  # başlık satırı
+        row = {"line": number, "teacher": teacher_name, "subject": subject_name, "classes": [], "hours": hours_text, "length": length_text or "1", "notes": [], "errors": []}
+        if not hours_text.strip().isdigit() or int(hours_text) < 1:
+            row["errors"].append("haftalık saat sayı olmalı")
+        if length_text.strip() and (not length_text.strip().isdigit() or not 1 <= int(length_text) <= 4):
+            row["errors"].append("blok 1–4 arası olmalı")
+        if teacher_name and key(teacher_name) not in teachers:
+            if len(teacher_name.split()) < 2:
+                row["errors"].append(f"“{teacher_name}” öğretmeni yok (yeni öğretmen için ad ve soyad yazın)")
+            else:
+                new_teachers[key(teacher_name)] = teacher_name
+                row["notes"].append("yeni öğretmen")
+        if not subject_name:
+            row["errors"].append("ders adı boş")
+        elif key(subject_name) not in subjects:
+            new_subjects[key(subject_name)] = subject_name
+            row["notes"].append("yeni ders adı")
+        for name in _split_classes(class_text, classes):
+            if key(name) in classes:
+                row["classes"].append(classes[key(name)].name)
+            else:
+                row["errors"].append(f"“{name}” sınıfı yok")
+        if not class_text.strip():
+            row["errors"].append("sınıf boş")
+        rows.append(row)
+
+    errors = sum(1 for r in rows if r["errors"])
+    if not apply or errors or not rows:
+        return JsonResponse({"ok": True, "applied": False, "rows": rows, "errors": errors})
+
+    counts = defaultdict(int)
+    with transaction.atomic():
+        palette = ["#dfe7fd", "#fde2e4", "#e2ece9", "#fff1e6", "#e9f5db", "#f0efeb", "#cddafd", "#fad2e1"]
+        for i, (k, name) in enumerate(new_subjects.items()):
+            subjects[k] = Subject.objects.create(school=school, name=name, color=palette[i % len(palette)])
+            counts["yeni ders adı"] += 1
+        for k, name in new_teachers.items():
+            first, _, last = name.rpartition(" ")
+            teachers[k] = Teacher.objects.create(school=school, first_name=first, last_name=last)
+            counts["yeni öğretmen"] += 1
+        simple, _ = _simple_lessons(school)
+        for row in rows:
+            subject = subjects[key(row["subject"])]
+            teacher = teachers.get(key(row["teacher"])) if row["teacher"] else None
+            hours, length = int(row["hours"]), int(row["length"] or 1)
+            for class_name in row["classes"]:
+                cls = classes[key(class_name)]
+                lesson = simple.get((subject.id, cls.id))
+                if lesson is None:
+                    lesson = Lesson.objects.create(school=school, subject=subject, periods_per_week=hours, card_length=length)
+                    lesson.classes.set([cls])
+                    simple[(subject.id, cls.id)] = lesson
+                    counts["yeni ders"] += 1
+                else:
+                    lesson.periods_per_week, lesson.card_length = hours, length
+                    lesson.save(update_fields=["periods_per_week", "card_length"])
+                    counts["güncellenen ders"] += 1
+                lesson.teachers.set([teacher] if teacher else [])
+    summary = ", ".join(f"{n} {label}" for label, n in counts.items())
+    messages.success(request, f"Yapıştırılan dağıtım aktarıldı: {summary}.")
+    return JsonResponse({"ok": True, "applied": True, "message": summary})

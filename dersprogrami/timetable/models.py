@@ -351,12 +351,32 @@ class CardRelationship(models.Model):
     DIFFERENT_DAYS = "different_days"
     MAX_CONSECUTIVE = "max_consecutive"
     SAME_TIME = "same_time"
+    SAME_DAY = "same_day"
+    CONSECUTIVE = "consecutive"
+    NOT_SIMULTANEOUS = "not_simultaneous"
+    MIN_GAP_DAYS = "min_gap_days"
+    MAX_DAYS = "max_days"
+    MIN_DAYS = "min_days"
+    RANGE_MAX_PER_DAY = "range_max_per_day"
+    RANGE_MAX_DAYS = "range_max_days"
     CONDITION_CHOICES = [
         (MAX_PER_DAY, "Günde en fazla N kart"),
         (DIFFERENT_DAYS, "Farklı günlerde"),
         (MAX_CONSECUTIVE, "Art arda en fazla N saat"),
-        (SAME_TIME, "Aynı anda (seçilen dersler)"),
+        (NOT_SIMULTANEOUS, "Aynı anda olmasın"),
+        (MIN_GAP_DAYS, "Kartlar arasında en az N boş gün"),
+        (MAX_DAYS, "Haftada en fazla N güne yayılsın"),
+        (MIN_DAYS, "Haftada en az N güne yayılsın"),
+        (RANGE_MAX_PER_DAY, "Belirli saatler arasında günde en fazla N saat ders"),
+        (RANGE_MAX_DAYS, "Belirli saatlerde ders olan en fazla N gün"),
+        (SAME_TIME, "Aynı anda (seçilen dersler eşleşir)"),
+        (SAME_DAY, "Aynı gün (seçilen dersler eşleşir)"),
+        (CONSECUTIVE, "Art arda, bitişik (seçilen dersler eşleşir)"),
     ]
+    # Seçilen derslerin i. kartlarını eşleştiren koşullar (her ders bir küme).
+    PAIRED = {SAME_TIME, SAME_DAY, CONSECUTIVE}
+    USES_N = {MAX_PER_DAY, MAX_CONSECUTIVE, MIN_GAP_DAYS, MAX_DAYS, MIN_DAYS, RANGE_MAX_PER_DAY, RANGE_MAX_DAYS}
+    USES_RANGE = {RANGE_MAX_PER_DAY, RANGE_MAX_DAYS}
 
     ALL = "all"
     EACH_CLASS = "each_class"
@@ -375,7 +395,9 @@ class CardRelationship(models.Model):
     active = models.BooleanField("etkin", default=True)
     condition = models.CharField("koşul", max_length=20, choices=CONDITION_CHOICES, default=MAX_PER_DAY)
     param = models.PositiveSmallIntegerField("N", default=1)
-    apply_to = models.CharField("uygula", max_length=20, choices=APPLY_CHOICES, default=EACH_CLASS)
+    period_from = models.PositiveSmallIntegerField("başlangıç saati", null=True, blank=True, help_text="Ör. 3 = 3. saat")
+    period_to = models.PositiveSmallIntegerField("bitiş saati", null=True, blank=True, help_text="Bu saat de dahil")
+    apply_to =models.CharField("uygula", max_length=20, choices=APPLY_CHOICES, default=EACH_CLASS)
     importance = models.CharField("önem", max_length=10, choices=IMPORTANCE_CHOICES, default=STRICT)
     lessons = models.ManyToManyField(Lesson, blank=True, related_name="relationships", verbose_name="dersler")
     subjects = models.ManyToManyField(Subject, blank=True, related_name="relationships", verbose_name="ders adları")

@@ -96,6 +96,7 @@ def build_problem(school, timetable=None, base=None):
             entities.append(("classroom", rooms[0]))
         states = {cell: cell_state(entities, cell) for cell in all_cells}
         lesson_data[lesson.id] = {
+            "entities": entities,
             "subject": lesson.subject_id,
             "classes": class_ids,
             "teachers": teacher_ids,
@@ -119,6 +120,19 @@ def build_problem(school, timetable=None, base=None):
             for p in range(periods - length + 1)
             if all(states[(d, p + i)] != Availability.NO for i in range(length))
         ]
+
+    def blocked_for(lesson_id, length):
+        """Yalnızca müsaitlik yüzünden kapalı başlangıçlar → kapatan varlıklar (açıklama modu için)."""
+        entities = lesson_data[lesson_id]["entities"]
+        blocked = {}
+        for d in range(days):
+            for p in range(periods - length + 1):
+                culprits = frozenset(
+                    e for e in entities for i in range(length) if avail.get(e, {}).get((d, p + i)) == Availability.NO
+                )
+                if culprits:
+                    blocked[(d, p)] = culprits
+        return blocked
 
     if timetable is not None:
         sources = [
@@ -145,6 +159,7 @@ def build_problem(school, timetable=None, base=None):
             universes=data["universes"],
             starts=starts_for(lesson_id, length),
             maybe_slots=data["maybe"],
+            blocked=blocked_for(lesson_id, length),
         )
         if db_card is not None:
             card.card_id = db_card.id
@@ -196,9 +211,16 @@ def build_problem(school, timetable=None, base=None):
         atom_available=atom_available,
         labels={
             "lesson": {lid: d["label"] for lid, d in lesson_data.items()},
-            "teacher": {t.id: str(t) for t in teachers},
+            "teacher": {t.id: t.full_name for t in teachers},
             "atom": labels_atom,
             "room": {r.id: str(r) for r in school.classrooms.all()},
+            "entity": {
+                **{("teacher", t.id): f"{t.full_name} (öğretmen)" for t in teachers},
+                **{("school_class", c.id): f"{c.name} (sınıf)" for c in classes},
+                **{("subject", sub.id): f"{sub.name} (ders adı)" for sub in school.subjects.all()},
+                **{("classroom", r.id): f"{r} (derslik)" for r in school.classrooms.all()},
+                **{("lesson", lid): f"{d['label']} (ders)" for lid, d in lesson_data.items()},
+            },
         },
     )
 
@@ -227,7 +249,7 @@ def _relationships(school, cards, lesson_data):
         chosen = [c for c in cards if selected(c.lesson_id)]
         if not chosen:
             continue
-        if rel.condition == rel.SAME_TIME:
+        if rel.condition in rel.PAIRED:
             order = lesson_ids or sorted({c.lesson_id for c in chosen})
             groups = [[c.key for c in chosen if c.lesson_id == lid] for lid in order]
             groups = [g for g in groups if g]
@@ -242,5 +264,10 @@ def _relationships(school, cards, lesson_data):
                     if not limit_to or owner in limit_to:
                         by_owner[owner].append(card.key)
             groups = list(by_owner.values())
-        specs.append(RelationshipSpec(rel.name, rel.condition, rel.param, groups, rel.weight))
+        periods = None
+        if rel.condition in rel.USES_RANGE:
+            start = max(1, rel.period_from or 1) - 1
+            end = (rel.period_to or start + 1) - 1
+            periods = (min(start, end), max(start, end))
+        specs.append(RelationshipSpec(rel.name, rel.condition, rel.param, groups, rel.weight, periods, rel.id))
     return specs

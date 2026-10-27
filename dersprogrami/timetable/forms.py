@@ -1,5 +1,7 @@
 """Veri giriş formları. Tüm seçim alanları ilgili okulun kayıtlarıyla sınırlanır."""
 
+import json
+
 from django import forms
 from django.core.exceptions import ValidationError
 
@@ -221,7 +223,7 @@ class RelationshipForm(SchoolScopedForm):
 
     class Meta:
         model = CardRelationship
-        fields = ["name", "active", "condition", "param", "apply_to", "importance", "subjects", "lessons", "classes", "teachers"]
+        fields = ["name", "active", "condition", "param", "period_from", "period_to", "apply_to", "importance", "subjects", "lessons", "classes", "teachers"]
         widgets = {
             "subjects": ChipSelectMultiple(),
             "lessons": ChipSelectMultiple(),
@@ -229,17 +231,57 @@ class RelationshipForm(SchoolScopedForm):
             "teachers": ChipSelectMultiple(),
         }
         help_texts = {
-            "param": "“Günde en fazla N” ve “art arda en fazla N” kuralları için.",
+            "param": "Koşuldaki N sayısı.",
             "importance": "Kesin kurallar mutlaka sağlanır; diğerleri ihlal edilirse ceza puanı eklenir.",
         }
+
+    CONDITION_HELP = {
+        CardRelationship.MAX_PER_DAY: "Her kümede bir günde en fazla N kart olur. Ör. her sınıfta sayısal derslerden günde en fazla 2.",
+        CardRelationship.DIFFERENT_DAYS: "Kümedeki kartların hepsi farklı günlere düşer. Ör. Fizik ve Kimya aynı gün olmasın.",
+        CardRelationship.MAX_CONSECUTIVE: "Kümedeki dersler bir günde art arda en fazla N saat sürer.",
+        CardRelationship.NOT_SIMULTANEOUS: "Kümedeki kartlar aynı saate düşmez. Ör. aynı laboratuvar malzemesini kullanan iki ders.",
+        CardRelationship.MIN_GAP_DAYS: "Kümedeki iki kart arasında en az N boş gün olur. Ör. N=1: Pazartesi ve Çarşamba olur, Salı olmaz.",
+        CardRelationship.MAX_DAYS: "Kümedeki kartlar haftada en fazla N farklı güne yayılır.",
+        CardRelationship.MIN_DAYS: "Kümedeki kartlar haftada en az N farklı güne yayılır.",
+        CardRelationship.RANGE_MAX_PER_DAY: "Seçilen saat aralığında her gün en fazla N saat ders olur. Ör. öğle arası için 4–6. saatlerde en fazla 2.",
+        CardRelationship.RANGE_MAX_DAYS: "Seçilen saat aralığında dersi olan en fazla N gün olur. Ör. 7–8. saatlerde haftada en fazla 1 gün.",
+        CardRelationship.SAME_TIME: "Seçilen derslerin kartları eşleşip aynı saate konur (1. kart ile 1. kart…).",
+        CardRelationship.SAME_DAY: "Seçilen derslerin eşleşen kartları aynı güne konur.",
+        CardRelationship.CONSECUTIVE: "Seçilen derslerin eşleşen kartları aynı gün art arda (bitişik) olur. Ör. teori ve ardından laboratuvar.",
+    }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["lessons"].queryset = self.fields["lessons"].queryset.select_related("subject").prefetch_related("classes")
         self.fields["teachers"].label_from_instance = lambda t: f"{t.first_name} {t.last_name}"
+        self.fields["subjects"].label_from_instance = lambda s: s.name
+        periods = self.school.periods.count()
+        for name in ("period_from", "period_to"):
+            self.fields[name] = forms.TypedChoiceField(
+                label=self.fields[name].label,
+                choices=[("", "—")] + [(i, f"{i}. saat") for i in range(1, periods + 1)],
+                coerce=int, empty_value=None, required=False, widget=forms.Select(attrs={"class": "select"}),
+            )
+        condition = self.fields["condition"].widget
+        condition.attrs.update(
+            {
+                "data-uses-n": " ".join(sorted(CardRelationship.USES_N)),
+                "data-uses-range": " ".join(sorted(CardRelationship.USES_RANGE)),
+                "data-paired": " ".join(sorted(CardRelationship.PAIRED)),
+                "data-help": json.dumps(self.CONDITION_HELP, ensure_ascii=False),
+            }
+        )
 
     def clean(self):
         data = super().clean()
-        if data.get("condition") == CardRelationship.SAME_TIME and len(data.get("lessons") or []) < 2:
-            self.add_error("lessons", "“Aynı anda” kuralı için en az iki ders seçin.")
+        condition = data.get("condition")
+        if condition in CardRelationship.PAIRED and len(data.get("lessons") or []) < 2:
+            self.add_error("lessons", "Bu koşul seçilen derslerin kartlarını eşleştirir; en az iki ders seçin.")
+        if condition in CardRelationship.USES_RANGE:
+            if not data.get("period_from") or not data.get("period_to"):
+                self.add_error("period_from", "Bu koşul için saat aralığı seçin.")
+            elif data["period_from"] > data["period_to"]:
+                self.add_error("period_to", "Bitiş saati başlangıçtan önce olamaz.")
+        if condition in (CardRelationship.MAX_DAYS, CardRelationship.MIN_DAYS) and data.get("param", 0) > self.school.days_per_week:
+            self.add_error("param", f"Okulda haftada {self.school.days_per_week} gün var.")
         return data

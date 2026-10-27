@@ -305,3 +305,57 @@ input[type=color].input { padding: 3px; width: 80px; }
 .tile-link { color: var(--text); transition: border-color .12s, box-shadow .12s; }
 .tile-link:hover { color: var(--text); border-color: var(--primary); box-shadow: var(--shadow-lg); }
 .sidebar-foot a:hover { color: #fff; }
+.conflict { border: 1px solid #f3c9c3; background: #fffafa; border-radius: var(--radius-sm); padding: 14px 16px; margin: 6px 0 14px; }
+.conflict h3 { margin-bottom: 6px; }
+.conflict p { margin: 0 0 8px; }
+.conflict-list { margin: 0 0 8px; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; }
+.conflict-list li { font-weight: 600; }
+.condition-help { margin-top: 8px; padding: 9px 12px; border-radius: var(--radius-sm); background: var(--primary-soft); color: #312e81; font-size: 13px; }
+.form-row.emphasis .label::after { content: " · en az iki ders seçin"; color: var(--primary); font-weight: 500; }
+.form-row[hidden] { display: none; }
+
+/* ---- Ders dağıtım çizelgesi ---- */
+.dist-toolbar { display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 12px; }
+.dist-brush { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--text-2); }
+.dist-brush .select { min-width: 220px; height: 34px; }
+.dist-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .dist-layout { grid-template-columns: 1fr; } }
+.dist-scroll { overflow: auto; max-height: calc(100vh - 250px); }
+.dist-table { border-collapse: separate; border-spacing: 0; font-size: 13px; user-select: none; }
+.dist-table th, .dist-table td { border-bottom: 1px solid var(--border); border-right: 1px solid var(--border); padding: 0; }
+.dist-table thead th { position: sticky; top: 0; z-index: 3; background: var(--surface-2); font-weight: 650; padding: 8px 6px; min-width: 64px; text-align: center; }
+.dist-table thead th.grade-start, .dist-table td.grade-start { border-left: 2px solid var(--border-strong); }
+.dist-table .rowhead { position: sticky; left: 0; z-index: 2; background: var(--surface); text-align: left; padding: 6px 10px; min-width: 210px; }
+.dist-table thead .rowhead { z-index: 4; background: var(--surface-2); }
+.dist-table .rowhead .nm { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.dist-table .rowhead .fill { display: flex; gap: 4px; margin-top: 4px; }
+.dist-table .rowhead .fill input { width: 52px; height: 26px; padding: 0 6px; font-size: 12px; }
+.dist-table .rowhead .fill button { height: 26px; padding: 0 8px; font-size: 12px; }
+.dist-table tfoot td { position: sticky; bottom: 0; background: var(--surface-2); font-weight: 650; text-align: center; padding: 7px 4px; z-index: 2; }
+.dist-table tfoot .rowhead { z-index: 4; background: var(--surface-2); }
+.dist-table td.total { text-align: center; font-weight: 650; color: var(--text-2); background: var(--surface-2); min-width: 56px; }
+.dcell { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; min-width: 64px; height: 46px; border: 0; background: transparent; cursor: pointer; font: inherit; color: var(--text); }
+.dcell:hover { background: var(--primary-soft); }
+.dcell .h { font-size: 15px; font-weight: 700; line-height: 1.1; }
+.dcell .t { font-size: 10.5px; color: var(--text-2); max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dcell.has { background: color-mix(in srgb, var(--c) 55%, white); }
+.dcell.no-teacher .t { color: var(--danger-strong); }
+.dcell.changed::after { content: ""; position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--primary); }
+.dcell.mark { box-shadow: inset 0 0 0 2px var(--primary); }
+.dcell .cx { position: absolute; bottom: 2px; right: 3px; font-size: 10px; font-weight: 700; color: #b45309; }
+.dist-table.brushing .dcell { cursor: crosshair; }
+.over-cap { color: var(--danger-strong) !important; }
+.dist-side { position: sticky; top: 12px; max-height: calc(100vh - 120px); display: flex; flex-direction: column; }
+.dist-teachers { list-style: none; margin: 8px 0 0; padding: 0 0 8px; overflow-y: auto; }
+.dist-teachers li { padding: 7px 14px; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; border-left: 3px solid transparent; }
+.dist-teachers li:hover { background: var(--surface-2); }
+.dist-teachers li.on { background: var(--primary-soft); border-left-color: var(--primary); }
+.dist-teachers li .n { font-weight: 600; font-size: 13px; }
+.dist-teachers li .v { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.dist-teachers li .progress { grid-column: 1 / -1; height: 4px; }
+.dist-pop { position: absolute; z-index: 60; width: 240px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.dist-pop label { display: flex; flex-direction: column; gap: 3px; font-size: 12px; font-weight: 600; color: var(--text-2); }
+.dist-pop-title { font-weight: 700; font-size: 13px; }
+.dist-paste { height: auto; min-height: 120px; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+.paste-table td { padding: 6px 10px; font-size: 13px; }
+.paste-table tr.bad td { background: var(--danger-soft); }

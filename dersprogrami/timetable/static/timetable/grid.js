@@ -58,7 +58,9 @@
       $("#run-elapsed").textContent = Math.round(s.elapsed) + " sn";
       $("#run-solutions").textContent = p.solutions || 0;
       $("#run-objective").textContent = p.objective != null ? p.objective.toLocaleString("tr-TR") : "–";
-      $("#run-text").textContent = p.solutions
+      $("#run-text").textContent = p.phase === "explain"
+        ? "Bu kurallarla program mümkün değil; hangi kuralların çeliştiği aranıyor…"
+        : p.solutions
         ? "Geçerli bir program bulundu; ceza puanı düşürülüyor. İstediğiniz an durdurup en iyisini alabilirsiniz."
         : "İlk geçerli program aranıyor…";
       setTimeout(poll, 1500);

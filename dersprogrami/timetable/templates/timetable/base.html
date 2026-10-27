@@ -33,6 +33,7 @@
       <nav class="side-nav">
         <a href="{% url 'timetable:school_settings' school.pk %}" class="{% if data_nav == 'okul' %}active{% endif %}">{% include "timetable/icon.html" with name="home" %} Okul ve saatler</a>
         <a href="{% url 'timetable:lessons' school.pk %}" class="{% if data_nav == 'dersler' %}active{% endif %}">{% include "timetable/icon.html" with name="list" %} Dersler</a>
+        <a href="{% url 'timetable:distribution' school.pk %}" class="{% if data_nav == 'dagitim' %}active{% endif %}">{% include "timetable/icon.html" with name="wand" %} Ders dağıtımı</a>
         <a href="{% url 'timetable:data_list' school.pk 'siniflar' %}" class="{% if data_nav == 'siniflar' %}active{% endif %}">{% include "timetable/icon.html" with name="grid" %} Sınıflar</a>
         <a href="{% url 'timetable:data_list' school.pk 'ogretmenler' %}" class="{% if data_nav == 'ogretmenler' %}active{% endif %}">{% include "timetable/icon.html" with name="users" %} Öğretmenler</a>
         <a href="{% url 'timetable:data_list' school.pk 'ders-adlari' %}" class="{% if data_nav == 'ders-adlari' or data_nav == 'derslikler' or data_nav == 'binalar' %}active{% endif %}">{% include "timetable/icon.html" with name="database" %} Ders adları, derslikler</a>

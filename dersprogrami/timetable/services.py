@@ -4,6 +4,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.db import transaction
+from django.urls import reverse
 from django.utils import timezone
 
 from . import jobs
@@ -82,7 +83,11 @@ def run_generation(timetable_id, base_id=None, seed=0):
         if solution.status == "unknown":
             report["error"] = "Süre sınırı içinde çözüm bulunamadı. Süreyi artırın ya da gevşek modu deneyin."
         elif solution.status == "infeasible":
-            report["error"] = "Bu verilerle tüm kuralları sağlayan bir program yok. Gevşek mod hangi kuralların sorun olduğunu gösterir."
+            report["error"] = "Bu verilerle tüm kuralları sağlayan bir program yok."
+            jobs.set_progress(timetable_id, {"phase": "explain"})
+            report["conflict"] = explain_conflict(
+                timetable.school, problem, time_limit=min(180, max(60, timetable.time_limit)), known_infeasible=True
+            )
         _finish(timetable, Timetable.FAILED, report)
         return
 
@@ -190,4 +195,36 @@ def repair_timetable(timetable, time_limit=20):
         "moved": len(changed),
         "unplaced": len(solution.unplaced),
         "message": f"{len(changed)} kart güncellendi, {len(solution.unplaced)} kart beklemede.",
+    }
+
+
+ENTITY_PAGES = {"teacher": "ogretmenler", "school_class": "siniflar", "subject": "ders-adlari", "classroom": "derslikler"}
+
+
+def _rule_url(school, problem, key):
+    """Açıklamadaki bir kuralın düzeltilebileceği ekranın adresi."""
+    kind, target = key
+    if kind in ("teacher_max", "teacher_gaps_day", "teacher_gaps_week", "teacher_days"):
+        return reverse("timetable:data_edit", args=[school.pk, "ogretmenler", target])
+    if kind == "spread":
+        return reverse("timetable:lesson_edit", args=[school.pk, target])
+    if kind == "rel":
+        rel_id = problem.relationships[target].id
+        return reverse("timetable:data_edit", args=[school.pk, "kart-iliskileri", rel_id]) if rel_id else ""
+    if kind == "avail":
+        entity_kind, entity_id = target
+        if entity_kind == "lesson":
+            return reverse("timetable:lesson_edit", args=[school.pk, entity_id])
+        return reverse("timetable:data_edit", args=[school.pk, ENTITY_PAGES[entity_kind], entity_id])
+    return ""
+
+
+def explain_conflict(school, problem, time_limit=60, known_infeasible=False):
+    """Çözülemeyen programın nedenini rapor için hazırlar."""
+    result = cpsat.explain(problem, time_limit=time_limit, known_infeasible=known_infeasible)
+    return {
+        "status": result.status,
+        "minimal": result.minimal,
+        "wall_time": result.wall_time,
+        "rules": [{"label": label, "url": _rule_url(school, problem, key)} for label, key in zip(result.rules, result.keys)],
     }

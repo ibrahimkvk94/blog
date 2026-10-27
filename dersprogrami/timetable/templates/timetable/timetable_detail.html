@@ -48,6 +48,25 @@
     <div class="panel-head"><h2>Program üretilemedi</h2></div>
     <div class="panel-body">
       {% if timetable.report.error %}<div class="alert alert-error">{{ timetable.report.error }}</div>{% endif %}
+      {% with c=timetable.report.conflict %}{% if c %}
+        <div class="conflict">
+          {% if c.status == "core" %}
+            <h3>Neden çözülemiyor?</h3>
+            <p class="muted">Aşağıdaki kurallar <b>birlikte</b> sağlanamıyor.{% if c.minimal %} Bunlardan <b>herhangi birini</b> gevşetmek (sınırı artırmak, müsaitliği açmak, ilişkinin önemini düşürmek) bu çakışmayı giderir.{% else %} Liste kısa sürede tam küçültülemedi; bazı kurallar gereksiz olabilir.{% endif %} Düzeltmek için kurala tıklayın.</p>
+            <ol class="conflict-list">
+              {% for rule in c.rules %}<li>{% if rule.url %}<a href="{{ rule.url }}">{{ rule.label }}</a>{% else %}{{ rule.label }}{% endif %}</li>{% endfor %}
+            </ol>
+            <p class="subtle small">Düzeltmeden sonra yeniden üretin. Başka bir çakışma da varsa bir sonraki üretimde o gösterilir.</p>
+          {% elif c.status == "no_rules" %}
+            <h3>Neden çözülemiyor?</h3>
+            <p class="muted">Hiçbir kural gevşetilse bile kartlar sığmıyor: bazı öğretmen, sınıf ya da dersliklerin toplam ders saati, birlikte kullanılabilecek saatleri aşıyor (örneğin aynı öğretmenin ve aynı sınıfın dersleri birbirini kilitliyor). Ders saatlerini ya da öğretmen/derslik atamalarını gözden geçirin.</p>
+          {% elif c.status == "feasible" %}
+            <p class="muted">Kurallar birlikte sağlanabiliyor; sorun süreydi. Süre sınırını artırıp yeniden deneyin.</p>
+          {% else %}
+            <p class="muted">Neden, süre içinde belirlenemedi. Gevşek modda üretmek hangi kuralların kırıldığını gösterir.</p>
+          {% endif %}
+        </div>
+      {% endif %}{% endwith %}
       {% if timetable.report.issues %}
         <ul class="issues">{% for issue in timetable.report.issues %}<li class="{{ issue.level }}"><span class="dot"></span>{{ issue.message }}</li>{% endfor %}</ul>
       {% endif %}

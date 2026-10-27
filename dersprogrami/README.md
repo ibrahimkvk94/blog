@@ -55,6 +55,8 @@ Testler: `python manage.py test timetable`
 |---|---|
 | **Veri girişi** | Okul ve ders saatleri (satır ekle/sil), ders adları, sınıflar (bölünme ve grup düzenleyici), öğretmenler (sınırlar), derslikler, binalar, kart ilişkileri. Öğretmen, sınıf, derslik ve ders adı formlarında tıklanarak düzenlenen müsaitlik ızgarası (uygun / yasak / koşullu) |
 | **Dersler** | Sınıf ve öğretmene göre süzülen ders listesi, sınıf yükleri, ayrıntılı ders formu (birleşik sınıflar, gruplar, birden çok öğretmen/derslik, blok kartlar) |
+| **Ders dağıtım çizelgesi** | Ders adı × sınıf matrisi: hücreye saat, blok ve öğretmen girme; öğretmen fırçasıyla tıklayarak/sürükleyerek toplu atama; bir dersin saatini görünen bütün sınıflara uygulama; seviye filtresi; canlı öğretmen ve sınıf yükleri; Excel'den “Öğretmen · Ders · Sınıflar · Saat · Blok” satırlarını yapıştırıp önizleyerek aktarma (yeni öğretmen ve ders adları otomatik eklenir) |
+| **Çözülemeyen programın açıklaması** | Katı mod çözüm bulamazsa birlikte sağlanamayan en küçük kural kümesi (öğretmen sınırları, ders dağılımı, müsaitlikler, kart ilişkileri, kilitli kartlar) bulunur ve her kural düzeltileceği ekrana bağlanır |
 | **Excel aktarımı** | Okul verisini beş sayfalı Excel olarak indirme (şablon olarak da kullanılır) ve geri yükleme; adlara göre ekleme/güncelleme, hatada hiçbir değişiklik kaydedilmez |
 | **Sınıf ders tablosu** | Bir sınıfın tek öğretmenli derslerini tek tabloda saat, blok, öğretmen ve derslik seçerek girme; başka sınıftan saatleri kopyalama; toplam saat / kapasite göstergesi |
 | **Genel bakış** | Okul özeti, veri denetimi, program sürümleri, yeni üretim (katı/gevşek mod, süre, başlangıç sürümü) |
@@ -75,7 +77,7 @@ Testler: `python manage.py test timetable`
 | **Bölünme / Grup** | Sınıfı tamamen kapsayan gruplar (ör. Almanca/Fransızca). Aynı bölünmedeki gruplar aynı anda ders görebilir; farklı bölünmelerdekiler çakışır |
 | **Birleşik ders** | Birden çok sınıfı/grubu olan ders (ör. 9-A ve 9-B'nin Almanca grupları birlikte) |
 | **Müsaitlik** | Öğretmen/sınıf/derslik/ders adı/ders için gün×saat hücresi: yasak ya da koşullu (?) |
-| **Kart ilişkisi** | Seçilen kartlara toplu kural: günde en fazla N kart, farklı günlerde, art arda en fazla N saat, aynı anda. "Uygula": tüm seçime / her sınıfa / her öğretmene ayrı. Önem: kesin (sert) ya da yüksek/normal/düşük (ceza) |
+| **Kart ilişkisi** | Seçilen kartlara toplu kural (aSc'deki gibi): günde en fazla N kart; farklı günlerde; art arda en fazla N saat; aynı anda olmasın; kartlar arasında en az N boş gün; en fazla / en az N güne yayılsın; belirli saatler arasında günde en fazla N saat; belirli saatlerde ders olan en fazla N gün; seçilen derslerin kartları aynı anda / aynı gün / art arda (bitişik). "Uygula": tüm seçime / her sınıfa / her öğretmene ayrı. Önem: kesin (sert) ya da yüksek/normal/düşük (ceza) |
 | **Program (Timetable)** | Bir üretimin sonucu (sürüm). Yayınlanan sürüm vekâlet işlemlerinde esas alınır |
 | **Hafta / dönem maskesi** | A/B haftası ya da dönemlik dersler. İki kart yalnızca ortak bir hafta-dönemde çakışabilir |
 
@@ -152,5 +154,7 @@ Yumuşak kısıtlar (ceza puanı):
 - [x] Excel ile toplu aktarım (ders adları, derslikler, sınıflar ve bölünmeler, öğretmenler, dersler)
 - [x] Tek tıkla yerel kurulum ve çalıştırma betikleri
 - [ ] Seminer (öğrenci seçimli) dersler ve öğrenci bazlı program
-- [ ] Çözülemezlik çekirdeği açıklaması (hangi kural kümesi birlikte imkânsız)
+- [x] Çözülemezlik açıklaması (QuickXplain ile birlikte imkânsız en küçük kural kümesi)
+- [x] Ders dağıtım çizelgesi: öğretmen fırçası, toplu saat, Excel'den yapıştırma
+- [x] aSc'deki kart ilişkisi türlerinin çoğu (aynı gün, art arda, aynı anda olmasın, boş gün, gün sayısı, saat aralığı kuralları)
 - [ ] Çok süreçli dağıtım için Celery/RQ ile iş kuyruğu

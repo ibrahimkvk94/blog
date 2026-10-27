@@ -255,3 +255,68 @@ class ExcelAndLessonAvailabilityTests(TestCase):
         upload = SimpleUploadedFile("veri.xlsx", response.content)
         response = self.client.post(reverse("timetable:excel_import", args=[self.school.pk]), {"file": upload})
         self.assertRedirects(response, reverse("timetable:excel_import", args=[self.school.pk]))
+
+
+class DistributionTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = create_demo_school()
+        cls.user = User.objects.create_user("dagitim", password="parola-123456")
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def post_json(self, name, payload):
+        return self.client.post(reverse(f"timetable:{name}", args=[self.school.pk]), json.dumps(payload), content_type="application/json")
+
+    def test_page_renders_matrix_data(self):
+        response = self.client.get(reverse("timetable:distribution", args=[self.school.pk]))
+        self.assertContains(response, "dist-data")
+        data = response.context["data"]
+        cls = self.school.classes.get(name="9-A")
+        mat = self.school.subjects.get(short="MAT")
+        self.assertEqual(data["cells"][f"{mat.pk}-{cls.pk}"]["hours"], 6)
+        alm = self.school.subjects.get(short="ALM")
+        self.assertEqual(data["complex"][f"{alm.pk}-{cls.pk}"], 2)  # birleşik/gruplu ders matrise girmez
+
+    def test_bulk_save(self):
+        cls_a, cls_b = self.school.classes.get(name="9-A"), self.school.classes.get(name="10-B")
+        mat, muz = self.school.subjects.get(short="MAT"), self.school.subjects.get(short="MÜZ")
+        teacher = self.school.teachers.get(short="ACE")
+        response = self.post_json("distribution_save", {"cells": [
+            {"subject": mat.pk, "class": cls_a.pk, "hours": 5, "length": 1, "teacher": teacher.pk},   # güncelle
+            {"subject": muz.pk, "class": cls_b.pk, "hours": 0},                                        # sil
+            {"subject": self.school.subjects.get(short="REH").pk, "class": cls_b.pk, "hours": 2, "teacher": None},  # güncelle
+        ]})
+        self.assertEqual(response.json()["ok"], True)
+        lesson = Lesson.objects.get(subject=mat, classes=cls_a)
+        self.assertEqual((lesson.periods_per_week, lesson.card_length, list(lesson.teachers.all())), (5, 1, [teacher]))
+        self.assertFalse(Lesson.objects.filter(subject=muz, classes=cls_b).exists())
+
+    def test_paste_preview_and_apply(self):
+        text = (
+            "Öğretmen\tDers\tSınıflar\tSaat\tBlok\n"
+            "Zeynep Kaya\tMatematik\t9-A, 9-B\t4\t2\n"
+            "Yeni Öğretmen Adı\tAstronomi\t10-A 10-B\t1\n"
+            "Kimse\tTarih\t9-A\t2\n"
+            "Ali Çelik\tMatematik\t11-Z\t3\n"
+        )
+        preview = self.post_json("distribution_paste", {"text": text}).json()
+        self.assertFalse(preview["applied"])
+        self.assertEqual(len(preview["rows"]), 4)
+        self.assertEqual(preview["errors"], 2)
+        self.assertIn("yeni öğretmen", preview["rows"][1]["notes"])
+        self.assertIn("yeni ders adı", preview["rows"][1]["notes"])
+        self.assertEqual(preview["rows"][1]["classes"], ["10-A", "10-B"])
+        # Hatalı satır varken aktarılmaz.
+        self.assertFalse(self.post_json("distribution_paste", {"text": text, "apply": True}).json()["applied"])
+
+        good = "\n".join(text.splitlines()[:3])
+        result = self.post_json("distribution_paste", {"text": good, "apply": True}).json()
+        self.assertTrue(result["applied"])
+        teacher = Teacher.objects.get(first_name="Yeni Öğretmen", last_name="Adı")
+        astro = Lesson.objects.filter(subject__name="Astronomi")
+        self.assertEqual(astro.count(), 2)
+        self.assertTrue(all(list(l.teachers.all()) == [teacher] for l in astro))
+        mat = Lesson.objects.get(subject__short="MAT", classes__name="9-B")
+        self.assertEqual((mat.periods_per_week, mat.card_length), (4, 2))

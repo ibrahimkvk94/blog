@@ -90,6 +90,21 @@ class DemoSchoolTests(TestCase):
         # Gevşek mod kural kırabilir ama kaynak çakışması (aynı öğretmen/sınıf/derslik aynı anda) asla olmaz.
         self.assertEqual([v for v in verify_timetable(relaxed)[0] if v.code.endswith("_clash")], [])
 
+    def test_infeasible_strict_generation_is_explained(self):
+        teacher = self.school.teachers.get(short="EŞA")  # Cuma gelmiyor, haftada 9 saat
+        teacher.max_periods_per_day = 2
+        teacher.save()
+        timetable = generate_timetable(self.school, "açıklama", time_limit=20)
+        self.assertEqual(timetable.status, Timetable.FAILED)
+        conflict = timetable.report["conflict"]
+        self.assertEqual(conflict["status"], "core")
+        labels = sorted(rule["label"] for rule in conflict["rules"])
+        self.assertEqual(labels, ["Elif Şahin (öğretmen): müsaitlik (yasak saatler)", "Elif Şahin: günde en fazla 2 ders"])
+        self.assertTrue(all(rule["url"].endswith(f"/ogretmenler/{teacher.pk}/") for rule in conflict["rules"]))
+        user = User.objects.create_user("aciklama", password="parola-123456")
+        self.client.force_login(user)
+        self.assertContains(self.client.get(reverse("timetable:timetable_detail", args=[timetable.pk])), "Neden çözülemiyor?")
+
     def test_teacher_days_conflict_is_reported_before_solving(self):
         teacher = self.school.teachers.get(short="AYI")
         teacher.max_days_per_week = 4

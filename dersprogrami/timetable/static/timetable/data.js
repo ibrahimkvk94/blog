@@ -195,3 +195,31 @@
     }
   }
 })();
+
+/* Kart ilişkisi formu: koşula göre ilgili alanları göster, koşulun açıklamasını yaz. */
+(function () {
+  "use strict";
+  const select = document.querySelector("select[name=condition][data-help]");
+  if (!select) return;
+  const row = (name) => document.querySelector("[name=" + name + "]")?.closest(".form-row");
+  const help = JSON.parse(select.dataset.help);
+  const usesN = select.dataset.usesN.split(" ");
+  const usesRange = select.dataset.usesRange.split(" ");
+  const paired = select.dataset.paired.split(" ");
+  const note = document.createElement("div");
+  note.className = "condition-help";
+  select.closest(".form-row").appendChild(note);
+  const update = () => {
+    const c = select.value;
+    note.textContent = help[c] || "";
+    const show = (name, on) => { const r = row(name); if (r) r.hidden = !on; };
+    show("param", usesN.includes(c));
+    show("period_from", usesRange.includes(c));
+    show("period_to", usesRange.includes(c));
+    show("apply_to", !paired.includes(c));
+    const lessons = row("lessons");
+    if (lessons) lessons.classList.toggle("emphasis", paired.includes(c));
+  };
+  select.addEventListener("change", update);
+  update();
+})();

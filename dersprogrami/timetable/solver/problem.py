@@ -29,6 +29,9 @@ class ProblemCard:
     fixed_room: int | None = None
     hint: tuple[int, int, int | None] | None = None
     card_id: int | None = None
+    # Yalnızca müsaitlik yüzünden kapalı başlangıçlar → kapatan varlıklar; "neden çözülemiyor"
+    # açıklamasında müsaitlik kuralları tek tek gevşetilebilsin diye tutulur.
+    blocked: dict = field(default_factory=dict)
 
     def cells(self, day, period):
         return [(day, period + i) for i in range(self.length)]
@@ -55,6 +58,8 @@ class RelationshipSpec:
     param: int
     groups: list[list[int]]
     weight: int | None = None
+    periods: tuple[int, int] | None = None  # saat aralığı koşulları için (0'dan başlar, iki uç dahil)
+    id: int | None = None
 
 
 @dataclass

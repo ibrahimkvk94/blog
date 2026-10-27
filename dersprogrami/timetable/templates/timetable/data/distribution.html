@@ -1,0 +1,60 @@
+{% extends "timetable/base.html" %}
+{% load static %}
+{% block title %}Ders dağıtımı{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / Veri{% endblock %}
+{% block heading %}<h1>Ders dağıtım çizelgesi</h1>{% endblock %}
+{% block actions %}
+  <button class="btn" id="dist-undo" disabled>Değişiklikleri geri al</button>
+  <button class="btn btn-primary" id="dist-save" disabled>{% include "timetable/icon.html" with name="check" %} Kaydet <span id="dist-dirty"></span></button>
+{% endblock %}
+{% block content %}
+{% include "timetable/data/subnav.html" %}
+<p class="muted small" style="margin-top:0">Satırlar ders adları, sütunlar sınıflar. Hücreye tıklayıp saat, blok ve öğretmen girin; ya da sağdan bir öğretmen seçip <b>fırçayla</b> hücrelere tıklayın veya sürükleyin. Gruplu, birleşik ya da çok öğretmenli dersler turuncu “+” ile gösterilir ve sınıf ders tablosundan düzenlenir.</p>
+
+<div class="dist-toolbar">
+  <div class="segmented" id="dist-grades"></div>
+  <label class="dist-brush">
+    <span>Öğretmen fırçası</span>
+    <select class="select" id="dist-brush"><option value="">Kapalı (hücreyi düzenle)</option><option value="none">Öğretmeni kaldır</option></select>
+  </label>
+  <label class="dist-brush" title="Fırça boş hücreye bu saati de yazar">
+    <span>Boş hücreye saat</span>
+    <input class="input" type="number" id="dist-brush-hours" min="0" max="20" placeholder="—" style="width:76px">
+  </label>
+</div>
+
+<div class="dist-layout">
+  <div class="panel dist-scroll"><table class="dist-table" id="dist-table"></table></div>
+  <aside class="panel dist-side">
+    <div class="panel-head"><h2>Öğretmen yükleri</h2></div>
+    <input class="input" id="dist-teacher-search" placeholder="Öğretmen ara…" style="margin:10px 12px 0;width:calc(100% - 24px)">
+    <ul class="dist-teachers" id="dist-teachers"></ul>
+  </aside>
+</div>
+
+<div class="panel" style="margin-top:18px">
+  <div class="panel-head"><h2>Excel'den yapıştır</h2><span class="subtle small">Sütunlar: Öğretmen · Ders · Sınıflar · Haftalık saat · Blok (isteğe bağlı)</span></div>
+  <div class="panel-body">
+    <textarea class="input dist-paste" id="dist-paste" rows="6" placeholder="Ayşe Yılmaz&#9;Türk Dili ve Edebiyatı&#9;9-A, 9-B&#9;5&#10;Zeynep Kaya&#9;Matematik&#9;9-A, 9-B&#9;6&#9;2"></textarea>
+    <p class="help">Excel'de bu beş sütunu seçip kopyalayın ve buraya yapıştırın. Her sınıf için ayrı ders oluşturulur ya da var olan ders güncellenir. Sistemde olmayan öğretmenler (ad ve soyadıyla) ve ders adları otomatik eklenir.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" id="dist-preview">Önizle</button>
+      <button class="btn btn-primary" id="dist-apply" disabled>{% include "timetable/icon.html" with name="upload" %} Aktar</button>
+    </div>
+    <div id="dist-paste-result" style="margin-top:14px"></div>
+  </div>
+</div>
+
+<div class="dist-pop" id="dist-pop" hidden>
+  <div class="dist-pop-title" id="dist-pop-title"></div>
+  <label>Haftalık saat<input class="input input-sm" type="number" id="pop-hours" min="0" max="20"></label>
+  <label>Kart<select class="select input-sm" id="pop-length"><option value="1">Tekil</option><option value="2">Blok (2 saat)</option><option value="3">Blok (3 saat)</option></select></label>
+  <label>Öğretmen<select class="select input-sm" id="pop-teacher"><option value="">— Öğretmen yok —</option></select></label>
+  <div style="display:flex;gap:6px;justify-content:flex-end">
+    <button class="btn btn-sm btn-ghost" id="pop-clear">Temizle</button>
+    <button class="btn btn-sm btn-primary" id="pop-ok">Tamam</button>
+  </div>
+</div>
+{{ data|json_script:"dist-data" }}
+{% endblock %}
+{% block scripts %}<script src="{% static 'timetable/distribution.js' %}"></script>{% endblock %}

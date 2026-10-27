@@ -213,3 +213,117 @@ class RelaxedAndRelationshipTests(SimpleTestCase):
         solution = cpsat.solve(make_problem(cards, days=5, periods=8), time_limit=30, workers=1, on_progress=seen.append, stop_handle=handle)
         self.assertTrue(solution.stats["stopped"])
         self.assertLess(solution.stats["wall_time"], 10)
+
+
+def rel(condition, groups, param=1, weight=None, periods=None):
+    return RelationshipSpec(condition, condition, param, groups, weight, periods)
+
+
+class MoreRelationshipTests(SimpleTestCase):
+    """aSc'deki kart ilişkisi türleri: her biri çözücüde sağlanmalı ve doğrulayıcıda ihlal üretmemeli."""
+
+    def solve_ok(self, problem):
+        solution = cpsat.solve(problem, time_limit=10, workers=1)
+        self.assertTrue(solution.ok, solution.status)
+        self.assertEqual(validate(problem, solution.placements)[0], [])
+        return solution.placements
+
+    def cards(self, n, days=1, periods=4, **kw):
+        return [make_card(k, lesson_id=k, teachers=[k], atoms=[f"a{k}"], days=days, periods=periods, **kw) for k in range(n)]
+
+    def test_not_simultaneous(self):
+        cards = self.cards(3, periods=3)
+        placements = self.solve_ok(make_problem(cards, periods=3, relationships=[rel("not_simultaneous", [[0, 1, 2]])]))
+        self.assertEqual(len({p.period for p in placements.values()}), 3)
+
+    def test_min_gap_days(self):
+        cards = [make_card(k, lesson_id=1, teachers=[1], atoms=["a"], days=5, periods=1) for k in range(2)]
+        placements = self.solve_ok(make_problem(cards, days=5, periods=1, relationships=[rel("min_gap_days", [[0, 1]], param=2)]))
+        self.assertGreaterEqual(abs(placements[0].day - placements[1].day), 3)
+
+    def test_max_and_min_days(self):
+        cards = [make_card(k, lesson_id=k, teachers=[k], atoms=[f"a{k}"], days=5, periods=2) for k in range(4)]
+        placements = self.solve_ok(make_problem(cards, days=5, periods=2, relationships=[rel("max_days", [[0, 1, 2, 3]], param=2)]))
+        self.assertLessEqual(len({p.day for p in placements.values()}), 2)
+        placements = self.solve_ok(make_problem(cards, days=5, periods=2, relationships=[rel("min_days", [[0, 1, 2, 3]], param=4)]))
+        self.assertEqual(len({p.day for p in placements.values()}), 4)
+
+    def test_range_rules(self):
+        # Kural kümenin o saatlerde dolu olduğu saatleri sayar; tek sınıfın (aynı atom) dersleriyle dene.
+        cards = [make_card(k, lesson_id=k, teachers=[k], atoms=["a"], days=2, periods=4) for k in range(3)]
+        r = rel("range_max_per_day", [[0, 1, 2]], param=1, periods=(0, 1))
+        placements = self.solve_ok(make_problem(cards, days=2, periods=4, relationships=[r]))
+        for d in range(2):
+            self.assertLessEqual(sum(1 for p in placements.values() if p.day == d and p.period <= 1), 1)
+        r = rel("range_max_days", [[0, 1, 2]], param=1, periods=(2, 3))
+        cards = self.cards(3, days=2, periods=4)  # farklı sınıflar: aynı gün aynı saatte olabilirler
+        for c in cards:
+            c.starts = [(d, p) for d in range(2) for p in (2, 3)]
+        placements = self.solve_ok(make_problem(cards, days=2, periods=4, teacher_limits={}, relationships=[r]))
+        self.assertEqual(len({p.day for p in placements.values()}), 1)
+
+    def test_same_day_and_consecutive(self):
+        cards = self.cards(2, days=3, periods=4)
+        placements = self.solve_ok(make_problem(cards, days=3, periods=4, relationships=[rel("same_day", [[0], [1]])]))
+        self.assertEqual(placements[0].day, placements[1].day)
+        # Aynı sınıf (aynı atom): art arda olmalı.
+        cards = [make_card(k, lesson_id=k, teachers=[k], atoms=["a"], days=3, periods=4) for k in range(2)]
+        placements = self.solve_ok(make_problem(cards, days=3, periods=4, relationships=[rel("consecutive", [[0], [1]])]))
+        self.assertEqual(placements[0].day, placements[1].day)
+        self.assertEqual(abs(placements[0].period - placements[1].period), 1)
+
+    def test_soft_relationship_breaks_with_penalty(self):
+        cards = self.cards(2, periods=1)  # tek hücre: ikisi aynı anda olmak zorunda
+        problem = make_problem(cards, periods=1, relationships=[rel("not_simultaneous", [[0, 1]], weight=60)])
+        solution = cpsat.solve(problem, time_limit=5, workers=1)
+        self.assertTrue(solution.ok)
+        self.assertEqual(solution.penalties.get("relationship"), 60)
+        self.assertEqual([v.level for v in validate(problem, solution.placements)[0]], ["soft"])
+
+
+class ExplainTests(SimpleTestCase):
+    def test_minimal_core_names_the_conflicting_rules(self):
+        # Öğretmen günde en fazla 1 ders verebilir, ama 2 kartlık ders tek günlük haftaya sığmalı;
+        # ayrıca ilgisiz bir kural (başka öğretmenin sınırı) çekirdeğe girmemeli.
+        cards = [make_card(k, lesson_id=1, teachers=[1], atoms=["a"], periods=3) for k in range(2)]
+        cards.append(make_card(2, lesson_id=2, teachers=[2], atoms=["b"], periods=3))
+        problem = make_problem(
+            cards, periods=3,
+            teacher_limits={1: TeacherLimits(max_periods_per_day=1), 2: TeacherLimits(max_periods_per_day=3)},
+            lesson_max_per_day={1: 2, 2: 1},
+            labels={"teacher": {1: "Ayşe", 2: "Ali"}, "lesson": {1: "Matematik", 2: "Tarih"}},
+        )
+        self.assertEqual(cpsat.solve(problem, time_limit=5, workers=1).status, "infeasible")
+        result = cpsat.explain(problem, time_limit=20)
+        self.assertEqual(result.status, "core")
+        self.assertTrue(result.minimal)
+        self.assertEqual(result.rules, ["Ayşe: günde en fazla 1 ders"])
+
+    def test_core_with_two_rules(self):
+        # Kart ilişkisi "farklı günler" + dersin günde en fazla 2 kartı: 1 günlük haftada ikisi birlikte imkânsız.
+        cards = [make_card(k, lesson_id=1, teachers=[1], atoms=["a"], periods=3) for k in range(2)]
+        problem = make_problem(
+            cards, periods=3, lesson_max_per_day={1: 2},
+            relationships=[RelationshipSpec("Farklı gün", "different_days", 1, [[0, 1]])],
+            labels={"lesson": {1: "Fizik"}},
+        )
+        result = cpsat.explain(problem, time_limit=20)
+        self.assertEqual(result.rules, ["Kart ilişkisi: Farklı gün"])
+
+    def test_availability_in_core(self):
+        cards = [make_card(k, lesson_id=k, teachers=[1], atoms=[f"a{k}"], periods=2) for k in range(2)]
+        cards[0].starts = [(0, 0)]
+        cards[0].blocked = {(0, 1): frozenset({("teacher", 1)})}
+        cards[1].starts = [(0, 0)]
+        cards[1].blocked = {(0, 1): frozenset({("teacher", 1)})}
+        problem = make_problem(cards, periods=2, labels={"entity": {("teacher", 1): "Ayşe (öğretmen)"}})
+        result = cpsat.explain(problem, time_limit=20)
+        self.assertEqual(result.rules, ["Ayşe (öğretmen): müsaitlik (yasak saatler)"])
+
+    def test_no_rules_when_resources_clash(self):
+        cards = [make_card(k, lesson_id=k, teachers=[1], atoms=[f"a{k}"]) for k in range(2)]
+        self.assertEqual(cpsat.explain(make_problem(cards), time_limit=10).status, "no_rules")
+
+    def test_feasible_problem(self):
+        cards = [make_card(0, teachers=[1], atoms=["a"])]
+        self.assertEqual(cpsat.explain(make_problem(cards), time_limit=10).status, "feasible")

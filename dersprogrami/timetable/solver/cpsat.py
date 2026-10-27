@@ -72,9 +72,14 @@ class Solution:
 
 
 class _Builder:
-    def __init__(self, problem, mode=STRICT):
+    def __init__(self, problem, mode=STRICT, explain=False, active=None):
         self.problem = problem
         self.relaxed = mode == RELAXED
+        # Açıklama modu: amaç yoktur; sert kurallar adlandırılır ve yalnızca `active` kümesindekiler
+        # eklenir (None = hepsi). Böylece kuralların her alt kümesi ayrı bir modelle denenebilir.
+        self.explain = explain
+        self.active = active
+        self.rule_labels = {}
         self.m = cp_model.CpModel()
         self.x = {}  # key -> {(d, p): var}
         self.occ = {}  # key -> {(d, s): [var, ...]}
@@ -85,13 +90,25 @@ class _Builder:
     # --- yardımcılar -------------------------------------------------------------------------
 
     def _penalize(self, category, weight, expr):
-        self.penalties.append((category, weight, expr))
+        if not self.explain:
+            self.penalties.append((category, weight, expr))
 
-    def _limit(self, terms, limit, hard, weight, name, category):
+    def _enforced(self, rule, label):
+        """Açıklama modunda kuralı kaydeder; kural bu modelde uygulanacaksa True döner."""
+        if rule is None:
+            return True
+        self.rule_labels.setdefault(rule, label)
+        return self.active is None or rule in self.active
+
+    def _limit(self, terms, limit, hard, weight, name, category, rule=None, label=""):
         """sum(terms) <= limit. Yumuşaksa ya da gevşek moddaysa aşım cezalandırılır."""
         variables = [t for t in terms if not isinstance(t, int)]
         constant = sum(t for t in terms if isinstance(t, int))
         if not variables:
+            return
+        if self.explain:
+            if hard and self._enforced(rule, label):
+                self.m.Add(sum(variables) + constant <= limit)
             return
         if hard and not self.relaxed:
             self.m.Add(sum(variables) + constant <= limit)
@@ -102,6 +119,22 @@ class _Builder:
             self._penalize("relaxed", W_RELAXED, slack)
         else:
             self._penalize(category, weight, slack)
+
+    def _violation(self, v, hard, weight, rule=None, label=""):
+        """v: kural ihlal edilince 1 olmak zorunda olan bool. Mod ve öneme göre yasaklar ya da cezalandırır."""
+        if self.explain:
+            if hard and self._enforced(rule, label):
+                self.m.Add(v == 0)
+            return
+        if hard and not self.relaxed:
+            self.m.Add(v == 0)
+        elif hard:
+            self._penalize("relaxed", W_RELAXED, v)
+        else:
+            self._penalize("relationship", weight, v)
+
+    def _day_expr(self, key, day):
+        return sum(v for (d, _), v in self.x[key].items() if d == day)
 
     def _busy(self, keys, day, slot, name):
         """Kaynağın (d, s) hücresinde dolu olup olmadığını gösteren bool; hiç aday yoksa 0."""
@@ -163,9 +196,25 @@ class _Builder:
     # --- model -------------------------------------------------------------------------------
 
     def placement_vars(self):
+        entity_labels = self.problem.labels.get("entity", {})
         for card in self.problem.cards:
-            starts = [card.fixed] if card.fixed is not None else card.starts
+            if self.explain:
+                # Müsaitlik ve kilit de birer kural olarak gevşetilebilsin diye tüm başlangıçlar açılır.
+                starts = sorted(set(card.starts) | set(card.blocked) | ({card.fixed} if card.fixed else set()))
+            else:
+                starts = [card.fixed] if card.fixed is not None else card.starts
             xs = {(d, p): self.m.NewBoolVar(f"x{card.key}_{d}_{p}") for d, p in starts}
+            if self.explain:
+                for start, var in xs.items():
+                    for entity in card.blocked.get(start, ()):
+                        label = f"{entity_labels.get(entity, entity)}: müsaitlik (yasak saatler)"
+                        if self._enforced(("avail", entity), label):
+                            self.m.Add(var == 0)
+                if card.fixed is not None:
+                    d, p = card.fixed
+                    label = f"{self.problem.label('lesson', card.lesson_id)}: kilitli kart ({d + 1}. gün, {p + 1}. saat)"
+                    if self._enforced(("locked", card.key), label):
+                        self.m.Add(xs[card.fixed] == 1)
             if self.relaxed and card.fixed is None:
                 self.m.AddAtMostOne(xs.values())
                 self._penalize("unplaced", W_UNPLACED, 1 - sum(xs.values()))
@@ -245,7 +294,11 @@ class _Builder:
             for d in range(self.problem.days):
                 terms = self._day_terms(keys, d)
                 if len(terms) > limit:
-                    self._limit(terms, limit, True, None, f"spread{lesson_id}_{d}", "relaxed")
+                    self._limit(
+                        terms, limit, True, None, f"spread{lesson_id}_{d}", "relaxed",
+                        rule=("spread", lesson_id),
+                        label=f"{self.problem.label('lesson', lesson_id)}: günde en fazla {limit} kart (farklı günlere dağılım)",
+                    )
             # Simetri kırma: birbirinin aynısı olan serbest kartları sıraya diz. Gevşek modda kart
             # yerleşmeyebileceği için bu sıralama geçerli olmaz.
             if self.relaxed:
@@ -260,15 +313,22 @@ class _Builder:
     def teacher_rules(self):
         for teacher_id, keys in self.problem.cards_by("teachers").items():
             limits = self.problem.teacher_limits.get(teacher_id)
+            who = self.problem.label("teacher", teacher_id)
             week_gaps, days_used = [], []
             for d in range(self.problem.days):
                 busy = [self._busy(keys, d, s, f"tb{teacher_id}_{d}_{s}") for s in range(self.problem.periods)]
                 gaps, _ = self._gaps(busy, f"tg{teacher_id}_{d}")
                 week_gaps += gaps
                 if limits and limits.max_periods_per_day is not None:
-                    self._limit(busy, limits.max_periods_per_day, True, None, f"tmax{teacher_id}_{d}", "relaxed")
+                    self._limit(
+                        busy, limits.max_periods_per_day, True, None, f"tmax{teacher_id}_{d}", "relaxed",
+                        rule=("teacher_max", teacher_id), label=f"{who}: günde en fazla {limits.max_periods_per_day} ders",
+                    )
                 if limits and limits.max_gaps_per_day is not None:
-                    self._limit(gaps, limits.max_gaps_per_day, True, None, f"tgd{teacher_id}_{d}", "relaxed")
+                    self._limit(
+                        gaps, limits.max_gaps_per_day, True, None, f"tgd{teacher_id}_{d}", "relaxed",
+                        rule=("teacher_gaps_day", teacher_id), label=f"{who}: günde en fazla {limits.max_gaps_per_day} boşluk",
+                    )
                 if limits and limits.max_days_per_week is not None:
                     variables = [b for b in busy if not isinstance(b, int)]
                     if variables:
@@ -277,9 +337,15 @@ class _Builder:
                             self.m.Add(used >= b)
                         days_used.append(used)
             if limits and limits.max_gaps_per_week is not None:
-                self._limit(week_gaps, limits.max_gaps_per_week, True, None, f"tgw{teacher_id}", "relaxed")
+                self._limit(
+                    week_gaps, limits.max_gaps_per_week, True, None, f"tgw{teacher_id}", "relaxed",
+                    rule=("teacher_gaps_week", teacher_id), label=f"{who}: haftada en fazla {limits.max_gaps_per_week} boşluk",
+                )
             if limits and limits.max_days_per_week is not None:
-                self._limit(days_used, limits.max_days_per_week, True, None, f"tdays{teacher_id}", "relaxed")
+                self._limit(
+                    days_used, limits.max_days_per_week, True, None, f"tdays{teacher_id}", "relaxed",
+                    rule=("teacher_days", teacher_id), label=f"{who}: haftada en fazla {limits.max_days_per_week} gün",
+                )
             if week_gaps:
                 self._penalize("teacher_gap", W_TEACHER_GAP, sum(week_gaps))
 
@@ -294,44 +360,116 @@ class _Builder:
                     self._penalize("class_late", W_CLASS_LATE_START, late)
 
     def relationships(self):
+        D, P = self.problem.days, self.problem.periods
         for index, rel in enumerate(self.problem.relationships):
             hard = rel.weight is None
             name = f"rel{index}"
-            if rel.condition in ("max_per_day", "different_days"):
-                limit = 1 if rel.condition == "different_days" else rel.param
+            opts = {"rule": ("rel", index), "label": f"Kart ilişkisi: {rel.name}"}
+
+            def limit(terms, n, tag):
+                self._limit(terms, n, hard, rel.weight, f"{name}_{tag}", "relationship", **opts)
+
+            def violation(tag):
+                v = self.m.NewBoolVar(f"v_{name}_{tag}")
+                self._violation(v, hard, rel.weight, **opts)
+                return v
+
+            cond = rel.condition
+            if cond in ("max_per_day", "different_days"):
+                n = 1 if cond == "different_days" else rel.param
                 for g, keys in enumerate(rel.groups):
-                    for d in range(self.problem.days):
+                    for d in range(D):
                         terms = self._day_terms(keys, d)
-                        if len(terms) > limit:
-                            self._limit(terms, limit, hard, rel.weight, f"{name}_{g}_{d}", "relationship")
-            elif rel.condition == "max_consecutive":
+                        if len(terms) > n:
+                            limit(terms, n, f"{g}_{d}")
+            elif cond == "max_consecutive":
                 n = max(1, rel.param)
                 for g, keys in enumerate(rel.groups):
-                    for d in range(self.problem.days):
-                        busy = [self._busy(keys, d, s, f"{name}_b{g}_{d}_{s}") for s in range(self.problem.periods)]
-                        for s in range(self.problem.periods - n):
-                            self._limit(busy[s : s + n + 1], n, hard, rel.weight, f"{name}_{g}_{d}_{s}", "relationship")
-            elif rel.condition == "same_time" and len(rel.groups) > 1:
+                    for d in range(D):
+                        busy = [self._busy(keys, d, s, f"{name}_b{g}_{d}_{s}") for s in range(P)]
+                        for s in range(P - n):
+                            limit(busy[s : s + n + 1], n, f"{g}_{d}_{s}")
+            elif cond == "not_simultaneous":
+                for g, keys in enumerate(rel.groups):
+                    cells = {cell for k in keys for cell in self.occ[k]}
+                    for d, p in cells:
+                        terms = [v for k in keys for v in self.occ[k].get((d, p), ())]
+                        if len(terms) > 1:
+                            limit(terms, 1, f"{g}_{d}_{p}")
+            elif cond == "min_gap_days":
+                # Aynı kümedeki iki kart arasında en az N boş gün: gün farkı N'den büyük olmalı.
+                for g, keys in enumerate(rel.groups):
+                    for i, a in enumerate(keys):
+                        for b in keys[i + 1 :]:
+                            v = violation(f"{g}_{a}_{b}")
+                            for da in range(D):
+                                for db in range(D):
+                                    if abs(da - db) <= rel.param:
+                                        self.m.Add(self._day_expr(a, da) + self._day_expr(b, db) <= 1 + v)
+            elif cond in ("max_days", "min_days"):
+                for g, keys in enumerate(rel.groups):
+                    flags = []
+                    for d in range(D):
+                        terms = self._day_terms(keys, d)
+                        if not terms:
+                            continue
+                        if cond == "max_days":
+                            used = self.m.NewBoolVar(f"{name}_u{g}_{d}")
+                            for t in terms:
+                                self.m.Add(used >= t)
+                            flags.append(used)
+                        else:
+                            unused = self.m.NewBoolVar(f"{name}_n{g}_{d}")
+                            self.m.Add(unused >= 1 - sum(terms))
+                            flags.append(unused)
+                    if cond == "max_days":
+                        limit(flags, rel.param, f"{g}")
+                    else:
+                        # Hiç kart konamayacak günler zaten "kullanılmamış" sayılır.
+                        limit(flags, D - rel.param - (D - len(flags)), f"{g}")
+            elif cond in ("range_max_per_day", "range_max_days"):
+                lo, hi = rel.periods or (0, P - 1)
+                hi = min(hi, P - 1)
+                for g, keys in enumerate(rel.groups):
+                    day_flags = []
+                    for d in range(D):
+                        busy = [self._busy(keys, d, s, f"{name}_r{g}_{d}_{s}") for s in range(lo, hi + 1)]
+                        if cond == "range_max_per_day":
+                            limit(busy, rel.param, f"{g}_{d}")
+                            continue
+                        variables = [b for b in busy if not isinstance(b, int)]
+                        if variables:
+                            has = self.m.NewBoolVar(f"{name}_h{g}_{d}")
+                            for b in variables:
+                                self.m.Add(has >= b)
+                            day_flags.append(has)
+                    if cond == "range_max_days":
+                        limit(day_flags, rel.param, f"{g}")
+            elif cond in ("same_time", "same_day", "consecutive") and len(rel.groups) > 1:
                 first, *others = rel.groups
                 for g, other in enumerate(others):
                     for a, b in zip(first, other):
-                        self._same_start(a, b, hard, rel.weight, f"{name}_{g}_{a}_{b}")
-
-    def _same_start(self, a, b, hard, weight, name):
-        xa, xb = self.x[a], self.x[b]
-        slots = set(xa) | set(xb)
-        if hard and not self.relaxed:
-            for slot in slots:
-                self.m.Add(xa.get(slot, 0) == xb.get(slot, 0))
-            return
-        mismatch = self.m.NewBoolVar(f"mis_{name}")
-        for slot in slots:
-            self.m.Add(xa.get(slot, 0) - xb.get(slot, 0) <= mismatch)
-            self.m.Add(xb.get(slot, 0) - xa.get(slot, 0) <= mismatch)
-        if hard:
-            self._penalize("relaxed", W_RELAXED, mismatch)
-        else:
-            self._penalize("relationship", weight, mismatch)
+                        v = violation(f"{g}_{a}_{b}")
+                        if cond == "same_time":
+                            for slot in set(self.x[a]) | set(self.x[b]):
+                                xa, xb = self.x[a].get(slot, 0), self.x[b].get(slot, 0)
+                                self.m.Add(xa - xb <= v)
+                                self.m.Add(xb - xa <= v)
+                        elif cond == "same_day":
+                            for d in range(D):
+                                self.m.Add(self._day_expr(a, d) - self._day_expr(b, d) <= v)
+                                self.m.Add(self._day_expr(b, d) - self._day_expr(a, d) <= v)
+                        else:
+                            # a'nın hemen ardından b başlar ya da b'nin hemen ardından a başlar (aynı gün).
+                            len_a, len_b = self.problem.cards[a].length, self.problem.cards[b].length
+                            for (d, p), xa in self.x[a].items():
+                                after = self.x[b].get((d, p + len_a), 0)
+                                before = self.x[b].get((d, p - len_b), 0) if p - len_b >= 0 else 0
+                                self.m.Add(xa <= after + before + v)
+                            for (d, p), xb in self.x[b].items():
+                                after = self.x[a].get((d, p + len_b), 0)
+                                before = self.x[a].get((d, p - len_a), 0) if p - len_a >= 0 else 0
+                                self.m.Add(xb <= after + before + v)
 
     def maybe_cells(self):
         for card in self.problem.cards:
@@ -345,8 +483,10 @@ class _Builder:
         self.rooms()
         self.lesson_spread()
         self.teacher_rules()
-        self.class_rules()
         self.relationships()
+        if self.explain:
+            return self.m
+        self.class_rules()
         self.maybe_cells()
         if self.penalties:
             self.m.Minimize(sum(w * expr for _, w, expr in self.penalties))
@@ -456,3 +596,89 @@ def solve(
                 break
         solution.placements[card.key] = Placement(start[0], start[1], room)
     return solution
+
+
+@dataclass
+class Explanation:
+    """Katı modda çözülemeyen programın nedeni.
+
+    status: "core" (birlikte imkânsız kurallar bulundu), "no_rules" (hiçbir kural gevşetilmeden de
+    imkânsız: kaynak yetersizliği), "feasible" (kurallar birlikte sağlanabiliyor; sorun süre
+    sınırıydı) ya da "unknown" (süre yetmedi).
+    """
+
+    status: str
+    rules: list[str] = field(default_factory=list)
+    keys: list = field(default_factory=list)
+    minimal: bool = False
+    checks: int = 0
+    wall_time: float = 0.0
+
+
+def explain(problem, time_limit=60, check_limit=10, workers=8, known_infeasible=False):
+    """Birlikte sağlanamayan sert kuralların en küçük kümelerinden birini bulur (QuickXplain).
+
+    Her denemede yalnızca seçili kurallarla temiz bir model kurulur; böylece CP-SAT'in ön işlemesi
+    tam güçle çalışır ve imkânsızlık hızla kanıtlanır. Süre biterse ya da bir deneme belirsiz
+    kalırsa sonuç yine çelişen bir kümedir ama en küçük olmayabilir (minimal=False).
+    known_infeasible: tüm kurallarla imkânsız olduğu zaten biliniyorsa ilk deneme atlanır.
+    """
+    import time
+
+    started = time.monotonic()
+    checks = 0
+    labels = {}
+    exact = True
+
+    def infeasible(active):
+        """True: bu kurallarla imkânsız; False: mümkün ya da belirsiz."""
+        nonlocal checks, exact
+        checks += 1
+        builder = _Builder(problem, STRICT, explain=True, active=frozenset(active))
+        model = builder.build()
+        labels.update(builder.rule_labels)
+        remaining = time_limit - (time.monotonic() - started)
+        solver = cp_model.CpSolver()
+        solver.parameters.max_time_in_seconds = max(1.0, min(check_limit, remaining))
+        solver.parameters.num_workers = workers
+        status = solver.Solve(model)
+        if status == cp_model.UNKNOWN:
+            exact = False
+        return status == cp_model.INFEASIBLE
+
+    def result(status, rules=()):
+        return Explanation(
+            status, [labels[k] for k in rules], list(rules), exact, checks, round(time.monotonic() - started, 2)
+        )
+
+    # Tüm kural adlarını öğrenmek için modeli bir kez kur.
+    everything = _Builder(problem, STRICT, explain=True)
+    everything.build()
+    labels.update(everything.rule_labels)
+    keys = list(everything.rule_labels)
+
+    if not known_infeasible and not infeasible(keys):
+        return result("feasible" if exact else "unknown")
+    if infeasible([]):
+        return result("no_rules")
+
+    def out_of_time():
+        return time.monotonic() - started > time_limit
+
+    def quickxplain(background, delta, candidates):
+        if delta and (out_of_time() or infeasible(background)):
+            return []
+        if len(candidates) == 1:
+            return list(candidates)
+        half = len(candidates) // 2
+        first, second = candidates[:half], candidates[half:]
+        x2 = quickxplain(background + first, first, second)
+        x1 = quickxplain(background + x2, x2, first)
+        return x1 + x2
+
+    core = quickxplain([], [], keys)
+    if out_of_time():
+        exact = False
+    if not core or not infeasible(core):
+        return result("unknown")
+    return result("core", core)
