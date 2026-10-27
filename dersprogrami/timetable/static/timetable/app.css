@@ -530,3 +530,20 @@ html.focus-mode .tt-scroll { max-height: calc(100vh - 110px); }
 .program-switch option { color: #1c2230; }
 .institution-block .panel-head h2 a { color: inherit; }
 .program-limit { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; width: 100%; font-size: 12.5px; color: var(--text-2); }
+
+/* ÜYBS referansları */
+.refs-filter { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+.refs-filter .label { margin: 0; }
+.refs-filter .select { width: auto; min-width: 200px; }
+.refs-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+.refs-table td { vertical-align: top; }
+.refs-class { width: 80px; }
+.refs-lesson { width: 230px; }
+.ref-slots { display: flex; flex-wrap: wrap; gap: 6px; }
+.ref-slot { display: flex; flex-direction: column; gap: 2px; width: 104px; }
+.ref-head { font-size: 11px; color: var(--text-2); white-space: nowrap; }
+.ref-slot .input { height: 30px; padding: 4px 8px; font-variant-numeric: tabular-nums; }
+.ref-slot.empty .input { border-color: #f3dca8; background: var(--warning-soft); }
+.refs-save { position: sticky; bottom: 0; background: var(--surface); }
+.seg-radio.column { flex-direction: column; gap: 4px; }
+@media (max-width: 1000px) { .refs-layout { grid-template-columns: 1fr; } }

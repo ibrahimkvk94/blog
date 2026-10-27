@@ -12,10 +12,11 @@ from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
-from . import access, analysis, asc_xml, duty, editing, excel, jobs, reports, substitutes, versions
+from . import report_excel as report_excel_module
+from . import access, analysis, asc_xml, duty, editing, excel, jobs, refs, reports, substitutes, versions
 from .demo import create_demo_school
 from .grid import KINDS, card_payload, grid_data, room_names
-from .models import Absence, Card, Duty, DutyPlace, ReportPreset, School, Teacher, Timetable, TimetableVersion
+from .models import Absence, Card, Duty, DutyPlace, LessonRef, ReportPreset, School, Teacher, Timetable, TimetableVersion
 from .services import check_school, refresh_stale, repair_timetable, request_stop, start_generation, verify_timetable
 
 KIND_LABELS = {"sinif": "Sınıflar", "ogretmen": "Öğretmenler", "derslik": "Derslikler"}
@@ -526,6 +527,15 @@ def report_render(request, pk):
     return render(request, "timetable/report.html", data)
 
 
+def report_excel(request, pk):
+    timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
+    o = reports.options(request.GET)
+    data = reports.build(timetable, o)
+    response = HttpResponse(report_excel_module.build(data), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    response["Content-Disposition"] = f'attachment; filename="rapor-{o["tur"]}-{timetable.pk}.xlsx"'
+    return response
+
+
 def statistics(request, pk):
     timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
     school = timetable.school
@@ -661,3 +671,62 @@ def api_card_unplace(request, pk):
 @require_POST
 def api_card_lock(request, pk):
     return JsonResponse(editing.toggle_lock(_card(pk)))
+
+
+# --- ÜYBS referansları -------------------------------------------------------------------------
+
+
+def _ref_timetable(school, value):
+    timetable = None
+    if value and str(value).isdigit():
+        timetable = school.timetables.filter(pk=value).first()
+    return timetable or school.active_timetable or school.timetables.filter(status__in=[Timetable.OK, Timetable.PARTIAL]).first()
+
+
+def lesson_refs(request, pk):
+    """ÜYBS referans ekranı: her kısımda her dersin her saatine referans; programdaki yeri yanında."""
+    school = get_object_or_404(School, pk=pk)
+    class_id = request.GET.get("sinif") or request.POST.get("sinif") or ""
+    school_class = school.classes.filter(pk=class_id).first() if class_id.isdigit() else None
+    timetable = _ref_timetable(school, request.GET.get("program") or request.POST.get("program"))
+    back = reverse("timetable:lesson_refs", args=[school.pk]) + "?" + urlencode(
+        {k: v for k, v in {"sinif": class_id, "program": timetable.pk if timetable else ""}.items() if v}
+    )
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "save":
+            n = refs.save_form(school, request.POST)
+            messages.success(request, f"{n} referans kaydedildi.")
+        elif action == "auto":
+            try:
+                n = refs.auto_number(
+                    school, timetable, request.POST.get("start", "1001"), max(1, int(request.POST.get("step") or 1)),
+                    overwrite=request.POST.get("overwrite") == "1", school_class=school_class,
+                    order=request.POST.get("order", "program"),
+                )
+                messages.success(request, f"{n} saate referans verildi.")
+            except ValueError as exc:
+                messages.error(request, str(exc))
+        elif action == "import":
+            n, errors = refs.import_text(school, request.POST.get("text", ""))
+            messages.success(request, f"{n} referans aktarıldı.")
+            for error in errors[:10]:
+                messages.error(request, error)
+            if len(errors) > 10:
+                messages.error(request, f"… ve {len(errors) - 10} hata daha.")
+        elif action == "clear":
+            qs = LessonRef.objects.filter(lesson__school=school)
+            if school_class:
+                qs = qs.filter(school_class=school_class)
+            n = qs.count()
+            qs.delete()
+            messages.info(request, f"{n} referans silindi.")
+        return redirect(back)
+    rows = refs.table(school, timetable, school_class)
+    total = sum(len(r["slots"]) for r in rows)
+    filled = sum(1 for r in rows for s in r["slots"] if s["ref"])
+    return render(request, "timetable/refs.html", _nav(
+        school, "refs", rows=rows, classes=list(school.classes.all()), school_class=school_class,
+        timetable=timetable, timetables=[t for t in school.timetables.all() if t.has_grid],
+        total=total, filled=filled,
+    ))

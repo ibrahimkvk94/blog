@@ -26,6 +26,7 @@ SCHOOL_ROUTES = {
     "substitutions": (M.VIEW, M.SUBSTITUTE),
     "duties": (M.VIEW, M.DUTY),
     "duties_print": (M.VIEW, M.VIEW),
+    "lesson_refs": (M.VIEW, M.DATA),
     "school_settings": (M.VIEW, M.DATA),
     "lessons": (M.VIEW, M.DATA),
     "lesson_new": (M.VIEW, M.DATA),
@@ -69,6 +70,7 @@ TIMETABLE_ROUTES = {
     "statistics": (M.VIEW, M.VIEW),
     "reports": (M.VIEW, M.VIEW),
     "report_render": (M.VIEW, M.VIEW),
+    "report_excel": (M.VIEW, M.VIEW),
     "api_row_action": (M.PROGRAM, M.PROGRAM),
     "api_cell_candidates": (M.VIEW, M.VIEW),
 }

@@ -807,3 +807,25 @@ class Membership(models.Model):
     def labels(self):
         names = dict(self.PERMISSIONS)
         return [names[p] for p in self.ALL if p in self.perms]
+
+
+class LessonRef(models.Model):
+    """ÜYBS referansı: bir dersin bir sınıftaki (kısımdaki) kaçıncı haftalık saatine ait kimlik.
+
+    Referans saatin sırasına bağlıdır, gün/saate değil: ders Pazartesi 1–2'den Salı 3–4'e taşınsa da
+    1. saat 1001, 2. saat 1002 olarak kalır. Sıra, programdaki yerleşime göre (gün, saat) belirlenir.
+    """
+
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name="refs")
+    school_class = models.ForeignKey(SchoolClass, on_delete=models.CASCADE, null=True, blank=True, related_name="lesson_refs")
+    ordinal = models.PositiveSmallIntegerField("saat sırası")
+    ref = models.CharField("ÜYBS ref", max_length=50)
+
+    class Meta:
+        ordering = ["lesson", "school_class", "ordinal"]
+        verbose_name = "ÜYBS referansı"
+        verbose_name_plural = "ÜYBS referansları"
+        constraints = [models.UniqueConstraint(fields=["lesson", "school_class", "ordinal"], name="unique_lesson_ref")]
+
+    def __str__(self):
+        return f"{self.lesson} #{self.ordinal} = {self.ref}"

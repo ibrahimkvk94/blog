@@ -3,6 +3,7 @@ derslik/öğretmen listeleri. Tüm seçenekler sorgu parametresidir; böylece ay
 kaydedilip (ReportPreset) aynen yeniden açılabilir.
 """
 
+import datetime
 from collections import defaultdict
 
 from .grid import KINDS, card_payload, room_names
@@ -17,13 +18,14 @@ TYPES = {
     "bos_derslik": "Boş derslikler (gün × saat)",
     "bos_ogretmen": "Boş öğretmenler (gün × saat)",
     "nobet": "Nöbet çizelgesi",
+    "uybs": "ÜYBS aktarım listesi (referanslarla)",
 }
 ENTITY_TYPES = {"bireysel", "carsaf", "carsaf_gun"}
 KIND_LABELS = {"sinif": "Sınıflar", "ogretmen": "Öğretmenler", "derslik": "Derslikler"}
-CONTENT = {"ogretmen": "Öğretmen", "sinif": "Sınıf", "derslik": "Derslik", "grup": "Grup"}
+CONTENT = {"ogretmen": "Öğretmen", "sinif": "Sınıf", "derslik": "Derslik", "grup": "Grup", "ref": "ÜYBS ref (sınıf programında)"}
 DEFAULTS = {
     "tur": "bireysel", "varlik": "sinif", "gunler": "sutun", "ders_adi": "tam", "renk": "1", "boyut": "normal",
-    "yon": "yatay", "sayfa": "1", "saat": "1", "gun": "0", "baslik": "", "alt": "",
+    "yon": "yatay", "sayfa": "1", "saat": "1", "gun": "0", "baslik": "", "alt": "", "hafta": "",
 }
 PARAM_KEYS = list(DEFAULTS) + ["icerik", "secim"]
 
@@ -51,6 +53,12 @@ def options(params):
         o["gun"] = int(o["gun"])
     except ValueError:
         o["gun"] = 0
+    try:
+        o["hafta_tarih"] = datetime.date.fromisoformat(o["hafta"]) if o["hafta"] else None
+    except ValueError:
+        o["hafta_tarih"] = None
+    if o["hafta_tarih"]:  # haftanın Pazartesi'sine çek
+        o["hafta_tarih"] -= datetime.timedelta(days=o["hafta_tarih"].weekday())
     return o
 
 
@@ -58,10 +66,10 @@ def default_content(kind):
     return {"sinif": ["ogretmen", "derslik"], "ogretmen": ["sinif", "derslik"], "derslik": ["sinif", "ogretmen"]}[kind]
 
 
-def _cell_lines(c, kind, o):
+def _cell_lines(c, kind, o, ref=""):
     """Kart hücresinin satırları: ders adı + seçilen ayrıntılar (satırın kendisi tekrar yazılmaz)."""
     lines = [c["subject_name"] if o["ders_adi"] == "tam" else c["subject"]]
-    extra = []
+    extra = [f"ref {ref}"] if ref else []
     if "ogretmen" in o["icerik"] and kind != "ogretmen" and c["teachers"]:
         extra.append(c["teachers"])
     if "sinif" in o["icerik"] and kind != "sinif" and c["classes"]:
@@ -111,6 +119,7 @@ def build(timetable, o):
     builder = {
         "bireysel": _individual, "carsaf": _sheet, "carsaf_gun": _day_sheet, "yuk": _loads,
         "sinif_dersleri": _class_lessons, "bos_derslik": _free_rooms, "bos_ogretmen": _free_teachers, "nobet": _duties,
+        "uybs": _uybs,
     }[o["tur"]]
     data.update(builder(timetable, o, cards, periods, days))
     return data
@@ -120,20 +129,43 @@ def _at(cards, d, p):
     return [c for c in cards if c["day"] == d and c["period"] <= p < c["period"] + c["length"]]
 
 
+def _ref_lookup(timetable, o):
+    """(kart, sınıf, gün, saat) → ÜYBS ref; yalnızca sınıf programında "ref" içeriği seçiliyse."""
+    if "ref" not in o["icerik"] or o["varlik"] != "sinif":
+        return {}
+    from . import refs
+
+    by_hour = defaultdict(list)  # (ders, sıra) → [(sınıf, ref)]
+    for (lesson_id, class_id, ordinal), value in refs.ref_index(timetable.school).items():
+        by_hour[(lesson_id, ordinal)].append((class_id, value))
+    lookup = {}
+    for lesson_id, hours in refs.lesson_hours(timetable).items():
+        for ordinal, (day, period, card) in enumerate(hours, start=1):
+            if day is not None:
+                for class_id, value in by_hour.get((lesson_id, ordinal), ()):
+                    lookup[(card.id, class_id, day, period)] = value
+    return lookup
+
+
 def _individual(timetable, o, cards, periods, days):
     kind = o["varlik"]
     pages = []
+    refs_at = _ref_lookup(timetable, o)
+
+    def cell(mine, obj, d, p):
+        return [_cell_lines(c, kind, o, refs_at.get((c["id"], obj.id, d, p), "")) for c in _at(mine, d, p)]
+
     for obj in _entities(timetable.school, kind, o):
         mine = [c for c in cards if obj.id in c["rows"]]
         if o["gunler"] == "satir":
-            rows = [{"head": day, "sub": "", "cells": [[_cell_lines(c, kind, o) for c in _at(mine, d, p.index)] for p in periods]}
+            rows = [{"head": day, "sub": "", "cells": [cell(mine, obj, d, p.index) for p in periods]}
                     for d, day in enumerate(days)]
         else:
             rows = [
                 {
                     "head": f"{p.index + 1}.",
                     "sub": f"{p.start_time:%H:%M}–{p.end_time:%H:%M}" if o["saat"] == "1" and p.start_time and p.end_time else "",
-                    "cells": [[_cell_lines(c, kind, o) for c in _at(mine, d, p.index)] for d in range(len(days))],
+                    "cells": [cell(mine, obj, d, p.index) for d in range(len(days))],
                 }
                 for p in periods
             ]
@@ -283,3 +315,11 @@ def _duties(timetable, o, cards, periods, days):
 def selectable(school, kind):
     objs = list(getattr(school, KINDS[kind]).all())
     return [{"id": obj.pk, "name": _title(obj, kind)} for obj in objs]
+
+
+def _uybs(timetable, o, cards, periods, days):
+    from . import refs
+
+    ids = o["secim"] if o["varlik"] == "sinif" else None
+    rows = refs.report_rows(timetable, o["hafta_tarih"], ids)
+    return {"uybs_rows": rows, "uybs_missing": sum(1 for r in rows if not r["ref"])}
