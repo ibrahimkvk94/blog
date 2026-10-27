@@ -53,6 +53,10 @@ class School(models.Model):
         help_text="Aynı anda yürüyen programlar: bu programların yayındaki programında dolu olan öğretmen (ad soyada "
         "göre) ve derslik (ada göre) saatleri burada kapalı sayılır.",
     )
+    publish_token = models.CharField("web yayını anahtarı", max_length=40, blank=True, db_index=True)
+    publish_enabled = models.BooleanField("web yayını açık", default=False)
+    publish_teachers = models.BooleanField("yayında öğretmen adlarını göster", default=True)
+    publish_substitutions = models.BooleanField("yayında vekâlet ekranı", default=True)
     duties_per_teacher = models.PositiveSmallIntegerField(
         "öğretmen başına haftalık nöbet", default=1, help_text="Nöbet dağıtımında öğretmen başına üst sınır (öğretmende ayrıca belirlenebilir)."
     )

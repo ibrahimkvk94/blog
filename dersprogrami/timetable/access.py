@@ -29,6 +29,7 @@ SCHOOL_ROUTES = {
     "duties": (M.VIEW, M.DUTY),
     "duties_print": (M.VIEW, M.VIEW),
     "lesson_refs": (M.VIEW, M.DATA),
+    "publish_settings": (M.PUBLISH, M.PUBLISH),
     "school_settings": (M.VIEW, M.DATA),
     "lessons": (M.VIEW, M.DATA),
     "lesson_new": (M.VIEW, M.DATA),
@@ -89,7 +90,7 @@ CARD_ROUTES = {
 }
 VERSION_ROUTES = {"api_version": (M.VIEW, M.PROGRAM)}
 # Herkese açık (giriş yapmış) ve yalnızca merkez yöneticiye açık sayfalar
-OPEN_ROUTES = {"school_list", "login", "logout", "account"}
+OPEN_ROUTES = {"school_list", "login", "logout", "account", "public_index", "public_board", "public_timetable"}
 CENTRAL_ROUTES = {"create_demo", "import_asc", "school_create", "central", "central_school_new", "central_log"}
 
 
@@ -263,7 +264,7 @@ ACTION_LABELS = {
     "api_versions": "Versiyon kaydetti", "api_version": "Versiyon işlemi", "api_row_action": "Satır işlemi",
     "api_card_move": "Kart taşıdı", "api_card_unplace": "Kartı kaldırdı", "api_card_lock": "Kart kilidi",
     "api_card_room": "Derslik değiştirdi", "api_lesson_quick": "Hızlı değişiklik", "reports": "Rapor şablonu",
-    "account": "Parolasını değiştirdi", "publish_link": "Web yayını",
+    "account": "Parolasını değiştirdi", "publish_settings": "Web yayını",
 }
 SKIP_AUDIT = {"login", "logout"}
 

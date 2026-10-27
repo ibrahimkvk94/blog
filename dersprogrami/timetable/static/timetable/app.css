@@ -553,3 +553,5 @@ html.focus-mode .tt-scroll { max-height: calc(100vh - 110px); }
 .audit-table td { font-size: 13px; vertical-align: top; }
 .nowrap { white-space: nowrap; }
 .pager { display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 12px; }
+.qr-box { display: grid; place-items: center; }
+.qr-box img, .qr-box svg { width: 260px; height: 260px; }

@@ -1,0 +1,49 @@
+{% extends "timetable/base.html" %}
+{% block title %}Web yayını{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:institution_detail' school.institution_id %}">{{ school.institution }}</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
+{% block heading %}<h1>Web yayını</h1>{% if school.publish_enabled %}<span class="pill ok">Açık</span>{% else %}<span class="pill">Kapalı</span>{% endif %}{% endblock %}
+{% block content %}
+<p class="muted small" style="margin-top:0">Öğrenciler, veliler ve öğretmenler bu bağlantıyla giriş yapmadan sınıf, öğretmen ve derslik programlarını telefondan görür. Yalnızca <b>yayındaki sürüm</b> gösterilir; ana görünümde “Yayınla” dediğiniz an güncellenir. Bağlantıyı bilen herkes görebilir; gerektiğinde yeni bağlantı üretip eskisini geçersiz kılın.</p>
+{% if not school.active_timetable %}<div class="alert alert-warning">Henüz yayınlanmış sürüm yok. Ana görünümde bir sürümü “Yayınla” ile seçin.</div>{% endif %}
+<div class="grid-2">
+  <div class="panel">
+    <div class="panel-head"><h2>Bağlantı</h2></div>
+    <div class="panel-body">
+      {% if school.publish_enabled and link %}
+        <label class="label">Programlar</label>
+        <div class="dialog-row"><input class="input" value="{{ link }}" readonly id="pub-link"><button class="btn" type="button" data-copy="pub-link">Kopyala</button><a class="btn" href="{{ link }}" target="_blank">Aç</a></div>
+        {% if school.publish_substitutions %}
+          <label class="label" style="margin-top:12px">Koridor ekranı (vekâlet listesi, dakikada bir yenilenir)</label>
+          <div class="dialog-row"><input class="input" value="{{ board }}" readonly id="pub-board"><button class="btn" type="button" data-copy="pub-board">Kopyala</button><a class="btn" href="{{ board }}" target="_blank">Aç</a></div>
+        {% endif %}
+        <div style="display:flex;gap:8px;margin-top:16px">
+          <form method="post">{% csrf_token %}<button class="btn" name="action" value="regenerate" onclick="return confirm('Eski bağlantı geçersiz olsun mu?')">Yeni bağlantı üret</button></form>
+          <form method="post">{% csrf_token %}<button class="btn btn-danger" name="action" value="disable">Yayını kapat</button></form>
+        </div>
+      {% else %}
+        <form method="post">{% csrf_token %}<button class="btn btn-primary" name="action" value="enable">{% include "timetable/icon.html" with name="star" %} Web yayınını aç</button></form>
+      {% endif %}
+      <form method="post" style="margin-top:18px">{% csrf_token %}<input type="hidden" name="action" value="options">
+        <label class="check"><input type="checkbox" name="publish_teachers" value="1"{% if school.publish_teachers %} checked{% endif %}> <span>Öğretmen adlarını ve öğretmen programlarını göster</span></label>
+        <label class="check"><input type="checkbox" name="publish_substitutions" value="1"{% if school.publish_substitutions %} checked{% endif %}> <span>Vekâlet listesini yayınla</span></label>
+        <button class="btn btn-sm" style="margin-top:8px">Kaydet</button>
+      </form>
+    </div>
+  </div>
+  {% if school.publish_enabled and qr %}
+  <div class="panel">
+    <div class="panel-head"><h2>QR kod</h2><span class="subtle small">Panoya asın; telefonla okutan programa ulaşır</span></div>
+    <div class="panel-body qr-box">{{ qr|safe }}</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  document.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", async () => {
+    const input = document.getElementById(b.dataset.copy);
+    try { await navigator.clipboard.writeText(input.value); } catch (e) { input.select(); document.execCommand("copy"); }
+    b.textContent = "Kopyalandı ✓";
+  }));
+</script>
+{% endblock %}

@@ -38,6 +38,7 @@
           {% endif %}
         {% endwith %}
         <a href="{% url 'timetable:substitutions' school.pk %}" class="{% if nav == 'subs' %}active{% endif %}">{% include "timetable/icon.html" with name="swap" %} Vekâlet</a>
+        {% if can.yayin %}<a href="{% url 'timetable:publish_settings' school.pk %}" class="{% if nav == 'publish' %}active{% endif %}">{% include "timetable/icon.html" with name="star" %} Web yayını</a>{% endif %}
         <a href="{% url 'timetable:duties' school.pk %}" class="{% if nav == 'duties' %}active{% endif %}">{% include "timetable/icon.html" with name="users" %} Nöbet çizelgesi</a>
         {% if can.kullanici %}<a href="{% url 'timetable:institution_users' school.institution_id %}" class="{% if nav == 'users' %}active{% endif %}">{% include "timetable/icon.html" with name="users" %} Kullanıcılar</a>{% endif %}
       </nav>

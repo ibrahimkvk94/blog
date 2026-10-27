@@ -1,0 +1,53 @@
+{% extends "timetable/public/base.html" %}
+{% block title %}{{ title }} · {{ school }}{% endblock %}
+{% block heading %}{{ title }}{% endblock %}
+{% block nav %}<a href="{% url 'timetable:public_index' token %}">‹ Liste</a>{% endblock %}
+{% block style %}
+  .c { border-radius: 8px; padding: 6px 8px; margin-bottom: 3px; }
+  .c b { display: block; }
+  .c span { color: #3b4352; font-size: 13px; }
+  .tabs { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 10px; }
+  .tabs button { flex: 1; min-width: 64px; padding: 10px 6px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font: 600 14px inherit; }
+  .tabs button.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .slot { display: grid; grid-template-columns: 64px 1fr; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .slot:last-child { border-bottom: 0; }
+  .slot .t { color: var(--muted); font-size: 13px; }
+  .slot .t b { color: var(--text); font-size: 15px; display: block; }
+  .free { color: #9aa1ad; }
+  .week { display: none; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th, td { border: 1px solid var(--line); padding: 4px; vertical-align: top; font-size: 13px; }
+  th { background: #f1f2f6; }
+  th.p { width: 80px; text-align: left; }
+  @media (min-width: 900px) { .week { display: block; } .daily { display: none; } }
+{% endblock %}
+{% block content %}
+  {% if subtitle or class_teacher %}<p class="muted" style="margin-top:0">{{ subtitle }}{% if class_teacher %}{% if subtitle %} · {% endif %}Sınıf öğretmeni: {{ class_teacher }}{% endif %}</p>{% endif %}
+  <div class="daily">
+    <div class="tabs">{% for d in by_day %}<button type="button" data-day="{{ d.index }}"{% if d.index == today %} class="on"{% endif %}>{{ d.short }}</button>{% endfor %}</div>
+    {% for d in by_day %}
+      <div class="card" data-panel="{{ d.index }}"{% if d.index != today %} hidden{% endif %}>
+        <h2>{{ d.name }}</h2>
+        {% for s in d.slots %}
+          <div class="slot"><div class="t"><b>{{ s.period.index|add:1 }}.</b>{{ s.period.start_time|time:"H:i" }}</div>
+            <div>{% for c in s.cards %}<div class="c" style="background:{{ c.color }}"><b>{{ c.subject_name }}</b><span>{{ c.line2 }}{% if c.room and kind != "derslik" %} · {{ c.room }}{% endif %}</span></div>{% empty %}<span class="free">boş</span>{% endfor %}</div></div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+  <div class="week card">
+    <table>
+      <thead><tr><th class="p">Saat</th>{% for d in days %}<th>{{ d }}</th>{% endfor %}</tr></thead>
+      <tbody>{% for row in week %}<tr><th class="p">{{ row.period.index|add:1 }}.<br><span class="muted">{{ row.period.start_time|time:"H:i" }}</span></th>
+        {% for cell in row.cells %}<td>{% for c in cell %}<div class="c" style="background:{{ c.color }}"><b>{{ c.subject_name }}</b><span>{{ c.line2 }}{% if c.room and kind != "derslik" %} · {{ c.room }}{% endif %}</span></div>{% endfor %}</td>{% endfor %}</tr>{% endfor %}</tbody>
+    </table>
+  </div>
+  <script>
+    document.querySelector(".tabs").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-day]");
+      if (!b) return;
+      document.querySelectorAll(".tabs button").forEach((x) => x.classList.toggle("on", x === b));
+      document.querySelectorAll("[data-panel]").forEach((p) => { p.hidden = p.dataset.panel !== b.dataset.day; });
+    });
+  </script>
+{% endblock %}
