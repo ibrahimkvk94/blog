@@ -2,6 +2,7 @@
 {% block title %}Merkez paneli{% endblock %}
 {% block heading %}<h1>Merkez paneli</h1>{% endblock %}
 {% block actions %}
+  <a class="btn" href="{% url 'timetable:central_log' %}">{% include "timetable/icon.html" with name="list" %} İşlem günlüğü</a>
   <form method="post" action="{% url 'timetable:create_demo' %}">{% csrf_token %}<button class="btn">{% include "timetable/icon.html" with name="plus" %} Örnek okul</button></form>
 {% endblock %}
 {% block content %}

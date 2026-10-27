@@ -3,7 +3,8 @@
 {% block crumbs %}<a href="{% url 'timetable:school_list' %}">Kurumlarım</a>{% endblock %}
 {% block heading %}<h1>{{ institution }}</h1>{% endblock %}
 {% block actions %}
-  {% if can_users %}<a class="btn" href="{% url 'timetable:institution_users' institution.pk %}">{% include "timetable/icon.html" with name="users" %} Kullanıcılar</a>{% endif %}
+  {% if can_users %}<a class="btn" href="{% url 'timetable:institution_log' institution.pk %}">{% include "timetable/icon.html" with name="list" %} İşlem günlüğü</a>
+  <a class="btn" href="{% url 'timetable:institution_users' institution.pk %}">{% include "timetable/icon.html" with name="users" %} Kullanıcılar</a>{% endif %}
 {% endblock %}
 {% block content %}
 <p class="muted small" style="margin-top:0">Kurumdaki her program (ör. 1. yarıyıl, 2. yarıyıl, gece öğretimi) kendi saatleri, sınıfları, öğretmenleri, dersleri, sürümleri ve yayını olan bağımsız bir ders programıdır; hepsi aynı anda açık ve yayında olabilir. Aynı öğretmen ve derslikleri paylaşan programları programın ayarlarında “birlikte çalışan programlar” olarak bağlayın: biri diğerinin dolu saatlerine ders koymaz.</p>

@@ -1,0 +1,41 @@
+{% extends "timetable/base.html" %}
+{% block title %}İşlem günlüğü{% endblock %}
+{% block crumbs %}{% if institution %}<a href="{% url 'timetable:school_list' %}">Kurumlarım</a> / <a href="{% url 'timetable:institution_detail' institution.pk %}">{{ institution }}</a>{% else %}<a href="{% url 'timetable:central' %}">Merkez paneli</a>{% endif %}{% endblock %}
+{% block heading %}<h1>İşlem günlüğü</h1><span class="pill">{{ page.paginator.count }} kayıt</span>{% endblock %}
+{% block content %}
+<form method="get" class="panel panel-body audit-filter">
+  <input class="input" name="q" value="{{ filters.q }}" placeholder="Ara: işlem, ayrıntı, program…">
+  <select class="select" name="kullanici"><option value="">Tüm kullanıcılar</option>{% for u in usernames %}<option{% if u == filters.kullanici %} selected{% endif %}>{{ u }}</option>{% endfor %}</select>
+  {% if programs %}<select class="select" name="program"><option value="">Tüm programlar</option>{% for p in programs %}<option value="{{ p.pk }}"{% if filters.program == p.pk|stringformat:"s" %} selected{% endif %}>{{ p.name }}</option>{% endfor %}</select>{% endif %}
+  <input class="input" type="date" name="bas" value="{{ filters.bas }}" title="Başlangıç">
+  <input class="input" type="date" name="bit" value="{{ filters.bit }}" title="Bitiş">
+  <button class="btn btn-primary">Süz</button>
+</form>
+<div class="panel" style="margin-top:14px">
+  <div class="panel-body flush table-wrap">
+    <table class="table audit-table">
+      <thead><tr><th>Zaman</th><th>Kullanıcı</th>{% if not institution %}<th>Kurum</th>{% endif %}<th>Program</th><th>İşlem</th><th>Ayrıntı</th><th>IP</th></tr></thead>
+      <tbody>
+        {% for e in page %}
+          <tr>
+            <td class="nowrap">{{ e.created_at|date:"d.m.Y H:i:s" }}</td>
+            <td><b>{{ e.username|default:"–" }}</b></td>
+            {% if not institution %}<td>{{ e.institution|default:"–" }}</td>{% endif %}
+            <td>{% if e.school_id %}<a href="{% url 'timetable:school_detail' e.school_id %}">{{ e.program_name }}</a>{% else %}{{ e.program_name|default:"–" }}{% endif %}</td>
+            <td>{{ e.action }}</td>
+            <td class="subtle">{{ e.detail|truncatechars:220 }}</td>
+            <td class="subtle small">{{ e.ip|default:"" }}</td>
+          </tr>
+        {% empty %}<tr><td colspan="7" class="subtle">Kayıt yok.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% if page.has_other_pages %}
+  <div class="pager">
+    {% if page.has_previous %}<a class="btn btn-sm" href="?{{ query }}&sayfa={{ page.previous_page_number }}">‹ Önceki</a>{% endif %}
+    <span class="subtle small">{{ page.number }} / {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<a class="btn btn-sm" href="?{{ query }}&sayfa={{ page.next_page_number }}">Sonraki ›</a>{% endif %}
+  </div>
+{% endif %}
+{% endblock %}

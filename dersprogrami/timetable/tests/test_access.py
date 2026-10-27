@@ -239,3 +239,49 @@ class ProgramCopyTests(TestCase):
         from timetable import copying
 
         self.assertEqual(copying.resolve({"refler"}), {"refler", "dersler", "ogretmenler", "derslikler", "siniflar"})
+
+
+class AuditTests(TestCase):
+    def setUp(self):
+        self.school = build_school()
+        self.timetable = generate_timetable(self.school, "ilk", time_limit=10)
+        self.manager = User.objects.create_user("denetci", password="parola-123456")
+        M.objects.create(user=self.manager, institution=self.school.institution, permissions=M.ALL)
+
+    def test_actions_are_logged_with_details(self):
+        from timetable.models import AuditLog
+
+        self.assertTrue(self.client.login(username="denetci", password="parola-123456"))
+        self.assertTrue(AuditLog.objects.filter(action="Giriş yaptı", username="denetci").exists())
+        self.client.login(username="denetci", password="yanlis")
+        self.assertTrue(AuditLog.objects.filter(action="Başarısız giriş denemesi").exists())
+        self.client.post(reverse("timetable:api_bulk", args=[self.timetable.pk]), json.dumps({"action": "lock_all"}), content_type="application/json")
+        entry = AuditLog.objects.filter(action="Toplu işlem").get()
+        self.assertEqual(entry.school, self.school)
+        self.assertEqual(entry.institution, self.school.institution)
+        self.assertIn("kilitlendi", entry.detail)
+        self.client.post(reverse("timetable:data_new", args=[self.school.pk, "ders-adlari"]), {"name": "Felsefe"})
+        self.assertIn("Felsefe", AuditLog.objects.filter(action="Kayıt ekledi").get().detail)
+        # Yetkisiz (403) istekler değişiklik sayılmaz
+        self.client.post(reverse("timetable:central_school_new"), {"school_name": "X"})
+        self.assertFalse(AuditLog.objects.filter(action="Kurum oluşturdu").exists())
+
+        page = self.client.get(reverse("timetable:institution_log", args=[self.school.institution_id]) + "?q=toplu")
+        self.assertContains(page, "Toplu işlem")
+        self.assertNotContains(page, "Kayıt ekledi")
+        # Görüntüleme yetkilisi günlüğü göremez
+        viewer = User.objects.create_user("bakan", password="parola-123456")
+        M.objects.create(user=viewer, institution=self.school.institution, permissions=[])
+        self.client.force_login(viewer)
+        self.assertEqual(self.client.get(reverse("timetable:institution_log", args=[self.school.institution_id])).status_code, 403)
+
+    def test_program_delete_is_logged_without_dangling_reference(self):
+        from timetable.models import AuditLog
+
+        other = School.objects.create(name="Silinecek", institution=self.school.institution)
+        self.client.force_login(self.manager)
+        self.client.post(reverse("timetable:program_delete", args=[other.pk]), {"confirm": "Silinecek"})
+        entry = AuditLog.objects.get(action="Program sildi")
+        self.assertIsNone(entry.school)
+        self.assertEqual(entry.program_name, "Silinecek")
+        self.assertEqual(entry.institution, self.school.institution)

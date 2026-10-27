@@ -829,3 +829,26 @@ class LessonRef(models.Model):
 
     def __str__(self):
         return f"{self.lesson} #{self.ordinal} = {self.ref}"
+
+
+class AuditLog(models.Model):
+    """İşlem günlüğü: kim, ne zaman, hangi kurum/programda ne yaptı."""
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    user = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    username = models.CharField(max_length=150, blank=True)
+    institution = models.ForeignKey(Institution, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    program_name = models.CharField(max_length=200, blank=True)
+    action = models.CharField("işlem", max_length=100)
+    detail = models.TextField("ayrıntı", blank=True)
+    path = models.CharField(max_length=300, blank=True)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "işlem kaydı"
+        verbose_name_plural = "işlem günlüğü"
+
+    def __str__(self):
+        return f"{self.created_at:%d.%m.%Y %H:%M} {self.username}: {self.action}"

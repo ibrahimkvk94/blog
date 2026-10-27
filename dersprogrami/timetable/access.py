@@ -15,7 +15,9 @@ from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
 from django.shortcuts import render
 
-from .models import Card, Institution, Membership, School, Timetable, TimetableVersion
+import json
+
+from .models import AuditLog, Card, Institution, Membership, School, Timetable, TimetableVersion
 
 M = Membership
 
@@ -50,6 +52,7 @@ SCHOOL_ROUTES = {
 INSTITUTION_ROUTES = {
     "institution_detail": (M.VIEW, M.PROGRAMS),
     "institution_users": (M.USERS, M.USERS),
+    "institution_log": (M.USERS, M.USERS),
     "program_new": (M.PROGRAMS, M.PROGRAMS),
     "program_copy": (M.PROGRAMS, M.PROGRAMS),
     "program_import": (M.PROGRAMS, M.PROGRAMS),
@@ -87,7 +90,7 @@ CARD_ROUTES = {
 VERSION_ROUTES = {"api_version": (M.VIEW, M.PROGRAM)}
 # Herkese açık (giriş yapmış) ve yalnızca merkez yöneticiye açık sayfalar
 OPEN_ROUTES = {"school_list", "login", "logout", "account"}
-CENTRAL_ROUTES = {"create_demo", "import_asc", "school_create", "central", "central_school_new"}
+CENTRAL_ROUTES = {"create_demo", "import_asc", "school_create", "central", "central_school_new", "central_log"}
 
 
 def _membership(user, institution_id):
@@ -174,7 +177,13 @@ class SchoolAccessMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        return self.get_response(request)
+        response = self.get_response(request)
+        if request.method == "POST" and response.status_code < 400:
+            try:
+                audit(request, response)
+            except Exception:  # günlük yazılamasa da işlem bozulmasın
+                pass
+        return response
 
     def process_view(self, request, view_func, view_args, view_kwargs):
         match = request.resolver_match
@@ -193,6 +202,7 @@ class SchoolAccessMiddleware:
             institution = Institution.objects.filter(pk=view_kwargs.get("pk")).first()
             if institution is None:
                 return None
+            request.current_institution_id = institution.pk
             perms = institution_permissions(request.user, institution)
         else:
             school_id = _school_id(name, view_kwargs)
@@ -200,6 +210,9 @@ class SchoolAccessMiddleware:
                 return None  # kayıt yok: görünüm 404 verir
             perms = school_permissions(request.user, School(pk=school_id))
             request.current_school_id = school_id
+            row = School.objects.filter(pk=school_id).values_list("institution_id", "name").first()
+            if row:
+                request.current_institution_id, request.current_program_name = row
         request.school_perms = perms
         needed = routes[1] if request.method not in ("GET", "HEAD", "OPTIONS") else routes[0]
         if not perms:
@@ -232,3 +245,72 @@ def grantable(user, institution):
 def ensure(condition, message="Bu işlem için yetkiniz yok."):
     if not condition:
         raise PermissionDenied(message)
+
+
+# --- işlem günlüğü -------------------------------------------------------------------------------
+
+ACTION_LABELS = {
+    "create_demo": "Örnek okul oluşturdu", "import_asc": "aSc'den kurum aktardı", "school_create": "Program oluşturdu",
+    "central_school_new": "Kurum oluşturdu", "institution_users": "Kullanıcı yönetimi", "program_new": "Program ekledi",
+    "program_copy": "Program kopyaladı", "program_import": "aSc'den program aktardı", "program_delete": "Program sildi",
+    "generate": "Üretim başlattı", "stop": "Üretimi durdurdu", "publish": "Programı yayınladı",
+    "substitutions": "Vekâlet", "duties": "Nöbet çizelgesi", "lesson_refs": "ÜYBS referansları",
+    "school_settings": "Program ayarları/saatler", "lesson_new": "Ders ekledi", "lesson_edit": "Dersi düzenledi",
+    "lesson_delete": "Ders sildi", "class_lessons": "Sınıf ders tablosu", "distribution_save": "Ders dağıtımı",
+    "distribution_paste": "Ders dağıtımı (yapıştırma)", "copy_divisions": "Bölünme kopyaladı", "excel_import": "Excel'den veri aktardı",
+    "data_new": "Kayıt ekledi", "data_edit": "Kaydı düzenledi", "data_delete": "Kayıt sildi",
+    "api_repair": "Bekleyenleri yerleştirdi", "api_undo": "Geri aldı", "api_redo": "Yineledi", "api_bulk": "Toplu işlem",
+    "api_versions": "Versiyon kaydetti", "api_version": "Versiyon işlemi", "api_row_action": "Satır işlemi",
+    "api_card_move": "Kart taşıdı", "api_card_unplace": "Kartı kaldırdı", "api_card_lock": "Kart kilidi",
+    "api_card_room": "Derslik değiştirdi", "api_lesson_quick": "Hızlı değişiklik", "reports": "Rapor şablonu",
+    "account": "Parolasını değiştirdi", "publish_link": "Web yayını",
+}
+SKIP_AUDIT = {"login", "logout"}
+
+
+def _detail(request, response):
+    parts = []
+    if response.get("Content-Type", "").startswith("application/json"):
+        try:
+            message = json.loads(response.content or b"{}").get("message")
+        except ValueError:
+            message = None
+        if message:
+            parts.append(message)
+    storage = getattr(request, "_messages", None)
+    for m in getattr(storage, "_queued_messages", []) or []:
+        parts.append(str(m))
+    extra = request.POST.get("action") or (request.POST.get("name") if "name" in request.POST else "")
+    if extra and not parts:
+        parts.append(str(extra))
+    return " · ".join(parts)[:2000]
+
+
+def audit(request, response, action=None, detail=None):
+    match = getattr(request, "resolver_match", None)
+    if match is None or match.namespace != "timetable" or match.url_name in SKIP_AUDIT or not request.user.is_authenticated:
+        return
+    school_id = getattr(request, "current_school_id", None)
+    if school_id and not School.objects.filter(pk=school_id).exists():
+        school_id = None  # işlemde silinmiş (program silme)
+    institution_id = getattr(request, "current_institution_id", None)
+    if institution_id and not Institution.objects.filter(pk=institution_id).exists():
+        institution_id = None
+    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip()
+    AuditLog.objects.create(
+        user=request.user, username=request.user.get_username(), institution_id=institution_id, school_id=school_id,
+        program_name=getattr(request, "current_program_name", ""),
+        action=action or ACTION_LABELS.get(match.url_name, match.url_name), detail=detail if detail is not None else _detail(request, response),
+        path=request.path[:300], ip=forwarded or request.META.get("REMOTE_ADDR") or None,
+    )
+
+
+def _on_login(sender, request, user, **kwargs):
+    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip() if request else ""
+    AuditLog.objects.create(user=user, username=user.get_username(), action="Giriş yaptı",
+                            ip=forwarded or (request.META.get("REMOTE_ADDR") if request else None) or None)
+
+
+def _on_login_failed(sender, credentials, request=None, **kwargs):
+    AuditLog.objects.create(username=str(credentials.get("username", ""))[:150], action="Başarısız giriş denemesi",
+                            ip=(request.META.get("REMOTE_ADDR") if request else None) or None)

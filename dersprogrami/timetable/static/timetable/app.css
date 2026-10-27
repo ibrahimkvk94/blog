@@ -547,3 +547,9 @@ html.focus-mode .tt-scroll { max-height: calc(100vh - 110px); }
 .refs-save { position: sticky; bottom: 0; background: var(--surface); }
 .seg-radio.column { flex-direction: column; gap: 4px; }
 @media (max-width: 1000px) { .refs-layout { grid-template-columns: 1fr; } }
+.audit-filter { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.audit-filter .input, .audit-filter .select { width: auto; min-width: 150px; }
+.audit-filter .input[name=q] { flex: 1; min-width: 220px; }
+.audit-table td { font-size: 13px; vertical-align: top; }
+.nowrap { white-space: nowrap; }
+.pager { display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 12px; }

@@ -8,7 +8,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -185,3 +185,44 @@ def account(request):
         return redirect("timetable:account")
     memberships = request.user.memberships.select_related("institution").prefetch_related("programs")
     return render(request, "timetable/account.html", {"form": form, "memberships": memberships, "nav": "account"})
+
+
+def _audit_page(request, qs, context):
+    from django.core.paginator import Paginator
+
+    q = (request.GET.get("q") or "").strip()
+    user = (request.GET.get("kullanici") or "").strip()
+    program = request.GET.get("program") or ""
+    start, end = request.GET.get("bas") or "", request.GET.get("bit") or ""
+    if q:
+        qs = qs.filter(Q(action__icontains=q) | Q(detail__icontains=q) | Q(program_name__icontains=q))
+    if user:
+        qs = qs.filter(username__iexact=user)
+    if program.isdigit():
+        qs = qs.filter(school_id=program)
+    if start:
+        qs = qs.filter(created_at__date__gte=start)
+    if end:
+        qs = qs.filter(created_at__date__lte=end)
+    page = Paginator(qs, 100).get_page(request.GET.get("sayfa"))
+    usernames = sorted(set(qs.values_list("username", flat=True)))
+    query = request.GET.copy()
+    query.pop("sayfa", None)
+    return render(request, "timetable/audit.html", {
+        **context, "page": page, "usernames": usernames, "filters": {"q": q, "kullanici": user, "program": program, "bas": start, "bit": end},
+        "query": query.urlencode(),
+    })
+
+
+def institution_log(request, pk):
+    from .models import AuditLog
+
+    institution = get_object_or_404(Institution, pk=pk)
+    qs = AuditLog.objects.filter(institution=institution)
+    return _audit_page(request, qs, {"institution": institution, "nav": "audit", "programs": institution.programs.order_by("name")})
+
+
+def central_log(request):
+    from .models import AuditLog
+
+    return _audit_page(request, AuditLog.objects.all(), {"nav": "central", "central": True})
