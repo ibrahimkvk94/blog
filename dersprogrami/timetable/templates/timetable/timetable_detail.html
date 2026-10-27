@@ -96,8 +96,9 @@
       </div>
       <label class="search">{% include "timetable/icon.html" with name="search" %}<input class="input" id="row-filter" placeholder="Satır ara…" autocomplete="off"></label>
       <div class="segmented" id="zoom-switch" title="Yakınlaştırma">
-        <button data-zoom="compact">S</button><button data-zoom="" class="active">M</button><button data-zoom="roomy">L</button>
+        <button data-zoom="fit" title="Tüm haftayı ekran genişliğine sığdır">Haftayı sığdır</button><button data-zoom="compact">S</button><button data-zoom="" class="active">M</button><button data-zoom="roomy">L</button>
       </div>
+      <button class="btn btn-sm" type="button" id="btn-focus" title="Menüleri gizleyip programı tam ekranda göster (Esc ile çık)">⛶ Tam ekran</button>
       <div class="segmented" title="Geri al (Ctrl+Z) / Yinele (Ctrl+Y)">
         <button id="btn-undo" disabled>↶ Geri al</button><button id="btn-redo" disabled>Yinele ↷</button>
       </div>

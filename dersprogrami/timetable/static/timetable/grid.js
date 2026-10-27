@@ -76,7 +76,7 @@
   const drawer = $("#drawer");
   const state = {
     kind: store("tt-kind") || "sinif",
-    zoom: store("tt-zoom") || "",
+    zoom: store("tt-zoom") === null ? "fit" : store("tt-zoom"),
     data: null,
     cards: new Map(),
     selected: null,
@@ -119,6 +119,7 @@
       hr.appendChild(day);
       d.periods.forEach((p, j) => {
         const cell = el("div", "tt-period" + (j === 0 ? " day-start" : ""), "<b>" + (p.index + 1) + "</b>" + esc(p.start || ""));
+        cell.title = d.days[i] + ", " + (p.index + 1) + ". saat" + (p.start ? " · " + p.start : "");
         cell.style.gridColumn = String(2 + i * P + j);
         cell.style.gridRow = "2";
         hr.appendChild(cell);
@@ -175,12 +176,23 @@
     });
     board.appendChild(frag);
     applyFilter();
+    fitDensity();
     renderTray();
     renderStats();
     renderViolations();
     renderHistory();
     renderCompare();
   }
+
+  // "Haftayı sığdır" görünümünde sütun daraldıkça kart yazıları küçülür.
+  function fitDensity() {
+    const fit = state.zoom === "fit";
+    const cell = fit && board.querySelector(".tt-row .tt-cell");
+    const width = cell ? cell.getBoundingClientRect().width : 99;
+    board.classList.toggle("tight", fit && width < 46);
+    board.classList.toggle("tiny", fit && width < 30);
+  }
+  window.addEventListener("resize", () => { if (state.data) fitDensity(); });
 
   function renderHistory() {
     const h = state.data.history || {};
@@ -510,7 +522,25 @@
     store("tt-zoom", state.zoom);
     setActive(zoomSwitch, "zoom", state.zoom);
     board.className = "tt-board " + state.zoom;
+    fitDensity();
   });
+
+  // Tam ekran
+  const focusBtn = $("#btn-focus");
+  const setFocus = (on) => {
+    document.documentElement.classList.toggle("focus-mode", on);
+    focusBtn.textContent = on ? "✕ Tam ekrandan çık" : "⛶ Tam ekran";
+    fitDensity();
+  };
+  focusBtn.addEventListener("click", () => {
+    const on = !document.documentElement.classList.contains("focus-mode");
+    setFocus(on);
+    try {
+      if (on && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {});
+      if (!on && document.fullscreenElement) document.exitFullscreen();
+    } catch (e) { /* tarayıcı tam ekranı desteklemiyorsa yalnızca menüler gizlenir */ }
+  });
+  document.addEventListener("fullscreenchange", () => { if (!document.fullscreenElement) setFocus(false); });
   $("#row-filter").addEventListener("input", applyFilter);
 
   const repairBtn = $("#btn-repair");

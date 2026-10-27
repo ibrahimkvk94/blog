@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Ders Programı{% endblock %} · Ders Programı</title>
   <link href="{% static 'timetable/app.css' %}" rel="stylesheet">
+  <script>try { if (localStorage.getItem("nav-collapsed") === "1") document.documentElement.classList.add("nav-collapsed"); } catch (e) {}</script>
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -49,7 +50,10 @@
   </aside>
   <div class="main">
     <header class="topbar">
-      <div>
+      <button type="button" class="nav-toggle" id="nav-toggle" title="Sol menüyü gizle / göster" aria-label="Sol menüyü gizle / göster">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <div class="topbar-title">
         <div class="crumbs">{% block crumbs %}{% endblock %}</div>
         <div class="title-row">{% block heading %}{% endblock %}</div>
       </div>
@@ -64,6 +68,13 @@
   </div>
 </div>
 <div class="toast-wrap" id="toasts"></div>
+<script>
+  document.getElementById("nav-toggle").addEventListener("click", function () {
+    var on = document.documentElement.classList.toggle("nav-collapsed");
+    try { localStorage.setItem("nav-collapsed", on ? "1" : "0"); } catch (e) {}
+    window.dispatchEvent(new Event("resize"));
+  });
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

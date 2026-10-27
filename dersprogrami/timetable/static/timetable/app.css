@@ -54,7 +54,13 @@ code { font-size: 12.5px; background: var(--surface-2); padding: 1px 5px; border
 .side-nav a.active { background: rgba(99,102,241,.22); color: #fff; }
 .sidebar-foot { margin-top: auto; font-size: 12px; color: #6b7590; padding: 0 8px; }
 .main { min-width: 0; display: flex; flex-direction: column; }
-.topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 28px 14px; flex-wrap: wrap; }
+.topbar { display: flex; align-items: center; gap: 16px; padding: 18px 28px 14px; flex-wrap: wrap; }
+.topbar-title { flex: 1; min-width: 0; }
+.nav-toggle { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-2); cursor: pointer; }
+.nav-toggle:hover { color: var(--text); border-color: var(--border-strong); }
+.nav-toggle svg { width: 18px; height: 18px; }
+html.nav-collapsed .shell { grid-template-columns: minmax(0, 1fr); }
+html.nav-collapsed .sidebar { display: none; }
 .topbar .crumbs { font-size: 12.5px; color: var(--text-3); margin-bottom: 3px; }
 .topbar .crumbs a { color: var(--text-2); }
 .title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -385,3 +391,29 @@ input[type=color].input { padding: 3px; width: 80px; }
 .dialog h3 { margin: 0 0 14px; font-size: 16px; }
 .dialog-row { display: flex; gap: 10px; align-items: center; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+/* Haftayı sığdır: tüm gün × saat sütunları ekran genişliğine sığar (aSc ana görünümü gibi). */
+.tt-board.fit { --label: 72px; --lane: 30px; width: 100%; }
+.tt-board.fit .tt-row, .tt-board.fit .tt-head-row { grid-template-columns: var(--label) repeat(var(--cols), minmax(0, 1fr)); }
+.tt-board.fit .tt-label { padding: 2px 6px; }
+.tt-board.fit .tt-label .n { font-size: 12px; }
+.tt-board.fit .tt-label .s { display: none; }
+.tt-board.fit .tt-corner { padding: 0 6px 5px; font-size: 10px; }
+.tt-board.fit .tt-day { font-size: 11.5px; padding: 4px 0 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tt-board.fit .tt-period { font-size: 0; padding: 0 0 3px; }
+.tt-board.fit .tt-period b { font-size: 10.5px; }
+.tt-board.fit .tt-card { margin: 1px; padding: 1px 3px; border-radius: 3px; border-left-width: 2px; }
+.tt-board.fit .tt-card .t { font-size: 10.5px; }
+.tt-board.fit .tt-card .t svg { width: 9px; height: 9px; }
+.tt-board.fit .tt-card .d { font-size: 9.5px; }
+.tt-board.fit.tight .tt-card .d { display: none; }
+.tt-board.fit.tiny .tt-card { padding: 0 1px; }
+.tt-board.fit.tiny .tt-card .t { font-size: 9px; letter-spacing: -.02em; }
+.tt-board.fit.tiny .tt-day { font-size: 10px; }
+
+/* Tam ekran: menüler gizlenir, program tüm yüksekliği kullanır. */
+html.focus-mode .sidebar, html.focus-mode .topbar { display: none; }
+html.focus-mode .shell { grid-template-columns: minmax(0, 1fr); }
+html.focus-mode .content { padding: 10px 12px 12px; }
+html.focus-mode .tt-toolbar { margin-bottom: 8px; }
+html.focus-mode .tt-scroll { max-height: calc(100vh - 110px); }
