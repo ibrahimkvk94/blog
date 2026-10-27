@@ -9,13 +9,13 @@ from dataclasses import dataclass, field
 from django.contrib import messages
 from django.db import transaction
 from django.db.models import Count, Q
-from django.http import Http404
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.html import format_html
 from django.views.decorators.http import require_POST
 
-from . import forms
+from . import forms, importer
 from .models import (
     Availability,
     Building,
@@ -173,10 +173,10 @@ def entity_list(request, pk, slug):
     )
 
 
-def _availability_grid(school, entity, obj):
+def _availability_grid(school, field, obj):
     states = {}
-    if obj is not None and entity.availability:
-        for a in Availability.objects.filter(**{entity.availability: obj}):
+    if obj is not None:
+        for a in Availability.objects.filter(**{field: obj}):
             states[f"{a.day}-{a.period}"] = a.state
     return {
         "days": school.day_names,
@@ -279,7 +279,7 @@ def entity_edit(request, pk, slug, obj_id=None):
             obj=obj,
             form=form,
             impact=impact,
-            availability=_availability_grid(school, entity, obj) if entity.availability else None,
+            availability=_availability_grid(school, entity.availability, obj) if entity.availability else None,
             divisions=_division_rows(obj) if entity.model is SchoolClass else None,
         ),
     )
@@ -433,7 +433,9 @@ def lesson_edit(request, pk, lesson_id=None):
         initial["classes"] = [request.GET["sinif"]]
     form = forms.LessonForm(request.POST or None, instance=lesson, school=school, initial=initial)
     if request.method == "POST" and form.is_valid():
-        lesson = form.save()
+        with transaction.atomic():
+            lesson = form.save()
+            _save_availability(school, "lesson", lesson, request.POST.get("availability"))
         messages.success(request, f"Ders kaydedildi: {lesson}")
         if request.POST.get("next") == "new":
             return redirect(reverse("timetable:lesson_new", args=[school.pk]) + "?" + "&".join(f"sinif={c.pk}" for c in lesson.classes.all()[:1]))
@@ -444,7 +446,16 @@ def lesson_edit(request, pk, lesson_id=None):
     return render(
         request,
         "timetable/data/lesson_form.html",
-        _nav(school, "data", data_nav="dersler", form=form, lesson=lesson, back=request.GET.get("back", "")),
+        _nav(
+            school,
+            "data",
+            data_nav="dersler",
+            form=form,
+            lesson=lesson,
+            back=request.GET.get("back", ""),
+            availability=_availability_grid(school, "lesson", lesson),
+            availability_help="Bu ders yalnızca bu dersin kartları için geçerlidir; öğretmen ve sınıf müsaitliğiyle birlikte uygulanır.",
+        ),
     )
 
 
@@ -555,3 +566,42 @@ def class_lessons(request, pk, class_id):
             copy_source={str(k): v for k, v in copy_source.items() if k != cls.pk},
         ),
     )
+
+
+# --- Excel aktarımı ----------------------------------------------------------------------------
+
+
+def excel_import(request, pk):
+    school = _school(pk)
+    result = errors = None
+    if request.method == "POST":
+        upload = request.FILES.get("file")
+        if not upload:
+            errors = ["Dosya seçilmedi."]
+        elif upload.size > 10 * 1024 * 1024:
+            errors = ["Dosya çok büyük (en fazla 10 MB)."]
+        else:
+            try:
+                result = importer.import_workbook(school, upload.read(), delete_missing_lessons=request.POST.get("delete_missing") == "on")
+            except importer.ImportFailed as exc:
+                errors = exc.errors
+        if result is not None:
+            summary = ", ".join(
+                f"{title}: " + ", ".join(f"{n} {label}" for label, n in counts.items() if n) for title, counts in result.items()
+            )
+            messages.success(request, "Excel aktarıldı. " + (summary or "Değişiklik yok."))
+            return redirect("timetable:excel_import", pk=school.pk)
+    return render(
+        request,
+        "timetable/data/excel.html",
+        _nav(school, "data", data_nav="excel", errors=errors, sheets=importer.SHEETS, notes=importer.NOTES),
+    )
+
+
+def excel_export(request, pk):
+    school = _school(pk)
+    response = HttpResponse(
+        importer.export_workbook(school), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = f'attachment; filename="okul-verisi-{school.pk}.xlsx"'
+    return response

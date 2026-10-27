@@ -3,6 +3,7 @@
 import json
 
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.urls import reverse
 
@@ -174,3 +175,83 @@ class DataEntryTests(TestCase):
         self.assertRedirects(response, self.url("data_list", "siniflar"))
         self.assertFalse(SchoolClass.objects.filter(pk=cls.pk).exists())
         self.assertTrue(Lesson.objects.filter(pk=joint.pk).exists())  # 9-B ile ortak ders kalır
+
+
+class ExcelAndLessonAvailabilityTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = create_demo_school()
+        cls.user = User.objects.create_user("excel", password="parola-123456")
+
+    def setUp(self):
+        self.client.force_login(self.user)
+
+    def test_lesson_availability_is_saved(self):
+        lesson = self.school.lessons.first()
+        data = {
+            "subject": lesson.subject_id, "classes": [c.pk for c in lesson.classes.all()],
+            "teachers": [t.pk for t in lesson.teachers.all()], "periods_per_week": lesson.periods_per_week,
+            "card_length": lesson.card_length, "availability": json.dumps({"4-6": "no", "4-7": "no"}),
+        }
+        response = self.client.post(reverse("timetable:lesson_edit", args=[self.school.pk, lesson.pk]), data)
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(sorted(Availability.objects.filter(lesson=lesson).values_list("period", flat=True)), [6, 7])
+        page = self.client.get(reverse("timetable:lesson_edit", args=[self.school.pk, lesson.pk]))
+        self.assertContains(page, "availability-data")
+
+    def test_round_trip_into_empty_school(self):
+        from timetable import importer
+        from timetable.services import check_school
+
+        data = importer.export_workbook(self.school)
+        target = School.objects.create(name="Boş okul")
+        from timetable.data_views import default_periods
+
+        default_periods(target)
+        result = importer.import_workbook(target, data)
+        self.assertEqual(result["Dersler"]["eklenen"], self.school.lessons.count())
+        self.assertEqual(target.teachers.count(), self.school.teachers.count())
+        self.assertEqual(target.classrooms.count(), self.school.classrooms.count())
+        self.assertEqual(Group.objects.filter(division__school_class__school=target).count(), 8)
+        joint = Lesson.objects.filter(school=target, groups__isnull=False).distinct()
+        self.assertEqual(joint.count(), 4)
+        self.assertTrue(all(l.classes.count() == 2 and l.groups.count() == 2 for l in joint))
+        self.assertFalse([i for i in check_school(target) if i.level == "error"])
+
+        # Aynı dosyayı tekrar yüklemek kayıt çoğaltmaz, yalnızca günceller.
+        again = importer.import_workbook(target, data)
+        self.assertEqual(again["Dersler"].get("eklenen", 0), 0)
+        self.assertEqual(target.lessons.count(), self.school.lessons.count())
+
+    def test_errors_roll_back_everything(self):
+        from io import BytesIO
+
+        from openpyxl import Workbook
+
+        from timetable import importer
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Öğretmenler"
+        ws.append(importer.SHEETS["Öğretmenler"])
+        ws.append(["Yeni", "Öğretmen", "YNO", 6, None, None])
+        lessons = wb.create_sheet("Dersler")
+        lessons.append(importer.SHEETS["Dersler"])
+        lessons.append(["Olmayan Ders", "9-A", "", "YNO", "", 2, 1, None])
+        buffer = BytesIO()
+        wb.save(buffer)
+        response = self.client.post(
+            reverse("timetable:excel_import", args=[self.school.pk]),
+            {"file": SimpleUploadedFile("veri.xlsx", buffer.getvalue())},
+        )
+        self.assertContains(response, "Dersler, satır 2")
+        self.assertContains(response, "“Olmayan Ders” ders adı bulunamadı")
+        self.assertFalse(Teacher.objects.filter(short="YNO").exists())  # öğretmen satırı da geri alındı
+
+    def test_excel_pages(self):
+        self.assertContains(self.client.get(reverse("timetable:excel_import", args=[self.school.pk])), "Excel dosyasını indir")
+        response = self.client.get(reverse("timetable:excel_export", args=[self.school.pk]))
+        self.assertIn("spreadsheetml", response["Content-Type"])
+        upload = SimpleUploadedFile("veri.xlsx", response.content)
+        response = self.client.post(reverse("timetable:excel_import", args=[self.school.pk]), {"file": upload})
+        self.assertRedirects(response, reverse("timetable:excel_import", args=[self.school.pk]))

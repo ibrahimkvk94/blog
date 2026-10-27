@@ -5,6 +5,11 @@ Tasarımın gerekçeleri için: [`../docs/asc-timetables-analizi.md`](../docs/as
 
 ## Kurulum
 
+> Kendi bilgisayarına adım adım kurulum için: **[KURULUM.md](KURULUM.md)** (Windows'ta `kurulum.bat`
+> ve `calistir.bat`, macOS/Linux'ta `kurulum.sh` ve `calistir.sh`).
+
+Geliştirici kurulumu:
+
 ```bash
 cd dersprogrami
 python3 -m venv .venv && source .venv/bin/activate
@@ -50,6 +55,7 @@ Testler: `python manage.py test timetable`
 |---|---|
 | **Veri girişi** | Okul ve ders saatleri (satır ekle/sil), ders adları, sınıflar (bölünme ve grup düzenleyici), öğretmenler (sınırlar), derslikler, binalar, kart ilişkileri. Öğretmen, sınıf, derslik ve ders adı formlarında tıklanarak düzenlenen müsaitlik ızgarası (uygun / yasak / koşullu) |
 | **Dersler** | Sınıf ve öğretmene göre süzülen ders listesi, sınıf yükleri, ayrıntılı ders formu (birleşik sınıflar, gruplar, birden çok öğretmen/derslik, blok kartlar) |
+| **Excel aktarımı** | Okul verisini beş sayfalı Excel olarak indirme (şablon olarak da kullanılır) ve geri yükleme; adlara göre ekleme/güncelleme, hatada hiçbir değişiklik kaydedilmez |
 | **Sınıf ders tablosu** | Bir sınıfın tek öğretmenli derslerini tek tabloda saat, blok, öğretmen ve derslik seçerek girme; başka sınıftan saatleri kopyalama; toplam saat / kapasite göstergesi |
 | **Genel bakış** | Okul özeti, veri denetimi, program sürümleri, yeni üretim (katı/gevşek mod, süre, başlangıç sürümü) |
 | **Ana görünüm** | Satırlarda sınıflar / öğretmenler / derslikler, sütunlarda gün × saat. Başlık ve satır adları sabit, tüm ızgara yatay ve dikey kaydırılır. Satır arama, üç yakınlaştırma düzeyi |
@@ -142,7 +148,9 @@ Yumuşak kısıtlar (ceza puanı):
 - [x] Vekâlet modülü
 - [x] Veri giriş ekranları (okul ve saatler, ders adları, sınıflar ve bölünmeler, öğretmenler, derslikler, dersler, sınıf ders tablosu, kart ilişkileri, müsaitlik ızgarası)
 - [x] Docker ile yayına alma
-- [ ] Ders bazında müsaitlik ızgarası ve toplu içe aktarma (Excel'den öğretmen/ders listesi)
+- [x] Ders bazında müsaitlik ızgarası
+- [x] Excel ile toplu aktarım (ders adları, derslikler, sınıflar ve bölünmeler, öğretmenler, dersler)
+- [x] Tek tıkla yerel kurulum ve çalıştırma betikleri
 - [ ] Seminer (öğrenci seçimli) dersler ve öğrenci bazlı program
 - [ ] Çözülemezlik çekirdeği açıklaması (hangi kural kümesi birlikte imkânsız)
 - [ ] Çok süreçli dağıtım için Celery/RQ ile iş kuyruğu
