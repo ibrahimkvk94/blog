@@ -51,6 +51,7 @@ INSTITUTION_ROUTES = {
     "institution_detail": (M.VIEW, M.PROGRAMS),
     "institution_users": (M.USERS, M.USERS),
     "program_new": (M.PROGRAMS, M.PROGRAMS),
+    "program_copy": (M.PROGRAMS, M.PROGRAMS),
     "program_import": (M.PROGRAMS, M.PROGRAMS),
 }
 TIMETABLE_ROUTES = {

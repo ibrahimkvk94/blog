@@ -198,3 +198,44 @@ class InstitutionProgramTests(TestCase):
         response = self.client.post(url, {"confirm": "Silinecek"})
         self.assertRedirects(response, reverse("timetable:institution_detail", args=[self.institution.pk]))
         self.assertFalse(School.objects.filter(pk=other.pk).exists())
+
+
+class ProgramCopyTests(TestCase):
+    def test_copy_program_with_all_parts(self):
+        from timetable import copying, refs
+        from timetable.demo import create_demo_school
+        from timetable.models import Availability, LessonRef
+
+        source = create_demo_school()
+        timetable = generate_timetable(source, "ilk", time_limit=20)
+        School.objects.filter(pk=source.pk).update(active_timetable=timetable)
+        source.refresh_from_db()
+        refs.auto_number(source, timetable, "1001")
+        manager = User.objects.create_user("kopya", password="parola-123456")
+        M.objects.create(user=manager, institution=source.institution, permissions=M.ALL)
+        self.client.force_login(manager)
+        response = self.client.post(reverse("timetable:program_copy", args=[source.institution_id]), {
+            "source": source.pk, "name": "2.YY", "parts": list(copying.PARTS),
+        })
+        copy = School.objects.get(name="2.YY")
+        self.assertRedirects(response, reverse("timetable:school_detail", args=[copy.pk]))
+        self.assertEqual(copy.institution, source.institution)
+        for rel in ("periods", "subjects", "teachers", "classes", "classrooms", "lessons", "relationships", "duty_places"):
+            self.assertEqual(getattr(copy, rel).count(), getattr(source, rel).count(), rel)
+        self.assertEqual(Availability.objects.filter(school=copy).count(), Availability.objects.filter(school=source).count())
+        self.assertEqual(LessonRef.objects.filter(lesson__school=copy).count(), LessonRef.objects.filter(lesson__school=source).count())
+        # Kopya kaynakla kayıt paylaşmaz
+        self.assertFalse(copy.lessons.filter(teachers__school=source).exists())
+        self.assertFalse(copy.lessons.filter(classes__school=source).exists())
+        self.assertEqual(sum(g.count() for g in [copy.classes.first().divisions.all()]), source.classes.first().divisions.count())
+        placed = copy.timetables.get()
+        self.assertEqual(placed.cards.filter(day__isnull=False).count(), timetable.cards.filter(day__isnull=False).count())
+        from timetable.services import verify_timetable
+
+        violations, _ = verify_timetable(placed)
+        self.assertFalse([v for v in violations if v.level == "hard"])
+
+    def test_dependencies_are_added(self):
+        from timetable import copying
+
+        self.assertEqual(copying.resolve({"refler"}), {"refler", "dersler", "ogretmenler", "derslikler", "siniflar"})

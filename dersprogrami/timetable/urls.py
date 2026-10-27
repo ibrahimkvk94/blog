@@ -16,6 +16,7 @@ urlpatterns = [
     path("kurum/<int:pk>/", institutions.institution_detail, name="institution_detail"),
     path("kurum/<int:pk>/kullanicilar/", accounts.institution_users, name="institution_users"),
     path("kurum/<int:pk>/program-ekle/", institutions.program_new, name="program_new"),
+    path("kurum/<int:pk>/program-kopyala/", institutions.program_copy, name="program_copy"),
     path("kurum/<int:pk>/ice-aktar/", institutions.program_import, name="program_import"),
     path("okul/<int:pk>/sil/", institutions.program_delete, name="program_delete"),
     path("ornek-okul/", views.create_demo, name="create_demo"),

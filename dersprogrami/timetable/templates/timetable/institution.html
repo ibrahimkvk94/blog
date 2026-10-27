@@ -45,6 +45,25 @@
         <button class="btn btn-primary" style="margin-top:12px">{% include "timetable/icon.html" with name="upload" %} İçe aktar</button>
       </form>
     </div>
+    {% if programs %}
+    <div class="panel">
+      <div class="panel-head"><h2>Programı kopyala</h2></div>
+      <form class="panel-body" method="post" action="{% url 'timetable:program_copy' institution.pk %}">
+        {% csrf_token %}
+        <p class="muted small" style="margin-top:0">Ör. 1.YY'den 2.YY: seçilen veriler yeni programa kopyalanır, sonra 2.YY'de dersleri güncellersiniz. Kopya kaynaktan bağımsızdır.</p>
+        <label class="label" for="cp-source">Kaynak program</label>
+        <select class="select" id="cp-source" name="source">{% for p in programs %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</select>
+        <label class="label" for="cp-name">Yeni program adı</label>
+        <input class="input" id="cp-name" name="name" required placeholder="ör. 2026/2027 MYO 2.YY">
+        <label class="label">Kopyalanacaklar</label>
+        <div class="user-perms column">
+          {% for key, label in copy_parts.items %}<label><input type="checkbox" name="parts" value="{{ key }}"{% if key != "yerlesim" and key != "refler" %} checked{% endif %}> {{ label }}</label>{% endfor %}
+        </div>
+        <p class="subtle small">Ders saatleri ve ders adları her zaman kopyalanır. Dersler seçilirse sınıf, öğretmen ve derslikler de kopyalanır.</p>
+        <button class="btn btn-primary" style="margin-top:8px">Kopyala</button>
+      </form>
+    </div>
+    {% endif %}
     <div class="panel">
       <div class="panel-head"><h2>Boş program ekle</h2></div>
       <form class="panel-body" method="post" action="{% url 'timetable:program_new' institution.pk %}">

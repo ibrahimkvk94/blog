@@ -25,8 +25,10 @@ def institution_detail(request, pk):
     institution = get_object_or_404(Institution, pk=pk)
     perms = access.institution_permissions(request.user, institution)
     programs = list(_programs(request, institution))
+    from .copying import PARTS
+
     return render(request, "timetable/institution.html", {
-        "institution": institution, "programs": programs, "nav": "institution",
+        "institution": institution, "programs": programs, "nav": "institution", "copy_parts": PARTS,
         "can_programs": "programlar" in perms, "can_users": "kullanici" in perms,
     })
 
@@ -118,3 +120,22 @@ def program_delete(request, pk):
     school.delete()
     messages.success(request, f"“{name}” programı silindi.")
     return redirect("timetable:institution_detail", pk=institution.pk)
+
+
+@require_POST
+def program_copy(request, pk):
+    """Programı kopyala: kaynak programın seçilen verisiyle aynı kurumda yeni program."""
+    from . import copying
+
+    institution = get_object_or_404(Institution, pk=pk)
+    source = get_object_or_404(School, pk=request.POST.get("source"), institution=institution)
+    if not access.school_permissions(request.user, source):
+        messages.error(request, "Kaynak programa erişim yetkiniz yok.")
+        return redirect("timetable:institution_detail", pk=institution.pk)
+    name = (request.POST.get("name") or "").strip() or f"{source.name} (kopya)"
+    asked = set(request.POST.getlist("parts"))
+    school, parts = copying.copy_program(source, name, asked)
+    added = parts - asked
+    note = f" Bağımlı olduğu için şunlar da kopyalandı: {', '.join(copying.PARTS[p] for p in sorted(added))}." if added else ""
+    messages.success(request, f"“{school}” oluşturuldu ({len(parts)} bölüm kopyalandı).{note}")
+    return redirect("timetable:school_detail", pk=school.pk)
