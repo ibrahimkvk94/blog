@@ -18,22 +18,30 @@ Ders Programı'nı kendi bilgisayarında çalıştırmak için aşağıdaki adı
    ```
    macOS'ta: `python3 --version`. Ekranda `Python 3.13.x` görmelisin.
 
-## 2. Proje dosyalarını indir
+## 2. Proje dosyalarını indir (git ile — otomatik güncelleme için)
 
-**Kolay yol (ZIP):**
-1. Tarayıcıda GitHub hesabına giriş yap ve şu adresi aç:
-   https://github.com/ibrahimkvk94/blog/tree/claude/elegant-fermi-mtxjbt
-2. Yeşil **Code** düğmesi → **Download ZIP**.
-3. ZIP'i örneğin **Belgeler** klasörüne çıkar. İçinde `blog-...` adlı bir klasör oluşur.
+`calistir.bat` her açılışta GitHub'daki son sürümü kendiliğinden çeker. Bunun için proje **git ile** indirilmelidir.
 
-**Git kullanıyorsan:**
-```
-git clone -b claude/elegant-fermi-mtxjbt https://github.com/ibrahimkvk94/blog.git
-```
+1. **Git'i kur (bir kez):** https://git-scm.com/download/win adresinden indir ve kurulumu varsayılan ayarlarla tamamla.
+   macOS'ta Terminal'e `git --version` yazman yeterli; yoksa kurulumu kendisi önerir.
+2. **Terminal aç:** Windows'ta Başlat menüsüne `cmd` yaz ve Enter'a bas.
+3. Şunları sırayla yaz:
+   ```
+   cd %USERPROFILE%\Documents
+   git clone -b claude/elegant-fermi-mtxjbt https://github.com/ibrahimkvk94/blog.git
+   ```
+   macOS'ta ilk satır yerine `cd ~/Documents` yaz.
+4. Depo gizliyse GitHub giriş penceresi açılır; bir kez giriş yap. Git bu girişi hatırlar ve sonraki güncellemelerde tekrar sormaz.
+
+Proje **Belgeler\blog** klasörüne iner.
+
+> **ZIP ile indirdiysen:** program çalışır ama kendini güncelleyemez; açılışta “Otomatik güncelleme kapalı” yazar.
+> Güncellemeleri otomatik almak için yukarıdaki adımlarla bir kez git ile indir ve eski klasördeki
+> `dersprogrami\db.sqlite3` dosyasını (verilerin) yeni klasördeki `dersprogrami` içine kopyala.
 
 ## 3. Proje klasörünü aç
 
-Çıkardığın klasörün içindeki **`dersprogrami`** klasörüne gir. Kurulum dosyaları burada:
+**Belgeler\blog** klasörünün içindeki **`dersprogrami`** klasörüne gir. Kurulum dosyaları burada:
 `kurulum.bat`, `calistir.bat`, `kurulum.sh`, `calistir.sh`.
 
 ## 4. Kurulumu çalıştır (bir kez)
@@ -55,6 +63,9 @@ git clone -b claude/elegant-fermi-mtxjbt https://github.com/ibrahimkvk94/blog.gi
 3. Sorulara Windows'taki 3. ve 4. maddedeki gibi cevap ver.
 
 ## 5. Programı aç (her seferinde)
+
+Açılışta sırayla şunlar olur: güncellemeler çekilir, yeni paketler ve veritabanı değişiklikleri uygulanır, program başlar.
+İnternet yoksa güncelleme atlanır ve mevcut sürümle devam edilir.
 
 **Windows:** `dersprogrami` klasöründe **`calistir.bat`** dosyasına çift tıkla.
 **macOS / Linux:** Terminal'de `dersprogrami` klasöründeyken şunu yaz:
@@ -88,6 +99,7 @@ Tarayıcı birkaç saniye içinde kendiliğinden **http://127.0.0.1:8000/** adre
 |---|---|
 | “Python bulunamadı” | Python'u yeniden kur ve **“Add python.exe to PATH”** kutusunu işaretle. Sonra bilgisayarı yeniden başlat. |
 | Paket yüklemesi hata veriyor | İnternet bağlantını kontrol et ve `kurulum.bat`'ı yeniden çalıştır. Python 3.12 ya da 3.13 kullandığından emin ol. |
+| “Güncelleme alınamadı” | İnternet bağlantısını kontrol et. Proje dosyalarında elle değişiklik yaptıysan git güncellemeyi durdurur; değişikliği geri alıp yeniden aç. Verilerin (`db.sqlite3`) bundan etkilenmez. |
 | “Port 8000 kullanımda” | Program başka bir pencerede zaten açık; o pencereyi kapatıp yeniden dene. |
 | Parolamı unuttum | `dersprogrami` klasöründe terminal aç ve şunları yaz:<br>Windows: `.venv\Scripts\activate` ardından `python manage.py changepassword KULLANICI_ADI`<br>macOS/Linux: `. .venv/bin/activate` ardından `python manage.py changepassword KULLANICI_ADI` |
 | Yeni bir yönetici ekleme | Yukarıdaki gibi sanal ortamı etkinleştir ve `python manage.py createsuperuser` yaz. |
