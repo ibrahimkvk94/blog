@@ -53,6 +53,9 @@ class Period(models.Model):
     name = models.CharField("ad", max_length=50)
     start_time = models.TimeField("başlangıç", null=True, blank=True)
     end_time = models.TimeField("bitiş", null=True, blank=True)
+    long_break_after = models.BooleanField(
+        "ardından uzun teneffüs", default=False, help_text="Blok (çift) dersler bu aranın üzerinden geçemez."
+    )
 
     class Meta:
         ordering = ["school", "index"]
@@ -118,6 +121,12 @@ class Teacher(models.Model):
     max_days_per_week = models.PositiveSmallIntegerField(
         "haftada en fazla gün", null=True, blank=True, help_text="Ör. 4 = haftada bir boş gün"
     )
+    max_consecutive = models.PositiveSmallIntegerField(
+        "art arda en fazla ders", null=True, blank=True, help_text="Ör. 4 = en fazla 4 saat üst üste"
+    )
+    min_periods_per_day = models.PositiveSmallIntegerField(
+        "geldiği günlerde en az ders", null=True, blank=True, help_text="Ör. 2 = tek saat için okula gelmesin"
+    )
 
     class Meta:
         ordering = ["last_name", "first_name"]
@@ -139,6 +148,11 @@ class SchoolClass(models.Model):
     home_classroom = models.ForeignKey(
         Classroom, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="sınıf dersliği"
     )
+    student_count = models.PositiveIntegerField(
+        "öğrenci sayısı", null=True, blank=True, help_text="Derslik kapasitesi kontrolü için"
+    )
+    min_periods_per_day = models.PositiveSmallIntegerField("günde en az ders", null=True, blank=True)
+    max_periods_per_day = models.PositiveSmallIntegerField("günde en fazla ders", null=True, blank=True)
 
     class Meta:
         ordering = ["grade", "name"]
@@ -342,46 +356,122 @@ class Card(models.Model):
 class CardRelationship(models.Model):
     """Seçilen kartlara toplu uygulanan kural (aSc'deki "kart ilişkileri").
 
-    Kart kümesi: seçilen dersler ve/veya ders adları; sınıf ve öğretmen seçimi kümeyi daraltır.
-    "Uygula" alanı kümeyi parçalara böler: ör. "her sınıf için ayrı" seçilirse kural her sınıfın
-    kartlarına ayrı ayrı uygulanır.
+    Kart kümesi: seçilen dersler ve/veya ders adları; sınıf ve öğretmen seçimi kümeyi daraltır,
+    kart uzunluğu filtresi yalnızca tekil ya da blok kartları bırakır. "Uygula" alanı kümeyi
+    parçalara böler: ör. "her sınıf için ayrı" seçilirse kural her sınıfın kartlarına ayrı ayrı
+    uygulanır. Zaman haritası (gün × saat hücreleri) seçilirse harita kullanan koşullar yalnızca
+    işaretli hücrelerdeki dersleri sayar. İki taraflı koşullarda B tarafı ayrıca seçilir.
     """
 
     MAX_PER_DAY = "max_per_day"
     DIFFERENT_DAYS = "different_days"
-    MAX_CONSECUTIVE = "max_consecutive"
-    SAME_TIME = "same_time"
-    SAME_DAY = "same_day"
-    CONSECUTIVE = "consecutive"
-    NOT_SIMULTANEOUS = "not_simultaneous"
     MIN_GAP_DAYS = "min_gap_days"
     MAX_DAYS = "max_days"
     MIN_DAYS = "min_days"
     RANGE_MAX_PER_DAY = "range_max_per_day"
     RANGE_MAX_DAYS = "range_max_days"
+    MAP_MAX_WEEK = "map_max_week"
+    MAP_MIN_WEEK = "map_min_week"
+    MAP_MIN_IF_ANY = "map_min_if_any"
+    MAX_CONSECUTIVE = "max_consecutive"
+    MAX_GAPS_PER_DAY = "max_gaps_per_day"
+    MAX_GAP_LENGTH = "max_gap_length"
+    MAX_DISTINCT_PERIODS = "max_distinct_periods"
+    MAX_SAME_PERIOD_DAYS = "max_same_period_days"
+    NOT_SIMULTANEOUS = "not_simultaneous"
+    MAX_PER_POSITION = "max_per_position"
+    MIN_PER_POSITION = "min_per_position"
+    SAME_TIME = "same_time"
+    SAME_DAY = "same_day"
+    CONSECUTIVE = "consecutive"
+    CONSECUTIVE_ORDERED = "consecutive_ordered"
+    AB_NOT_SAME_DAY = "ab_not_same_day"
+    AB_NOT_CONSECUTIVE = "ab_not_consecutive"
+    AB_NOT_DAY_AFTER = "ab_not_day_after"
+    ROOM_MAX_WEEK = "room_max_week"
+    ROOM_MIN_WEEK = "room_min_week"
+    MAX_ROOMS_WEEK = "max_rooms_week"
+    MAX_BUILDINGS_DAY = "max_buildings_day"
     CONDITION_CHOICES = [
-        (MAX_PER_DAY, "Günde en fazla N kart"),
-        (DIFFERENT_DAYS, "Farklı günlerde"),
-        (MAX_CONSECUTIVE, "Art arda en fazla N saat"),
-        (NOT_SIMULTANEOUS, "Aynı anda olmasın"),
-        (MIN_GAP_DAYS, "Kartlar arasında en az N boş gün"),
-        (MAX_DAYS, "Haftada en fazla N güne yayılsın"),
-        (MIN_DAYS, "Haftada en az N güne yayılsın"),
-        (RANGE_MAX_PER_DAY, "Belirli saatler arasında günde en fazla N saat ders"),
-        (RANGE_MAX_DAYS, "Belirli saatlerde ders olan en fazla N gün"),
-        (SAME_TIME, "Aynı anda (seçilen dersler eşleşir)"),
-        (SAME_DAY, "Aynı gün (seçilen dersler eşleşir)"),
-        (CONSECUTIVE, "Art arda, bitişik (seçilen dersler eşleşir)"),
+        ("Haftalık dağılım", [
+            (MAX_PER_DAY, "Günde en fazla N kart"),
+            (DIFFERENT_DAYS, "Farklı günlerde"),
+            (MIN_GAP_DAYS, "Kartlar arasında en az N boş gün"),
+            (MAX_DAYS, "Haftada en fazla N güne yayılsın"),
+            (MIN_DAYS, "Haftada en az N güne yayılsın"),
+        ]),
+        ("İşaretli saatler (zaman haritası)", [
+            (RANGE_MAX_PER_DAY, "İşaretli saatlerde günde en fazla N saat"),
+            (RANGE_MAX_DAYS, "İşaretli saatlerde ders olan en fazla N gün"),
+            (MAP_MAX_WEEK, "İşaretli saatlerde haftada en fazla N saat"),
+            (MAP_MIN_WEEK, "İşaretli saatlerde haftada en az N saat"),
+            (MAP_MIN_IF_ANY, "İşaretli saatlerde ders varsa en az N saat (boş gün olabilir)"),
+        ]),
+        ("Art arda ve boşluklar", [
+            (MAX_CONSECUTIVE, "Art arda en fazla N saat"),
+            (MAX_GAPS_PER_DAY, "Günde en fazla N boş saat"),
+            (MAX_GAP_LENGTH, "En fazla N saatlik boşluk"),
+        ]),
+        ("Saatlere yayılım", [
+            (MAX_DISTINCT_PERIODS, "Hafta boyunca en fazla N farklı saatte (N=1: her gün aynı saat)"),
+            (MAX_SAME_PERIOD_DAYS, "Aynı saate en fazla N gün"),
+        ]),
+        ("Eşzamanlılık", [
+            (NOT_SIMULTANEOUS, "Aynı anda olmasın"),
+            (MAX_PER_POSITION, "Her saatte en fazla N kart"),
+            (MIN_PER_POSITION, "İşaretli her saatte en az N kart"),
+        ]),
+        ("Seçilen derslerin eşleşen kartları", [
+            (SAME_TIME, "Aynı anda"),
+            (SAME_DAY, "Aynı gün"),
+            (CONSECUTIVE, "Art arda, bitişik (sıra serbest)"),
+            (CONSECUTIVE_ORDERED, "Art arda, sıralı (önce ilk seçilen ders)"),
+        ]),
+        ("İki taraflı (A ↔ B)", [
+            (AB_NOT_SAME_DAY, "A ile B aynı gün olmasın"),
+            (AB_NOT_CONSECUTIVE, "A ile B art arda olmasın"),
+            (AB_NOT_DAY_AFTER, "B, A'dan sonraki gün olmasın"),
+        ]),
+        ("Derslik ve bina", [
+            (ROOM_MAX_WEEK, "Seçili dersliklerde haftada en fazla N saat"),
+            (ROOM_MIN_WEEK, "Seçili dersliklerde haftada en az N saat"),
+            (MAX_ROOMS_WEEK, "Haftada en fazla N farklı derslik"),
+            (MAX_BUILDINGS_DAY, "Günde en fazla N farklı bina"),
+        ]),
     ]
     # Seçilen derslerin i. kartlarını eşleştiren koşullar (her ders bir küme).
-    PAIRED = {SAME_TIME, SAME_DAY, CONSECUTIVE}
-    USES_N = {MAX_PER_DAY, MAX_CONSECUTIVE, MIN_GAP_DAYS, MAX_DAYS, MIN_DAYS, RANGE_MAX_PER_DAY, RANGE_MAX_DAYS}
-    USES_RANGE = {RANGE_MAX_PER_DAY, RANGE_MAX_DAYS}
+    PAIRED = {SAME_TIME, SAME_DAY, CONSECUTIVE, CONSECUTIVE_ORDERED}
+    TWO_SIDED = {AB_NOT_SAME_DAY, AB_NOT_CONSECUTIVE, AB_NOT_DAY_AFTER}
+    ROOMS = {ROOM_MAX_WEEK, ROOM_MIN_WEEK}
+    USES_N = {
+        MAX_PER_DAY, MIN_GAP_DAYS, MAX_DAYS, MIN_DAYS, RANGE_MAX_PER_DAY, RANGE_MAX_DAYS, MAP_MAX_WEEK,
+        MAP_MIN_WEEK, MAP_MIN_IF_ANY, MAX_CONSECUTIVE, MAX_GAPS_PER_DAY, MAX_GAP_LENGTH, MAX_DISTINCT_PERIODS,
+        MAX_SAME_PERIOD_DAYS, MAX_PER_POSITION, MIN_PER_POSITION, ROOM_MAX_WEEK, ROOM_MIN_WEEK, MAX_ROOMS_WEEK,
+        MAX_BUILDINGS_DAY,
+    }
+    # Zaman haritasını kullanan koşullar (harita boşsa tüm hücreler sayılır).
+    USES_MAP = {
+        MAX_DAYS, RANGE_MAX_PER_DAY, RANGE_MAX_DAYS, MAP_MAX_WEEK, MAP_MIN_WEEK, MAP_MIN_IF_ANY, MAX_PER_POSITION,
+        MIN_PER_POSITION, AB_NOT_SAME_DAY, AB_NOT_DAY_AFTER, ROOM_MAX_WEEK, ROOM_MIN_WEEK,
+    }
+    NEEDS_MAP = {RANGE_MAX_PER_DAY, RANGE_MAX_DAYS, MAP_MAX_WEEK, MAP_MIN_WEEK, MAP_MIN_IF_ANY, MIN_PER_POSITION}
 
     ALL = "all"
     EACH_CLASS = "each_class"
     EACH_TEACHER = "each_teacher"
-    APPLY_CHOICES = [(ALL, "Tüm seçime birlikte"), (EACH_CLASS, "Her sınıf için ayrı"), (EACH_TEACHER, "Her öğretmen için ayrı")]
+    EACH_SUBJECT_CLASS = "each_subject_class"
+    EACH_TEACHER_CLASS = "each_teacher_class"
+    EACH_GROUP = "each_group"
+    EACH_GRADE = "each_grade"
+    APPLY_CHOICES = [
+        (ALL, "Tüm seçime birlikte"),
+        (EACH_CLASS, "Her sınıf için ayrı"),
+        (EACH_TEACHER, "Her öğretmen için ayrı"),
+        (EACH_SUBJECT_CLASS, "Her sınıfta her ders adı için ayrı"),
+        (EACH_TEACHER_CLASS, "Her öğretmenin her sınıfı için ayrı"),
+        (EACH_GROUP, "Her öğrenci grubu için ayrı"),
+        (EACH_GRADE, "Her sınıf seviyesi için ayrı"),
+    ]
 
     STRICT = "strict"
     HIGH = "high"
@@ -393,16 +483,22 @@ class CardRelationship(models.Model):
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="relationships")
     name = models.CharField("ad", max_length=200)
     active = models.BooleanField("etkin", default=True)
-    condition = models.CharField("koşul", max_length=20, choices=CONDITION_CHOICES, default=MAX_PER_DAY)
+    condition = models.CharField("koşul", max_length=24, choices=CONDITION_CHOICES, default=MAX_PER_DAY)
     param = models.PositiveSmallIntegerField("N", default=1)
-    period_from = models.PositiveSmallIntegerField("başlangıç saati", null=True, blank=True, help_text="Ör. 3 = 3. saat")
-    period_to = models.PositiveSmallIntegerField("bitiş saati", null=True, blank=True, help_text="Bu saat de dahil")
-    apply_to =models.CharField("uygula", max_length=20, choices=APPLY_CHOICES, default=EACH_CLASS)
+    time_map = models.JSONField("zaman haritası", default=list, blank=True, help_text='"gün-saat" listesi (0\'dan başlar)')
+    time_map_b = models.JSONField("B tarafı zaman haritası", default=list, blank=True)
+    card_length = models.PositiveSmallIntegerField(
+        "kart uzunluğu", null=True, blank=True, choices=[(1, "Yalnızca tekil kartlar"), (2, "Yalnızca 2 saatlik bloklar"), (3, "Yalnızca 3 saatlik bloklar")]
+    )
+    apply_to = models.CharField("uygula", max_length=20, choices=APPLY_CHOICES, default=EACH_CLASS)
     importance = models.CharField("önem", max_length=10, choices=IMPORTANCE_CHOICES, default=STRICT)
     lessons = models.ManyToManyField(Lesson, blank=True, related_name="relationships", verbose_name="dersler")
     subjects = models.ManyToManyField(Subject, blank=True, related_name="relationships", verbose_name="ders adları")
+    lessons_b = models.ManyToManyField(Lesson, blank=True, related_name="relationships_b", verbose_name="B tarafı: dersler")
+    subjects_b = models.ManyToManyField(Subject, blank=True, related_name="relationships_b", verbose_name="B tarafı: ders adları")
     classes = models.ManyToManyField(SchoolClass, blank=True, related_name="relationships", verbose_name="yalnızca bu sınıflar")
     teachers = models.ManyToManyField(Teacher, blank=True, related_name="relationships", verbose_name="yalnızca bu öğretmenler")
+    classrooms = models.ManyToManyField(Classroom, blank=True, related_name="relationships", verbose_name="derslikler")
 
     class Meta:
         verbose_name = "kart ilişkisi"

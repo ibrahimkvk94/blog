@@ -31,7 +31,7 @@ def _load_per_universe(problem, card_keys):
 
 
 def check(problem):
-    issues = []
+    issues = [Issue(level, code, message) for level, code, message in problem.notes]
     total_cells = problem.days * problem.periods
 
     if problem.periods == 0:

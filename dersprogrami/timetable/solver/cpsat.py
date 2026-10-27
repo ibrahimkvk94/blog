@@ -85,6 +85,7 @@ class _Builder:
         self.occ = {}  # key -> {(d, s): [var, ...]}
         self.y = {}  # key -> {room: var | 1}
         self.penalties = []  # (kategori, ağırlık, ifade)
+        self.room_usage = {}  # derslik -> {(kart, hücre): 0/1 ifadesi}
         self._busy_cache = {}
 
     # --- yardımcılar -------------------------------------------------------------------------
@@ -119,6 +120,38 @@ class _Builder:
             self._penalize("relaxed", W_RELAXED, slack)
         else:
             self._penalize(category, weight, slack)
+
+    def _at_least(self, terms, n, hard, weight, name, category, rule=None, label="", condition=1):
+        """sum(terms) >= n * condition (condition: 1 ya da bool). Yumuşak/gevşekte eksik cezalandırılır."""
+        variables = [t for t in terms if not isinstance(t, int)]
+        constant = sum(t for t in terms if isinstance(t, int))
+        if n <= 0:
+            return
+        expr = sum(variables) + constant if variables else constant
+        if self.explain:
+            if hard and self._enforced(rule, label):
+                self.m.Add(expr >= n * condition)
+            return
+        if hard and not self.relaxed:
+            self.m.Add(expr >= n * condition)
+            return
+        slack = self.m.NewIntVar(0, n, f"short_{name}")
+        self.m.Add(expr + slack >= n * condition)
+        if hard:
+            self._penalize("relaxed", W_RELAXED, slack)
+        else:
+            self._penalize(category, weight, slack)
+
+    def _any(self, terms, name):
+        """Terimlerden biri 1 ise 1 olan bool (iki yönden bağlı); terim yoksa 0."""
+        variables = [t for t in terms if not isinstance(t, int)]
+        if not variables:
+            return int(any(terms))
+        flag = self.m.NewBoolVar(name)
+        for t in variables:
+            self.m.Add(flag >= t)
+        self.m.Add(flag <= sum(variables))
+        return flag
 
     def _violation(self, v, hard, weight, rule=None, label=""):
         """v: kural ihlal edilince 1 olmak zorunda olan bool. Mod ve öneme göre yasaklar ya da cezalandırır."""
@@ -275,7 +308,10 @@ class _Builder:
                         continue
                     w = self.m.NewBoolVar(f"w{key}_{room}_{cell[0]}_{cell[1]}")
                     self.m.Add(w >= occupied + y - 1)
+                    self.m.Add(w <= occupied)
+                    self.m.Add(w <= y)
                     usage[(key, cell)] = w
+            self.room_usage[room] = usage
             for subset in self._universe_subsets(keys):
                 cells = {cell for (k, cell) in usage if k in subset}
                 for cell in cells:
@@ -336,6 +372,20 @@ class _Builder:
                         for b in variables:
                             self.m.Add(used >= b)
                         days_used.append(used)
+                if limits and limits.max_consecutive is not None:
+                    n = limits.max_consecutive
+                    for s in range(self.problem.periods - n):
+                        self._limit(
+                            busy[s : s + n + 1], n, True, None, f"tcons{teacher_id}_{d}_{s}", "relaxed",
+                            rule=("teacher_consecutive", teacher_id), label=f"{who}: art arda en fazla {n} ders",
+                        )
+                if limits and limits.min_periods_per_day:
+                    n = limits.min_periods_per_day
+                    self._at_least(
+                        busy, n, True, None, f"tmin{teacher_id}_{d}", "relaxed",
+                        rule=("teacher_min", teacher_id), label=f"{who}: geldiği günlerde en az {n} ders",
+                        condition=self._any(busy, f"tday_any{teacher_id}_{d}"),
+                    )
             if limits and limits.max_gaps_per_week is not None:
                 self._limit(
                     week_gaps, limits.max_gaps_per_week, True, None, f"tgw{teacher_id}", "relaxed",
@@ -348,6 +398,29 @@ class _Builder:
                 )
             if week_gaps:
                 self._penalize("teacher_gap", W_TEACHER_GAP, sum(week_gaps))
+
+    def class_limits(self):
+        """Sınıfların günlük en az / en fazla ders sınırı (her öğrenci atomu için)."""
+        if not self.problem.class_limits:
+            return
+        for atom_id, keys in self.problem.cards_by("atoms").items():
+            class_id = self.problem.atom_class(atom_id)
+            low, high = self.problem.class_limits.get(class_id, (None, None))
+            if low is None and high is None:
+                continue
+            name = self.problem.label("class", class_id)
+            for d in range(self.problem.days):
+                busy = [self._busy(keys, d, s, f"ab{atom_id}_{d}_{s}") for s in range(self.problem.periods)]
+                if high is not None:
+                    self._limit(
+                        busy, high, True, None, f"cmax{atom_id}_{d}", "relaxed",
+                        rule=("class_max", class_id), label=f"{name}: günde en fazla {high} ders",
+                    )
+                if low:
+                    self._at_least(
+                        busy, low, True, None, f"cmin{atom_id}_{d}", "relaxed",
+                        rule=("class_min", class_id), label=f"{name}: günde en az {low} ders",
+                    )
 
     def class_rules(self):
         for atom_id, keys in self.problem.cards_by("atoms").items():
@@ -365,40 +438,39 @@ class _Builder:
             hard = rel.weight is None
             name = f"rel{index}"
             opts = {"rule": ("rel", index), "label": f"Kart ilişkisi: {rel.name}"}
+            cells_a = rel.cells
 
             def limit(terms, n, tag):
                 self._limit(terms, n, hard, rel.weight, f"{name}_{tag}", "relationship", **opts)
+
+            def at_least(terms, n, tag, condition=1):
+                self._at_least(terms, n, hard, rel.weight, f"{name}_{tag}", "relationship", condition=condition, **opts)
 
             def violation(tag):
                 v = self.m.NewBoolVar(f"v_{name}_{tag}")
                 self._violation(v, hard, rel.weight, **opts)
                 return v
 
+            def in_map(cell, cells="A"):
+                cells = cells_a if cells == "A" else cells
+                return cells is None or cell in cells
+
+            def busy(keys, d, s, tag):
+                return self._busy(keys, d, s, f"{name}_{tag}_{d}_{s}")
+
+            def map_busy(keys, d, tag, cells="A"):
+                return [busy(keys, d, s, tag) for s in range(P) if in_map((d, s), cells)]
+
             cond = rel.condition
-            if cond in ("max_per_day", "different_days"):
-                n = 1 if cond == "different_days" else rel.param
-                for g, keys in enumerate(rel.groups):
+            for g, keys in enumerate(rel.groups):
+                if cond in ("max_per_day", "different_days"):
+                    n = 1 if cond == "different_days" else rel.param
                     for d in range(D):
                         terms = self._day_terms(keys, d)
                         if len(terms) > n:
                             limit(terms, n, f"{g}_{d}")
-            elif cond == "max_consecutive":
-                n = max(1, rel.param)
-                for g, keys in enumerate(rel.groups):
-                    for d in range(D):
-                        busy = [self._busy(keys, d, s, f"{name}_b{g}_{d}_{s}") for s in range(P)]
-                        for s in range(P - n):
-                            limit(busy[s : s + n + 1], n, f"{g}_{d}_{s}")
-            elif cond == "not_simultaneous":
-                for g, keys in enumerate(rel.groups):
-                    cells = {cell for k in keys for cell in self.occ[k]}
-                    for d, p in cells:
-                        terms = [v for k in keys for v in self.occ[k].get((d, p), ())]
-                        if len(terms) > 1:
-                            limit(terms, 1, f"{g}_{d}_{p}")
-            elif cond == "min_gap_days":
-                # Aynı kümedeki iki kart arasında en az N boş gün: gün farkı N'den büyük olmalı.
-                for g, keys in enumerate(rel.groups):
+                elif cond == "min_gap_days":
+                    # Aynı kümedeki iki kart arasında en az N boş gün: gün farkı N'den büyük olmalı.
                     for i, a in enumerate(keys):
                         for b in keys[i + 1 :]:
                             v = violation(f"{g}_{a}_{b}")
@@ -406,50 +478,142 @@ class _Builder:
                                 for db in range(D):
                                     if abs(da - db) <= rel.param:
                                         self.m.Add(self._day_expr(a, da) + self._day_expr(b, db) <= 1 + v)
-            elif cond in ("max_days", "min_days"):
-                for g, keys in enumerate(rel.groups):
+                elif cond in ("max_days", "range_max_days"):
                     flags = []
                     for d in range(D):
-                        terms = self._day_terms(keys, d)
-                        if not terms:
-                            continue
-                        if cond == "max_days":
+                        terms = map_busy(keys, d, f"m{g}")
+                        if any(not isinstance(t, int) for t in terms):
                             used = self.m.NewBoolVar(f"{name}_u{g}_{d}")
                             for t in terms:
                                 self.m.Add(used >= t)
                             flags.append(used)
-                        else:
+                    limit(flags, rel.param, f"{g}")
+                elif cond == "min_days":
+                    flags = []
+                    for d in range(D):
+                        terms = self._day_terms(keys, d)
+                        if terms:
                             unused = self.m.NewBoolVar(f"{name}_n{g}_{d}")
                             self.m.Add(unused >= 1 - sum(terms))
                             flags.append(unused)
-                    if cond == "max_days":
-                        limit(flags, rel.param, f"{g}")
-                    else:
-                        # Hiç kart konamayacak günler zaten "kullanılmamış" sayılır.
-                        limit(flags, D - rel.param - (D - len(flags)), f"{g}")
-            elif cond in ("range_max_per_day", "range_max_days"):
-                lo, hi = rel.periods or (0, P - 1)
-                hi = min(hi, P - 1)
-                for g, keys in enumerate(rel.groups):
-                    day_flags = []
+                    # Hiç kart konamayacak günler zaten "kullanılmamış" sayılır.
+                    limit(flags, len(flags) - rel.param, f"{g}")
+                elif cond == "range_max_per_day":
                     for d in range(D):
-                        busy = [self._busy(keys, d, s, f"{name}_r{g}_{d}_{s}") for s in range(lo, hi + 1)]
-                        if cond == "range_max_per_day":
-                            limit(busy, rel.param, f"{g}_{d}")
-                            continue
-                        variables = [b for b in busy if not isinstance(b, int)]
-                        if variables:
-                            has = self.m.NewBoolVar(f"{name}_h{g}_{d}")
-                            for b in variables:
-                                self.m.Add(has >= b)
-                            day_flags.append(has)
-                    if cond == "range_max_days":
-                        limit(day_flags, rel.param, f"{g}")
-            elif cond in ("same_time", "same_day", "consecutive") and len(rel.groups) > 1:
+                        limit(map_busy(keys, d, f"r{g}"), rel.param, f"{g}_{d}")
+                elif cond == "map_max_week":
+                    limit([b for d in range(D) for b in map_busy(keys, d, f"w{g}")], rel.param, f"{g}")
+                elif cond == "map_min_week":
+                    at_least([b for d in range(D) for b in map_busy(keys, d, f"w{g}")], rel.param, f"{g}")
+                elif cond == "map_min_if_any":
+                    for d in range(D):
+                        terms = map_busy(keys, d, f"i{g}")
+                        if terms:
+                            at_least(terms, rel.param, f"{g}_{d}", condition=self._any(terms, f"{name}_any{g}_{d}"))
+                elif cond == "max_consecutive":
+                    n = max(1, rel.param)
+                    for d in range(D):
+                        row = [busy(keys, d, s, f"b{g}") for s in range(P)]
+                        for s in range(P - n):
+                            limit(row[s : s + n + 1], n, f"{g}_{d}_{s}")
+                elif cond in ("max_gaps_per_day", "max_gap_length"):
+                    for d in range(D):
+                        row = [busy(keys, d, s, f"b{g}") for s in range(P)]
+                        gaps, _ = self._gaps(row, f"{name}_gap{g}_{d}")
+                        if cond == "max_gaps_per_day":
+                            limit(gaps, rel.param, f"{g}_{d}")
+                        else:
+                            n = rel.param
+                            for s in range(len(gaps) - n):
+                                limit(gaps[s : s + n + 1], n, f"{g}_{d}_{s}")
+                elif cond == "max_distinct_periods":
+                    used = []
+                    for p in range(P):
+                        starts = [v for k in keys for (d, q), v in self.x[k].items() if q == p]
+                        if starts:
+                            flag = self.m.NewBoolVar(f"{name}_p{g}_{p}")
+                            for v in starts:
+                                self.m.Add(flag >= v)
+                            used.append(flag)
+                    limit(used, rel.param, f"{g}")
+                elif cond == "max_same_period_days":
+                    for p in range(P):
+                        limit([busy(keys, d, p, f"b{g}") for d in range(D)], rel.param, f"{g}_{p}")
+                elif cond in ("not_simultaneous", "max_per_position", "min_per_position"):
+                    n = 1 if cond == "not_simultaneous" else rel.param
+                    for d in range(D):
+                        for p in range(P):
+                            if cond != "not_simultaneous" and not in_map((d, p)):
+                                continue
+                            terms = [v for k in keys for v in self.occ[k].get((d, p), ())]
+                            if cond == "min_per_position":
+                                at_least(terms, n, f"{g}_{d}_{p}")
+                            elif len(terms) > n:
+                                limit(terms, n, f"{g}_{d}_{p}")
+                elif cond in ("room_max_week", "room_min_week"):
+                    group = set(keys)
+                    terms = [
+                        u
+                        for room in rel.rooms
+                        for (k, cell), u in self.room_usage.get(room, {}).items()
+                        if k in group and in_map(cell)
+                    ]
+                    if cond == "room_max_week":
+                        limit(terms, rel.param, f"{g}")
+                    else:
+                        at_least(terms, rel.param, f"{g}")
+                elif cond == "max_rooms_week":
+                    group = set(keys)
+                    used = []
+                    for room, usage in self.room_usage.items():
+                        terms = [u for (k, _), u in usage.items() if k in group]
+                        if any(not isinstance(t, int) for t in terms):
+                            flag = self.m.NewBoolVar(f"{name}_room{g}_{room}")
+                            for t in terms:
+                                if not isinstance(t, int):
+                                    self.m.Add(flag >= t)
+                            used.append(flag)
+                    limit(used, rel.param, f"{g}")
+                elif cond == "max_buildings_day":
+                    group = set(keys)
+                    for d in range(D):
+                        by_building = {}
+                        for room, usage in self.room_usage.items():
+                            building = self.problem.room_building.get(room)
+                            if building is None:
+                                continue
+                            by_building.setdefault(building, []).extend(
+                                u for (k, cell), u in usage.items() if k in group and cell[0] == d and not isinstance(u, int)
+                            )
+                        flags = []
+                        for building, terms in by_building.items():
+                            if terms:
+                                flag = self.m.NewBoolVar(f"{name}_bld{g}_{d}_{building}")
+                                for t in terms:
+                                    self.m.Add(flag >= t)
+                                flags.append(flag)
+                        limit(flags, rel.param, f"{g}_{d}")
+                elif cond in ("ab_not_same_day", "ab_not_day_after", "ab_not_consecutive"):
+                    keys_b = rel.groups_b[g]
+                    if cond == "ab_not_consecutive":
+                        for d in range(D):
+                            for s in range(P - 1):
+                                limit([busy(keys, d, s, f"a{g}"), busy(keys_b, d, s + 1, f"b{g}")], 1, f"{g}_{d}_{s}_ab")
+                                limit([busy(keys_b, d, s, f"b{g}"), busy(keys, d, s + 1, f"a{g}")], 1, f"{g}_{d}_{s}_ba")
+                        continue
+                    has_a = [self._any(map_busy(keys, d, f"a{g}"), f"{name}_ha{g}_{d}") for d in range(D)]
+                    has_b = [self._any(map_busy(keys_b, d, f"b{g}", rel.cells_b), f"{name}_hb{g}_{d}") for d in range(D)]
+                    for d in range(D):
+                        if cond == "ab_not_same_day":
+                            limit([has_a[d], has_b[d]], 1, f"{g}_{d}")
+                        elif d + 1 < D:
+                            limit([has_a[d], has_b[d + 1]], 1, f"{g}_{d}")
+
+            if cond in ("same_time", "same_day", "consecutive", "consecutive_ordered") and len(rel.groups) > 1:
                 first, *others = rel.groups
                 for g, other in enumerate(others):
                     for a, b in zip(first, other):
-                        v = violation(f"{g}_{a}_{b}")
+                        v = violation(f"pair{g}_{a}_{b}")
                         if cond == "same_time":
                             for slot in set(self.x[a]) | set(self.x[b]):
                                 xa, xb = self.x[a].get(slot, 0), self.x[b].get(slot, 0)
@@ -460,16 +624,17 @@ class _Builder:
                                 self.m.Add(self._day_expr(a, d) - self._day_expr(b, d) <= v)
                                 self.m.Add(self._day_expr(b, d) - self._day_expr(a, d) <= v)
                         else:
-                            # a'nın hemen ardından b başlar ya da b'nin hemen ardından a başlar (aynı gün).
+                            # a'nın hemen ardından b başlar; sırası serbestse b'nin ardından a da olur.
                             len_a, len_b = self.problem.cards[a].length, self.problem.cards[b].length
+                            ordered = cond == "consecutive_ordered"
                             for (d, p), xa in self.x[a].items():
                                 after = self.x[b].get((d, p + len_a), 0)
-                                before = self.x[b].get((d, p - len_b), 0) if p - len_b >= 0 else 0
+                                before = 0 if ordered or p - len_b < 0 else self.x[b].get((d, p - len_b), 0)
                                 self.m.Add(xa <= after + before + v)
                             for (d, p), xb in self.x[b].items():
-                                after = self.x[a].get((d, p + len_b), 0)
-                                before = self.x[a].get((d, p - len_a), 0) if p - len_a >= 0 else 0
-                                self.m.Add(xb <= after + before + v)
+                                before_a = self.x[a].get((d, p - len_a), 0) if p - len_a >= 0 else 0
+                                after_a = 0 if ordered else self.x[a].get((d, p + len_b), 0)
+                                self.m.Add(xb <= before_a + after_a + v)
 
     def maybe_cells(self):
         for card in self.problem.cards:
@@ -483,6 +648,7 @@ class _Builder:
         self.rooms()
         self.lesson_spread()
         self.teacher_rules()
+        self.class_limits()
         self.relationships()
         if self.explain:
             return self.m

@@ -204,8 +204,10 @@ ENTITY_PAGES = {"teacher": "ogretmenler", "school_class": "siniflar", "subject":
 def _rule_url(school, problem, key):
     """Açıklamadaki bir kuralın düzeltilebileceği ekranın adresi."""
     kind, target = key
-    if kind in ("teacher_max", "teacher_gaps_day", "teacher_gaps_week", "teacher_days"):
+    if kind in ("teacher_max", "teacher_gaps_day", "teacher_gaps_week", "teacher_days", "teacher_consecutive", "teacher_min"):
         return reverse("timetable:data_edit", args=[school.pk, "ogretmenler", target])
+    if kind in ("class_max", "class_min"):
+        return reverse("timetable:data_edit", args=[school.pk, "siniflar", target])
     if kind == "spread":
         return reverse("timetable:lesson_edit", args=[school.pk, target])
     if kind == "rel":

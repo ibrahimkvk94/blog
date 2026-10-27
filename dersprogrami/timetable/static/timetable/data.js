@@ -196,27 +196,79 @@
   }
 })();
 
-/* Kart ilişkisi formu: koşula göre ilgili alanları göster, koşulun açıklamasını yaz. */
+/* Kart ilişkisi formu: koşula göre ilgili alanları göster, koşulun açıklamasını yaz,
+   zaman haritalarını (işaretli gün×saat hücreleri) düzenle. */
 (function () {
   "use strict";
   const select = document.querySelector("select[name=condition][data-help]");
   if (!select) return;
   const row = (name) => document.querySelector("[name=" + name + "]")?.closest(".form-row");
+  const list = (key) => (select.dataset[key] || "").split(" ");
   const help = JSON.parse(select.dataset.help);
-  const usesN = select.dataset.usesN.split(" ");
-  const usesRange = select.dataset.usesRange.split(" ");
-  const paired = select.dataset.paired.split(" ");
+  const usesN = list("usesN"), usesMap = list("usesMap"), needsMap = list("needsMap");
+  const paired = list("paired"), twoSided = list("twoSided"), rooms = list("rooms");
   const note = document.createElement("div");
   note.className = "condition-help";
   select.closest(".form-row").appendChild(note);
+
+  // ---- zaman haritası ızgaraları
+  const metaNode = document.getElementById("time-map-meta");
+  const meta = metaNode ? JSON.parse(metaNode.textContent) : { days: [], periods: [] };
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  document.querySelectorAll("[data-time-map]").forEach((box) => {
+    const input = box.querySelector("input[type=hidden]");
+    const grid = box.querySelector(".avail-grid");
+    let cells;
+    try { cells = new Set(JSON.parse(input.value || "[]")); } catch (e) { cells = new Set(); }
+    const save = () => { input.value = JSON.stringify([...cells]); };
+    const paint = () => {
+      grid.querySelectorAll(".av-cell").forEach((c) => {
+        const on = cells.has(c.dataset.key);
+        c.className = "av-cell map-cell" + (on ? " map-on" : "");
+        c.textContent = on ? "✓" : "";
+        c.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+      save();
+    };
+    const toggleMany = (keys) => {
+      const all = keys.every((k) => cells.has(k));
+      keys.forEach((k) => (all ? cells.delete(k) : cells.add(k)));
+      paint();
+    };
+    let html = '<table class="avail-table"><thead><tr><th></th>';
+    meta.periods.forEach((p, j) => { html += '<th><button type="button" class="av-head" data-period="' + j + '">' + (j + 1) + "<small>" + esc(p.start) + "</small></button></th>"; });
+    html += "</tr></thead><tbody>";
+    meta.days.forEach((day, d) => {
+      html += '<tr><th><button type="button" class="av-head av-day" data-day="' + d + '">' + esc(day) + "</button></th>";
+      meta.periods.forEach((p, j) => { html += '<td><button type="button" class="av-cell" data-key="' + d + "-" + j + '" aria-label="' + esc(day) + " " + (j + 1) + '. saat"></button></td>'; });
+      html += "</tr>";
+    });
+    grid.innerHTML = html + "</tbody></table>";
+    grid.addEventListener("click", (e) => {
+      const cell = e.target.closest(".av-cell");
+      if (cell) { const k = cell.dataset.key; cells.has(k) ? cells.delete(k) : cells.add(k); paint(); return; }
+      const head = e.target.closest(".av-head");
+      if (!head) return;
+      if (head.dataset.day != null) toggleMany(meta.periods.map((_, j) => head.dataset.day + "-" + j));
+      else toggleMany(meta.days.map((_, d) => d + "-" + head.dataset.period));
+    });
+    paint();
+  });
+
   const update = () => {
     const c = select.value;
     note.textContent = help[c] || "";
     const show = (name, on) => { const r = row(name); if (r) r.hidden = !on; };
+    const mapRow = (name, on) => { const r = document.querySelector('[data-map-row="' + name + '"]'); if (r) r.hidden = !on; };
     show("param", usesN.includes(c));
-    show("period_from", usesRange.includes(c));
-    show("period_to", usesRange.includes(c));
     show("apply_to", !paired.includes(c));
+    show("subjects_b", twoSided.includes(c));
+    show("lessons_b", twoSided.includes(c));
+    show("classrooms", rooms.includes(c));
+    mapRow("time_map", usesMap.includes(c));
+    mapRow("time_map_b", twoSided.includes(c) && usesMap.includes(c));
+    const label = document.querySelector('[data-map-row="time_map"] .label');
+    if (label) label.innerHTML = "Zaman haritası" + (needsMap.includes(c) ? ' <span class="req">*</span>' : ' <span class="subtle small">(boş = tüm saatler)</span>');
     const lessons = row("lessons");
     if (lessons) lessons.classList.toggle("emphasis", paired.includes(c));
   };

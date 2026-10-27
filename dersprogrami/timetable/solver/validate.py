@@ -131,9 +131,31 @@ def validate(problem, placements):
                 )
             )
 
+    for (teacher_id, day), periods in teacher_busy.items():
+        limits = problem.teacher_limits.get(teacher_id)
+        if not limits or not periods:
+            continue
+        if limits.max_consecutive is not None and _longest_run(periods) > limits.max_consecutive:
+            violations.append(
+                Violation("teacher_consecutive", f"{problem.label('teacher', teacher_id)}: gün {day + 1} içinde art arda {_longest_run(periods)} ders.")
+            )
+        if limits.min_periods_per_day and len(periods) < limits.min_periods_per_day:
+            violations.append(
+                Violation("teacher_min", f"{problem.label('teacher', teacher_id)}: gün {day + 1} içinde yalnızca {len(periods)} ders.")
+            )
+
     violations += _relationship_violations(problem, placements)
 
     atom_busy = busy_map("atoms")
+    for atom_id in problem.cards_by("atoms"):
+        class_id = problem.atom_class(atom_id)
+        low, high = problem.class_limits.get(class_id, (None, None))
+        for day in range(problem.days):
+            count = len(atom_busy.get((atom_id, day), ()))
+            if high is not None and count > high:
+                violations.append(Violation("class_max", f"{problem.label('class', class_id)}: gün {day + 1} içinde {count} ders (en fazla {high})."))
+            if low and count < low:
+                violations.append(Violation("class_min", f"{problem.label('class', class_id)}: gün {day + 1} içinde {count} ders (en az {low})."))
     class_gaps_total = sum(_day_gaps(periods) for periods in atom_busy.values())
     class_late_starts = sum(1 for periods in atom_busy.values() if min(periods) > 0)
 
@@ -159,89 +181,151 @@ def _longest_run(periods):
 
 def _relationship_violations(problem, placements):
     violations = []
-    D = problem.days
+    D, P = problem.days, problem.periods
 
     def add(rel, level, text):
         violations.append(Violation("relationship", f"{rel.name}: {text}", level))
 
-    def busy_by_day(keys, lo=0, hi=None):
-        busy = defaultdict(set)
+    def cells_of(keys, cells=None, room_filter=None):
+        """Kümenin dolu hücreleri: {(gün, saat): kart sayısı}; harita/derslik süzgeciyle."""
+        seen = defaultdict(int)
         for key in keys:
             place = placements.get(key)
-            if place is None:
+            if place is None or (room_filter is not None and place.room not in room_filter):
                 continue
-            for day, period in problem.cards[key].cells(place.day, place.period):
-                if lo <= period <= (hi if hi is not None else period):
-                    busy[day].add(period)
-        return busy
+            for cell in problem.cards[key].cells(place.day, place.period):
+                if cells is None or cell in cells:
+                    seen[cell] += 1
+        return seen
+
+    def by_day(seen):
+        days = defaultdict(set)
+        for d, p in seen:
+            days[d].add(p)
+        return days
 
     for rel in problem.relationships:
         level = "hard" if rel.weight is None else "soft"
-        cond = rel.condition
-        if cond in ("max_per_day", "different_days"):
-            limit = 1 if cond == "different_days" else rel.param
-            for keys in rel.groups:
+        cond, n = rel.condition, rel.param
+        for g, keys in enumerate(rel.groups):
+            placed = [k for k in keys if k in placements]
+            if cond in ("max_per_day", "different_days"):
+                limit = 1 if cond == "different_days" else n
                 per_day = defaultdict(int)
-                for key in keys:
-                    if key in placements:
-                        per_day[placements[key].day] += 1
+                for key in placed:
+                    per_day[placements[key].day] += 1
                 for day, count in per_day.items():
                     if count > limit:
                         add(rel, level, f"gün {day + 1} içinde {count} kart (en fazla {limit}).")
-        elif cond == "max_consecutive":
-            for keys in rel.groups:
-                for day, periods in busy_by_day(keys).items():
-                    run = _longest_run(periods)
-                    if run > rel.param:
-                        add(rel, level, f"gün {day + 1} içinde art arda {run} saat.")
-        elif cond == "not_simultaneous":
-            for keys in rel.groups:
-                seen = defaultdict(int)
-                for key in keys:
-                    place = placements.get(key)
-                    if place is not None:
-                        for cell in problem.cards[key].cells(place.day, place.period):
-                            seen[cell] += 1
-                for (day, period), count in seen.items():
-                    if count > 1:
-                        add(rel, level, f"gün {day + 1}, saat {period + 1} içinde {count} kart aynı anda.")
-        elif cond == "min_gap_days":
-            for keys in rel.groups:
-                days = sorted(placements[k].day for k in keys if k in placements)
+            elif cond == "min_gap_days":
+                days = sorted(placements[k].day for k in placed)
                 for a, b in zip(days, days[1:]):
-                    if b - a <= rel.param:
-                        add(rel, level, f"gün {a + 1} ile gün {b + 1} arasında {max(0, b - a - 1)} boş gün (en az {rel.param}).")
-        elif cond in ("max_days", "min_days"):
-            for keys in rel.groups:
-                used = len({placements[k].day for k in keys if k in placements})
+                    if b - a <= n:
+                        add(rel, level, f"gün {a + 1} ile gün {b + 1} arasında {max(0, b - a - 1)} boş gün (en az {n}).")
+            elif cond in ("max_days", "range_max_days"):
+                used = len(by_day(cells_of(keys, rel.cells)))
+                if used > n:
+                    add(rel, level, f"{used} güne yayılmış (en fazla {n}).")
+            elif cond == "min_days":
+                used = len({placements[k].day for k in placed})
                 possible = len({d for k in keys for d, _ in problem.cards[k].starts}) or D
-                if cond == "max_days" and used > rel.param:
-                    add(rel, level, f"{used} güne yayılmış (en fazla {rel.param}).")
-                if cond == "min_days" and used < min(rel.param, possible):
-                    add(rel, level, f"yalnızca {used} güne yayılmış (en az {rel.param}).")
-        elif cond in ("range_max_per_day", "range_max_days"):
-            lo, hi = rel.periods or (0, problem.periods - 1)
-            for keys in rel.groups:
-                busy = busy_by_day(keys, lo, hi)
-                if cond == "range_max_per_day":
-                    for day, periods in busy.items():
-                        if len(periods) > rel.param:
-                            add(rel, level, f"gün {day + 1}, {lo + 1}–{hi + 1}. saatlerde {len(periods)} ders (en fazla {rel.param}).")
-                elif len([d for d, p in busy.items() if p]) > rel.param:
-                    add(rel, level, f"{lo + 1}–{hi + 1}. saatlerinde ders olan {len(busy)} gün (en fazla {rel.param}).")
-        elif cond in ("same_time", "same_day", "consecutive") and len(rel.groups) > 1:
+                if used < min(n, possible):
+                    add(rel, level, f"yalnızca {used} güne yayılmış (en az {n}).")
+            elif cond == "range_max_per_day":
+                for day, periods in by_day(cells_of(keys, rel.cells)).items():
+                    if len(periods) > n:
+                        add(rel, level, f"gün {day + 1}, işaretli saatlerde {len(periods)} saat (en fazla {n}).")
+            elif cond in ("map_max_week", "map_min_week"):
+                total = len(cells_of(keys, rel.cells))
+                if cond == "map_max_week" and total > n:
+                    add(rel, level, f"işaretli saatlerde haftada {total} saat (en fazla {n}).")
+                if cond == "map_min_week" and total < n:
+                    add(rel, level, f"işaretli saatlerde haftada {total} saat (en az {n}).")
+            elif cond == "map_min_if_any":
+                for day, periods in by_day(cells_of(keys, rel.cells)).items():
+                    if 0 < len(periods) < n:
+                        add(rel, level, f"gün {day + 1}, işaretli saatlerde yalnızca {len(periods)} saat (en az {n}).")
+            elif cond == "max_consecutive":
+                for day, periods in by_day(cells_of(keys)).items():
+                    run = _longest_run(periods)
+                    if run > n:
+                        add(rel, level, f"gün {day + 1} içinde art arda {run} saat.")
+            elif cond in ("max_gaps_per_day", "max_gap_length"):
+                for day, periods in by_day(cells_of(keys)).items():
+                    ordered = sorted(periods)
+                    holes = [b - a - 1 for a, b in zip(ordered, ordered[1:]) if b - a > 1]
+                    if cond == "max_gaps_per_day" and sum(holes) > n:
+                        add(rel, level, f"gün {day + 1} içinde {sum(holes)} boş saat (en fazla {n}).")
+                    if cond == "max_gap_length" and holes and max(holes) > n:
+                        add(rel, level, f"gün {day + 1} içinde {max(holes)} saatlik boşluk (en fazla {n}).")
+            elif cond == "max_distinct_periods":
+                distinct = len({placements[k].period for k in placed})
+                if distinct > n:
+                    add(rel, level, f"{distinct} farklı saatte başlıyor (en fazla {n}).")
+            elif cond == "max_same_period_days":
+                per_period = defaultdict(set)
+                for d, p in cells_of(keys):
+                    per_period[p].add(d)
+                for p, days in per_period.items():
+                    if len(days) > n:
+                        add(rel, level, f"{p + 1}. saate {len(days)} gün düşüyor (en fazla {n}).")
+            elif cond in ("not_simultaneous", "max_per_position"):
+                limit = 1 if cond == "not_simultaneous" else n
+                for (d, p), count in cells_of(keys, None if cond == "not_simultaneous" else rel.cells).items():
+                    if count > limit:
+                        add(rel, level, f"gün {d + 1}, saat {p + 1} içinde {count} kart aynı anda (en fazla {limit}).")
+            elif cond == "min_per_position":
+                seen = cells_of(keys)
+                for cell in sorted(rel.cells or {(d, p) for d in range(D) for p in range(P)}):
+                    if seen.get(cell, 0) < n:
+                        add(rel, level, f"gün {cell[0] + 1}, saat {cell[1] + 1} içinde {seen.get(cell, 0)} kart (en az {n}).")
+            elif cond in ("room_max_week", "room_min_week"):
+                total = sum(cells_of(keys, rel.cells, set(rel.rooms)).values())
+                if cond == "room_max_week" and total > n:
+                    add(rel, level, f"seçili dersliklerde haftada {total} saat (en fazla {n}).")
+                if cond == "room_min_week" and total < n:
+                    add(rel, level, f"seçili dersliklerde haftada {total} saat (en az {n}).")
+            elif cond == "max_rooms_week":
+                rooms = {placements[k].room for k in placed if placements[k].room is not None}
+                if len(rooms) > n:
+                    add(rel, level, f"{len(rooms)} farklı derslik kullanılıyor (en fazla {n}).")
+            elif cond == "max_buildings_day":
+                per_day = defaultdict(set)
+                for k in placed:
+                    building = problem.room_building.get(placements[k].room)
+                    if building is not None:
+                        per_day[placements[k].day].add(building)
+                for day, buildings in per_day.items():
+                    if len(buildings) > n:
+                        add(rel, level, f"gün {day + 1} içinde {len(buildings)} farklı bina (en fazla {n}).")
+            elif cond in ("ab_not_same_day", "ab_not_day_after", "ab_not_consecutive"):
+                keys_b = rel.groups_b[g]
+                if cond == "ab_not_consecutive":
+                    a_cells, b_cells = cells_of(keys), cells_of(keys_b)
+                    if any((d, p + 1) in b_cells or (d, p - 1) in b_cells for d, p in a_cells):
+                        add(rel, level, "A ve B kartları art arda.")
+                    continue
+                days_a = set(by_day(cells_of(keys, rel.cells)))
+                days_b = set(by_day(cells_of(keys_b, rel.cells_b)))
+                if cond == "ab_not_same_day" and days_a & days_b:
+                    add(rel, level, f"A ve B aynı günde: gün {min(days_a & days_b) + 1}.")
+                if cond == "ab_not_day_after" and any(d + 1 in days_b for d in days_a):
+                    add(rel, level, "B, A'dan sonraki günde.")
+
+        if cond in ("same_time", "same_day", "consecutive", "consecutive_ordered") and len(rel.groups) > 1:
             first, *others = rel.groups
             for other in others:
                 for a, b in zip(first, other):
                     pa, pb = placements.get(a), placements.get(b)
                     if pa is None or pb is None:
                         continue
+                    la, lb = problem.cards[a].length, problem.cards[b].length
                     if cond == "same_time" and (pa.day, pa.period) != (pb.day, pb.period):
                         add(rel, level, "kartlar aynı anda değil.")
                     elif cond == "same_day" and pa.day != pb.day:
                         add(rel, level, "kartlar aynı günde değil.")
-                    elif cond == "consecutive":
-                        la, lb = problem.cards[a].length, problem.cards[b].length
-                        if pa.day != pb.day or (pa.period + la != pb.period and pb.period + lb != pa.period):
-                            add(rel, level, "kartlar art arda değil.")
+                    elif cond == "consecutive" and (pa.day != pb.day or (pa.period + la != pb.period and pb.period + lb != pa.period)):
+                        add(rel, level, "kartlar art arda değil.")
+                    elif cond == "consecutive_ordered" and (pa.day != pb.day or pa.period + la != pb.period):
+                        add(rel, level, "kartlar sıralı art arda değil.")
     return violations

@@ -77,7 +77,7 @@ Testler: `python manage.py test timetable`
 | **Bölünme / Grup** | Sınıfı tamamen kapsayan gruplar (ör. Almanca/Fransızca). Aynı bölünmedeki gruplar aynı anda ders görebilir; farklı bölünmelerdekiler çakışır |
 | **Birleşik ders** | Birden çok sınıfı/grubu olan ders (ör. 9-A ve 9-B'nin Almanca grupları birlikte) |
 | **Müsaitlik** | Öğretmen/sınıf/derslik/ders adı/ders için gün×saat hücresi: yasak ya da koşullu (?) |
-| **Kart ilişkisi** | Seçilen kartlara toplu kural (aSc'deki gibi): günde en fazla N kart; farklı günlerde; art arda en fazla N saat; aynı anda olmasın; kartlar arasında en az N boş gün; en fazla / en az N güne yayılsın; belirli saatler arasında günde en fazla N saat; belirli saatlerde ders olan en fazla N gün; seçilen derslerin kartları aynı anda / aynı gün / art arda (bitişik). "Uygula": tüm seçime / her sınıfa / her öğretmene ayrı. Önem: kesin (sert) ya da yüksek/normal/düşük (ceza) |
+| **Kart ilişkisi** | Seçilen kartlara toplu kural (aSc kılavuzundaki gibi). Kümeler: günde en fazla N, farklı günler, aralarında en az N boş gün, en fazla / en az N güne yayılma. Zaman haritası (işaretli gün × saat hücreleri): günde en fazla N, ders olan en fazla N gün, haftada en fazla / en az N, “varsa en az N”. Günlük yapı: art arda en fazla N, günde en fazla N boşluk, boşluk en fazla N saat, en fazla N farklı başlangıç saati, aynı saate en fazla N gün. Eşzamanlılık: aynı anda olmasın, her saatte en fazla / en az N. Eşleşmeli: aynı anda, aynı gün, art arda (sıralı ya da sırasız). İki taraflı (A↔B): aynı gün olmasın, art arda olmasın, ertesi gün olmasın. Derslik: seçili dersliklerde haftada en fazla / en az N, en fazla N farklı derslik, günde en fazla N bina. Kart uzunluğu filtresi. “Uygula”: tüm seçime, her sınıf, öğretmen, sınıfta ders adı, öğretmenin sınıfı, grup ya da seviye için ayrı. Önem: kesin (sert) ya da yüksek/normal/düşük (ceza) |
 | **Program (Timetable)** | Bir üretimin sonucu (sürüm). Yayınlanan sürüm vekâlet işlemlerinde esas alınır |
 | **Hafta / dönem maskesi** | A/B haftası ya da dönemlik dersler. İki kart yalnızca ortak bir hafta-dönemde çakışabilir |
 
@@ -113,7 +113,11 @@ Katı modda sert kısıtlar:
 - öğretmen, öğrenci atomu ve derslik çakışmaz (ortak hafta-dönem içinde)
 - yasak müsaitlik hücreleri kullanılmaz; derslik birden çok seçenekten birine atanır
 - aynı dersin kartları günde en fazla N (varsayılan: mümkün olduğunca farklı günler)
-- öğretmen: günde en fazla ders, günde/haftada en fazla boşluk, haftada en fazla gün
+- öğretmen: günde en fazla ders, günde/haftada en fazla boşluk, haftada en fazla gün, art arda en
+  fazla ders, geldiği günlerde en az ders
+- sınıf: günde en az / en fazla ders
+- uzun teneffüs (ders saati ayarı) blok dersleri bölmez; derslik kapasitesi sınıf mevcuduna yetmeyen
+  derslikler seçenekten çıkar
 - önemi "kesin" olan kart ilişkileri; kilitli kartlar yerinde kalır
 
 **Gevşek mod:** kaynak çakışmaları ve kilitli kartlar yine serttir; diğer sert kurallar ağır cezalı
@@ -157,4 +161,5 @@ Yumuşak kısıtlar (ceza puanı):
 - [x] Çözülemezlik açıklaması (QuickXplain ile birlikte imkânsız en küçük kural kümesi)
 - [x] Ders dağıtım çizelgesi: öğretmen fırçası, toplu saat, Excel'den yapıştırma
 - [x] aSc'deki kart ilişkisi türlerinin çoğu (aynı gün, art arda, aynı anda olmasın, boş gün, gün sayısı, saat aralığı kuralları)
+- [x] aSc kılavuzundaki eksikler: zaman haritası, iki taraflı ve derslik/bina ilişkileri, kart uzunluğu filtresi, grup/seviye bazlı uygulama, öğretmen art arda/en az ders, sınıf günlük sınırları, uzun teneffüs, derslik kapasitesi
 - [ ] Çok süreçli dağıtım için Celery/RQ ile iş kuyruğu

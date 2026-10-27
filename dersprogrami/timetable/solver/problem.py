@@ -43,13 +43,18 @@ class TeacherLimits:
     max_gaps_per_day: int | None = None
     max_gaps_per_week: int | None = None
     max_days_per_week: int | None = None
+    max_consecutive: int | None = None
+    min_periods_per_day: int | None = None  # yalnızca geldiği günlerde
 
 
 @dataclass
 class RelationshipSpec:
     """Kart ilişkisinin çözücüye hazır hali.
 
-    groups: kuralın ayrı ayrı uygulandığı kart kümeleri (SAME_TIME için her ders bir küme).
+    groups: kuralın ayrı ayrı uygulandığı kart kümeleri (eşleşmeli koşullarda her ders bir küme).
+    groups_b: iki taraflı koşullarda her kümenin B tarafı (groups ile aynı sırada).
+    cells / cells_b: zaman haritası (None = tüm hücreler).
+    rooms: derslik koşullarında seçili derslikler.
     weight: None ise sert kısıt, değilse ihlal başına ceza.
     """
 
@@ -58,8 +63,11 @@ class RelationshipSpec:
     param: int
     groups: list[list[int]]
     weight: int | None = None
-    periods: tuple[int, int] | None = None  # saat aralığı koşulları için (0'dan başlar, iki uç dahil)
+    cells: frozenset | None = None
     id: int | None = None
+    groups_b: list[list[int]] = field(default_factory=list)
+    cells_b: frozenset | None = None
+    rooms: tuple = ()
 
 
 @dataclass
@@ -74,7 +82,17 @@ class Problem:
     teacher_available: dict[int, int] = field(default_factory=dict)
     atom_available: dict[str, int] = field(default_factory=dict)
     relationships: list[RelationshipSpec] = field(default_factory=list)
+    class_limits: dict[int, tuple] = field(default_factory=dict)  # sınıf → (günde en az, günde en fazla)
+    room_building: dict[int, int] = field(default_factory=dict)
+    # Kurulum sırasında saptanan sorunlar: (düzey, kod, mesaj) — veri denetimi raporlar.
+    notes: list = field(default_factory=list)
     labels: dict[str, dict] = field(default_factory=dict)
+
+    @staticmethod
+    def atom_class(atom_id):
+        """Atom adı "sınıf|gruplar" biçimindedir; sınıf kısmı sayıysa int döner."""
+        head = str(atom_id).split("|")[0]
+        return int(head) if head.isdigit() else head
 
     def label(self, kind, key):
         return self.labels.get(kind, {}).get(key, f"{kind}#{key}")

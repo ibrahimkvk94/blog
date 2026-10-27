@@ -18,6 +18,7 @@
         <div class="panel-body form-grid">
           {% for field in form %}{% include "timetable/data/field.html" %}{% endfor %}
         </div>
+        {% if form.map_meta %}{{ form.map_meta|json_script:"time-map-meta" }}{% endif %}
       </div>
       {% if divisions is not None %}
         <div class="panel">

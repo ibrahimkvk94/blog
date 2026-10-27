@@ -23,7 +23,7 @@
         {{ formset.management_form }}
         {% if formset.non_form_errors %}<div class="alert alert-error" style="margin:12px">{{ formset.non_form_errors|join:" " }}</div>{% endif %}
         <table class="table period-table">
-          <thead><tr><th style="width:44px">#</th><th>Ad</th><th>Başlangıç</th><th>Bitiş</th><th class="num">Sil</th></tr></thead>
+          <thead><tr><th style="width:44px">#</th><th>Ad</th><th>Başlangıç</th><th>Bitiş</th><th title="Ardından uzun teneffüs ya da öğle arası: blok dersler bu aranın üzerinden geçemez">Ardından uzun ara</th><th class="num">Sil</th></tr></thead>
           <tbody data-period-rows>
             {% for f in formset %}
               <tr>
@@ -31,12 +31,13 @@
                 <td>{{ f.id }}{{ f.name }}{% for e in f.errors.values %}<div class="error">{{ e|join:" " }}</div>{% endfor %}{% for e in f.non_field_errors %}<div class="error">{{ e }}</div>{% endfor %}</td>
                 <td>{{ f.start_time }}</td>
                 <td>{{ f.end_time }}</td>
+                <td>{{ f.long_break_after }}</td>
                 <td class="num">{{ f.DELETE }}</td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
-        <template id="period-template"><tr><td class="subtle">+</td><td>{{ formset.empty_form.id }}{{ formset.empty_form.name }}</td><td>{{ formset.empty_form.start_time }}</td><td>{{ formset.empty_form.end_time }}</td><td class="num">{{ formset.empty_form.DELETE }}</td></tr></template>
+        <template id="period-template"><tr><td class="subtle">+</td><td>{{ formset.empty_form.id }}{{ formset.empty_form.name }}</td><td>{{ formset.empty_form.start_time }}</td><td>{{ formset.empty_form.end_time }}</td><td>{{ formset.empty_form.long_break_after }}</td><td class="num">{{ formset.empty_form.DELETE }}</td></tr></template>
         <p class="muted small" style="padding:0 16px">Saatler listedeki sırayla numaralanır. Bir saati silmek, o saate yerleşmiş kartları mevcut programlarda geçersiz kılar; programı yeniden üretin.</p>
       </div>
     </div>

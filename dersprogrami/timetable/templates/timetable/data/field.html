@@ -1,3 +1,16 @@
+{% if field.is_hidden %}
+{% if field.name == "time_map" or field.name == "time_map_b" %}
+<div class="form-row form-row-wide{% if field.errors %} has-error{% endif %}" data-map-row="{{ field.name }}">
+  <label class="label">{% if field.name == "time_map" %}Zaman haritası{% else %}B tarafı zaman haritası{% endif %}</label>
+  <div class="avail" data-time-map>
+    {{ field }}
+    <div class="avail-grid"></div>
+  </div>
+  <div class="help">{% if field.name == "time_map" %}Koşulun geçerli olduğu saatleri işaretleyin. Gün ya da saat başlığı tüm satırı/sütunu değiştirir.{% else %}B tarafı için ayrı saatler; boş bırakılırsa A haritası kullanılır.{% endif %}</div>
+  {% for error in field.errors %}<div class="error">{{ error }}</div>{% endfor %}
+</div>
+{% else %}{{ field }}{% endif %}
+{% else %}
 <div class="form-row{% if field.errors %} has-error{% endif %}{% if field.field.widget.input_type == 'checkbox' and not field.field.widget.allow_multiple_selected %} form-check{% endif %}">
   {% if field.field.widget.input_type == 'checkbox' and not field.field.widget.allow_multiple_selected %}
     <label class="check">{{ field }} <span>{{ field.label }}</span></label>
@@ -8,3 +21,4 @@
   {% if field.help_text %}<div class="help">{{ field.help_text }}</div>{% endif %}
   {% for error in field.errors %}<div class="error">{{ error }}</div>{% endfor %}
 </div>
+{% endif %}

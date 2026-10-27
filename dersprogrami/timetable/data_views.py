@@ -137,7 +137,7 @@ ENTITIES = {
             ("Ad", lambda r, ctx: r.name),
             ("Koşul", lambda r, ctx: r.get_condition_display()
                 + (f" · N={r.param}" if r.condition in r.USES_N else "")
-                + (f" · {r.period_from}–{r.period_to}. saat" if r.condition in r.USES_RANGE else "")),
+                + (f" · {len(r.time_map)} saat işaretli" if r.condition in r.USES_MAP and r.time_map else "")),
             ("Uygula", lambda r, ctx: r.get_apply_to_display()),
             ("Önem", lambda r, ctx: r.get_importance_display()),
             ("Durum", lambda r, ctx: format_html('<span class="pill {}">{}</span>', "ok" if r.active else "", "Etkin" if r.active else "Kapalı")),
