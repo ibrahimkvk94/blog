@@ -95,7 +95,7 @@ class RelationshipFormTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.school = create_demo_school()
-        cls.user = User.objects.create_user("iliski", password="parola-123456")
+        cls.user = User.objects.create_superuser("iliski", password="parola-123456")
 
     def setUp(self):
         self.client.force_login(self.user)

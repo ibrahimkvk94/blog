@@ -150,7 +150,7 @@ class FeatureViewTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.school = create_demo_school()
-        cls.user = User.objects.create_user("ozellik", password="parola-123456")
+        cls.user = User.objects.create_superuser("ozellik", password="parola-123456")
 
     def setUp(self):
         self.client.force_login(self.user)

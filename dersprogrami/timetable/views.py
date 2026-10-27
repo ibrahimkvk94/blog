@@ -12,7 +12,7 @@ from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
-from . import analysis, asc_xml, duty, editing, excel, jobs, reports, substitutes, versions
+from . import access, analysis, asc_xml, duty, editing, excel, jobs, reports, substitutes, versions
 from .demo import create_demo_school
 from .grid import KINDS, card_payload, grid_data, room_names
 from .models import Absence, Card, Duty, DutyPlace, ReportPreset, School, Teacher, Timetable, TimetableVersion
@@ -30,7 +30,7 @@ def _nav(school, nav, **extra):
 
 
 def school_list(request):
-    schools = School.objects.annotate(
+    schools = access.visible_schools(request.user).annotate(
         n_classes=Count("classes", distinct=True),
         n_teachers=Count("teachers", distinct=True),
         n_timetables=Count("timetables", distinct=True),
@@ -119,6 +119,7 @@ def timetable_detail(request, pk):
         versions.autosave(timetable, request.user, note="Açılışta otomatik kayıt", force=True)
     config = {
         "timetable": timetable.pk,
+        "canEdit": "program" in getattr(request, "school_perms", set()),
         "running": timetable.is_running,
         "hasGrid": timetable.has_grid,
         "statusUrl": reverse("timetable:api_status", args=[timetable.pk]),

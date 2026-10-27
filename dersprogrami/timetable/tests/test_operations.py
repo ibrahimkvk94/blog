@@ -122,7 +122,7 @@ class OperationViewTests(TestCase):
         cls.school = build_school()
         cls.timetable = generate_timetable(cls.school, "ilk", time_limit=10)
         cls.other = generate_timetable(cls.school, "ikinci", time_limit=10)
-        cls.user = User.objects.create_user("islem", password="parola-123456")
+        cls.user = User.objects.create_superuser("islem", password="parola-123456")
 
     def setUp(self):
         self.client.force_login(self.user)
@@ -157,7 +157,7 @@ class PrintOptionTests(TestCase):
     def setUpTestData(cls):
         cls.school = build_school()
         cls.timetable = generate_timetable(cls.school, "ilk", time_limit=10)
-        cls.user = User.objects.create_user("yazdir", password="parola-123456")
+        cls.user = User.objects.create_superuser("yazdir", password="parola-123456")
 
     def setUp(self):
         self.client.force_login(self.user)

@@ -101,7 +101,7 @@ class AscExportImportTests(TestCase):
         self.assertEqual(lesson.availabilities.count(), 4 * 4)
 
     def test_import_view_opens_timetable(self):
-        user = User.objects.create_user("asc", password="parola-123456")
+        user = User.objects.create_superuser("asc", password="parola-123456")
         self.client.force_login(user)
         from django.core.files.uploadedfile import SimpleUploadedFile
 

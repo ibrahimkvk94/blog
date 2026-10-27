@@ -66,7 +66,7 @@ class DutyViewTests(TestCase):
     def setUp(self):
         self.school = build_school()
         generate_timetable(self.school, "ilk", time_limit=10)
-        self.user = User.objects.create_user("nobet", password="parola-123456")
+        self.user = User.objects.create_superuser("nobet", password="parola-123456")
         self.client.force_login(self.user)
         self.url = reverse("timetable:duties", args=[self.school.pk])
 

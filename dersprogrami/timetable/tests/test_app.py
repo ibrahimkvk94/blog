@@ -101,7 +101,7 @@ class DemoSchoolTests(TestCase):
         labels = sorted(rule["label"] for rule in conflict["rules"])
         self.assertEqual(labels, ["Elif Şahin (öğretmen): müsaitlik (yasak saatler)", "Elif Şahin: günde en fazla 2 ders"])
         self.assertTrue(all(rule["url"].endswith(f"/ogretmenler/{teacher.pk}/") for rule in conflict["rules"]))
-        user = User.objects.create_user("aciklama", password="parola-123456")
+        user = User.objects.create_superuser("aciklama", password="parola-123456")
         self.client.force_login(user)
         self.assertContains(self.client.get(reverse("timetable:timetable_detail", args=[timetable.pk])), "Neden çözülemiyor?")
 
@@ -266,7 +266,7 @@ class ViewTests(TestCase):
     def setUpTestData(cls):
         cls.school = create_demo_school()
         cls.timetable = generate_timetable(cls.school, "görünüm", time_limit=30)
-        cls.user = User.objects.create_user("mudur", password="parola-123456")
+        cls.user = User.objects.create_superuser("mudur", password="parola-123456")
 
     def setUp(self):
         self.client.force_login(self.user)
@@ -275,7 +275,7 @@ class ViewTests(TestCase):
         self.client.logout()
         response = self.client.get(reverse("timetable:school_list"))
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin/login/", response["Location"])
+        self.assertIn("/giris/", response["Location"])
 
     def test_pages_render(self):
         self.assertContains(self.client.get(reverse("timetable:school_list")), self.school.name)

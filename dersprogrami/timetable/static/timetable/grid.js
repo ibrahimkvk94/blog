@@ -236,7 +236,7 @@
     e.style.setProperty("--c", c.color);
     e.title = c.title;
     e.dataset.card = c.id;
-    e.draggable = !c.locked;
+    e.draggable = !c.locked && cfg.canEdit;
     return e;
   }
 
@@ -402,6 +402,7 @@
   }
 
   async function moveCard(id, day, period) {
+    if (!cfg.canEdit) { toast("Programı düzenleme yetkiniz yok.", "error"); return; }
     try {
       const r = await postMove(id, day, period, "ask");
       if (r.message) toast(r.message);

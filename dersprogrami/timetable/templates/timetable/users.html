@@ -1,0 +1,61 @@
+{% extends "timetable/base.html" %}
+{% block title %}Kullanıcılar{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_list' %}">Okullar</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
+{% block heading %}<h1>Kullanıcılar</h1>{% endblock %}
+{% block content %}
+<p class="muted small" style="margin-top:0">Bu okulda çalışacak kişilere hesap açın ve yetki verin. Yalnızca kendi sahip olduğunuz yetkileri verebilir, sizden daha yetkili kullanıcıları değiştiremezsiniz. Kullanıcı yönetimi yetkisi verdiğiniz kişi de kendi ekibine aynı şekilde yetki dağıtabilir.</p>
+<div class="grid-2">
+  <div class="panel">
+    <div class="panel-head"><h2>Okulun kullanıcıları</h2></div>
+    <div class="panel-body flush table-wrap">
+      <table class="table">
+        <thead><tr><th>Kullanıcı</th><th>Yetkiler</th><th></th></tr></thead>
+        <tbody>
+          {% for row in members %}{% with m=row.m %}
+            <tr>
+              <td><b>{{ m.user.username }}</b><div class="subtle small">{{ m.user.get_full_name }}{% if m.granted_by %} · ekleyen: {{ m.granted_by.username }}{% endif %}</div></td>
+              <td>
+                {% if row.manageable %}
+                  <form method="post" class="user-perms">{% csrf_token %}<input type="hidden" name="action" value="update"><input type="hidden" name="membership" value="{{ m.pk }}">
+                    {% for key, label in choices %}<label><input type="checkbox" name="permissions" value="{{ key }}"{% if key in m.permissions %} checked{% endif %}> {{ label }}</label>{% endfor %}
+                    <button class="btn btn-sm">Kaydet</button>
+                  </form>
+                {% else %}
+                  <div class="chips">{% for label in m.labels %}<span class="chip">{{ label }}</span>{% endfor %}</div>
+                {% endif %}
+              </td>
+              <td>
+                {% if row.manageable %}
+                  <details class="user-actions"><summary class="btn btn-sm btn-ghost">⋯</summary>
+                    <form method="post" class="dialog-row">{% csrf_token %}<input type="hidden" name="action" value="password"><input type="hidden" name="membership" value="{{ m.pk }}">
+                      <input class="input" type="password" name="password" placeholder="Yeni parola" required><button class="btn btn-sm">Parolayı değiştir</button></form>
+                    <form method="post" onsubmit="return confirm('Kullanıcı okuldan çıkarılsın mı?')">{% csrf_token %}<input type="hidden" name="action" value="remove"><input type="hidden" name="membership" value="{{ m.pk }}">
+                      <button class="btn btn-sm btn-danger" style="margin-top:6px">Okuldan çıkar</button></form>
+                  </details>
+                {% endif %}
+              </td>
+            </tr>
+          {% endwith %}{% empty %}<tr><td colspan="3" class="subtle">Henüz kullanıcı yok.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><h2>Kullanıcı ekle</h2></div>
+    <form method="post" class="panel-body">{% csrf_token %}<input type="hidden" name="action" value="add">
+      {% for field in form %}
+        {% if field.name == "permissions" %}
+          <label class="label">{{ field.label }}</label>
+          <div class="user-perms column">{% for key, label in choices %}<label><input type="checkbox" name="permissions" value="{{ key }}"> {{ label }}</label>{% endfor %}</div>
+          <div class="help">Görüntüleme yetkisi her kullanıcıda vardır.</div>
+        {% else %}
+          <label class="label" for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}
+          {% if field.help_text %}<div class="help">{{ field.help_text }}</div>{% endif %}
+          {% for e in field.errors %}<div class="error">{{ e }}</div>{% endfor %}
+        {% endif %}
+      {% endfor %}
+      <button class="btn btn-primary" style="margin-top:14px">{% include "timetable/icon.html" with name="plus" %} Ekle</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -2,10 +2,13 @@
 {% block title %}Okullar{% endblock %}
 {% block heading %}<h1>Okullar</h1>{% endblock %}
 {% block actions %}
+  {% if user.is_superuser %}
+  <a class="btn" href="{% url 'timetable:central' %}">{% include "timetable/icon.html" with name="users" %} Merkez paneli</a>
   <form method="post" action="{% url 'timetable:create_demo' %}">{% csrf_token %}
     <button class="btn">{% include "timetable/icon.html" with name="plus" %} Örnek okul oluştur</button>
   </form>
   <a class="btn btn-primary" href="{% url 'timetable:school_create' %}">{% include "timetable/icon.html" with name="plus" %} Yeni okul</a>
+  {% endif %}
 {% endblock %}
 {% block content %}
 <div class="stack">
@@ -21,9 +24,10 @@
       {% endfor %}
     </div>
   {% else %}
-    <div class="panel"><div class="empty">Henüz okul yok. Örnek bir okul oluşturabilir, yeni okul ekleyebilir ya da aSc TimeTables XML dosyası içe aktarabilirsiniz.</div></div>
+    <div class="panel"><div class="empty">{% if user.is_superuser %}Henüz okul yok. Örnek bir okul oluşturabilir, yeni okul ekleyebilir ya da aSc TimeTables XML dosyası içe aktarabilirsiniz.{% else %}Henüz size atanmış bir okul yok. Okul yöneticinizden ya da merkezden yetki isteyin.{% endif %}</div></div>
   {% endif %}
 
+  {% if user.is_superuser %}
   <div class="panel" style="max-width:640px">
     <div class="panel-head"><h2>aSc TimeTables'tan içe aktar</h2></div>
     <form class="panel-body" method="post" enctype="multipart/form-data" action="{% url 'timetable:import_asc' %}">
@@ -35,5 +39,6 @@
       </div>
     </form>
   </div>
+  {% endif %}
 </div>
 {% endblock %}

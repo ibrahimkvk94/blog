@@ -1,0 +1,56 @@
+{% extends "timetable/base.html" %}
+{% block title %}Merkez paneli{% endblock %}
+{% block heading %}<h1>Merkez paneli</h1>{% endblock %}
+{% block actions %}
+  <form method="post" action="{% url 'timetable:create_demo' %}">{% csrf_token %}<button class="btn">{% include "timetable/icon.html" with name="plus" %} Örnek okul</button></form>
+{% endblock %}
+{% block content %}
+<div class="tiles">
+  <div class="tile"><div class="k">Okul</div><div class="v">{{ schools|length }}</div></div>
+  <div class="tile"><div class="k">Kullanıcı</div><div class="v">{{ users|length }}</div></div>
+</div>
+<div class="grid-2">
+  <div class="panel">
+    <div class="panel-head"><h2>Okullar</h2></div>
+    <div class="panel-body flush table-wrap">
+      <table class="table">
+        <thead><tr><th>Okul</th><th class="num">Sınıf</th><th class="num">Öğretmen</th><th class="num">Program</th><th class="num">Kullanıcı</th><th></th></tr></thead>
+        <tbody>
+          {% for s in schools %}
+            <tr><td><a href="{% url 'timetable:school_detail' s.pk %}"><b>{{ s.name }}</b></a></td>
+              <td class="num">{{ s.n_classes }}</td><td class="num">{{ s.n_teachers }}</td><td class="num">{{ s.n_timetables }}</td><td class="num">{{ s.n_users }}</td>
+              <td><a class="btn btn-sm" href="{% url 'timetable:school_users' s.pk %}">Kullanıcılar</a></td></tr>
+          {% empty %}<tr><td colspan="6" class="subtle">Henüz okul yok.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="stack">
+    <div class="panel">
+      <div class="panel-head"><h2>Okul ekle ve yönetici ata</h2></div>
+      <form method="post" action="{% url 'timetable:central_school_new' %}" class="panel-body">{% csrf_token %}
+        <label class="label" for="school_name">Okul adı</label>
+        <input class="input" id="school_name" name="school_name" required>
+        <p class="subtle small">Okul yöneticisi (isteğe bağlı): yeni kullanıcı açılır ya da var olan kullanıcı eklenir.</p>
+        {% for field in form %}
+          {% if field.name == "permissions" %}
+            <label class="label">Yetkiler</label>
+            <div class="user-perms column">{% for key, label in field.field.choices %}<label><input type="checkbox" name="permissions" value="{{ key }}" checked> {{ label }}</label>{% endfor %}</div>
+          {% else %}
+            <label class="label" for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}
+          {% endif %}
+        {% endfor %}
+        <button class="btn btn-primary" style="margin-top:14px">Okulu oluştur</button>
+      </form>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Kullanıcılar</h2></div>
+      <div class="panel-body flush table-wrap">
+        <table class="table"><thead><tr><th>Kullanıcı</th><th class="num">Okul</th></tr></thead>
+          <tbody>{% for u in users %}<tr><td>{{ u.username }} <span class="subtle small">{{ u.get_full_name }}</span>{% if u.is_superuser %} <span class="pill ok">merkez</span>{% endif %}</td><td class="num">{% if u.is_superuser %}tümü{% else %}{{ u.n_schools }}{% endif %}</td></tr>{% endfor %}</tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

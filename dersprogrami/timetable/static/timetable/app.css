@@ -513,3 +513,15 @@ html.focus-mode .tt-scroll { max-height: calc(100vh - 110px); }
 .report-preview { position: sticky; top: 12px; }
 .report-preview iframe { width: 100%; height: calc(100vh - 140px); border: 1px solid var(--border); border-radius: var(--radius); background: #eef0f4; }
 @media (max-width: 1000px) { .report-layout { grid-template-columns: 1fr; } }
+
+/* Giriş ve kullanıcı yönetimi */
+.login-page { min-height: 100vh; display: grid; place-items: center; background: linear-gradient(135deg, #141a2a, #312e81); }
+.login-card { width: min(380px, 92vw); padding: 28px; }
+.login-card h1 { font-size: 20px; margin: 14px 0 10px; }
+.login-brand { color: var(--text); font-weight: 700; display: flex; gap: 10px; align-items: center; }
+.user-perms { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-size: 13px; }
+.user-perms.column { flex-direction: column; align-items: flex-start; }
+.user-perms label { display: inline-flex; gap: 5px; align-items: center; }
+.user-actions summary { list-style: none; }
+.user-actions summary::-webkit-details-marker { display: none; }
+.user-actions[open] { min-width: 260px; }

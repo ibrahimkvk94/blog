@@ -16,7 +16,7 @@ class DataEntryTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.school = create_demo_school()
-        cls.user = User.objects.create_user("veri", password="parola-123456")
+        cls.user = User.objects.create_superuser("veri", password="parola-123456")
 
     def setUp(self):
         self.client.force_login(self.user)
@@ -181,7 +181,7 @@ class ExcelAndLessonAvailabilityTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.school = create_demo_school()
-        cls.user = User.objects.create_user("excel", password="parola-123456")
+        cls.user = User.objects.create_superuser("excel", password="parola-123456")
 
     def setUp(self):
         self.client.force_login(self.user)
@@ -261,7 +261,7 @@ class DistributionTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.school = create_demo_school()
-        cls.user = User.objects.create_user("dagitim", password="parola-123456")
+        cls.user = User.objects.create_superuser("dagitim", password="parola-123456")
 
     def setUp(self):
         self.client.force_login(self.user)

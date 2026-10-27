@@ -1,11 +1,18 @@
+from django.contrib.auth import views as auth_views
 from django.urls import path
 
-from . import data_views, views
+from . import accounts, data_views, views
 
 app_name = "timetable"
 
 urlpatterns = [
     path("", views.school_list, name="school_list"),
+    path("giris/", auth_views.LoginView.as_view(template_name="timetable/login.html", redirect_authenticated_user=True), name="login"),
+    path("cikis/", auth_views.LogoutView.as_view(), name="logout"),
+    path("hesabim/", accounts.account, name="account"),
+    path("merkez/", accounts.central, name="central"),
+    path("merkez/okul-ekle/", accounts.central_school_new, name="central_school_new"),
+    path("okul/<int:pk>/kullanicilar/", accounts.school_users, name="school_users"),
     path("ornek-okul/", views.create_demo, name="create_demo"),
     path("ice-aktar/", views.import_asc, name="import_asc"),
     path("okul/<int:pk>/", views.school_detail, name="school_detail"),

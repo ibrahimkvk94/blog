@@ -93,6 +93,14 @@ Tarayıcı birkaç saniye içinde kendiliğinden **http://127.0.0.1:8000/** adre
 
    Veriler Excel'deyse: **Veri → Excel aktarımı → Excel dosyasını indir**, dosyayı doldur ve aynı sayfadan yükle.
 
+## Kullanıcılar ve okullar (çok okullu kullanım)
+
+- Kurulumda (4. adım) oluşturduğun hesap **merkez yönetici**dir: tüm okulları görür.
+- **Merkez paneli** (sol menü → Merkez paneli): yeni okul ekle ve aynı formda okul yöneticisinin kullanıcı adı ve parolasını belirle.
+- Okul yöneticisi kendi okulunda **Kullanıcılar** sayfasından öğretmenlere ya da müdür yardımcılarına hesap açar. Yalnızca kendi sahip olduğu yetkileri verebilir; "Kullanıcı yönetimi" yetkisi verdiği kişi de kendi ekibine aynı şekilde yetki dağıtabilir.
+- Yetkiler: görüntüleme ve raporlar (herkeste), veri girişi, program üretme/düzenleme, yayınlama, vekâlet, nöbet, kullanıcı yönetimi.
+- Tek sunucu yeter: her okul aynı adrese kendi kullanıcı adıyla girer ve yalnızca kendi okulunu görür.
+
 ## Sık karşılaşılan sorunlar
 
 | Sorun | Çözüm |

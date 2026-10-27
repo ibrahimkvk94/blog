@@ -31,7 +31,9 @@
         {% endwith %}
         <a href="{% url 'timetable:substitutions' school.pk %}" class="{% if nav == 'subs' %}active{% endif %}">{% include "timetable/icon.html" with name="swap" %} Vekâlet</a>
         <a href="{% url 'timetable:duties' school.pk %}" class="{% if nav == 'duties' %}active{% endif %}">{% include "timetable/icon.html" with name="users" %} Nöbet çizelgesi</a>
+        {% if can.kullanici %}<a href="{% url 'timetable:school_users' school.pk %}" class="{% if nav == 'users' %}active{% endif %}">{% include "timetable/icon.html" with name="users" %} Kullanıcılar</a>{% endif %}
       </nav>
+      {% if can.veri %}
       <div class="nav-section">Veri</div>
       <nav class="side-nav">
         <a href="{% url 'timetable:school_settings' school.pk %}" class="{% if data_nav == 'okul' %}active{% endif %}">{% include "timetable/icon.html" with name="home" %} Okul ve saatler</a>
@@ -42,13 +44,16 @@
         <a href="{% url 'timetable:data_list' school.pk 'ders-adlari' %}" class="{% if data_nav == 'ders-adlari' or data_nav == 'derslikler' or data_nav == 'binalar' %}active{% endif %}">{% include "timetable/icon.html" with name="database" %} Ders adları, derslikler</a>
         <a href="{% url 'timetable:data_list' school.pk 'kart-iliskileri' %}" class="{% if data_nav == 'kart-iliskileri' %}active{% endif %}">{% include "timetable/icon.html" with name="link" %} Kart ilişkileri</a>
       </nav>
+      {% endif %}
     {% else %}
       <nav class="side-nav">
-        <a href="{% url 'timetable:school_list' %}" class="active">{% include "timetable/icon.html" with name="home" %} Okullar</a>
+        <a href="{% url 'timetable:school_list' %}" class="{% if not nav %}active{% endif %}">{% include "timetable/icon.html" with name="home" %} Okullar</a>
+        {% if user.is_superuser %}<a href="{% url 'timetable:central' %}" class="{% if nav == 'central' %}active{% endif %}">{% include "timetable/icon.html" with name="users" %} Merkez paneli</a>{% endif %}
+        <a href="{% url 'timetable:account' %}" class="{% if nav == 'account' %}active{% endif %}">{% include "timetable/icon.html" with name="users" %} Hesabım</a>
       </nav>
     {% endif %}
-    <div class="sidebar-foot"><a href="{% url 'admin:index' %}" style="color:inherit">Yönetim paneli</a> · <a href="{% url 'admin:logout' %}" style="color:inherit" onclick="event.preventDefault();document.getElementById('logout-form').submit()">Çıkış</a>
-      <form id="logout-form" method="post" action="{% url 'admin:logout' %}" hidden>{% csrf_token %}</form></div>
+    <div class="sidebar-foot"><a href="{% url 'timetable:account' %}" style="color:inherit">{% firstof user.get_full_name user.username %}</a>{% if user.is_superuser %} · <a href="{% url 'timetable:central' %}" style="color:inherit">Merkez</a>{% endif %} · <a href="{% url 'timetable:logout' %}" style="color:inherit" onclick="event.preventDefault();document.getElementById('logout-form').submit()">Çıkış</a>
+      <form id="logout-form" method="post" action="{% url 'timetable:logout' %}" hidden>{% csrf_token %}</form></div>
   </aside>
   <div class="main">
     <header class="topbar">

@@ -718,3 +718,50 @@ class ReportPreset(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class Membership(models.Model):
+    """Kullanıcının bir okuldaki yetkileri. Merkez yönetici (süper kullanıcı) tüm okullara erişir."""
+
+    VIEW = "goruntule"
+    DATA = "veri"
+    PROGRAM = "program"
+    PUBLISH = "yayin"
+    SUBSTITUTE = "vekalet"
+    DUTY = "nobet"
+    USERS = "kullanici"
+    PERMISSIONS = [
+        (VIEW, "Görüntüleme ve raporlar"),
+        (DATA, "Veri girişi (sınıf, öğretmen, ders, kart ilişkileri)"),
+        (PROGRAM, "Program üretme ve düzenleme"),
+        (PUBLISH, "Programı yayınlama"),
+        (SUBSTITUTE, "Vekâlet işlemleri"),
+        (DUTY, "Nöbet çizelgesi"),
+        (USERS, "Kullanıcı yönetimi (kendi yetkileri kadar)"),
+    ]
+    ALL = [key for key, _ in PERMISSIONS]
+
+    user = models.ForeignKey("auth.User", on_delete=models.CASCADE, related_name="memberships")
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="memberships")
+    permissions = models.JSONField("yetkiler", default=list)
+    granted_by = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="granted_memberships"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["user__username"]
+        verbose_name = "okul yetkisi"
+        verbose_name_plural = "okul yetkileri"
+        constraints = [models.UniqueConstraint(fields=["user", "school"], name="unique_membership")]
+
+    def __str__(self):
+        return f"{self.user} @ {self.school}"
+
+    @property
+    def perms(self):
+        return set(self.permissions) | {self.VIEW}
+
+    def labels(self):
+        names = dict(self.PERMISSIONS)
+        return [names[p] for p in self.ALL if p in self.perms]

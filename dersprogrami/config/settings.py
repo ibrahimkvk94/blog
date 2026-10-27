@@ -29,6 +29,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.auth.middleware.LoginRequiredMiddleware",
+    "timetable.access.SchoolAccessMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -49,6 +50,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "timetable.access.can",
             ],
         },
     },
@@ -93,7 +95,9 @@ if os.environ.get("DJANGO_BEHIND_HTTPS_PROXY") == "1":
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Tüm sayfalar giriş gerektirir; giriş için yönetim panelinin giriş sayfası kullanılır.
-LOGIN_URL = "admin:login"
+LOGIN_URL = "timetable:login"
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "timetable:login"
 
 # Çözücünün varsayılan süre sınırı (saniye).
 TIMETABLE_SOLVER_TIME_LIMIT = int(os.environ.get("TIMETABLE_SOLVER_TIME_LIMIT", "60"))
