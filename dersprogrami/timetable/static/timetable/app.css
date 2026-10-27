@@ -488,3 +488,12 @@ html.focus-mode .tt-scroll { max-height: calc(100vh - 110px); }
 /* Kart paneli ızgarayı daraltmaz; sağ altta yüzer */
 .tt-wrap.with-drawer { grid-template-columns: minmax(0, 1fr); gap: 0; }
 .tt-wrap .drawer { position: fixed; right: 18px; bottom: 18px; width: 310px; max-height: 70vh; overflow-y: auto; z-index: 40; box-shadow: var(--shadow-lg); }
+
+.versions-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; }
+.versions-list { max-height: 60vh; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+.versions-list td, .versions-list th { padding: 7px 10px; font-size: 13px; }
+.versions-list tr { cursor: pointer; }
+.versions-list tr.on td { background: #eef9d9; }
+.versions-list tr.auto td { color: var(--text-2); }
+.versions-preview canvas { width: 100%; border: 1px solid var(--border); border-radius: 6px; background: #fff; }
+@media (max-width: 900px) { .versions-layout { grid-template-columns: 1fr; } }

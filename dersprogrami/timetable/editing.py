@@ -163,6 +163,9 @@ def record(timetable, label, before):
     """Değişiklikten önceki kart durumlarını geçmişe ekler; yinele yığını temizlenir."""
     if not before:
         return
+    from .versions import autosave
+
+    autosave(timetable)  # son versiyon eskiyse değişiklikten önceki hal otomatik kaydedilir
     history = (list(timetable.history or []) + [{"label": label, "cards": before}])[-HISTORY_LIMIT:]
     Timetable.objects.filter(pk=timetable.pk).update(history=history, redo_stack=[])
     timetable.history, timetable.redo_stack = history, []

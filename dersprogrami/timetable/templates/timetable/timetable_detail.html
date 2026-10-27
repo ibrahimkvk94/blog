@@ -10,6 +10,7 @@
 {% block actions %}
   {% if timetable.has_grid %}
     <button class="btn" id="btn-repair" title="Bekleyen kartları programa yerleştir">{% include "timetable/icon.html" with name="wand" %} Bekleyenleri yerleştir</button>
+    <button class="btn" type="button" id="btn-versions" title="Kayıtlı versiyonlar, geri dönme">{% include "timetable/icon.html" with name="list" %} Versiyonlar</button>
     <div class="dropdown" id="ops-menu">
       <button class="btn" type="button" data-toggle="dropdown">İşlemler {% include "timetable/icon.html" with name="chevron" %}</button>
       <div class="dropdown-menu">
@@ -162,6 +163,30 @@
   <div id="view-body"></div>
 </dialog>
 <div class="ctx-menu" id="ctx-menu" hidden></div>
+<dialog class="dialog dialog-wide" id="versions-dialog">
+  <div class="dialog-head"><h3>Versiyonlar · {{ timetable.name }}</h3><form method="dialog"><button class="btn btn-sm btn-ghost">Kapat ✕</button></form></div>
+  <div class="versions-layout">
+    <div>
+      <form class="dialog-row" id="version-save" style="margin-bottom:10px">
+        <input class="input" name="note" placeholder="Not (ör. 14.47 öğretmen değişikliği)" maxlength="200">
+        <button class="btn btn-primary">Versiyon kaydet</button>
+      </form>
+      <div class="versions-list"><table class="table">
+        <thead><tr><th>#</th><th>Oluşturuldu</th><th>Not</th><th>Hazırlayan</th><th class="num">Değişiklik</th><th></th></tr></thead>
+        <tbody id="versions-rows"></tbody>
+      </table></div>
+      <label class="subtle small" style="display:inline-flex;gap:6px;margin-top:8px"><input type="checkbox" id="versions-auto" checked> Otomatik kayıtları göster (<span id="versions-auto-count">0</span>)</label>
+    </div>
+    <div class="versions-preview">
+      <div class="subtle small" style="margin-bottom:6px">Ön izleme</div>
+      <canvas id="version-canvas" width="300" height="400"></canvas>
+      <div class="dialog-actions" id="version-actions" hidden>
+        <button class="btn" type="button" data-vact="open">Ayrı program olarak aç</button>
+        <button class="btn btn-primary" type="button" data-vact="restore">Bu versiyona dön</button>
+      </div>
+    </div>
+  </div>
+</dialog>
 <dialog class="dialog" id="swap-dialog">
   <form method="dialog">
     <h3 id="swap-title">Yer değiştir</h3>
@@ -175,4 +200,5 @@
 
 {% block scripts %}
 <script src="{% static 'timetable/grid.js' %}"></script>
+<script src="{% static 'timetable/versions.js' %}"></script>
 {% endblock %}

@@ -7,7 +7,7 @@ from django.db import transaction
 from django.urls import reverse
 from django.utils import timezone
 
-from . import editing, jobs
+from . import editing, jobs, versions
 from .models import Card, Timetable
 from .solver import cpsat, feasibility
 from .solver.builder import build_problem
@@ -108,6 +108,7 @@ def run_generation(timetable_id, base_id=None, seed=0):
                 )
             )
         Card.objects.bulk_create(cards)
+        versions.save_version(timetable, note="Üretim sonucu", auto=True)
         violations, stats = validate(problem, solution.placements)
         report["validation"] = {"violations": [v.as_dict() for v in violations], "stats": stats}
         timetable.objective = solution.objective

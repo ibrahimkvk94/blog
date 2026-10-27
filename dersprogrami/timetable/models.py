@@ -446,6 +446,28 @@ class Card(models.Model):
         return self.is_placed and self.day == day and self.period <= period < self.period + self.length
 
 
+class TimetableVersion(models.Model):
+    """Programın kayıtlı bir hali (aSc "Versiyonlar"): kart konumlarının anlık görüntüsü."""
+
+    timetable = models.ForeignKey(Timetable, on_delete=models.CASCADE, related_name="versions")
+    number = models.PositiveIntegerField("no")
+    created_at = models.DateTimeField(auto_now_add=True)
+    user = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, verbose_name="hazırlayan")
+    note = models.CharField("not", max_length=200, blank=True)
+    auto = models.BooleanField("otomatik kayıt", default=False)
+    changes = models.PositiveIntegerField("değişen kart", default=0)
+    cards = models.JSONField(default=list)  # [[kart, gün, saat, derslik, ek derslikler, kilit], ...]
+
+    class Meta:
+        ordering = ["-number"]
+        verbose_name = "program versiyonu"
+        verbose_name_plural = "program versiyonları"
+        constraints = [models.UniqueConstraint(fields=["timetable", "number"], name="unique_version_number")]
+
+    def __str__(self):
+        return f"{self.timetable} #{self.number}"
+
+
 class CardRelationship(models.Model):
     """Seçilen kartlara toplu uygulanan kural (aSc'deki "kart ilişkileri").
 

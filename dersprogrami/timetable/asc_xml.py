@@ -400,4 +400,7 @@ def _import_cards(school, card_rows, lessons, rooms, period_index):
     if any(c.day is None for c in cards):
         Timetable.objects.filter(pk=timetable.pk).update(status=Timetable.PARTIAL)
         timetable.refresh_from_db()
+    from .versions import save_version
+
+    save_version(timetable, note="aSc'den içe aktarıldı", auto=True)
     return timetable

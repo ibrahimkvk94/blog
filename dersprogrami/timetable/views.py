@@ -11,10 +11,10 @@ from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
-from . import analysis, asc_xml, duty, editing, excel, jobs, substitutes
+from . import analysis, asc_xml, duty, editing, excel, jobs, substitutes, versions
 from .demo import create_demo_school
 from .grid import KINDS, card_payload, grid_data, room_names
-from .models import Absence, Card, Duty, DutyPlace, School, Teacher, Timetable
+from .models import Absence, Card, Duty, DutyPlace, School, Teacher, Timetable, TimetableVersion
 from .services import check_school, refresh_stale, repair_timetable, request_stop, start_generation, verify_timetable
 
 KIND_LABELS = {"sinif": "Sınıflar", "ogretmen": "Öğretmenler", "derslik": "Derslikler"}
@@ -113,6 +113,9 @@ def generate(request, pk):
 def timetable_detail(request, pk):
     timetable = refresh_stale(get_object_or_404(Timetable.objects.select_related("school"), pk=pk))
     school = timetable.school
+    if timetable.has_grid:
+        # Açılışta, son versiyondan beri değişiklik varsa otomatik versiyon alınır.
+        versions.autosave(timetable, request.user, note="Açılışta otomatik kayıt", force=True)
     config = {
         "timetable": timetable.pk,
         "running": timetable.is_running,
@@ -133,6 +136,8 @@ def timetable_detail(request, pk):
         "rowUrl": reverse("timetable:api_row_action", args=[timetable.pk]),
         "cellUrl": reverse("timetable:api_cell_candidates", args=[timetable.pk]),
         "printUrl": reverse("timetable:print", args=[timetable.pk]),
+        "versionsUrl": reverse("timetable:api_versions", args=[timetable.pk]),
+        "versionUrl": reverse("timetable:api_version", args=[0]),
         "lessonsUrl": reverse("timetable:lessons", args=[school.pk]),
         "entityUrl": {
             "sinif": reverse("timetable:data_edit", args=[school.pk, "siniflar", 0]),
@@ -434,6 +439,42 @@ def api_bulk(request, pk):
     body = _json_body(request)
     result = editing.bulk_action(timetable, body.get("action"), body.get("a"), body.get("b"))
     return JsonResponse(result, status=200 if result["ok"] else 400)
+
+
+def api_versions(request, pk):
+    timetable = get_object_or_404(Timetable, pk=pk)
+    if request.method == "POST":
+        note = (_json_body(request).get("note") or "").strip()
+        version = versions.save_version(timetable, user=request.user, note=note or "Elle kayıt")
+        return JsonResponse({"ok": True, "message": f"#{version.number} versiyonu kaydedildi."})
+    include_auto = request.GET.get("oto") != "0"
+    return JsonResponse({"ok": True, "versions": versions.listing(timetable, include_auto),
+                         "auto_count": timetable.versions.filter(auto=True).count()})
+
+
+def api_version(request, pk):
+    """GET: önizleme. POST action=restore: geri yükle, action=open: ayrı program olarak aç."""
+    version = get_object_or_404(TimetableVersion.objects.select_related("timetable__school"), pk=pk)
+    timetable = version.timetable
+    if request.method == "GET":
+        return JsonResponse({"ok": True, **versions.preview(version)})
+    action = _json_body(request).get("action")
+    if action == "restore":
+        return JsonResponse(versions.restore(timetable, version, request.user))
+    if action == "open":
+        copy = Timetable.objects.create(
+            school=timetable.school, name=f"{timetable.name} – #{version.number}", status=timetable.status,
+            mode=timetable.mode, time_limit=timetable.time_limit,
+        )
+        lessons = {c.id: (c.lesson_id, c.length) for c in timetable.cards.all()}
+        Card.objects.bulk_create(
+            Card(timetable=copy, lesson_id=lessons[cid][0], length=lessons[cid][1], day=d, period=p, classroom_id=room,
+                 extra_rooms=extra, locked=locked)
+            for cid, d, p, room, extra, locked in version.cards if cid in lessons
+        )
+        versions.save_version(copy, user=request.user, note=f"{timetable.name} #{version.number} kopyası")
+        return JsonResponse({"ok": True, "message": "Ayrı program olarak açıldı.", "url": reverse("timetable:timetable_detail", args=[copy.pk])})
+    return JsonResponse({"ok": False, "message": "Bilinmeyen işlem."}, status=400)
 
 
 def statistics(request, pk):
