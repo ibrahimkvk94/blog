@@ -10,7 +10,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
-from . import asc_xml, editing, excel, jobs, substitutes
+from . import analysis, asc_xml, editing, excel, jobs, substitutes
 from .demo import create_demo_school
 from .grid import KINDS, card_payload, grid_data, room_names
 from .models import Absence, Card, School, Teacher, Timetable
@@ -123,6 +123,16 @@ def timetable_detail(request, pk):
         "moveUrl": reverse("timetable:api_card_move", args=[0]),
         "unplaceUrl": reverse("timetable:api_card_unplace", args=[0]),
         "lockUrl": reverse("timetable:api_card_lock", args=[0]),
+        "undoUrl": reverse("timetable:api_undo", args=[timetable.pk]),
+        "redoUrl": reverse("timetable:api_redo", args=[timetable.pk]),
+        "bulkUrl": reverse("timetable:api_bulk", args=[timetable.pk]),
+        "days": school.day_names,
+        "periodCount": school.periods.count(),
+        "versions": [
+            {"id": t.pk, "name": f"{t.name} · {timezone.localtime(t.created_at):%d.%m %H:%M}"}
+            for t in school.timetables.exclude(pk=timetable.pk)
+            if t.has_grid
+        ],
     }
     return render(
         request, "timetable/timetable_detail.html", _nav(school, "timetable", timetable=timetable, config=config)
@@ -263,7 +273,46 @@ def _json_body(request):
 
 def api_grid(request, pk):
     timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
-    return JsonResponse(grid_data(timetable, request.GET.get("tur", "sinif")))
+    data = grid_data(timetable, request.GET.get("tur", "sinif"))
+    data["history"] = editing.history_info(timetable)
+    other_id = request.GET.get("karsilastir")
+    if other_id and other_id.isdigit():
+        other = Timetable.objects.filter(pk=other_id, school=timetable.school).first()
+        if other is not None:
+            data["compare"] = {"name": other.name, **analysis.compare(timetable, other)}
+    return JsonResponse(data)
+
+
+@require_POST
+def api_undo(request, pk):
+    result = editing.undo(get_object_or_404(Timetable, pk=pk))
+    return JsonResponse(result, status=200 if result["ok"] else 400)
+
+
+@require_POST
+def api_redo(request, pk):
+    result = editing.redo(get_object_or_404(Timetable, pk=pk))
+    return JsonResponse(result, status=200 if result["ok"] else 400)
+
+
+@require_POST
+def api_bulk(request, pk):
+    timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
+    if not timetable.has_grid:
+        return JsonResponse({"ok": False, "message": "Bu program düzenlenemez."}, status=400)
+    body = _json_body(request)
+    result = editing.bulk_action(timetable, body.get("action"), body.get("a"), body.get("b"))
+    return JsonResponse(result, status=200 if result["ok"] else 400)
+
+
+def statistics(request, pk):
+    timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
+    school = timetable.school
+    return render(
+        request,
+        "timetable/statistics.html",
+        _nav(school, "timetable", timetable=timetable, stats=analysis.statistics(timetable)),
+    )
 
 
 def api_status(request, pk):
@@ -318,7 +367,4 @@ def api_card_unplace(request, pk):
 
 @require_POST
 def api_card_lock(request, pk):
-    card = _card(pk)
-    card.locked = not card.locked
-    card.save(update_fields=["locked"])
-    return JsonResponse({"ok": True, "locked": card.locked, "message": "Kart kilitlendi." if card.locked else "Kilit açıldı."})
+    return JsonResponse(editing.toggle_lock(_card(pk)))

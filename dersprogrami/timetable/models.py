@@ -370,6 +370,9 @@ class Timetable(models.Model):
     cancel_requested = models.BooleanField(default=False)
     objective = models.IntegerField("ceza puanı", null=True, blank=True)
     report = models.JSONField("rapor", default=dict, blank=True)
+    # Elle düzenleme geçmişi (geri al / yinele): her adım {"label", "cards": [[id, gün, saat, derslik, ek derslikler, kilit]]}
+    history = models.JSONField(default=list, blank=True)
+    redo_stack = models.JSONField(default=list, blank=True)
 
     @property
     def has_grid(self):

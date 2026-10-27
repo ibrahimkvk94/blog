@@ -10,6 +10,17 @@
 {% block actions %}
   {% if timetable.has_grid %}
     <button class="btn" id="btn-repair" title="Bekleyen kartları programa yerleştir">{% include "timetable/icon.html" with name="wand" %} Bekleyenleri yerleştir</button>
+    <div class="dropdown" id="ops-menu">
+      <button class="btn" type="button" data-toggle="dropdown">İşlemler {% include "timetable/icon.html" with name="chevron" %}</button>
+      <div class="dropdown-menu">
+        <button type="button" data-op="swap_days">İki günü yer değiştir…</button>
+        <button type="button" data-op="swap_periods">İki ders saatini yer değiştir…</button>
+        <button type="button" data-op="lock_all">Tüm kartları kilitle</button>
+        <button type="button" data-op="unlock_all">Tüm kilitleri aç</button>
+        <button type="button" data-op="unplace_unlocked">Kilitsiz kartları çıkar…</button>
+        <a href="{% url 'timetable:statistics' timetable.pk %}">İstatistikler</a>
+      </div>
+    </div>
     <div class="dropdown" id="export-menu">
       <button class="btn" type="button" data-toggle="dropdown">{% include "timetable/icon.html" with name="download" %} Dışa aktar {% include "timetable/icon.html" with name="chevron" %}</button>
       <div class="dropdown-menu">
@@ -17,6 +28,7 @@
         <a href="{% url 'timetable:export_asc' timetable.pk %}">{% include "timetable/icon.html" with name="download" %} aSc TimeTables XML</a>
         <a href="{% url 'timetable:print' timetable.pk %}?tur=sinif" target="_blank">{% include "timetable/icon.html" with name="printer" %} Yazdır / PDF – sınıflar</a>
         <a href="{% url 'timetable:print' timetable.pk %}?tur=ogretmen" target="_blank">{% include "timetable/icon.html" with name="printer" %} Yazdır / PDF – öğretmenler</a>
+        <a href="{% url 'timetable:print' timetable.pk %}?tur=derslik" target="_blank">{% include "timetable/icon.html" with name="printer" %} Yazdır / PDF – derslikler</a>
       </div>
     </div>
     {% if timetable.pk != school.active_timetable_id %}
@@ -86,6 +98,15 @@
       <div class="segmented" id="zoom-switch" title="Yakınlaştırma">
         <button data-zoom="compact">S</button><button data-zoom="" class="active">M</button><button data-zoom="roomy">L</button>
       </div>
+      <div class="segmented" title="Geri al (Ctrl+Z) / Yinele (Ctrl+Y)">
+        <button id="btn-undo" disabled>↶ Geri al</button><button id="btn-redo" disabled>Yinele ↷</button>
+      </div>
+      {% if config.versions %}
+        <select class="select select-sm" id="compare-select" title="Başka bir sürümle karşılaştır">
+          <option value="">Karşılaştır…</option>
+          {% for v in config.versions %}<option value="{{ v.id }}">{{ v.name }}</option>{% endfor %}
+        </select>
+      {% endif %}
     </div>
     <div class="right chips" id="stats"></div>
   </div>
@@ -102,6 +123,10 @@
         </div>
         <span class="subtle small">Kartı sürükleyin ya da tıklayıp uygun hücreye tıklayın · Esc: seçimi bırak</span>
       </div>
+      <div class="panel compare-panel" id="compare-panel" hidden>
+        <div class="panel-head"><h2>Karşılaştırma <span class="pill" id="compare-summary"></span></h2><button class="btn btn-sm btn-ghost" id="compare-close">Kapat</button></div>
+        <div class="panel-body flush table-wrap"><table class="table"><thead><tr><th>Ders</th><th>Seçilen sürümde</th><th>Bu sürümde</th></tr></thead><tbody id="compare-rows"></tbody></table></div>
+      </div>
       <div class="panel tray">
         <div class="panel-head"><h2>Yerleşmeyen kartlar <span class="pill" id="tray-count">0</span></h2><span class="subtle small">Bir kartı buraya bırakmak onu programdan çıkarır</span></div>
         <div class="tray-body" id="tray"></div>
@@ -114,6 +139,14 @@
     <aside class="panel drawer" id="drawer" hidden></aside>
   </div>
 {% endif %}
+<dialog class="dialog" id="swap-dialog">
+  <form method="dialog">
+    <h3 id="swap-title">Yer değiştir</h3>
+    <div class="dialog-row"><select class="select" id="swap-a"></select><span>↔</span><select class="select" id="swap-b"></select></div>
+    <p class="subtle small" id="swap-help"></p>
+    <div class="dialog-actions"><button class="btn btn-ghost" value="cancel">Vazgeç</button><button class="btn btn-primary" value="ok">Uygula</button></div>
+  </form>
+</dialog>
 {{ config|json_script:"tt-config" }}
 {% endblock %}
 

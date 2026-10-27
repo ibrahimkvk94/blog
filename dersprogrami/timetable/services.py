@@ -7,7 +7,7 @@ from django.db import transaction
 from django.urls import reverse
 from django.utils import timezone
 
-from . import jobs
+from . import editing, jobs
 from .models import Card, Timetable
 from .solver import cpsat, feasibility
 from .solver.builder import build_problem
@@ -180,14 +180,17 @@ def repair_timetable(timetable, time_limit=20):
         return {"ok": False, "message": "Çözüm bulunamadı."}
 
     db_cards = {c.id: c for c in timetable.cards.all()}
-    changed = []
+    updates = []
     for card in problem.cards:
         db_card = db_cards[card.card_id]
         place = solution.placements.get(card.key)
         new = (place.day, place.period, place.room, list(place.extra_rooms)) if place else (None, None, None, [])
         if (db_card.day, db_card.period, db_card.classroom_id, list(db_card.extra_rooms or [])) != new:
-            db_card.day, db_card.period, db_card.classroom_id, db_card.extra_rooms = new
-            changed.append(db_card)
+            updates.append((db_card, new))
+    changed = [db_card for db_card, _ in updates]
+    editing.record(timetable, "bekleyenler yerleştirildi", editing.snapshot(changed))
+    for db_card, new in updates:
+        db_card.day, db_card.period, db_card.classroom_id, db_card.extra_rooms = new
     Card.objects.bulk_update(changed, ["day", "period", "classroom", "extra_rooms"])
     if not solution.unplaced and timetable.status == Timetable.PARTIAL:
         Timetable.objects.filter(pk=timetable.pk).update(status=Timetable.OK)

@@ -369,3 +369,19 @@ input[type=color].input { padding: 3px; width: 80px; }
 .dist-teachers li.full .v { color: var(--success); font-weight: 600; }
 .dist-teachers li.over .progress > div { background: var(--danger-strong); }
 .dist-teachers li.full .progress > div { background: var(--success); }
+
+.warn-text { color: var(--warning); font-weight: 600; }
+.stats-table td, .stats-table th { padding: 7px 10px; }
+.stats-table .progress { display: inline-block; width: calc(100% - 44px); vertical-align: middle; margin-right: 6px; }
+.select-sm { height: 34px; width: auto; max-width: 240px; font-size: 13px; }
+.segmented button:disabled { opacity: .45; cursor: default; }
+.tt-board.comparing .tt-card { opacity: .28; }
+.tt-board.comparing .tt-card.changed { opacity: 1; box-shadow: 0 0 0 2px #f59e0b; }
+.compare-panel { margin-top: 14px; }
+.compare-panel tbody td:nth-child(2) { color: var(--text-2); }
+.compare-panel tbody td:nth-child(3) { font-weight: 600; }
+.dialog { border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: 20px 22px; min-width: 340px; }
+.dialog::backdrop { background: rgba(16,24,40,.35); }
+.dialog h3 { margin: 0 0 14px; font-size: 16px; }
+.dialog-row { display: flex; gap: 10px; align-items: center; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }

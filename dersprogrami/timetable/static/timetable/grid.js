@@ -82,11 +82,12 @@
     selected: null,
     options: null,
     dragging: null,
+    compare: "",
   };
 
   async function load() {
     try {
-      state.data = await api(cfg.gridUrl + "?tur=" + state.kind);
+      state.data = await api(cfg.gridUrl + "?tur=" + state.kind + (state.compare ? "&karsilastir=" + state.compare : ""));
     } catch (e) {
       toast(e.message, "error");
       return;
@@ -177,6 +178,32 @@
     renderTray();
     renderStats();
     renderViolations();
+    renderHistory();
+    renderCompare();
+  }
+
+  function renderHistory() {
+    const h = state.data.history || {};
+    const undo = $("#btn-undo"), redo = $("#btn-redo");
+    undo.disabled = !h.undo;
+    redo.disabled = !h.redo;
+    undo.title = h.undo ? "Geri al: " + h.undo + " (Ctrl+Z)" : "Geri alınacak işlem yok";
+    redo.title = h.redo ? "Yinele: " + h.redo + " (Ctrl+Y)" : "Yinelenecek işlem yok";
+  }
+
+  function renderCompare() {
+    const c = state.data.compare;
+    const panel = $("#compare-panel");
+    board.classList.toggle("comparing", !!c);
+    if (!panel) return;
+    panel.hidden = !c;
+    if (!c) return;
+    const changed = new Set(c.changed);
+    document.querySelectorAll(".tt-card").forEach((n) => n.classList.toggle("changed", changed.has(Number(n.dataset.card))));
+    $("#compare-summary").textContent = c.summary + " · " + c.name;
+    $("#compare-rows").innerHTML = c.rows.length
+      ? c.rows.map((r) => "<tr><td>" + esc(r.lesson) + "</td><td>" + esc(r.before) + "</td><td>" + esc(r.after) + "</td></tr>").join("")
+      : '<tr><td colspan="3" class="subtle">İki sürüm aynı.</td></tr>';
   }
 
   function cardEl(c) {
@@ -404,7 +431,59 @@
     if (state.dragging != null) unplaceCard(state.dragging);
   });
 
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") clearSelection(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") clearSelection();
+    if (!(e.ctrlKey || e.metaKey) || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+    const key = e.key.toLowerCase();
+    if (key === "z" && !e.shiftKey && !$("#btn-undo").disabled) { e.preventDefault(); historyStep(cfg.undoUrl); }
+    if ((key === "y" || (key === "z" && e.shiftKey)) && !$("#btn-redo").disabled) { e.preventDefault(); historyStep(cfg.redoUrl); }
+  });
+
+  // Geri al / yinele
+  const historyStep = (url) => run(api(url, { method: "POST" }));
+  $("#btn-undo").addEventListener("click", () => historyStep(cfg.undoUrl));
+  $("#btn-redo").addEventListener("click", () => historyStep(cfg.redoUrl));
+
+  // Toplu işlemler
+  const bulk = (body) => run(api(cfg.bulkUrl, { method: "POST", body: JSON.stringify(body) }));
+  const dialog = $("#swap-dialog");
+  function askSwap(action) {
+    const isDay = action === "swap_days";
+    const labels = isDay ? cfg.days : Array.from({ length: cfg.periodCount }, (_, i) => (i + 1) + ". saat");
+    const options = labels.map((l, i) => '<option value="' + i + '">' + esc(l) + "</option>").join("");
+    $("#swap-a").innerHTML = options;
+    $("#swap-b").innerHTML = options;
+    $("#swap-b").value = "1";
+    $("#swap-title").textContent = isDay ? "İki günü yer değiştir" : "İki ders saatini yer değiştir";
+    $("#swap-help").textContent = isDay
+      ? "Seçilen iki günün tüm kartları (kilitliler dahil) yer değiştirir. Müsaitlik ihlalleri doğrulamada görünür."
+      : "Bu iki saatteki tek saatlik kartlar yer değiştirir; bu saatlere taşan blok kartlar yerinde kalır.";
+    dialog.onclose = () => {
+      if (dialog.returnValue === "ok") bulk({ action, a: $("#swap-a").value, b: $("#swap-b").value });
+    };
+    dialog.returnValue = "";
+    dialog.showModal();
+  }
+  const opsMenu = $("#ops-menu");
+  if (opsMenu) {
+    opsMenu.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-op]");
+      if (!b) return;
+      opsMenu.classList.remove("open");
+      const op = b.dataset.op;
+      if (op === "swap_days" || op === "swap_periods") askSwap(op);
+      else if (op === "unplace_unlocked") {
+        if (window.confirm("Kilitsiz tüm kartlar programdan çıkarılsın mı? Geri al ile geri getirebilirsiniz.")) bulk({ action: op });
+      } else bulk({ action: op });
+    });
+  }
+
+  // Karşılaştırma
+  const compareSelect = $("#compare-select");
+  if (compareSelect) {
+    compareSelect.addEventListener("change", () => { state.compare = compareSelect.value; load(); });
+    $("#compare-close").addEventListener("click", () => { state.compare = ""; compareSelect.value = ""; load(); });
+  }
 
   // Araç çubuğu
   function setActive(group, attr, value) {
