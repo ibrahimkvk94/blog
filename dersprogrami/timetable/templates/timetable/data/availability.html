@@ -1,0 +1,13 @@
+<div class="panel">
+  <div class="panel-head"><h2>Müsaitlik</h2><span class="subtle small">Hücreye tıklayın: uygun → yasak → koşullu (?) · gün ya da saat başlığına tıklamak tüm satırı/sütunu değiştirir</span></div>
+  <div class="panel-body">
+    <div class="avail" data-availability>
+      {{ availability|json_script:"availability-data" }}
+      <input type="hidden" name="availability" value="">
+      <div class="avail-grid"></div>
+    </div>
+    <div class="legend" style="margin-top:10px">
+      <span><i class="lg-ok"></i>Uygun</span><span><i class="lg-no"></i>Yasak (bu saatte ders konmaz)</span><span><i class="lg-maybe"></i>Koşullu (mümkünse kaçınılır)</span>
+    </div>
+  </div>
+</div>

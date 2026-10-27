@@ -15,9 +15,27 @@ python manage.py seed_demo                    # örnek lise: 4 şube, 15 öğret
 python manage.py runserver
 ```
 
-`http://localhost:8000/` adresinde giriş yapın. Veri girişi şimdilik yönetim panelinden
-(`/admin/`) yapılıyor; sol menüdeki "Dersler", "Öğretmenler" ve "Kart ilişkileri" bağlantıları
-ilgili okulun kayıtlarına filtrelenmiş olarak açılır.
+`http://localhost:8000/` adresinde giriş yapın. Tüm veri girişi uygulamanın kendi ekranlarından
+yapılır (sol menü → Veri); yönetim paneli (`/admin/`) yalnızca ileri düzey işler için kalır.
+
+### Kendi sunucunda yayına alma (Docker)
+
+```bash
+cd dersprogrami
+docker build -t ders-programi .
+docker run -d -p 8000:8000 -v ders-programi-veri:/data \
+  -e DJANGO_SECRET_KEY="uzun-rastgele-bir-anahtar" \
+  -e DJANGO_ALLOWED_HOSTS="okulum.example.com" \
+  -e DJANGO_CSRF_TRUSTED_ORIGINS="https://okulum.example.com" \
+  -e DJANGO_BEHIND_HTTPS_PROXY=1 \
+  -e DJANGO_SUPERUSER_USERNAME=mudur -e DJANGO_SUPERUSER_PASSWORD="güçlü-bir-parola" \
+  ders-programi
+```
+
+Veritabanı `/data` biriminde (SQLite) tutulur. Üretim işleri süreç içinde çalıştığı için imaj
+gunicorn'u tek süreç ve 8 iş parçacığıyla başlatır; bunu artırmayın. Docker çalıştıran her
+platformda (Render, Railway, Fly.io, kendi VPS'iniz) aynı imaj kullanılabilir; HTTPS'i platformun
+ters vekili sağlar.
 
 Komut satırından üretim: `python manage.py generate_timetable <okul_id> [--mode relaxed] [--time-limit 60]`
 
@@ -30,6 +48,9 @@ Testler: `python manage.py test timetable`
 
 | Ekran | İçerik |
 |---|---|
+| **Veri girişi** | Okul ve ders saatleri (satır ekle/sil), ders adları, sınıflar (bölünme ve grup düzenleyici), öğretmenler (sınırlar), derslikler, binalar, kart ilişkileri. Öğretmen, sınıf, derslik ve ders adı formlarında tıklanarak düzenlenen müsaitlik ızgarası (uygun / yasak / koşullu) |
+| **Dersler** | Sınıf ve öğretmene göre süzülen ders listesi, sınıf yükleri, ayrıntılı ders formu (birleşik sınıflar, gruplar, birden çok öğretmen/derslik, blok kartlar) |
+| **Sınıf ders tablosu** | Bir sınıfın tek öğretmenli derslerini tek tabloda saat, blok, öğretmen ve derslik seçerek girme; başka sınıftan saatleri kopyalama; toplam saat / kapasite göstergesi |
 | **Genel bakış** | Okul özeti, veri denetimi, program sürümleri, yeni üretim (katı/gevşek mod, süre, başlangıç sürümü) |
 | **Ana görünüm** | Satırlarda sınıflar / öğretmenler / derslikler, sütunlarda gün × saat. Başlık ve satır adları sabit, tüm ızgara yatay ve dikey kaydırılır. Satır arama, üç yakınlaştırma düzeyi |
 | **Kart düzenleme** | Kart sürüklenir ya da tıklanıp hedef hücreye tıklanır. Seçili kart için her hücre renklenir: uygun / uyarılı / çakışmalı (çakışan kartlar bekleyenlere düşer) / uygun değil. Kilitleme, programdan çıkarma, "Bekleyenleri yerleştir" |
@@ -108,7 +129,6 @@ Yumuşak kısıtlar (ceza puanı):
 - Arka plan üretimi aynı süreçte bir iş parçacığında çalışır; ilerleme ve durdurma bilgisi
   bellektedir. Birden çok uygulama süreciyle (ör. gunicorn çok işçili) çalışırken ilerleme ekranı
   başka süreçteki işi göremez; bu durumda Celery/RQ'ya geçilmelidir (`jobs.start`).
-- Veri girişi yönetim paneli üzerinden yapılır; özel veri giriş ekranları henüz yok.
 
 ## Yol haritası
 
@@ -120,7 +140,9 @@ Yumuşak kısıtlar (ceza puanı):
 - [x] Ana görünüm (satır: sınıf/öğretmen/derslik, sütun: gün × saat), sürükle-bırak düzenleme, hücre uygunluk renklendirmesi, bekleyenleri yerleştirme
 - [x] aSc XML içe/dışa aktarma, Excel, yazdırılabilir / PDF çıktılar
 - [x] Vekâlet modülü
-- [ ] Özel veri giriş ekranları (dersler, müsaitlik ızgarası, toplu ders girişi)
+- [x] Veri giriş ekranları (okul ve saatler, ders adları, sınıflar ve bölünmeler, öğretmenler, derslikler, dersler, sınıf ders tablosu, kart ilişkileri, müsaitlik ızgarası)
+- [x] Docker ile yayına alma
+- [ ] Ders bazında müsaitlik ızgarası ve toplu içe aktarma (Excel'den öğretmen/ders listesi)
 - [ ] Seminer (öğrenci seçimli) dersler ve öğrenci bazlı program
 - [ ] Çözülemezlik çekirdeği açıklaması (hangi kural kümesi birlikte imkânsız)
 - [ ] Çok süreçli dağıtım için Celery/RQ ile iş kuyruğu

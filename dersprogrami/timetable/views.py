@@ -68,12 +68,13 @@ def school_detail(request, pk):
     timetables = [refresh_stale(t) for t in school.timetables.all()]
     issues = check_school(school)
     lessons = list(school.lessons.all())
+    data_url = lambda slug: reverse("timetable:data_list", args=[school.pk, slug])  # noqa: E731
     tiles = [
-        {"label": "Sınıf", "value": school.classes.count()},
-        {"label": "Öğretmen", "value": school.teachers.count()},
-        {"label": "Derslik", "value": school.classrooms.count()},
-        {"label": "Ders", "value": len(lessons), "hint": f"haftada {sum(x.periods_per_week for x in lessons)} saat"},
-        {"label": "Zaman ızgarası", "value": f"{school.days_per_week} × {school.periods.count()}", "hint": "gün × saat"},
+        {"label": "Sınıf", "value": school.classes.count(), "url": data_url("siniflar")},
+        {"label": "Öğretmen", "value": school.teachers.count(), "url": data_url("ogretmenler")},
+        {"label": "Derslik", "value": school.classrooms.count(), "url": data_url("derslikler")},
+        {"label": "Ders", "value": len(lessons), "hint": f"haftada {sum(x.periods_per_week for x in lessons)} saat", "url": reverse("timetable:lessons", args=[school.pk])},
+        {"label": "Zaman ızgarası", "value": f"{school.days_per_week} × {school.periods.count()}", "hint": "gün × saat", "url": reverse("timetable:school_settings", args=[school.pk])},
     ]
     return render(
         request,

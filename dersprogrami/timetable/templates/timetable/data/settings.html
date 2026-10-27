@@ -1,0 +1,48 @@
+{% extends "timetable/base.html" %}
+{% load static %}
+{% block title %}{% if creating %}Yeni okul{% else %}Okul ve ders saatleri{% endif %}{% endblock %}
+{% block crumbs %}{% if creating %}<a href="{% url 'timetable:school_list' %}">Okullar</a>{% else %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / Veri{% endif %}{% endblock %}
+{% block heading %}<h1>{% if creating %}Yeni okul{% else %}Okul ve ders saatleri{% endif %}</h1>{% endblock %}
+{% block content %}
+{% if not creating %}{% include "timetable/data/subnav.html" %}{% endif %}
+<form method="post" class="data-form">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+  <div class="grid-2">
+    <div class="panel">
+      <div class="panel-head"><h2>Okul</h2></div>
+      <div class="panel-body">
+        {% for field in form %}{% include "timetable/data/field.html" %}{% endfor %}
+        {% if creating %}<p class="muted small" style="margin-bottom:0">Okul 08:30'da başlayan, 40 dakikalık 8 ders saatiyle oluşturulur; sonraki adımda saatleri değiştirebilirsiniz.</p>{% endif %}
+      </div>
+    </div>
+    {% if formset %}
+    <div class="panel">
+      <div class="panel-head"><h2>Ders saatleri</h2><button type="button" class="btn btn-sm" data-add-period>{% include "timetable/icon.html" with name="plus" %} Saat ekle</button></div>
+      <div class="panel-body flush">
+        {{ formset.management_form }}
+        {% if formset.non_form_errors %}<div class="alert alert-error" style="margin:12px">{{ formset.non_form_errors|join:" " }}</div>{% endif %}
+        <table class="table period-table">
+          <thead><tr><th style="width:44px">#</th><th>Ad</th><th>Başlangıç</th><th>Bitiş</th><th class="num">Sil</th></tr></thead>
+          <tbody data-period-rows>
+            {% for f in formset %}
+              <tr>
+                <td class="subtle">{{ forloop.counter }}</td>
+                <td>{{ f.id }}{{ f.name }}{% for e in f.errors.values %}<div class="error">{{ e|join:" " }}</div>{% endfor %}{% for e in f.non_field_errors %}<div class="error">{{ e }}</div>{% endfor %}</td>
+                <td>{{ f.start_time }}</td>
+                <td>{{ f.end_time }}</td>
+                <td class="num">{{ f.DELETE }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <template id="period-template"><tr><td class="subtle">+</td><td>{{ formset.empty_form.id }}{{ formset.empty_form.name }}</td><td>{{ formset.empty_form.start_time }}</td><td>{{ formset.empty_form.end_time }}</td><td class="num">{{ formset.empty_form.DELETE }}</td></tr></template>
+        <p class="muted small" style="padding:0 16px">Saatler listedeki sırayla numaralanır. Bir saati silmek, o saate yerleşmiş kartları mevcut programlarda geçersiz kılar; programı yeniden üretin.</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  <div class="form-actions"><div><button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} {% if creating %}Okulu oluştur{% else %}Kaydet{% endif %}</button></div></div>
+</form>
+{% endblock %}
+{% block scripts %}<script src="{% static 'timetable/data.js' %}"></script>{% endblock %}

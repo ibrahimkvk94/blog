@@ -1,0 +1,52 @@
+{% extends "timetable/base.html" %}
+{% block title %}Dersler{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / Veri{% endblock %}
+{% block heading %}<h1>Dersler</h1><span class="pill">{{ rows|length }} ders · {{ total }} saat</span>{% endblock %}
+{% block actions %}<a class="btn btn-primary" href="{% url 'timetable:lesson_new' school.pk %}{% if filters.sinif %}?sinif={{ filters.sinif }}{% endif %}">{% include "timetable/icon.html" with name="plus" %} Yeni ders</a>{% endblock %}
+{% block content %}
+{% include "timetable/data/subnav.html" %}
+<div class="panel" style="margin-bottom:16px">
+  <div class="panel-head"><h2>Sınıf yükleri</h2><span class="subtle small">Haftalık ders saati / uygun saat · sınıfa tıklayarak ders tablosunu açın</span></div>
+  <div class="panel-body load-cards">
+    {% for cls, load in class_loads %}
+      <a class="load-card{% if load.0 > load.1 %} over{% endif %}" href="{% url 'timetable:class_lessons' school.pk cls.pk %}">
+        <b>{{ cls }}</b>
+        <span>{{ load.0 }} / {{ load.1 }} saat</span>
+        <div class="progress"><div style="width:{% widthratio load.0 load.1 100 %}%"></div></div>
+      </a>
+    {% empty %}<span class="subtle">Önce sınıf ekleyin.</span>{% endfor %}
+  </div>
+</div>
+
+<form method="get" class="filter-bar">
+  <select class="select" name="sinif" onchange="this.form.submit()"><option value="">Tüm sınıflar</option>{% for c in classes %}<option value="{{ c.pk }}" {% if filters.sinif == c.pk|stringformat:'s' %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
+  <select class="select" name="ogretmen" onchange="this.form.submit()"><option value="">Tüm öğretmenler</option>{% for t in teachers %}<option value="{{ t.pk }}" {% if filters.ogretmen == t.pk|stringformat:'s' %}selected{% endif %}>{{ t.first_name }} {{ t.last_name }}</option>{% endfor %}</select>
+  <input class="input" name="q" value="{{ filters.q }}" placeholder="Ders adı ara…">
+  <button class="btn">Filtrele</button>
+  {% if filters.sinif or filters.ogretmen or filters.q %}<a class="btn btn-ghost" href="{% url 'timetable:lessons' school.pk %}">Temizle</a>{% endif %}
+</form>
+
+<div class="panel">
+  {% if rows %}
+  <div class="table-wrap">
+    <table class="table">
+      <thead><tr><th>Ders</th><th>Sınıf / grup</th><th>Öğretmen</th><th class="num">Saat</th><th>Derslik</th><th></th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+          <tr>
+            <td><a href="{% url 'timetable:lesson_edit' school.pk r.lesson.pk %}?back={{ request.get_full_path|urlencode }}"><span class="swatch" style="background:{{ r.lesson.subject.color }}"></span> <b>{{ r.lesson.subject.name }}</b></a></td>
+            <td>{{ r.classes }}{% if r.groups %} <span class="subtle">· {{ r.groups }}</span>{% endif %}</td>
+            <td>{{ r.teachers|default:"–" }}</td>
+            <td class="num nowrap"><b>{{ r.lesson.periods_per_week }}</b>{% if r.pattern %} <span class="subtle">({{ r.pattern }})</span>{% endif %}</td>
+            <td class="muted">{{ r.rooms|default:"Sınıf dersliği" }}</td>
+            <td class="num"><a class="btn btn-sm" href="{% url 'timetable:lesson_edit' school.pk r.lesson.pk %}?back={{ request.get_full_path|urlencode }}">Düzenle</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="empty">Bu filtreyle ders yok. Bir sınıfın derslerini hızlıca girmek için yukarıdan sınıfı seçip <b>ders tablosunu</b> açın.</div>
+  {% endif %}
+</div>
+{% endblock %}

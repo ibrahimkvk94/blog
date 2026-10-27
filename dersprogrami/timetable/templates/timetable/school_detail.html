@@ -3,7 +3,7 @@
 {% block crumbs %}<a href="{% url 'timetable:school_list' %}">Okullar</a>{% endblock %}
 {% block heading %}<h1>{{ school }}</h1>{% endblock %}
 {% block actions %}
-  <a class="btn" href="{% url 'admin:timetable_school_change' school.pk %}">Okul ayarları</a>
+  <a class="btn" href="{% url 'timetable:school_settings' school.pk %}">Okul ve saatler</a>
   {% with main_tt=school.active_timetable|default:latest_timetable %}{% if main_tt %}
     <a class="btn btn-primary" href="{% url 'timetable:timetable_detail' main_tt.pk %}">{% include "timetable/icon.html" with name="grid" %} Ana görünüm</a>
   {% endif %}{% endwith %}
@@ -11,7 +11,7 @@
 {% block content %}
 <div class="tiles">
   {% for tile in tiles %}
-    <div class="tile"><div class="k">{{ tile.label }}</div><div class="v">{{ tile.value }}</div>{% if tile.hint %}<div class="h">{{ tile.hint }}</div>{% endif %}</div>
+    <a class="tile tile-link" href="{{ tile.url }}"><div class="k">{{ tile.label }}</div><div class="v">{{ tile.value }}</div>{% if tile.hint %}<div class="h">{{ tile.hint }}</div>{% endif %}</a>
   {% endfor %}
 </div>
 

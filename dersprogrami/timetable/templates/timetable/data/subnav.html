@@ -1,0 +1,10 @@
+<nav class="subnav" aria-label="Veri bölümleri">
+  <a href="{% url 'timetable:school_settings' school.pk %}" class="{% if data_nav == 'okul' %}active{% endif %}">Okul ve saatler</a>
+  <a href="{% url 'timetable:data_list' school.pk 'ders-adlari' %}" class="{% if data_nav == 'ders-adlari' %}active{% endif %}">Ders adları</a>
+  <a href="{% url 'timetable:data_list' school.pk 'siniflar' %}" class="{% if data_nav == 'siniflar' %}active{% endif %}">Sınıflar</a>
+  <a href="{% url 'timetable:data_list' school.pk 'ogretmenler' %}" class="{% if data_nav == 'ogretmenler' %}active{% endif %}">Öğretmenler</a>
+  <a href="{% url 'timetable:data_list' school.pk 'derslikler' %}" class="{% if data_nav == 'derslikler' %}active{% endif %}">Derslikler</a>
+  <a href="{% url 'timetable:data_list' school.pk 'binalar' %}" class="{% if data_nav == 'binalar' %}active{% endif %}">Binalar</a>
+  <a href="{% url 'timetable:lessons' school.pk %}" class="{% if data_nav == 'dersler' %}active{% endif %}">Dersler</a>
+  <a href="{% url 'timetable:data_list' school.pk 'kart-iliskileri' %}" class="{% if data_nav == 'kart-iliskileri' %}active{% endif %}">Kart ilişkileri</a>
+</nav>

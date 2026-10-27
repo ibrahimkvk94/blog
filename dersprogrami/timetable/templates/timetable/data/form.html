@@ -1,0 +1,54 @@
+{% extends "timetable/base.html" %}
+{% load static %}
+{% block title %}{% if obj %}{% firstof obj.full_name obj %}{% else %}Yeni {{ entity.singular|lower }}{% endif %}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{% url 'timetable:data_list' school.pk entity.slug %}">{{ entity.title }}</a>{% endblock %}
+{% block heading %}<h1>{% if obj %}{% firstof obj.full_name obj %}{% else %}Yeni {{ entity.singular|lower }}{% endif %}</h1>{% endblock %}
+{% block actions %}
+  {% if obj and entity.slug == "siniflar" %}<a class="btn" href="{% url 'timetable:class_lessons' school.pk obj.pk %}">{% include "timetable/icon.html" with name="list" %} Ders tablosu</a>{% endif %}
+{% endblock %}
+{% block content %}
+{% include "timetable/data/subnav.html" %}
+<form method="post" class="data-form" id="entity-form">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+  <div class="form-layout">
+    <div class="stack">
+      <div class="panel">
+        <div class="panel-head"><h2>Bilgiler</h2></div>
+        <div class="panel-body form-grid">
+          {% for field in form %}{% include "timetable/data/field.html" %}{% endfor %}
+        </div>
+      </div>
+      {% if divisions is not None %}
+        <div class="panel">
+          <div class="panel-head"><h2>Bölünmeler ve gruplar</h2><button type="button" class="btn btn-sm" data-add-division>{% include "timetable/icon.html" with name="plus" %} Bölünme ekle</button></div>
+          <div class="panel-body">
+            <p class="muted small" style="margin-top:0">Bir bölünme sınıfı tamamen kapsayan gruplardır (ör. “Yabancı dil 2: Almanca, Fransızca” ya da “Beden: Kız, Erkek”). Aynı bölünmedeki gruplar aynı anda farklı derslerde olabilir.</p>
+            <div data-divisions>
+              {{ divisions|json_script:"divisions-data" }}
+              <input type="hidden" name="divisions" value="">
+              <div class="division-list"></div>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+      {% if availability %}{% include "timetable/data/availability.html" %}{% endif %}
+    </div>
+  </div>
+  <div class="form-actions">
+    <div>
+      <button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} Kaydet</button>
+      <button class="btn" name="next" value="new">Kaydet ve yeni ekle</button>
+      <a class="btn btn-ghost" href="{% url 'timetable:data_list' school.pk entity.slug %}">Vazgeç</a>
+    </div>
+  </div>
+</form>
+{% if obj %}
+  <form method="post" action="{% url 'timetable:data_delete' school.pk entity.slug obj.pk %}" class="danger-zone" data-confirm="{{ entity.singular }} silinsin mi?{% if impact %} {{ impact }}{% endif %}">
+    {% csrf_token %}
+    <div><b>{{ entity.singular }} silinsin</b><div class="subtle small">{{ impact|default:"Bu işlem geri alınamaz." }}</div></div>
+    <button class="btn btn-danger">Sil</button>
+  </form>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="{% static 'timetable/data.js' %}"></script>{% endblock %}

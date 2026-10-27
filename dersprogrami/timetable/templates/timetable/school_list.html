@@ -5,7 +5,7 @@
   <form method="post" action="{% url 'timetable:create_demo' %}">{% csrf_token %}
     <button class="btn">{% include "timetable/icon.html" with name="plus" %} Örnek okul oluştur</button>
   </form>
-  <a class="btn btn-primary" href="{% url 'admin:timetable_school_add' %}">{% include "timetable/icon.html" with name="plus" %} Yeni okul</a>
+  <a class="btn btn-primary" href="{% url 'timetable:school_create' %}">{% include "timetable/icon.html" with name="plus" %} Yeni okul</a>
 {% endblock %}
 {% block content %}
 <div class="stack">

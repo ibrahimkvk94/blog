@@ -1,0 +1,79 @@
+{% extends "timetable/base.html" %}
+{% load static %}
+{% block title %}{{ cls }} ders tablosu{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{% url 'timetable:lessons' school.pk %}">Dersler</a>{% endblock %}
+{% block heading %}<h1>{{ cls }} · Ders tablosu</h1><span class="pill" data-total-pill><span data-total>0</span> / {{ capacity }} saat</span>{% endblock %}
+{% block actions %}
+  <select class="select" style="width:auto" onchange="location.href=this.value">
+    {% for c in all_classes %}<option value="{% url 'timetable:class_lessons' school.pk c.pk %}" {% if c.pk == cls.pk %}selected{% endif %}>{{ c }}</option>{% endfor %}
+  </select>
+  <a class="btn" href="{% url 'timetable:lesson_new' school.pk %}?sinif={{ cls.pk }}&back={{ request.path|urlencode }}">{% include "timetable/icon.html" with name="plus" %} Gruplu / birleşik ders</a>
+{% endblock %}
+{% block content %}
+{% include "timetable/data/subnav.html" %}
+<form method="post" class="data-form" id="class-lessons" data-other-hours="{{ other_effective }}" data-capacity="{{ capacity }}">
+  {% csrf_token %}
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Tek öğretmenli dersler</h2>
+      <div class="actions">
+        {% if classes %}
+          <select class="select" data-copy-from style="width:auto"><option value="">Başka sınıftan saatleri kopyala…</option>{% for c in classes %}<option value="{{ c.pk }}">{{ c }}</option>{% endfor %}</select>
+        {% endif %}
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="table quick-table">
+        <thead><tr><th>Ders</th><th style="width:110px">Haftalık saat</th><th style="width:160px">Kart</th><th>Öğretmen</th><th>Derslik</th></tr></thead>
+        <tbody>
+          {% for r in rows %}
+            <tr data-subject="{{ r.subject.pk }}" class="{% if r.hours %}has-hours{% endif %}">
+              <td><span class="swatch" style="background:{{ r.subject.color }}"></span> <b>{{ r.subject.name }}</b>{% if r.other_hours %}<div class="subtle small">Ayrıca {{ r.other_hours }} saatlik gruplu/birleşik ders var (aşağıda)</div>{% endif %}</td>
+              <td><input class="input input-sm" type="number" min="0" max="40" name="hours-{{ r.subject.pk }}" value="{{ r.hours }}" placeholder="0" data-hours></td>
+              <td><select class="select input-sm" name="length-{{ r.subject.pk }}" data-length>
+                <option value="1" {% if r.length == 1 %}selected{% endif %}>Tekil</option>
+                <option value="2" {% if r.length == 2 %}selected{% endif %}>Blok (2 saat)</option>
+                <option value="3" {% if r.length == 3 %}selected{% endif %}>Blok (3 saat)</option>
+              </select></td>
+              <td><select class="select input-sm" name="teacher-{{ r.subject.pk }}">
+                <option value="">— Öğretmen yok —</option>
+                {% for t in teachers %}<option value="{{ t.pk }}" {% if r.teacher == t.pk %}selected{% endif %}>{{ t.first_name }} {{ t.last_name }}</option>{% endfor %}
+              </select></td>
+              <td><select class="select input-sm" name="room-{{ r.subject.pk }}">
+                <option value="">Sınıf dersliği</option>
+                {% for room in rooms %}<option value="{{ room.pk }}" {% if r.room == room.pk %}selected{% endif %}>{{ room }}</option>{% endfor %}
+              </select></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5" class="empty">Önce <a href="{% url 'timetable:data_list' school.pk 'ders-adlari' %}">ders adlarını</a> girin.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% if others %}
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-head"><h2>Gruplu, birleşik ya da çok öğretmenli dersler</h2><span class="subtle small">{{ other_hours }} saat · ayrı formda düzenlenir</span></div>
+      <div class="table-wrap"><table class="table">
+        <tbody>
+          {% for r in others %}
+            <tr>
+              <td><span class="swatch" style="background:{{ r.lesson.subject.color }}"></span> <b>{{ r.lesson.subject.name }}</b></td>
+              <td>{{ r.classes }}{% if r.groups %} <span class="subtle">· {{ r.groups }}</span>{% endif %}</td>
+              <td>{{ r.teachers|default:"–" }}</td>
+              <td class="num"><b>{{ r.lesson.periods_per_week }}</b> saat</td>
+              <td class="num"><a class="btn btn-sm" href="{% url 'timetable:lesson_edit' school.pk r.lesson.pk %}?back={{ request.path|urlencode }}">Düzenle</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+    </div>
+  {% endif %}
+  <div class="form-actions"><div>
+    <button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} Ders tablosunu kaydet</button>
+    <span class="subtle small">Saati boş ya da 0 olan ders silinir.</span>
+  </div></div>
+  {{ copy_source|json_script:"copy-source" }}
+</form>
+{% endblock %}
+{% block scripts %}<script src="{% static 'timetable/data.js' %}"></script>{% endblock %}

@@ -125,7 +125,11 @@ class Teacher(models.Model):
         verbose_name_plural = "öğretmenler"
 
     def __str__(self):
-        return self.short or f"{self.first_name} {self.last_name}"
+        return self.short or self.full_name
+
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}".strip()
 
 
 class SchoolClass(models.Model):

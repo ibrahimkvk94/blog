@@ -31,18 +31,20 @@
       </nav>
       <div class="nav-section">Veri</div>
       <nav class="side-nav">
-        <a href="{% url 'admin:timetable_lesson_changelist' %}?school__id__exact={{ school.pk }}">{% include "timetable/icon.html" with name="list" %} Dersler</a>
-        <a href="{% url 'admin:timetable_teacher_changelist' %}?school__id__exact={{ school.pk }}">{% include "timetable/icon.html" with name="users" %} Öğretmenler</a>
-        <a href="{% url 'admin:timetable_cardrelationship_changelist' %}?school__id__exact={{ school.pk }}">{% include "timetable/icon.html" with name="link" %} Kart ilişkileri</a>
-        <a href="{% url 'admin:index' %}">{% include "timetable/icon.html" with name="database" %} Tüm veriler</a>
+        <a href="{% url 'timetable:school_settings' school.pk %}" class="{% if data_nav == 'okul' %}active{% endif %}">{% include "timetable/icon.html" with name="home" %} Okul ve saatler</a>
+        <a href="{% url 'timetable:lessons' school.pk %}" class="{% if data_nav == 'dersler' %}active{% endif %}">{% include "timetable/icon.html" with name="list" %} Dersler</a>
+        <a href="{% url 'timetable:data_list' school.pk 'siniflar' %}" class="{% if data_nav == 'siniflar' %}active{% endif %}">{% include "timetable/icon.html" with name="grid" %} Sınıflar</a>
+        <a href="{% url 'timetable:data_list' school.pk 'ogretmenler' %}" class="{% if data_nav == 'ogretmenler' %}active{% endif %}">{% include "timetable/icon.html" with name="users" %} Öğretmenler</a>
+        <a href="{% url 'timetable:data_list' school.pk 'ders-adlari' %}" class="{% if data_nav == 'ders-adlari' or data_nav == 'derslikler' or data_nav == 'binalar' %}active{% endif %}">{% include "timetable/icon.html" with name="database" %} Ders adları, derslikler</a>
+        <a href="{% url 'timetable:data_list' school.pk 'kart-iliskileri' %}" class="{% if data_nav == 'kart-iliskileri' %}active{% endif %}">{% include "timetable/icon.html" with name="link" %} Kart ilişkileri</a>
       </nav>
     {% else %}
       <nav class="side-nav">
         <a href="{% url 'timetable:school_list' %}" class="active">{% include "timetable/icon.html" with name="home" %} Okullar</a>
-        <a href="{% url 'admin:index' %}">{% include "timetable/icon.html" with name="database" %} Veri girişi</a>
       </nav>
     {% endif %}
-    <div class="sidebar-foot">aSc mantığıyla · CP-SAT çözücü</div>
+    <div class="sidebar-foot"><a href="{% url 'admin:index' %}" style="color:inherit">Yönetim paneli</a> · <a href="{% url 'admin:logout' %}" style="color:inherit" onclick="event.preventDefault();document.getElementById('logout-form').submit()">Çıkış</a>
+      <form id="logout-form" method="post" action="{% url 'admin:logout' %}" hidden>{% csrf_token %}</form></div>
   </aside>
   <div class="main">
     <header class="topbar">

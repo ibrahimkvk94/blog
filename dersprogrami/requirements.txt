@@ -1,3 +1,5 @@
 Django>=5.2,<6
 ortools>=9.12
 openpyxl>=3.1
+whitenoise>=6.7
+gunicorn>=23
