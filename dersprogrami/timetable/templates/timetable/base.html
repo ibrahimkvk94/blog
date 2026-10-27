@@ -26,6 +26,7 @@
         {% with main_tt=school.active_timetable|default:latest_timetable %}
           {% if main_tt %}
             <a href="{% url 'timetable:timetable_detail' main_tt.pk %}" class="{% if nav == 'timetable' %}active{% endif %}">{% include "timetable/icon.html" with name="grid" %} Ana görünüm</a>
+            <a href="{% url 'timetable:reports' main_tt.pk %}" class="{% if nav == 'reports' %}active{% endif %}">{% include "timetable/icon.html" with name="printer" %} Raporlar</a>
           {% endif %}
         {% endwith %}
         <a href="{% url 'timetable:substitutions' school.pk %}" class="{% if nav == 'subs' %}active{% endif %}">{% include "timetable/icon.html" with name="swap" %} Vekâlet</a>

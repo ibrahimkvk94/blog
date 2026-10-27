@@ -702,3 +702,19 @@ class Duty(models.Model):
 
     def __str__(self):
         return f"{self.teacher} – {self.place} ({DAY_NAMES[self.day]})"
+
+
+class ReportPreset(models.Model):
+    """Kaydedilmiş rapor ayarı (aSc "baskı tasarımı" karşılığı): rapor türü ve tüm seçenekler."""
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="report_presets")
+    name = models.CharField("ad", max_length=100)
+    params = models.JSONField(default=dict)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "rapor şablonu"
+        verbose_name_plural = "rapor şablonları"
+
+    def __str__(self):
+        return self.name

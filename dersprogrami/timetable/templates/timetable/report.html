@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>{% firstof o.baslik type_label %} – {{ school }}</title>
+<style>
+  @page { size: A4 {% if o.yon == "dikey" %}portrait{% else %}landscape{% endif %}; margin: 10mm; }
+  * { box-sizing: border-box; }
+  :root { --fs: {% if o.boyut == "kucuk" %}9px{% elif o.boyut == "buyuk" %}12.5px{% else %}10.5px{% endif %}; --page-w: {% if o.yon == "dikey" %}190mm{% else %}277mm{% endif %}; }
+  body { font: var(--fs)/1.3 "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1c2230; margin: 0; background: #eef0f4; }
+  .bar { position: sticky; top: 0; background: #141a2a; color: #fff; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; z-index: 3; }
+  .bar button { background: #4f46e5; color: #fff; border: 0; border-radius: 7px; padding: 8px 14px; font: 600 13px inherit; cursor: pointer; }
+  .page { background: #fff; width: var(--page-w); margin: 14px auto; padding: 8mm 10mm; box-shadow: 0 2px 10px rgba(0,0,0,.08); page-break-after: always; display: grid; gap: 6mm; }
+  .page:last-child { page-break-after: auto; }
+  .page.per-2 { grid-template-rows: 1fr 1fr; }
+  .page.per-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+  .page.wide { width: auto; margin: 14px; }
+  header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #1c2230; padding-bottom: 4px; margin-bottom: 6px; gap: 16px; }
+  header h1 { font-size: 1.9em; margin: 0; line-height: 1.1; }
+  .per-2 header h1, .per-4 header h1 { font-size: 1.4em; }
+  header .info { color: #3b4352; margin-top: 2px; }
+  header .meta { color: #5b6474; text-align: right; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th, td { border: 1px solid #b9bfca; padding: 3px; vertical-align: top; }
+  th { background: #f1f2f6; }
+  th.p { width: 64px; text-align: left; }
+  th.p span { font-weight: 400; color: #5b6474; }
+  .sheet td { height: 3.6em; }
+  .per-4 .sheet td { height: 2.6em; }
+  .c { border-radius: 3px; padding: 2px 4px; margin-bottom: 2px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .c b { display: block; }
+  .c span { color: #3b4352; font-size: .9em; }
+  .bw .c { border: 1px solid #9aa1ad; background: #fff !important; }
+  .overview th, .overview td { padding: 1px 2px; text-align: center; vertical-align: middle; font-size: .9em; }
+  .overview th.row { text-align: left; width: 72px; }
+  .overview .ds { border-left: 2px solid #1c2230; }
+  .overview .c { margin: 0 0 1px; padding: 1px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .overview .c span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .list td, .list th { padding: 4px 6px; }
+  .list .num { text-align: right; width: 60px; }
+  .block { break-inside: avoid; margin-bottom: 10px; }
+  .block h2 { font-size: 1.25em; margin: 0 0 4px; display: flex; justify-content: space-between; }
+  .free td { font-size: .9em; }
+  .sign { margin-top: 10mm; text-align: right; padding-right: 20mm; }
+  .sign div { display: inline-block; min-width: 50mm; text-align: center; border-top: 1px solid #1c2230; padding-top: 3px; }
+  footer { color: #8a93a3; font-size: .85em; display: flex; justify-content: space-between; align-self: end; }
+  .ok { color: #15803d; } .bad { color: #b91c1c; }
+  @media print { body { background: #fff; } .bar { display: none; } .page { box-shadow: none; margin: 0; width: auto; padding: 0; } }
+  body.embedded .bar { display: none; }
+  body.embedded .page { width: auto; margin: 10px; }
+</style>
+</head>
+<body class="{% if embedded %}embedded{% endif %}{% if o.renk != "1" %} bw{% endif %}">
+<div class="bar"><span>{{ school }} · {{ timetable.name }} · {{ type_label }}</span><button onclick="window.print()">Yazdır / PDF olarak kaydet</button></div>
+
+{% if o.tur == "bireysel" %}
+  {% for group in pages %}
+    <section class="page per-{{ o.sayfa }}">
+      {% for page in group %}
+        <div class="sheet-wrap">
+          <header><div><h1>{{ page.title }}</h1>{% if page.info %}<div class="info">{{ page.info|join:" · " }}</div>{% endif %}</div>
+            <div class="meta">{% firstof o.baslik school.name %}<br>{{ timetable.name }}</div></header>
+          <table class="sheet">
+            <thead><tr><th class="p">{% if o.gunler == "satir" %}Gün{% else %}Saat{% endif %}</th>{% for col in columns %}<th>{{ col }}</th>{% endfor %}</tr></thead>
+            <tbody>
+              {% for row in page.rows %}
+                <tr><th class="p">{{ row.head }}{% if row.sub %}<br><span>{{ row.sub }}</span>{% endif %}</th>
+                  {% for cell in row.cells %}<td>{% for c in cell %}<div class="c" style="background:{{ c.color }}"><b>{{ c.lines.0 }}</b>{% if c.lines.1 %}<span>{{ c.lines.1 }}</span>{% endif %}</div>{% endfor %}</td>{% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% if o.alt %}<div class="sign"><div>{{ o.alt }}</div></div>{% endif %}
+        </div>
+      {% endfor %}
+    </section>
+  {% empty %}<section class="page"><p>Seçime uygun kayıt yok.</p></section>
+  {% endfor %}
+
+{% elif o.tur == "carsaf" or o.tur == "carsaf_gun" %}
+  <section class="page wide">
+    <header><div><h1>{% firstof o.baslik kind_label %}</h1><div class="info">{{ type_label }}{% if o.tur == "carsaf_gun" %} · {{ sheet_days.0 }}{% endif %}</div></div><div class="meta">{{ school }}<br>{{ timetable.name }}</div></header>
+    <table class="overview">
+      <thead>
+        <tr><th class="row"></th>{% for d in sheet_days %}<th colspan="{{ periods|length }}" class="ds">{{ d }}</th>{% endfor %}</tr>
+        <tr><th class="row"></th>{% for d in sheet_days %}{% for p in periods %}<th class="{% if forloop.first %}ds{% endif %}">{{ p.index|add:1 }}{% if o.tur == "carsaf_gun" and p.start_time %}<br><span style="font-weight:400">{{ p.start_time|time:"H:i" }}</span>{% endif %}</th>{% endfor %}{% endfor %}</tr>
+      </thead>
+      <tbody>
+        {% for row in sheet_rows %}
+          <tr><th class="row">{{ row.title }}</th>
+            {% for cell in row.cells %}<td colspan="{{ cell.span }}" class="{% if cell.day_start %}ds{% endif %}">{% for c in cell.cards %}<div class="c" style="background:{{ c.color }}" title="{{ c.title }}">{{ c.lines.0 }}{% if c.lines.1 %}<span>{{ c.lines.1 }}</span>{% endif %}</div>{% endfor %}</td>{% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if o.alt %}<div class="sign"><div>{{ o.alt }}</div></div>{% endif %}
+    <footer><span>Ders Programı</span><span>{% now "d.m.Y" %}</span></footer>
+  </section>
+
+{% elif o.tur == "yuk" %}
+  <section class="page">
+    <header><div><h1>{% firstof o.baslik "Öğretmen ders yükü" %}</h1></div><div class="meta">{{ school }}</div></header>
+    <div>
+      {% for r in load_rows %}
+        <div class="block">
+          <h2><span>{{ r.teacher.full_name }}</span><span>{{ r.total }} saat{% if r.target %} / hedef {{ r.target }} <span class="{% if r.diff == 0 %}ok{% else %}bad{% endif %}">({{ r.diff|stringformat:"+d" }})</span>{% endif %}</span></h2>
+          <table class="list"><thead><tr><th>Ders</th><th>Sınıf</th><th>Grup</th><th class="num">Saat</th><th class="num">Dağılım</th></tr></thead>
+            <tbody>{% for l in r.lessons %}<tr><td>{{ l.subject }}</td><td>{{ l.classes }}</td><td>{{ l.groups|default:"–" }}</td><td class="num">{{ l.hours }}</td><td class="num">{{ l.split }}</td></tr>{% empty %}<tr><td colspan="5">Dersi yok.</td></tr>{% endfor %}</tbody>
+          </table>
+        </div>
+      {% endfor %}
+      {% if o.alt %}<div class="sign"><div>{{ o.alt }}</div></div>{% endif %}
+    </div>
+  </section>
+
+{% elif o.tur == "sinif_dersleri" %}
+  <section class="page">
+    <header><div><h1>{% firstof o.baslik "Sınıf ders listesi" %}</h1></div><div class="meta">{{ school }}</div></header>
+    <div>
+      {% for r in class_rows %}
+        <div class="block">
+          <h2><span>{{ r.title }}{% if r.cls.class_teacher %} · {{ r.cls.class_teacher.full_name }}{% endif %}</span><span>{{ r.total }} saat (tüm sınıf)</span></h2>
+          <table class="list"><thead><tr><th>Ders</th><th>Öğretmen</th><th>Grup</th><th class="num">Saat</th><th class="num">Dağılım</th></tr></thead>
+            <tbody>{% for l in r.lessons %}<tr><td>{{ l.subject }}</td><td>{{ l.teachers }}</td><td>{{ l.groups|default:"–" }}</td><td class="num">{{ l.hours }}</td><td class="num">{{ l.split }}</td></tr>{% empty %}<tr><td colspan="5">Dersi yok.</td></tr>{% endfor %}</tbody>
+          </table>
+        </div>
+      {% endfor %}
+      {% if o.alt %}<div class="sign"><div>{{ o.alt }}</div></div>{% endif %}
+    </div>
+  </section>
+
+{% elif o.tur == "bos_derslik" or o.tur == "bos_ogretmen" %}
+  <section class="page wide">
+    <header><div><h1>{% firstof o.baslik free_label %}</h1>{% if free_note %}<div class="info">{{ free_note }}</div>{% endif %}</div><div class="meta">{{ school }}<br>{{ timetable.name }}</div></header>
+    <table class="free">
+      <thead><tr><th class="p">Gün</th>{% for p in periods %}<th>{{ p.index|add:1 }}.{% if p.start_time %} <span style="font-weight:400">{{ p.start_time|time:"H:i" }}</span>{% endif %}</th>{% endfor %}</tr></thead>
+      <tbody>{% for row in free_rows %}<tr><th class="p">{{ row.day }}</th>{% for names in row.cells %}<td>{{ names|join:", "|default:"–" }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+    </table>
+    <footer><span>Ders Programı</span><span>{% now "d.m.Y" %}</span></footer>
+  </section>
+
+{% elif o.tur == "nobet" %}
+  <section class="page">
+    <header><div><h1>{% firstof o.baslik "Nöbet çizelgesi" %}</h1></div><div class="meta">{{ school }}</div></header>
+    <table class="list">
+      <thead><tr><th>Nöbet yeri</th>{% for d in duty.days %}<th>{{ d }}</th>{% endfor %}</tr></thead>
+      <tbody>{% for row in duty.rows %}<tr><th>{{ row.place.name }}</th>{% for cell in row.cells %}<td>{% for d in cell.duties %}<div>{{ d.teacher.full_name }}</div>{% empty %}{% if not cell.active %}–{% endif %}{% endfor %}</td>{% endfor %}</tr>{% empty %}<tr><td>Nöbet yeri tanımlı değil.</td></tr>{% endfor %}</tbody>
+    </table>
+    {% if o.alt %}<div class="sign"><div>{{ o.alt }}</div></div>{% endif %}
+  </section>
+{% endif %}
+</body>
+</html>

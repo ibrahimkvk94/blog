@@ -1,5 +1,6 @@
 import datetime
 import json
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.db.models import Count
@@ -11,10 +12,10 @@ from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
-from . import analysis, asc_xml, duty, editing, excel, jobs, substitutes, versions
+from . import analysis, asc_xml, duty, editing, excel, jobs, reports, substitutes, versions
 from .demo import create_demo_school
 from .grid import KINDS, card_payload, grid_data, room_names
-from .models import Absence, Card, Duty, DutyPlace, School, Teacher, Timetable, TimetableVersion
+from .models import Absence, Card, Duty, DutyPlace, ReportPreset, School, Teacher, Timetable, TimetableVersion
 from .services import check_school, refresh_stale, repair_timetable, request_stop, start_generation, verify_timetable
 
 KIND_LABELS = {"sinif": "Sınıflar", "ogretmen": "Öğretmenler", "derslik": "Derslikler"}
@@ -475,6 +476,43 @@ def api_version(request, pk):
         versions.save_version(copy, user=request.user, note=f"{timetable.name} #{version.number} kopyası")
         return JsonResponse({"ok": True, "message": "Ayrı program olarak açıldı.", "url": reverse("timetable:timetable_detail", args=[copy.pk])})
     return JsonResponse({"ok": False, "message": "Bilinmeyen işlem."}, status=400)
+
+
+def reports_page(request, pk):
+    """Rapor tasarımı: solda ayarlar, sağda canlı ön izleme; ayarlar şablon olarak kaydedilebilir."""
+    timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
+    school = timetable.school
+    if request.method == "POST":
+        if request.POST.get("action") == "delete_preset":
+            ReportPreset.objects.filter(pk=request.POST.get("preset"), school=school).delete()
+            messages.info(request, "Rapor şablonu silindi.")
+        else:
+            name = (request.POST.get("name") or "").strip()[:100]
+            params = {k: request.POST.getlist(k) if k in ("icerik", "secim") else request.POST.get(k, "") for k in reports.PARAM_KEYS}
+            params["icerik_set"] = "1"
+            if name:
+                ReportPreset.objects.update_or_create(school=school, name=name, defaults={"params": params})
+                messages.success(request, f"Rapor şablonu kaydedildi: {name}")
+        return redirect("timetable:reports", pk=timetable.pk)
+    o = reports.options(request.GET)
+    presets = [{"preset": p, "query": urlencode(p.params, doseq=True)} for p in school.report_presets.all()]
+    return render(
+        request,
+        "timetable/reports.html",
+        _nav(
+            school, "reports", timetable=timetable, o=o, types=reports.TYPES, kinds=reports.KIND_LABELS,
+            content=reports.CONTENT, choices=reports.selectable(school, o["varlik"]), presets=presets,
+            query=request.GET.urlencode(), days=school.day_names,
+        ),
+    )
+
+
+@xframe_options_sameorigin
+def report_render(request, pk):
+    timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
+    data = reports.build(timetable, reports.options(request.GET))
+    data["embedded"] = request.GET.get("gomulu") == "1"
+    return render(request, "timetable/report.html", data)
 
 
 def statistics(request, pk):

@@ -497,3 +497,19 @@ html.focus-mode .tt-scroll { max-height: calc(100vh - 110px); }
 .versions-list tr.auto td { color: var(--text-2); }
 .versions-preview canvas { width: 100%; border: 1px solid var(--border); border-radius: 6px; background: #fff; }
 @media (max-width: 900px) { .versions-layout { grid-template-columns: 1fr; } }
+
+/* Raporlar */
+.report-layout { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 18px; align-items: start; }
+.report-settings .panel-body { display: flex; flex-direction: column; gap: 6px; }
+.report-settings .label { margin-top: 8px; }
+.report-settings [hidden] { display: none !important; }
+.report-pick summary { cursor: pointer; color: var(--primary-2); font-size: 13px; margin: 6px 0; }
+.report-checks { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 10px; max-height: 220px; overflow-y: auto; font-size: 13px; }
+.report-checks.inline { display: flex; flex-wrap: wrap; gap: 4px 14px; max-height: none; }
+.report-checks label, .seg-radio label { display: inline-flex; gap: 5px; align-items: center; }
+.seg-radio { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; }
+.preset-list { list-style: none; margin: 10px 0 0; padding: 0; }
+.preset-list li { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; border-bottom: 1px solid var(--border); }
+.report-preview { position: sticky; top: 12px; }
+.report-preview iframe { width: 100%; height: calc(100vh - 140px); border: 1px solid var(--border); border-radius: var(--radius); background: #eef0f4; }
+@media (max-width: 1000px) { .report-layout { grid-template-columns: 1fr; } }
