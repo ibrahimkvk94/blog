@@ -297,6 +297,8 @@ def build_problem(school, timetable=None, base=None):
         for atom_id in atoms_by_class[cls.id]:
             atom_available[atom_id] = free
 
+    notes += _advisor_notes(school, classes, lessons, lesson_data, cards, avail, days, periods, school_closed)
+
     class_limits = {
         cls.id: (cls.min_periods_per_day, cls.max_periods_per_day)
         for cls in classes
@@ -333,6 +335,62 @@ def build_problem(school, timetable=None, base=None):
             },
         },
     )
+
+
+def _advisor_notes(school, classes, lessons, lesson_data, cards, avail, days, periods, school_closed):
+    """aSc "Danışman" uyarıları (kılavuz 25.6–25.12): veri büyük olasılıkla hatalı ya da eksik."""
+    notes = []
+    group_hours = defaultdict(int)
+    group_lengths = defaultdict(list)
+    for lesson in lessons:
+        for group in lesson.groups.all():
+            group_hours[group.id] += lesson.periods_per_week
+            group_lengths[group.id] += lesson.card_lengths()
+    for cls in classes:
+        for division in cls.divisions.all():
+            groups = list(division.groups.all())
+            if not any(group_hours.get(g.id) for g in groups):
+                continue
+            hours = {g.name: group_hours.get(g.id, 0) for g in groups}
+            if len(set(hours.values())) > 1:
+                detail = ", ".join(f"{name} {h} saat" for name, h in hours.items())
+                notes.append(("warning", "group_hours", f"{cls.name} / {division.name}: grupların haftalık saati farklı ({detail}). "
+                              "Gruplar aynı saatte ders görmezse sınıf programında boşluk oluşur."))
+            elif len({tuple(sorted(group_lengths.get(g.id, []))) for g in groups}) > 1:
+                notes.append(("warning", "group_lengths", f"{cls.name} / {division.name}: grupların kart uzunlukları farklı "
+                              "(ör. birinde blok, diğerinde tekil ders). Gruplar aynı saatlere oturamaz; boşluk oluşabilir."))
+
+    if school.classrooms.exists():
+        roomless = [lesson_data[lesson.id]["label"] for lesson in lessons if lesson.classes.exists() and not lesson_data[lesson.id]["rooms"]]
+        if roomless:
+            sample = ", ".join(roomless[:3]) + (f" ve {len(roomless) - 3} ders daha" if len(roomless) > 3 else "")
+            notes.append(("warning", "no_room", f"{len(roomless)} dersin dersliği belirlenemedi ({sample}). Sınıf dersliği, "
+                          "ders adının varsayılan dersliği ya da dersin kendi dersliği girilmezse derslik çakışması denetlenmez."))
+
+    if classes:
+        for p in range(periods):
+            closed = all(
+                (d, p) in school_closed or avail.get(("school_class", cls.id), {}).get((d, p)) == Availability.NO
+                for cls in classes
+                for d in range(days)
+            )
+            if closed and any(c.atoms for c in cards):
+                notes.append(("warning", "closed_period", f"{p + 1}. saat hiçbir sınıf için hiçbir gün açık değil. "
+                              "Bilinçli değilse sınıf ya da okul müsaitliklerini kontrol edin."))
+
+    class_hours = defaultdict(int)
+    for card in cards:
+        for class_id in {Problem.atom_class(a) for a in card.atoms}:
+            class_hours[class_id] += card.length
+    for cls in classes:
+        hours = class_hours.get(cls.id, 0)
+        if cls.max_periods_per_day and hours > cls.max_periods_per_day * days:
+            notes.append(("error", "class_max_total", f"{cls.name}: haftada {hours} saat ders var, günde en fazla "
+                          f"{cls.max_periods_per_day} sınırıyla en çok {cls.max_periods_per_day * days} saat sığar."))
+        if cls.min_periods_per_day and hours < cls.min_periods_per_day * days:
+            notes.append(("error", "class_min_total", f"{cls.name}: haftada yalnızca {hours} saat ders var, günde en az "
+                          f"{cls.min_periods_per_day} kuralı için {cls.min_periods_per_day * days} saat gerekir."))
+    return notes
 
 
 def _parse_map(raw):

@@ -260,3 +260,44 @@ class FeatureViewTests(TestCase):
         copy_cls = SchoolClass.objects.get(school=target, name=cls.name)
         self.assertEqual((copy_cls.class_teacher, copy_cls.student_count), (copy, 28))
         self.assertTrue(Lesson.objects.filter(school=target, split="2+2+1").exists())
+
+
+class AdvisorTests(TestCase):
+    def setUp(self):
+        self.school = small_school()
+        self.cls = SchoolClass.objects.create(school=self.school, name="9-A")
+        division = Division.objects.create(school_class=self.cls, name="Dil")
+        self.g1 = Group.objects.create(division=division, name="Almanca")
+        self.g2 = Group.objects.create(division=division, name="Fransızca")
+        self.teacher = Teacher.objects.create(school=self.school, first_name="A", last_name="B")
+
+    def lesson(self, name, groups, hours, length=1):
+        subject, _ = Subject.objects.get_or_create(school=self.school, name=name)
+        lesson = Lesson.objects.create(school=self.school, subject=subject, periods_per_week=hours, card_length=length)
+        lesson.classes.set([self.cls])
+        lesson.groups.set(groups)
+        lesson.teachers.set([self.teacher])
+        return lesson
+
+    def codes(self):
+        return {i.code: i.level for i in check_school(self.school)}
+
+    def test_group_hours_and_lengths(self):
+        self.lesson("Almanca", [self.g1], 2)
+        self.lesson("Fransızca", [self.g2], 3)
+        self.assertEqual(self.codes().get("group_hours"), "warning")
+        Lesson.objects.filter(subject__name="Fransızca").update(periods_per_week=2, card_length=2)
+        codes = self.codes()
+        self.assertNotIn("group_hours", codes)
+        self.assertEqual(codes.get("group_lengths"), "warning")
+
+    def test_room_and_period_and_class_limit_checks(self):
+        self.lesson("Matematik", [], 4)
+        Classroom.objects.create(school=self.school, name="Lab")
+        self.assertIn("no_room", self.codes())
+        for d in range(5):
+            Availability.objects.create(school=self.school, school_class=self.cls, day=d, period=5)
+        self.assertIn("closed_period", self.codes())
+        self.cls.min_periods_per_day = 2
+        self.cls.save()
+        self.assertEqual(self.codes().get("class_min_total"), "error")
