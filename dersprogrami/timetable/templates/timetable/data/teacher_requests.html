@@ -1,10 +1,42 @@
 {% extends "timetable/base.html" %}
 {% block title %}Öğretmen istekleri{% endblock %}
 {% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / Veri{% endblock %}
-{% block heading %}<h1>Öğretmen istekleri</h1><span class="pill{% if pending %} warn{% else %} ok{% endif %}">{{ pending|length }} bekleyen</span>{% endblock %}
+{% block heading %}<h1>Öğretmen istekleri</h1><span class="pill{% if pending_total %} warn{% else %} ok{% endif %}">{{ pending_total }} bekleyen</span>{% endblock %}
 {% block content %}
 {% include "timetable/data/subnav.html" %}
-<p class="muted small" style="margin-top:0">Öğretmenler kendi hesaplarıyla <b>İsteklerim</b> sayfasından gelemeyecekleri (ya da tercih etmedikleri) saatleri bildirir. Onayladığınız istek öğretmenin müsaitliğine yazılır; bir sonraki üretimde ve elle düzenlemede uygulanır. Bunun için öğretmen kartı bir kullanıcı hesabına bağlı olmalı (aşağıda, <a href="#hesaplar">Hesap bağlantıları</a>).</p>
+<p class="muted small" style="margin-top:0">Öğretmenler kendi hesaplarıyla <b>İsteklerim</b> sayfasından tarihli izin/rapor bildirir (onaylanınca o günler Vekâlet ekranına düşer) ve kalıcı olarak gelemeyecekleri (ya da tercih etmedikleri) saatleri bildirir. Onayladığınız istek öğretmenin müsaitliğine yazılır; bir sonraki üretimde ve elle düzenlemede uygulanır. Bunun için öğretmen kartı bir kullanıcı hesabına bağlı olmalı (aşağıda, <a href="#hesaplar">Hesap bağlantıları</a>).</p>
+
+{% if leaves or leave_history %}
+<section class="panel" id="izinler" style="margin-bottom:16px">
+  <div class="panel-head"><h2>İzin ve rapor bildirimleri</h2><span class="pill{% if leaves %} warn{% endif %}">{{ leaves|length }} bekleyen</span></div>
+  <div class="panel-body flush table-wrap">
+    <table class="table">
+      <thead><tr><th>Öğretmen</th><th>Tür</th><th>Tarih</th><th>Saat</th><th class="num">Vekil gereken</th><th>Açıklama</th><th>Karar</th></tr></thead>
+      <tbody>
+        {% for item in leaves %}{% with l=item.r %}
+          <tr><td><b>{{ l.teacher.full_name }}</b><div class="subtle small">{{ l.requested_by.username|default:"" }} · {{ l.created_at|date:"j M H:i" }}</div></td>
+            <td>{{ l.get_kind_display }}</td>
+            <td>{{ l.start_date|date:"j M D" }}{% if l.end_date != l.start_date %}<br>– {{ l.end_date|date:"j M D" }}{% endif %}</td>
+            <td>{{ l.periods_label }}</td>
+            <td class="num">{{ item.affected }} saat</td>
+            <td class="small">{{ l.reason|default:"–" }}</td>
+            <td><form method="post" class="lv-decide">{% csrf_token %}<input type="hidden" name="izin" value="{{ l.pk }}">
+              <input class="input input-sm" name="note" placeholder="Not (isteğe bağlı)">
+              <button class="btn btn-primary btn-sm" name="action" value="leave_approve">Onayla</button>
+              <button class="btn btn-sm" name="action" value="leave_reject">Reddet</button></form></td></tr>
+        {% endwith %}{% empty %}<tr><td colspan="7" class="subtle">Bekleyen izin bildirimi yok.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    {% if leave_history %}
+      <details class="lv-history"><summary class="small">Yanıtlanan izin bildirimleri ({{ leave_history|length }})</summary>
+        <table class="table table-compact"><tbody>{% for l in leave_history %}
+          <tr><td>{{ l.teacher.full_name }}</td><td>{{ l.get_kind_display }}</td><td>{{ l.start_date|date:"j M" }}{% if l.end_date != l.start_date %} – {{ l.end_date|date:"j M" }}{% endif %} · {{ l.periods_label }}</td>
+            <td><span class="pill {% if l.status == 'onaylandi' %}ok{% elif l.status == 'reddedildi' %}error{% endif %}">{{ l.get_status_display }}</span></td><td class="subtle small">{{ l.decided_by.username|default:"" }} {{ l.note }}</td></tr>
+        {% endfor %}</tbody></table></details>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
 
 {% for item in pending %}
   {% with r=item.r %}
@@ -36,7 +68,7 @@
   </section>
   {% endwith %}
 {% empty %}
-  <div class="panel panel-body"><b>Bekleyen istek yok.</b> <span class="muted">{{ linked }} öğretmenin hesabı bağlı.</span></div>
+  <div class="panel panel-body"><b>Bekleyen müsaitlik isteği yok.</b> <span class="muted">{{ linked }} öğretmenin hesabı bağlı.</span></div>
 {% endfor %}
 
 {% if history %}

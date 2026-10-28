@@ -139,3 +139,19 @@ def request_decision_notice(req, items, link=""):
     if link:
         lines += ["", link]
     return _send([EmailMessage(f"Müsaitlik isteğiniz {verdict} – {req.school}", "\n".join(lines), to=[teacher.email])])
+
+
+def leave_decision_notice(req, link=""):
+    """Öğretmene izin/rapor bildiriminin onaylandığını/reddedildiğini bildirir. Dönüş: (gönderilen, hatalar)."""
+    teacher = req.teacher
+    if not enabled() or not teacher.email:
+        return 0, []
+    verdict = "onaylandı" if req.status == req.APPROVED else "reddedildi"
+    lines = [f"Merhaba {teacher.full_name},", "",
+             f"{req.start_date:%d.%m.%Y}–{req.end_date:%d.%m.%Y} tarihli {req.get_kind_display().lower()} bildiriminiz "
+             f"({req.periods_label}) {verdict}."]
+    if req.note:
+        lines += ["", f"Yanıt: {req.note}"]
+    if link:
+        lines += ["", link]
+    return _send([EmailMessage(f"İzin bildiriminiz {verdict} – {req.school}", "\n".join(lines), to=[teacher.email])])

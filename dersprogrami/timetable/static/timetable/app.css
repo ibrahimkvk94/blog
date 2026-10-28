@@ -1021,3 +1021,12 @@ a.q-card { color: inherit; } a.q-card:hover { border-color: var(--primary); }
 .mt-link input { flex: 1; min-width: 0; font-size: 12px; }
 .mt-howto { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; align-items: flex-start; }
 @media (max-width: 640px) { .mt-grid { font-size: 11px; } .mt-grid tbody th { width: 52px; } }
+.lv-form .lv-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 10px; }
+.lv-form .lv-row > label { display: flex; flex-direction: column; min-width: 150px; }
+.lv-periods { display: flex; gap: 10px; flex-wrap: wrap; }
+.lv-periods[hidden] { display: none; }
+.lv-decide { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.lv-decide .input { width: 160px; }
+.lv-history { padding: 8px 16px 12px; }
+.lv-history > summary { cursor: pointer; color: var(--text-2); }
+.lv-form .lv-row > label.check { flex-direction: row; min-width: 0; align-items: center; }

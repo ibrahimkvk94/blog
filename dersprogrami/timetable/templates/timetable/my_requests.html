@@ -51,10 +51,53 @@
     </section>
   </aside>
 </div>
+
+<div class="rq-layout" id="izin" style="margin-top:16px">
+  <form method="post" class="panel">
+    {% csrf_token %}<input type="hidden" name="ogretmen" value="{{ teacher.pk }}"><input type="hidden" name="action" value="leave">
+    <div class="panel-head"><h2>İzin / rapor bildir</h2><span class="subtle small">belirli tarihler için; kalıcı müsaitliğiniz değişmez</span></div>
+    <div class="panel-body lv-form">
+      <div class="lv-row">
+        <label><span class="label">Tür</span><select class="select" name="tur">{% for k, v in leave_kinds %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></label>
+        <label><span class="label">Başlangıç</span><input class="input" type="date" name="baslangic" value="{{ today|date:'Y-m-d' }}" required data-lv-start></label>
+        <label><span class="label">Bitiş</span><input class="input" type="date" name="bitis" value="{{ today|date:'Y-m-d' }}" data-lv-end></label>
+      </div>
+      <div class="lv-row">
+        <label class="check"><input type="checkbox" name="tum_gun" value="1" checked data-lv-allday> <span>Tüm gün</span></label>
+        <div class="lv-periods" data-lv-periods hidden>{% for p in periods %}<label class="check small"><input type="checkbox" name="saat" value="{{ p.index }}"> <span>{{ p.index|add:1 }}.{% if p.span %} <span class="subtle">{{ p.span }}</span>{% endif %}</span></label>{% endfor %}</div>
+      </div>
+      <label><span class="label">Açıklama <span class="subtle">(isteğe bağlı)</span></span><input class="input" name="aciklama" placeholder="Ör. Hastane raporu, seminer görevlendirmesi"></label>
+      <div style="margin-top:12px"><button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} Bildir</button>
+        <span class="subtle small">Onaylanınca o günlerdeki dersleriniz için vekil atanır.</span></div>
+    </div>
+  </form>
+  <section class="panel">
+    <div class="panel-head"><h2>İzin bildirimlerim</h2></div>
+    <div class="panel-body">
+      {% for l in leaves %}
+        <div class="rq-hist">
+          <span class="pill {% if l.status == 'onaylandi' %}ok{% elif l.status == 'reddedildi' %}error{% elif l.status == 'bekliyor' %}warn{% endif %}">{{ l.get_status_display }}</span>
+          <b class="small">{{ l.get_kind_display }}</b> <span class="small">{{ l.start_date|date:"j M" }}{% if l.end_date != l.start_date %} – {{ l.end_date|date:"j M Y" }}{% else %} {{ l.start_date|date:"Y" }}{% endif %} · {{ l.periods_label }}</span>
+          {% if l.note %}<div class="small">Yanıt: “{{ l.note }}”</div>{% endif %}
+          {% if l.status == "bekliyor" %}<form method="post" style="display:inline">{% csrf_token %}<input type="hidden" name="ogretmen" value="{{ teacher.pk }}"><input type="hidden" name="action" value="leave_withdraw"><input type="hidden" name="izin" value="{{ l.pk }}"><button class="btn btn-ghost btn-sm">Geri al</button></form>{% endif %}
+        </div>
+      {% empty %}<p class="muted small" style="margin:0">Henüz izin bildiriminiz yok.</p>{% endfor %}
+    </div>
+  </section>
+</div>
 {% endif %}
 {% endblock %}
 {% block scripts %}
 <script>
+(function () {
+  const allDay = document.querySelector("[data-lv-allday]");
+  if (allDay) {
+    const periods = document.querySelector("[data-lv-periods]");
+    allDay.addEventListener("change", () => { periods.hidden = allDay.checked; });
+    const start = document.querySelector("[data-lv-start]"), end = document.querySelector("[data-lv-end]");
+    start.addEventListener("change", () => { if (!end.value || end.value < start.value) end.value = start.value; end.min = start.value; });
+  }
+})();
 (function () {
   const form = document.getElementById("rq-form");
   if (!form) return;

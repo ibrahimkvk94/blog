@@ -8,9 +8,10 @@ from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 
 from . import notify, teacher_requests as tr
-from .models import AvailabilityRequest, School, Timetable
+from .models import AvailabilityRequest, LeaveRequest, School, Timetable
 from .textsort import natural_key, tr_lower
 from .views import _nav
 
@@ -30,6 +31,19 @@ def my_requests(request):
             req = get_object_or_404(R, pk=request.POST.get("istek"), teacher__user=request.user)
             tr.withdraw(req)
             messages.info(request, "İsteğiniz geri alındı.")
+        elif action == "leave":
+            fields, error = tr.parse_leave(request.POST, teacher)
+            if error:
+                messages.error(request, error)
+            else:
+                req, message = tr.submit_leave(teacher, request.user, fields)
+                (messages.success if req else messages.error)(request, message)
+            return redirect(f"{request.path}?ogretmen={teacher.pk}#izin")
+        elif action == "leave_withdraw":
+            req = get_object_or_404(LeaveRequest, pk=request.POST.get("izin"), teacher__user=request.user, status=LeaveRequest.PENDING)
+            tr.decide_leave(req, None, LeaveRequest.WITHDRAWN)
+            messages.info(request, "İzin bildiriminiz geri alındı.")
+            return redirect(f"{request.path}?ogretmen={teacher.pk}#izin")
         else:
             reason = (request.POST.get("reason") or "").strip()[:2000]
             req, message = tr.submit(teacher, request.user, tr.parse_cells(request.POST, teacher), reason)
@@ -42,6 +56,9 @@ def my_requests(request):
         "pending_items": tr.describe(pending) if pending else [],
         "grid": tr.grid(teacher, tr.desired_with_pending(teacher)),
         "history": [{"r": r, "items": tr.describe(r)} for r in history],
+        "leaves": list(teacher.leave_requests.select_related("decided_by")[:20]),
+        "leave_kinds": LeaveRequest.KINDS, "periods": list(teacher.school.periods.all()),
+        "today": timezone.localdate(),
     })
 
 
@@ -70,6 +87,23 @@ def teacher_requests(request, pk):
                     changed += 1
             messages.success(request, f"{changed} öğretmenin hesap bağlantısı güncellendi.")
             return redirect(f"{request.path}#hesaplar")
+        if action in ("leave_approve", "leave_reject"):
+            leave = school.leave_requests.filter(pk=request.POST.get("izin"), status=LeaveRequest.PENDING).select_related("teacher").first()
+            if leave is None:
+                raise Http404
+            note = (request.POST.get("note") or "").strip()[:2000]
+            if action == "leave_approve":
+                days = tr.approve_leave(leave, request.user, note)
+                messages.success(request, f"{leave.teacher.full_name}: {days} gün devamsızlık yazıldı; dersleri Vekâlet ekranında.")
+            else:
+                tr.decide_leave(leave, request.user, LeaveRequest.REJECTED, note)
+                messages.info(request, f"{leave.teacher.full_name} izin bildirimi reddedildi.")
+            sent, errors = notify.leave_decision_notice(leave, request.build_absolute_uri(reverse("timetable:my_requests")))
+            if sent:
+                messages.info(request, f"Öğretmene e-posta gönderildi ({leave.teacher.email}).")
+            for error in errors:
+                messages.warning(request, f"E-posta gönderilemedi: {error}")
+            return redirect(reverse("timetable:teacher_requests", args=[school.pk]) + "#izinler")
         req = school.availability_requests.filter(pk=request.POST.get("istek"), status=R.PENDING).first()
         if req is None:
             raise Http404
@@ -94,12 +128,16 @@ def teacher_requests(request, pk):
                for r in school.availability_requests.filter(status=R.PENDING).select_related("teacher", "requested_by").order_by("created_at")]
     history = [{"r": r, "items": tr.describe(r)} for r in school.availability_requests.exclude(status=R.PENDING)
                .select_related("teacher", "decided_by", "requested_by")[:30]]
+    leaves = [{"r": r, "affected": tr.affected_lessons(r, timetable)}
+              for r in school.leave_requests.filter(status=LeaveRequest.PENDING).select_related("teacher", "requested_by").order_by("start_date")]
+    leave_history = list(school.leave_requests.exclude(status=LeaveRequest.PENDING).select_related("teacher", "decided_by")[:30])
     users = list(User.objects.filter(Q(memberships__institution_id=school.institution_id)).distinct().order_by("username"))
     teachers = sorted(school.teachers.select_related("user"), key=lambda t: natural_key(f"{t.first_name} {t.last_name}"))
     accounts = [{"t": t, "suggest": None if t.user_id else _suggest(t, users)} for t in teachers]
     return render(request, "timetable/data/teacher_requests.html", _nav(
         school, "data", data_nav="istekler", pending=pending, history=history, users=users, accounts=accounts,
-        linked=sum(1 for t in teachers if t.user_id), timetable=timetable))
+        linked=sum(1 for t in teachers if t.user_id), timetable=timetable, leaves=leaves, leave_history=leave_history,
+        pending_total=len(pending) + len(leaves)))
 
 
 def my_timetable(request):

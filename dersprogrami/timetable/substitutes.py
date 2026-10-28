@@ -35,7 +35,10 @@ def day_plan(school, timetable, date):
     absences = list(
         school.absences.filter(date=date).select_related("teacher").prefetch_related("substitutions__substitute")
     )
-    absent_ids = {a.teacher_id for a in absences}
+    absent_ids = {a.teacher_id for a in absences if not a.periods}  # tüm gün izinli
+    absent_periods = defaultdict(set)  # yalnızca bazı saatlerde izinli
+    for a in absences:
+        absent_periods[a.teacher_id].update(a.periods or ())
 
     busy = defaultdict(set)
     for card in cards:
@@ -75,10 +78,13 @@ def day_plan(school, timetable, date):
                 continue
             class_ids = {c.id for c in card.lesson.classes.all()}
             for period in range(card.period, card.period + card.length):
+                if not absence.covers(period):
+                    continue  # kısmi izin: bu saatte derste
                 current = existing.get((card.id, period))
                 candidates = []
                 for teacher in teachers:
-                    if teacher.id in absent_ids or period in busy[teacher.id] or (teacher.id, period) in blocked:
+                    if teacher.id in absent_ids or period in absent_periods[teacher.id] or period in busy[teacher.id] \
+                            or (teacher.id, period) in blocked:
                         continue
                     if period in substituting[teacher.id] and (current is None or current.substitute_id != teacher.id):
                         continue
@@ -141,7 +147,7 @@ def save_assignments(absence, timetable, data):
         except ValueError:
             continue
         card = cards.get(card_id)
-        if card is None or not card.period <= period < card.period + card.length:
+        if card is None or not card.period <= period < card.period + card.length or not absence.covers(period):
             continue
         if absence.teacher_id not in {t.id for t in card.lesson.teachers.all()}:
             continue

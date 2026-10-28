@@ -34,7 +34,7 @@
       <div class="panel" style="margin-bottom:18px">
         <div class="panel-head">
           <div><h2>{{ item.absence.teacher.first_name }} {{ item.absence.teacher.last_name }}</h2>
-            <span class="subtle small">{{ item.absence.reason|default:"Neden belirtilmedi" }} · {{ item.slots|length }} ders saati</span></div>
+            <span class="subtle small">{{ item.absence.reason|default:"Neden belirtilmedi" }}{% if item.absence.periods %} · yalnızca {{ item.absence.periods_label }}{% endif %} · {{ item.slots|length }} ders saati</span></div>
           <div style="display:flex;gap:8px;align-items:center">
             {% if item.assigned == item.slots|length and item.slots %}<span class="pill ok">Tamamlandı</span>{% else %}<span class="pill warn">{{ item.assigned }}/{{ item.slots|length }} atandı</span>{% endif %}
             <form method="post" class="no-print" onsubmit="return confirm('Devamsızlık silinsin mi?')">{% csrf_token %}

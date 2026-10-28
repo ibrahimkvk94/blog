@@ -165,3 +165,77 @@ def conflicts(req, timetable):
             classes = ", ".join(c.short or c.name for c in card.lesson.classes.all())
             out.append(f"{days[card.day]} {hit[0] + 1}. saat: {card.lesson.subject.short or card.lesson.subject.name} ({classes})")
     return out
+
+
+# --- tarihli izin / rapor -------------------------------------------------------------------------
+
+MAX_LEAVE_DAYS = 120
+
+
+def parse_leave(post, teacher):
+    """Formdan izin bildirimi alanları. Dönüş: (alanlar, hata)."""
+    import datetime
+
+    from .models import LeaveRequest
+
+    try:
+        start = datetime.date.fromisoformat(post.get("baslangic", ""))
+        end = datetime.date.fromisoformat(post.get("bitis") or post.get("baslangic", ""))
+    except ValueError:
+        return None, "Geçerli bir tarih girin."
+    if end < start:
+        return None, "Bitiş tarihi başlangıçtan önce olamaz."
+    if (end - start).days > MAX_LEAVE_DAYS:
+        return None, f"En fazla {MAX_LEAVE_DAYS} günlük bildirim yapılabilir."
+    indexes = {p.index for p in teacher.school.periods.all()}
+    periods = [] if post.get("tum_gun") else sorted({int(p) for p in post.getlist("saat") if p.isdigit() and int(p) in indexes})
+    if not post.get("tum_gun") and not periods:
+        return None, "“Tüm gün” seçin ya da saatleri işaretleyin."
+    kind = post.get("tur") if post.get("tur") in dict(LeaveRequest.KINDS) else "izin"
+    return {"start_date": start, "end_date": end, "periods": periods, "kind": kind,
+            "reason": (post.get("aciklama") or "").strip()[:2000]}, None
+
+
+def submit_leave(teacher, user, fields):
+    from .models import LeaveRequest
+
+    req = LeaveRequest(school=teacher.school, teacher=teacher, requested_by=user, **fields)
+    if not req.school_days():
+        return None, "Seçilen aralıkta okul günü yok."
+    req.save()
+    return req, "İzin bildiriminiz program sorumlusuna iletildi."
+
+
+def affected_lessons(req, timetable):
+    """Onaylanırsa vekil gerekecek ders saati sayısı (yayındaki programa göre)."""
+    if timetable is None:
+        return 0
+    per_weekday = {}
+    for day, period, length in timetable.cards.filter(day__isnull=False, lesson__teachers=req.teacher).values_list("day", "period", "length"):
+        hours = sum(1 for i in range(length) if not req.periods or period + i in req.periods)
+        per_weekday[day] = per_weekday.get(day, 0) + hours
+    return sum(per_weekday.get(d.weekday(), 0) for d in req.school_days())
+
+
+def approve_leave(req, user, note=""):
+    """Aralıktaki her okul gününe devamsızlık yazar (var olanla birleştirir). Dönüş: gün sayısı."""
+    from .models import Absence, LeaveRequest
+
+    label = req.get_kind_display() + (f": {req.reason}" if req.reason else "")
+    with transaction.atomic():
+        for day in req.school_days():
+            absence, created = Absence.objects.get_or_create(
+                school=req.school, teacher=req.teacher, date=day, defaults={"reason": label[:200], "periods": req.periods})
+            if not created:
+                # Tüm gün izin her şeyi kapsar; iki kısmi izin saatleri birleşir
+                absence.periods = [] if not absence.periods or not req.periods else sorted(set(absence.periods) | set(req.periods))
+                absence.reason = absence.reason or label[:200]
+                absence.save(update_fields=["periods", "reason"])
+        req.status, req.decided_by, req.decided_at, req.note = LeaveRequest.APPROVED, user, timezone.now(), note
+        req.save(update_fields=["status", "decided_by", "decided_at", "note"])
+    return len(req.school_days())
+
+
+def decide_leave(req, user, status, note=""):
+    req.status, req.decided_by, req.decided_at, req.note = status, user, timezone.now(), note
+    req.save(update_fields=["status", "decided_by", "decided_at", "note"])

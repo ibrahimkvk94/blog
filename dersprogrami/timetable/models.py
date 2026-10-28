@@ -475,6 +475,49 @@ class Availability(models.Model):
         return f"{target}: gün {self.day + 1}, saat {self.period + 1} = {self.get_state_display()}"
 
 
+class LeaveRequest(models.Model):
+    """Öğretmenin tarihli izin/rapor bildirimi. Onaylanınca aralıktaki her okul günü için devamsızlık
+    (Absence) yazılır ve dersler vekâlet ekranına düşer; kalıcı müsaitlik değişmez."""
+
+    KINDS = [("rapor", "Rapor"), ("izin", "İzin"), ("gorev", "Görevlendirme"), ("diger", "Diğer")]
+    PENDING, APPROVED, REJECTED, WITHDRAWN = "bekliyor", "onaylandi", "reddedildi", "geri_alindi"
+    STATUS_CHOICES = [(PENDING, "Bekliyor"), (APPROVED, "Onaylandı"), (REJECTED, "Reddedildi"), (WITHDRAWN, "Geri alındı")]
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="leave_requests")
+    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, related_name="leave_requests")
+    requested_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, related_name="leave_requests")
+    start_date = models.DateField("başlangıç")
+    end_date = models.DateField("bitiş")
+    periods = models.JSONField("saatler", default=list, blank=True)
+    kind = models.CharField("tür", max_length=10, choices=KINDS, default="izin")
+    reason = models.TextField("açıklama", blank=True)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+    decided_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    decided_at = models.DateTimeField(null=True, blank=True)
+    note = models.TextField("yanıt", blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "izin bildirimi"
+        verbose_name_plural = "izin bildirimleri"
+
+    def __str__(self):
+        return f"{self.teacher}: {self.start_date:%d.%m}–{self.end_date:%d.%m} {self.get_kind_display()}"
+
+    @property
+    def periods_label(self):
+        return ", ".join(str(p + 1) for p in sorted(self.periods)) + ". saat" if self.periods else "tüm gün"
+
+    def school_days(self):
+        days, d = [], self.start_date
+        while d <= self.end_date:
+            if d.weekday() < self.school.days_per_week:
+                days.append(d)
+            d += datetime.timedelta(days=1)
+        return days
+
+
 class TeacherQuota(models.Model):
     """Öğretmen havuzu: bir ders adının kısımlarından bir öğretmenin kaç tanesini okutacağı (ör. TEM100:
     Ahmet 12, Mehmet 12, Ayşe 11). Üretimde kilitsiz kısımların öğretmenini çözücü bu kotalara göre seçer."""
@@ -967,6 +1010,14 @@ class Absence(models.Model):
     date = models.DateField("tarih")
     teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, related_name="absences", verbose_name="öğretmen")
     reason = models.CharField("neden", max_length=200, blank=True)
+    periods = models.JSONField("saatler", default=list, blank=True, help_text="Boş = tüm gün; ör. [2, 3] yalnızca 3. ve 4. saat")
+
+    def covers(self, period):
+        return not self.periods or period in self.periods
+
+    @property
+    def periods_label(self):
+        return ", ".join(str(p + 1) for p in sorted(self.periods)) + ". saat" if self.periods else "tüm gün"
 
     class Meta:
         ordering = ["date", "teacher"]

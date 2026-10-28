@@ -271,7 +271,11 @@ def can(request):
         if M.DATA in perms:
             from .models import AvailabilityRequest
 
-            context["pending_requests"] = AvailabilityRequest.objects.filter(school_id=school_id, status=AvailabilityRequest.PENDING).count()
+            from .models import LeaveRequest
+
+            context["pending_requests"] = (
+                AvailabilityRequest.objects.filter(school_id=school_id, status=AvailabilityRequest.PENDING).count()
+                + LeaveRequest.objects.filter(school_id=school_id, status=LeaveRequest.PENDING).count())
     if request.user.is_authenticated:
         from .models import Teacher
 

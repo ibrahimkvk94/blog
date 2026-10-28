@@ -88,14 +88,15 @@ def events(teacher, start, end):
         if weekday < school.days_per_week:
             absent = absences.get(date)
             for card in sorted(by_day.get(weekday, []), key=lambda c: c.period):
+                off = absent if absent and any(absent.covers(card.period + i) for i in range(card.length)) else None
                 begin, _ = times.get((card.period, weekday), (None, None))
                 _, finish = times.get((card.period + card.length - 1, weekday), (None, None))
                 short, name, classes = _label(card)
                 out.append({
-                    "date": date, "start": begin, "end": finish, "kind": "izin" if absent else "ders",
-                    "title": f"{'İzinli: ' if absent else ''}{short} · {classes}",
+                    "date": date, "start": begin, "end": finish, "kind": "izin" if off else "ders",
+                    "title": f"{'İzinli: ' if off else ''}{short} · {classes}",
                     "location": card.classroom.name if card.classroom else "",
-                    "detail": f"{name}, {card.period + 1}. saat" + (f" — {absent.reason}" if absent and absent.reason else ""),
+                    "detail": f"{name}, {card.period + 1}. saat" + (f" — {off.reason}" if off and off.reason else ""),
                     "uid": f"ders-{card.id}-{date:%Y%m%d}",
                 })
             for sub in subs.get(date, []):
