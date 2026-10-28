@@ -8,6 +8,10 @@ import sys
 def main():
     """Run administrative tasks."""
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+    # Windows'ta çıktı dosyaya/göreve yönlendirilince cp1252 Türkçe karakterde çöker: UTF-8'e çevir.
+    for stream in (sys.stdout, sys.stderr):
+        if stream and hasattr(stream, "reconfigure") and (stream.encoding or "").lower().replace("-", "") != "utf8":
+            stream.reconfigure(encoding="utf-8", errors="replace")
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

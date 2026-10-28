@@ -9,6 +9,7 @@ on:
       - "dersprogrami/paket/**"
       - "dersprogrami/paketle.bat"
       - "dersprogrami/requirements.txt"
+      - "dersprogrami/manage.py"
       - ".github/workflows/kapali-ag-paketi.yml"
 
 jobs:
