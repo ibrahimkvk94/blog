@@ -137,13 +137,62 @@ class Board:
         return result
 
     def options(self, card_id):
+        return self.options_explained(card_id)[0]
+
+    def _closers(self, card_id):
+        """{(gün, saat): ["Sınıf 2.KISIM", ...]} — kartın kapalı saatlerini kimin müsaitliği kapatıyor."""
+        from django.db.models import Q
+
+        from .models import Availability
+
         pc = self.by_id[card_id]
+        lesson = self.db_cards[card_id].lesson
+        classes = {self.problem.atom_class(a) for a in pc.atoms}
+        query = (Q(teacher_id__in=pc.teachers) | Q(school_class_id__in=classes) | Q(subject_id=lesson.subject_id)
+                 | Q(lesson_id=lesson.id) | Q(teacher__isnull=True, school_class__isnull=True, classroom__isnull=True,
+                                             subject__isnull=True, lesson__isnull=True))
+        closers = defaultdict(set)
+        rows = Availability.objects.filter(query, school_id=self.timetable.school_id, state=Availability.NO).values_list(
+            "day", "period", "teacher_id", "school_class_id", "subject_id", "lesson_id")
+        for day, period, teacher, cls, subject, lesson_id in rows:
+            if teacher:
+                who = f"Öğretmen {self.problem.label('teacher', teacher)}"
+            elif cls:
+                who = f"Sınıf {self.problem.label('class', cls)}"
+            elif subject:
+                who = "Ders adı"
+            elif lesson_id:
+                who = "Dersin kendisi"
+            else:
+                who = "Okul geneli"
+            closers[(day, period)].add(who)
+        return closers
+
+    def options_explained(self, card_id):
+        """Hücre seçenekleri ve "neden kırmızı/gri" özeti: [{"who", "busy", "closed"}], en çok engelleyen önce."""
+        pc = self.by_id[card_id]
+        closers = self._closers(card_id)
         result = []
+        busy, closed = defaultdict(int), defaultdict(int)
         for day in range(self.problem.days):
             for period in range(self.problem.periods - pc.length + 1):
                 info = self.evaluate(card_id, day, period)
-                result.append({"day": day, "period": period, "status": info["status"], "reasons": info["reasons"]})
-        return result
+                reasons = info["reasons"]
+                if info["status"] == BLOCKED:
+                    who = sorted({w for c in pc.cells(day, period) for w in closers.get(c, ())})
+                    if who:
+                        reasons = [f"Kapalı saat: {', '.join(who)} müsaitliği"]
+                        for w in who:
+                            closed[w] += 1
+                    elif reasons and reasons[0].startswith("Müsaitlik"):
+                        reasons = ["Bu saatte başlayamaz (blok ders teneffüsü ya da gün sonunu aşıyor, veya derslik kapalı)."]
+                elif info["status"] == CONFLICT:
+                    for res in {r for d in info["conflicts"] for r in d["resources"]}:
+                        busy[res] += 1
+                result.append({"day": day, "period": period, "status": info["status"], "reasons": reasons})
+        summary = [{"who": w, "busy": busy.get(w, 0), "closed": closed.get(w, 0)} for w in set(busy) | set(closed)]
+        summary.sort(key=lambda x: -(x["busy"] + x["closed"]))
+        return result, summary
 
 
 # --- geri al / yinele ---------------------------------------------------------------------------

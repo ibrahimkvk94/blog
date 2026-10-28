@@ -718,7 +718,8 @@ def _card(pk):
 
 def api_card_options(request, pk):
     card = _card(pk)
-    return JsonResponse({"ok": True, "options": editing.Board(card.timetable).options(card.id)})
+    options, why = editing.Board(card.timetable).options_explained(card.id)
+    return JsonResponse({"ok": True, "options": options, "why": why})
 
 
 @require_POST

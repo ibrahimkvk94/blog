@@ -8,7 +8,7 @@ from timetable import swaps
 from timetable.models import Availability, Card, Lesson, Period, School, SchoolClass, Subject, Teacher, Timetable
 
 
-class SwapTests(TestCase):
+class _Base(TestCase):
     def setUp(self):
         self.school = School.objects.create(name="MYO", days_per_week=5)
         for i in range(2):
@@ -28,6 +28,8 @@ class SwapTests(TestCase):
         Card.objects.create(timetable=self.timetable, lesson=lesson, length=1, day=cell[0], period=cell[1], locked=True)
         return lesson
 
+
+class SwapTests(_Base):
     def test_find_and_apply(self):
         found = swaps.find(self.timetable, self.mehmet.id, 3, [0])
         self.assertEqual(len(found), 1)
@@ -61,3 +63,21 @@ class SwapTests(TestCase):
         self.assertRedirects(response, reverse("timetable:timetable_detail", args=[self.timetable.pk]))
         self.assertEqual(list(self.l1.teachers.all()), [self.ahmet])
         self.assertTrue(Availability.objects.filter(teacher=self.mehmet, day=3).exists())
+
+
+class WhyRedTests(_Base):
+    def test_options_explain_class_and_availability(self):
+        from timetable import editing
+
+        Availability.objects.create(school=self.school, school_class=self.l1.classes.first(), day=4, period=0, state=Availability.NO)
+        card = self.l1.cards.first()
+        physics = Subject.objects.create(school=self.school, name="Fizik")
+        other = Lesson.objects.create(school=self.school, subject=physics, periods_per_week=1, card_length=1)
+        other.classes.add(self.l1.classes.first())
+        Card.objects.create(timetable=self.timetable, lesson=other, length=1, day=0, period=1)
+        options, why = editing.Board(self.timetable).options_explained(card.id)
+        by = {w["who"]: w for w in why}
+        self.assertEqual(by["Sınıf 2.KISIM"]["busy"], 1)
+        self.assertEqual(by["Sınıf 2.KISIM"]["closed"], 1)
+        friday = next(o for o in options if (o["day"], o["period"]) == (4, 0))
+        self.assertEqual(friday["reasons"], ["Kapalı saat: Sınıf 2.KISIM müsaitliği"])

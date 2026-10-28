@@ -927,3 +927,10 @@ a.q-card { color: inherit; } a.q-card:hover { border-color: var(--primary); }
 .sc-swap-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px; }
 .sc-swap-pair .label { margin: 0 0 2px; }
 @media (max-width: 900px) { .sc-swap-pair { grid-template-columns: 1fr; } }
+.why-box { margin: 0 0 12px; padding: 8px 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 12.5px; }
+.why-box ul { margin: 0 0 6px; padding-left: 16px; }
+.why-box li { margin: 2px 0; }
+.ru-hover { font-size: 12px; color: var(--text-2); padding-top: 6px; border-top: 1px dashed var(--border); }
+.ru-hover.st-conflict { color: var(--danger-strong); }
+.ru-hover.st-blocked { color: var(--text-3); }
+.ru-hover.st-free { color: var(--success); }

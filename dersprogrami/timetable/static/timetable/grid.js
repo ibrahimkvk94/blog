@@ -467,8 +467,23 @@
     if (state.selected !== cardId) return;
     state.options = new Map(res.options.map((o) => [o.day + "-" + o.period, o]));
     paintOptions(card);
-    showDrawer(card, res.options);
+    showDrawer(card, res.options, res.why);
   }
+
+  // Seçili kartın satırında bir hücrenin üzerine gelince nedeni bilgi kartında yazılır (title gecikmesiz).
+  board.addEventListener("mouseover", (e) => {
+    if (!e.target.closest || !e.target.closest(".tt-row.focus")) return;
+    const cell = cellAt(e.clientX, e.clientY);  // kartların altındaki hücre de bulunur
+    const out = drawer.querySelector("[data-hover-reason]");
+    if (!cell || !out || !state.options || !cell.closest(".tt-row.focus")) return;
+    const o = state.options.get(cell.dataset.day + "-" + cell.dataset.period);
+    const d = state.data;
+    const where = d.days[cell.dataset.day] + " " + (Number(cell.dataset.period) + 1) + ". saat: ";
+    const status = o ? o.status : "blocked";
+    const text = o && o.reasons.length ? o.reasons.join(" · ") : status === "free" ? "uygun" : "kart buraya konamaz";
+    out.className = "ru-hover st-" + status;
+    out.textContent = where + text;
+  });
 
   function paintOptions(card) {
     // Sütun başlıkları da kartın o saatteki durumunu gösterir (aSc 13.3): yeşil uygun, kırmızı çakışma, gri kapalı.
@@ -502,7 +517,19 @@
     return document.elementsFromPoint(x, y).find((e) => e.classList && e.classList.contains("tt-cell")) || null;
   }
 
-  function showDrawer(card, options) {
+  function whyHtml(why) {
+    if (!why || !why.length) return "";
+    const rows = why.slice(0, 5).map((w) => {
+      const parts = [];
+      if (w.busy) parts.push(w.busy + " saatte dersi var");
+      if (w.closed) parts.push(w.closed + " saatte müsait değil");
+      return "<li><b>" + esc(w.who) + "</b>: " + parts.join(", ") + "</li>";
+    }).join("");
+    return '<div class="why-box"><div class="label" style="margin:0 0 4px">Neden kırmızı / gri?</div><ul>' + rows + "</ul>" +
+      '<div class="ru-hover" data-hover-reason>Satırdaki bir hücrenin üzerine gelin: nedeni burada görünür.</div></div>';
+  }
+
+  function showDrawer(card, options, why) {
     const d = state.data;
     const where = card.day == null
       ? "Yerleşmedi"
@@ -521,6 +548,7 @@
       "</dl>" +
       (options
         ? '<p class="small muted" style="margin:14px 0 6px">Uygun yer: <b>' + counts.free + "</b> · uyarılı: <b>" + counts.warn + "</b> · çakışmalı: <b>" + counts.conflict + "</b></p>" +
+          whyHtml(why) +
           '<p class="small subtle" style="margin:0 0 14px">Taşımak için ızgarada renklendirilmiş bir hücreye tıklayın ya da kartı sürükleyin.</p>'
         : '<p class="small subtle" style="margin:14px 0">Uygun hücreler hesaplanıyor…</p>') +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
