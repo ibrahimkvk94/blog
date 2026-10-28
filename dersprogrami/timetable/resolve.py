@@ -5,6 +5,7 @@
 - place:   kart belirtilen gün/saate gelsin
 - teacher: öğretmen belirtilen saatlerde gelemiyor (o saatlerdeki dersleri kayar)
 - room:    derslik belirtilen saatlerde kullanılamıyor
+- insert:  yerleşmemiş (bekleyen) kart uygun bir saate girsin; gerekirse diğerleri yer açsın
 
 Yöntem: yayındaki/seçili program olduğu gibi alınır. Hedef kartlar ve "komşuları" (aynı öğretmen,
 sınıf/grup ya da derslikteki kartlar) serbest bırakılır, diğer tüm kartlar yerinde sabitlenir.
@@ -30,6 +31,9 @@ from .solver.validate import validate
 from .services import placements_of
 
 RING_LIMITS = (6, 10, 16, 25)  # halka başına çözüm süresi (sn)
+# Programı iyileştirme: hedef öğretmenin boşluk saati ve okula geldiği gün başına ceza; oynatılan
+# ders başına ceza bunlardan küçüktür, böylece yalnızca kaliteyi artıran hareketler yapılır.
+IMPROVE_GAP, IMPROVE_DAY, IMPROVE_MOVE = 40, 30, 12
 
 
 class ResolveError(Exception):
@@ -38,7 +42,7 @@ class ResolveError(Exception):
 
 @dataclass
 class Request:
-    kind: str  # shift | place | teacher | room
+    kind: str  # shift | place | teacher | room | insert
     card_ids: list = field(default_factory=list)
     teacher_id: int | None = None
     room_id: int | None = None
@@ -125,6 +129,15 @@ class Center:
         """Hedef kartlar ve onların izinli başlangıçları: {anahtar: başlangıç listesi}."""
         cards, placements = self.full.cards, self.placements
         allowed = {}
+        if req.kind == "insert":
+            for card_id in req.card_ids:
+                k = self.key_of.get(card_id)
+                if k is None:
+                    raise ResolveError("Kart bu programda yok.")
+                if k in placements:
+                    raise ResolveError("Kart zaten yerleşmiş; taşımak için “Dersi kaydır”ı kullanın.")
+                allowed[k] = list(cards[k].starts)
+            return allowed
         if req.kind in ("shift", "place"):
             for card_id in req.card_ids:
                 k = self.key_of.get(card_id)
@@ -202,7 +215,7 @@ class Center:
         found.sort(key=lambda p: (p["new_violations_hard"], p["count"], p["score"]))
         return found
 
-    def _solve(self, req, allowed, keep, free, forbidden, limit):
+    def _solve(self, req, allowed, keep, free, forbidden, limit, tune=None):
         sub, new_key = _subproblem(self.full, keep)
         old_of = {v: k for k, v in new_key.items()}
         anchors, room_anchors = {}, {}
@@ -223,6 +236,8 @@ class Center:
         sub.room_anchors = room_anchors
         sub.max_moves = req.max_moves
         sub.forbidden_move_sets = [[new_key[k] for k in s if k in new_key] for s in forbidden]
+        if tune:
+            tune(sub)
         solution = cpsat.solve(sub, time_limit=limit, mode=cpsat.RELAXED, workers=8, two_phase=False)
         if not solution.ok or solution.unplaced:
             return None
@@ -235,6 +250,64 @@ class Center:
                 moved.add(old)
             placements[old] = place
         return moved, placements
+
+    # --- programı iyileştirme ---------------------------------------------------------------
+
+    def improve(self, teacher_ids=(), class_ids=(), max_moves=12, time_limit=25):
+        """Seçilen öğretmen/sınıfların boşluklarını ve öğretmenlerin okula geldiği gün sayısını en az
+        ders oynatarak azaltan tek öneri. Yerleşmemiş kartlar bu işin konusu değildir."""
+        full, placements = self.full, self.placements
+        teacher_ids, class_ids = set(teacher_ids), set(class_ids)
+        targets = {c.key for c in full.cards if c.key in placements and c.fixed is None
+                   and (set(c.teachers) & teacher_ids or {full.atom_class(a) for a in c.atoms} & class_ids)}
+        if not targets:
+            raise ResolveError("Seçilenlerin oynatılabilir (yerleşmiş ve kilitsiz) dersi yok.")
+        keep = set(placements)
+        free = (_neighbours(full, placements, targets) | _conflicting(full, placements)) & keep
+        req = Request("improve", max_moves=max_moves)
+        weights = {t: (IMPROVE_GAP, IMPROVE_DAY) for t in teacher_ids}
+
+        def tune(sub):
+            sub.anchor_weight = IMPROVE_MOVE
+            sub.teacher_weights = weights
+
+        baseline_v, baseline_stats = validate(full, placements)
+        result = self._solve(req, {}, keep, free, [], time_limit, tune=tune)
+        if result is None or not result[0]:
+            return None
+        moved_keys, after = result
+        proposal = self._report(after, moved_keys, baseline_v, baseline_stats)
+        if proposal["new_violations_hard"]:
+            return None
+        proposal["quality"] = self._quality_change(placements, after, teacher_ids, class_ids)
+        return proposal
+
+    def _quality_change(self, before, after, teacher_ids, class_ids):
+        """Hedeflerin boşluk ve gün sayısı: önce / sonra (yalnızca değişenler)."""
+        def metrics(placements):
+            busy = defaultdict(lambda: defaultdict(set))
+            for card in self.full.cards:
+                place = placements.get(card.key)
+                if place is None:
+                    continue
+                owners = [("t", t) for t in card.teachers if t in teacher_ids]
+                owners += [("c", c) for c in {self.full.atom_class(a) for a in card.atoms} if c in class_ids]
+                for owner in owners:
+                    busy[owner][place.day].update(range(place.period, place.period + card.length))
+            return {o: (sum(max(p) - min(p) + 1 - len(p) for p in days.values() if p), sum(1 for p in days.values() if p))
+                    for o, days in busy.items()}
+
+        b, a = metrics(before), metrics(after)
+        names = {**{("t", t.id): t.full_name for t in self.school.teachers.filter(pk__in=teacher_ids)},
+                 **{("c", c.id): c.short or c.name for c in self.school.classes.filter(pk__in=class_ids)}}
+        rows = []
+        for owner in sorted(set(b) | set(a), key=lambda o: names.get(o, "")):
+            gb, db = b.get(owner, (0, 0))
+            ga, da = a.get(owner, (0, 0))
+            if (gb, db) != (ga, da):
+                rows.append({"name": names.get(owner, "?"), "kind": owner[0], "gaps": [gb, ga], "days": [db, da]})
+        return {"rows": rows, "gaps": [sum(r["gaps"][0] for r in rows), sum(r["gaps"][1] for r in rows)],
+                "days": [sum(r["days"][0] for r in rows if r["kind"] == "t"), sum(r["days"][1] for r in rows if r["kind"] == "t")]}
 
     # --- rapor -----------------------------------------------------------------------------
 
@@ -402,7 +475,7 @@ def center_view(request, pk):
     school = timetable.school
     session_key = f"resolve-{timetable.pk}"
     data = request.POST if request.method == "POST" else request.GET
-    kind = data.get("tur") if data.get("tur") in ("shift", "place", "teacher", "room") else "shift"
+    kind = data.get("tur") if data.get("tur") in ("shift", "place", "teacher", "room", "insert") else "shift"
     card_id = _int(data.get("kart"))
     teacher_id = _int(data.get("ogretmen"))
     if card_id and not teacher_id:
@@ -445,13 +518,17 @@ def center_view(request, pk):
 
     proposals, label, error = None, "", ""
     parsed = None
+    if request.method == "GET" and request.GET.get("goster") == "1":  # kalite karnesinden "İyileştir" sonucu
+        stored = request.session.get(session_key) or {}
+        proposals, label = stored.get("proposals") or None, stored.get("label", "")
     if request.method == "POST" and request.POST.get("action") == "text":
         from .resolve_text import parse
 
         parsed = parse(school, timetable, request.POST.get("istek", ""))
         form.update({k: v for k, v in parsed["form"].items() if v is not None})
         teacher_id = form["teacher"]
-    if (request.method == "POST" and request.POST.get("action") == "solve") or (parsed and not parsed["problems"]):
+    auto = request.method == "GET" and request.GET.get("hesapla") == "1"  # bekleyenler ekranından "yer aç"
+    if (request.method == "POST" and request.POST.get("action") == "solve") or (parsed and not parsed["problems"]) or auto:
         center = Center(timetable)
         try:
             req, label, availability = _build_request(center, form)
@@ -483,6 +560,12 @@ def _build_request(center, form):
     school = center.school
     days = school.day_names
     kind = form["kind"]
+    if kind == "insert":
+        card = center.db_cards.get(form["card"])
+        if card is None:
+            raise ResolveError("Yerleştirilecek kart bulunamadı.")
+        what = f"{card.lesson.subject.short or card.lesson.subject.name} ({', '.join(c.short or c.name for c in card.lesson.classes.all())})"
+        return Request("insert", card_ids=[card.id], max_moves=form["max_moves"]), f"{what} yerleştirildi", None
     if kind in ("shift", "place"):
         card = center.db_cards.get(form["card"])
         if card is None:

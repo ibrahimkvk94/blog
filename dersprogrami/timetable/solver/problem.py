@@ -102,6 +102,9 @@ class Problem:
     room_anchors: dict = field(default_factory=dict)  # kart → mevcut derslikleri (gereksiz derslik değişimi cezalı)
     max_moves: int | None = None
     forbidden_move_sets: list = field(default_factory=list)
+    # Programı iyileştirme: öğretmen → (boşluk saati başına, okula gelinen gün başına) ceza.
+    # Verilen öğretmenlerde varsayılan boşluk cezasının yerine geçer; gün cezası yalnızca burada vardır.
+    teacher_weights: dict = field(default_factory=dict)
 
     @staticmethod
     def atom_class(atom_id):

@@ -162,6 +162,7 @@
             <h2>Yerleşmeyen kartlar <span class="pill" id="tray-count">0</span></h2><span class="tray-caret" aria-hidden="true">▾</span>
           </button>
           <div class="tray-filters" id="tray-filters">
+            <a class="btn btn-sm" href="{% url 'timetable:pending' timetable.pk %}" title="Her bekleyen kartın neden yerleşmediği ve çözüm yolları">Neden yerleşmiyor?</a>
             <input type="search" class="input input-sm" id="tray-q" placeholder="Ara: ders, sınıf, öğretmen…" aria-label="Yerleşmeyen kartlarda ara">
             <select class="select input-sm" id="tray-class" aria-label="Sınıfa göre"><option value="">Tüm sınıflar</option></select>
             <select class="select input-sm" id="tray-teacher" aria-label="Öğretmene göre"><option value="">Tüm öğretmenler</option></select>

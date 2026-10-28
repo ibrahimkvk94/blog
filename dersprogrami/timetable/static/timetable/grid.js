@@ -82,7 +82,8 @@
   const scroller = $("#tt-scroll");
   const drawer = $("#drawer");
   const state = {
-    kind: store("tt-kind") || "sinif",
+    // ?tur=ogretmen&ara=Ad ile açılabilir (kalite karnesinden satıra gitmek için)
+    kind: (KIND_LABELS[new URLSearchParams(location.search).get("tur")] && new URLSearchParams(location.search).get("tur")) || store("tt-kind") || "sinif",
     zoom: store("tt-zoom") === null ? "fit" : store("tt-zoom"),
     data: null,
     cards: new Map(),
@@ -1017,6 +1018,8 @@
     window.addEventListener("resize", () => { if (state.preview) drawPreview(); });
     startPreview(Number(previewParam) || 0);
   } else {
+    const search = new URLSearchParams(location.search).get("ara");
+    if (search) $("#row-filter").value = search;
     load();
   }
 })();

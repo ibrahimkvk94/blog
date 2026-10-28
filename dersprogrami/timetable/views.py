@@ -552,6 +552,58 @@ def api_version(request, pk):
     return JsonResponse({"ok": False, "message": "Bilinmeyen işlem."}, status=400)
 
 
+def quality_page(request, pk):
+    """Kalite karnesi: öğretmen/sınıf başına boşluk, gün, geç başlama, bekleyen saat ve ihlaller;
+    seçilenler için "İyileştir" (en az ders oynatarak) çözüm merkezine öneri olarak gider."""
+    from . import quality
+    from .resolve import Center, ResolveError
+
+    timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
+    school = timetable.school
+    kind = request.POST.get("tur") or request.GET.get("tur") or "ogretmen"
+    if request.method == "POST":
+        ids = [int(x) for x in request.POST.getlist("secim") if x.isdigit()]
+        if not ids:
+            messages.error(request, "İyileştirilecek en az bir satır seçin.")
+            return redirect(reverse("timetable:quality", args=[pk]) + f"?tur={kind}")
+        moves = min(60, max(2, int(request.POST.get("en_fazla") or 12)))
+        limit = min(120, max(10, int(request.POST.get("sure") or 30)))
+        teacher_ids, class_ids = (ids, []) if kind == "ogretmen" else ([], ids)
+        try:
+            proposal = Center(timetable).improve(teacher_ids, class_ids, max_moves=moves, time_limit=limit)
+        except ResolveError as exc:
+            messages.error(request, str(exc))
+            return redirect(reverse("timetable:quality", args=[pk]) + f"?tur={kind}")
+        if proposal is None:
+            messages.warning(request, f"En fazla {moves} ders oynatarak iyileştirme bulunamadı. Daha çok ders ya da süre verip yeniden deneyin.")
+            return redirect(reverse("timetable:quality", args=[pk]) + f"?tur={kind}")
+        who = f"{len(ids)} {'öğretmen' if kind == 'ogretmen' else 'sınıf'}"
+        request.session[f"resolve-{timetable.pk}"] = {"label": f"Programı iyileştir ({who})", "proposals": [proposal], "availability": None}
+        return redirect(reverse("timetable:solution_center", args=[pk]) + "?goster=1")
+    data = quality.report(timetable, kind)
+    return render(request, "timetable/quality.html", _nav(
+        school, "quality", timetable=timetable, data=data, kind=data["kind"], weights=quality.WEIGHTS,
+        grid_url=reverse("timetable:timetable_detail", args=[pk]),
+    ))
+
+
+def pending_page(request, pk):
+    """Bekleyenler: yerleşmemiş kartların nedeni ve çözüm yolları."""
+    from . import pending
+
+    timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
+    if request.method == "POST":
+        card_id = request.POST.get("kart", "")
+        result = pending.try_place(timetable, int(card_id)) if card_id.isdigit() else {"ok": False, "message": "Kart seçin."}
+        return JsonResponse(result, status=200 if result["ok"] else 400)
+    return render(request, "timetable/pending.html", _nav(
+        timetable.school, "pending", timetable=timetable, data=pending.analyze(timetable),
+        grid_url=reverse("timetable:timetable_detail", args=[pk]),
+        center_url=reverse("timetable:solution_center", args=[pk]),
+        repair_url=reverse("timetable:api_repair", args=[pk]),
+    ))
+
+
 def reports_page(request, pk):
     """Rapor tasarımı: solda ayarlar, sağda canlı ön izleme; ayarlar şablon olarak kaydedilebilir."""
     timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)

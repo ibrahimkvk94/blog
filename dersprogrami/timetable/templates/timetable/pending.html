@@ -1,0 +1,102 @@
+{% extends "timetable/base.html" %}
+{% block title %}Bekleyenler · {{ timetable.name }}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{{ grid_url }}">{{ timetable.name }}</a>{% endblock %}
+{% block heading %}<h1>Bekleyen kartlar</h1><span class="pill">{{ data.rows|length }} kart · {{ data.hours }} saat</span>{% endblock %}
+{% block actions %}<a class="btn" href="{% url 'timetable:quality' timetable.pk %}">{% include "timetable/icon.html" with name="gauge" %} Kalite karnesi</a>{% endblock %}
+{% block content %}
+{% if data.rows %}
+<div class="q-summary">
+  {% for key, label, n in data.kinds %}
+    <button type="button" class="q-card pd-filter" data-kind="{{ key }}"><span>{{ label }}</span><b class="pd-{{ key }}">{{ n }}</b>
+      <small>{% if key == "free" %}“Yerleştir” kuralları denetleyip koyar{% elif key == "conflict" %}“Yer aç” diğer dersleri az oynatır{% elif key == "availability" %}müsaitliği gözden geçirin{% else %}blok uzunluğunu/teneffüsleri kontrol edin{% endif %}</small></button>
+  {% endfor %}
+  {% if data.top_conflicts %}
+    <div class="q-card pd-top"><span>En çok engel olan</span>
+      <ul>{% for label, n in data.top_conflicts %}<li><b>{{ label }}</b> <span class="subtle">{{ n }} kart</span></li>{% endfor %}</ul>
+    </div>
+  {% endif %}
+  {% if data.top_blocks %}
+    <div class="q-card pd-top"><span>En çok saat kapatan</span>
+      <ul>{% for label, n in data.top_blocks %}<li><b>{{ label }}</b> <span class="subtle">{{ n }} kart</span></li>{% endfor %}</ul>
+    </div>
+  {% endif %}
+</div>
+
+<div class="q-toolbar">
+  <input class="input" type="search" placeholder="Ders, sınıf ya da öğretmen ara…" data-pd-search>
+  <span class="subtle small" data-pd-count></span>
+  {% if can.program %}<span class="subtle small" style="margin-left:auto">Toplu deneme için ana görünümdeki <b>Bekleyenleri yerleştir</b> düğmesini kullanın.</span>{% endif %}
+</div>
+
+<div class="pd-list" data-pd-list>
+  {% for r in data.rows %}
+    <article class="panel pd-item" data-kind="{{ r.kind }}" data-q="{{ r.short|lower }} {{ r.subject|lower }} {{ r.classes|lower }} {{ r.teachers|lower }}" data-card="{{ r.id }}">
+      <div class="pd-main">
+        <div class="pd-title">
+          <span class="pd-badge pd-{{ r.kind }}">{{ r.kind_label }}</span>
+          <b>{{ r.subject }}</b> <span class="subtle">{{ r.short }}</span>
+          <span class="pd-meta">{{ r.classes|default:"sınıfsız" }} · {{ r.teachers|default:"öğretmensiz" }} · {{ r.length }} saatlik</span>
+        </div>
+        <p class="pd-text">{{ r.text }}</p>
+        <div class="pd-bars" title="Kartın konabileceği {{ r.possible }} başlangıç saati">
+          {% if r.blocked %}<i class="pb-blocked" style="flex:{{ r.blocked }}">{{ r.blocked }} kapalı</i>{% endif %}
+          {% if r.busy %}<i class="pb-busy" style="flex:{{ r.busy }}">{{ r.busy }} dolu</i>{% endif %}
+          {% if r.free %}<i class="pb-free" style="flex:{{ r.free|length }}">{{ r.free|length }} boş</i>{% endif %}
+        </div>
+        <div class="pd-detail">
+          {% if r.blocked_by %}<div><span class="label">Müsaitliği kapatan</span>{% for label, n in r.blocked_by %}<span class="chip">{{ label }} <b>{{ n }}</b></span>{% endfor %}</div>{% endif %}
+          {% if r.conflicts %}<div><span class="label">Dolu saatlerde çakışan</span>{% for label, n in r.conflicts %}<span class="chip">{{ label }} <b>{{ n }}</b></span>{% endfor %}</div>{% endif %}
+        </div>
+      </div>
+      {% if can.program %}
+        <div class="pd-actions">
+          {% if r.free %}<button type="button" class="btn btn-primary btn-sm" data-pd-place>{% include "timetable/icon.html" with name="check" %} Yerleştir</button>{% endif %}
+          {% if r.open %}<a class="btn btn-sm" href="{{ center_url }}?tur=insert&kart={{ r.id }}&en_fazla=6&hesapla=1" title="Diğer dersleri en az oynatarak bu karta yer açan öneriler">{% include "timetable/icon.html" with name="wand" %} Yer aç</a>{% endif %}
+          <a class="btn btn-sm btn-ghost" href="{{ grid_url }}?tur=sinif&ara={{ r.classes|urlencode }}">Görünümde aç</a>
+        </div>
+      {% endif %}
+    </article>
+  {% endfor %}
+</div>
+{% else %}
+  <div class="panel panel-body"><b>Bekleyen kart yok.</b> Tüm dersler programa yerleşmiş.</div>
+{% endif %}
+{% csrf_token %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const list = document.querySelector("[data-pd-list]");
+  if (!list) return;
+  const items = [...list.querySelectorAll(".pd-item")];
+  const search = document.querySelector("[data-pd-search]");
+  const count = document.querySelector("[data-pd-count]");
+  let kind = "";
+  const filter = () => {
+    const q = search.value.trim().toLocaleLowerCase("tr");
+    let n = 0;
+    items.forEach((i) => { i.hidden = (q && !i.dataset.q.includes(q)) || (kind && i.dataset.kind !== kind); if (!i.hidden) n++; });
+    count.textContent = (q || kind) ? n + " / " + items.length : "";
+  };
+  search.addEventListener("input", filter);
+  document.querySelectorAll(".pd-filter").forEach((b) => b.addEventListener("click", () => {
+    kind = kind === b.dataset.kind ? "" : b.dataset.kind;
+    document.querySelectorAll(".pd-filter").forEach((x) => x.classList.toggle("on", x.dataset.kind === kind));
+    filter();
+  }));
+  const csrf = document.querySelector("[name=csrfmiddlewaretoken]").value;
+  const toast = (msg, kind) => { const t = document.createElement("div"); t.className = "toast" + (kind ? " " + kind : ""); t.textContent = msg; document.getElementById("toasts").appendChild(t); setTimeout(() => t.remove(), 6000); };
+  list.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-pd-place]");
+    if (!btn) return;
+    const item = btn.closest(".pd-item");
+    btn.disabled = true;
+    const body = new FormData(); body.append("kart", item.dataset.card); body.append("csrfmiddlewaretoken", csrf);
+    let data = {};
+    try { data = await (await fetch(location.pathname, { method: "POST", body, credentials: "same-origin" })).json(); } catch (err) { data = { ok: false, message: "Sunucuya ulaşılamadı." }; }
+    if (data.ok) { toast(data.message, "ok"); item.classList.add("pd-done"); setTimeout(() => item.remove(), 600); }
+    else { toast(data.message, "error"); btn.disabled = false; item.querySelector(".pd-text").textContent = data.message; }
+  });
+})();
+</script>
+{% endblock %}

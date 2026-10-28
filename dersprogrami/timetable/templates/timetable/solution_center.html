@@ -33,6 +33,7 @@
         <label><input type="radio" name="tur" value="place"{% if form.kind == "place" %} checked{% endif %}> <span><b>Dersi şu saate al</b> – gerekirse diğerleri yer açsın</span></label>
         <label><input type="radio" name="tur" value="teacher"{% if form.kind == "teacher" %} checked{% endif %}> <span><b>Öğretmen gelemiyor</b> – o saatlerdeki dersleri kaysın</span></label>
         <label><input type="radio" name="tur" value="room"{% if form.kind == "room" %} checked{% endif %}> <span><b>Derslik kullanılamıyor</b></span></label>
+        {% if form.kind == "insert" %}<label><input type="radio" name="tur" value="insert" checked> <span><b>Bekleyen kartı yerleştir</b> – diğerleri en az oynasın</span></label>{% endif %}
       </div>
 
       <div data-sc="shift place teacher">
@@ -73,6 +74,7 @@
       <button class="btn btn-primary" style="margin-top:12px" id="sc-solve">{% include "timetable/icon.html" with name="wand" %} Çözüm öner</button>
       <p class="subtle small" id="sc-wait" hidden>Çözümler hesaplanıyor (genellikle 5–20 sn)…</p>
     </div>
+    {% if form.kind == "insert" %}<input type="hidden" name="kart" value="{{ form.card }}">{% endif %}{# QueryDict.get son değeri alır #}
   </form>
 
   <div class="stack">
@@ -98,6 +100,15 @@
         <div class="panel-body sc-impact">
           <div><span class="label">Etkilenen öğretmenler</span>{% for t in p.teachers %}<span class="chip">{{ t }}</span>{% endfor %}</div>
           <div><span class="label">Etkilenen sınıflar</span>{% for c in p.classes %}<span class="chip">{{ c }}</span>{% endfor %}</div>
+          {% if p.quality.rows %}
+            <div class="sc-quality">
+              <span class="label">İyileşme (seçilenler)</span>
+              <table class="table table-compact"><thead><tr><th></th><th class="num">Boşluk</th><th class="num">Gün</th></tr></thead>
+                <tbody>{% for r in p.quality.rows %}<tr><td>{{ r.name }}</td><td class="num">{{ r.gaps.0 }} → <b>{{ r.gaps.1 }}</b></td><td class="num">{% if r.kind == "t" %}{{ r.days.0 }} → <b>{{ r.days.1 }}</b>{% else %}–{% endif %}</td></tr>{% endfor %}</tbody>
+                <tfoot><tr><th>Toplam</th><th class="num">{{ p.quality.gaps.0 }} → {{ p.quality.gaps.1 }}</th><th class="num">{{ p.quality.days.0 }} → {{ p.quality.days.1 }}</th></tr></tfoot>
+              </table>
+            </div>
+          {% endif %}
           <div class="small">Öğretmen boşluğu: {{ p.teacher_gaps.0 }} → <b>{{ p.teacher_gaps.1 }}</b> · Sınıf boşluğu: {{ p.class_gaps.0 }} → <b>{{ p.class_gaps.1 }}</b>{% if p.fixed_violations %} · <span class="ok-text">{{ p.fixed_violations|length }} mevcut ihlal giderildi</span>{% endif %}</div>
           {% if p.new_violations %}<details><summary class="small bad">Yeni ihlaller</summary><ul class="small">{% for v in p.new_violations %}<li>{{ v }}</li>{% endfor %}</ul></details>{% endif %}
           {% if p.refs %}<details><summary class="small">ÜYBS: {{ p.refs|length }} referansın saati değişiyor</summary><ul class="small">{% for r in p.refs %}<li>{{ r }}</li>{% endfor %}</ul><p class="subtle small">Bu haftanın ÜYBS kaydı uygulamadan önce eski haliyle arşivlenir.</p></details>{% endif %}
@@ -123,7 +134,8 @@
 (function () {
   const form = document.getElementById("sc-form");
   const sync = () => {
-    const kind = form.querySelector("[name=tur]:checked").value;
+    const checked = form.querySelector("[name=tur]:checked");
+    const kind = checked ? checked.value : "";
     form.querySelectorAll("[data-sc]").forEach((el) => { el.hidden = !el.dataset.sc.split(" ").includes(kind); });
   };
   form.addEventListener("change", (e) => {

@@ -42,6 +42,7 @@ PENALTY_LABELS = {
     "class_gap": "Sınıf boşluğu",
     "class_late": "Güne geç başlama",
     "teacher_gap": "Öğretmen boşluğu",
+    "teacher_day": "Öğretmenin okula geldiği gün",
     "maybe": "Koşullu hücre",
 }
 
@@ -376,13 +377,16 @@ class _Builder:
                         gaps, limits.max_gaps_per_day, True, None, f"tgd{teacher_id}_{d}", "relaxed",
                         rule=("teacher_gaps_day", teacher_id), label=f"{who}: günde en fazla {limits.max_gaps_per_day} boşluk",
                     )
-                if limits and limits.max_days_per_week is not None:
+                weights = self.problem.teacher_weights.get(teacher_id)
+                if (limits and limits.max_days_per_week is not None) or (weights and weights[1]):
                     variables = [b for b in busy if not isinstance(b, int)]
                     if variables:
                         used = self.m.NewBoolVar(f"tday{teacher_id}_{d}")
                         for b in variables:
                             self.m.Add(used >= b)
                         days_used.append(used)
+                        if weights and weights[1]:  # sabit kartla dolu günde ceza sabittir, kararı etkilemez
+                            self._penalize("teacher_day", weights[1], used)
                 if limits and limits.max_consecutive is not None:
                     n = limits.max_consecutive
                     for s in range(self.problem.periods - n):
@@ -408,7 +412,8 @@ class _Builder:
                     rule=("teacher_days", teacher_id), label=f"{who}: haftada en fazla {limits.max_days_per_week} gün",
                 )
             if week_gaps:
-                self._penalize("teacher_gap", W_TEACHER_GAP, sum(week_gaps))
+                weights = self.problem.teacher_weights.get(teacher_id)
+                self._penalize("teacher_gap", weights[0] if weights else W_TEACHER_GAP, sum(week_gaps))
 
     def class_limits(self):
         """Sınıfların günlük en az / en fazla ders sınırı (her öğrenci atomu için)."""
