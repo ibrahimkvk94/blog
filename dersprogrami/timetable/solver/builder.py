@@ -277,6 +277,7 @@ def build_problem(school, timetable=None, base=None):
             maybe_slots=data["maybe"],
             blocked=blocked_for(lesson_id, length),
             students=student_keys.get(lesson_id, ()),
+            subject=data["subject"],
         )
         if db_card is not None:
             card.card_id = db_card.id
@@ -452,6 +453,8 @@ def _relationships(school, cards, lesson_data, grades):
         "lessons", "subjects", "lessons_b", "subjects_b", "classes", "teachers", "classrooms"
     )
     for rel in relationships:
+        if rel.condition in rel.STUDENT:  # seçmeli dağıtımında uygulanır
+            continue
         class_filter = {c.id for c in rel.classes.all()}
         teacher_filter = {t.id for t in rel.teachers.all()}
 
@@ -499,7 +502,13 @@ def _relationships(school, cards, lesson_data, grades):
             return [None]
 
         groups_b = []
-        if rel.condition in rel.PAIRED:
+        if rel.condition == rel.RESERVE:
+            # Rezerv: seçilen dersler bir küme; aynı sınıfların seçilmeyen kartları işaretli saatlere giremez.
+            chosen_keys = {c.key for c in chosen}
+            classes = {cl for c in chosen for cl in lesson_data[c.lesson_id]["classes"] if not class_filter or cl in class_filter}
+            others = [c.key for c in cards if c.key not in chosen_keys and classes & set(lesson_data[c.lesson_id]["classes"])]
+            groups, groups_b = [sorted(chosen_keys)], [others]
+        elif rel.condition in rel.PAIRED:
             order = lesson_ids or sorted({c.lesson_id for c in chosen})
             groups = [[c.key for c in chosen if c.lesson_id == lid] for lid in order]
             groups = [g for g in groups if g]

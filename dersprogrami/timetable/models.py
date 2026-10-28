@@ -563,6 +563,56 @@ class CardRelationship(models.Model):
     ROOM_MIN_WEEK = "room_min_week"
     MAX_ROOMS_WEEK = "max_rooms_week"
     MAX_BUILDINGS_DAY = "max_buildings_day"
+    # Gün yayılımı ve boşluk çeşitleri
+    DAY_SPAN_MAX = "day_span_max"
+    DAY_SPAN_MIN = "day_span_min"
+    MIN_PER_DAY = "min_per_day"
+    MIN_GAP_LENGTH = "min_gap_length"
+    MIN_DISTANCE = "min_distance"
+    GAPS_FROM_START = "gaps_from_start"
+    GAPS_TO_END = "gaps_to_end"
+    MAX_GAPS_WEEK = "max_gaps_week"
+    GAPS_WEEK_FROM_START = "gaps_week_from_start"
+    GAPS_WEEK_TO_END = "gaps_week_to_end"
+    MAX_CONSEC_DAYS = "max_consec_days"
+    MAX_FREE_DAYS = "max_free_days"
+    # A/B sıralama
+    AB_AFTER = "ab_after"
+    AB_BEFORE = "ab_before"
+    AB_NOT_MIXED = "ab_not_mixed"
+    AB_WEEK_BEFORE = "ab_week_before"
+    AB_DAY_BEFORE = "ab_day_before"
+    AB_MAX_CONSECUTIVE = "ab_max_consecutive"
+    AB_FILL_GAPS = "ab_fill_gaps"
+    AB_A_FIRST = "ab_a_first"
+    AB_B_AFTER = "ab_b_after"
+    AB_NOT_FOLLOWED = "ab_not_followed"
+    # Başlama ve bitiş
+    NO_START_AT = "no_start_at"
+    NO_END_AT = "no_end_at"
+    FIRST_OR_LAST = "first_or_last"
+    RESERVE = "reserve"
+    # Farklılık sayıları
+    MAX_SUBJECTS_WEEK = "max_subjects_week"
+    MAX_SUBJECTS_DAY = "max_subjects_day"
+    MAX_TEACHERS_DAY = "max_teachers_day"
+    MAX_ROOMS_DAY = "max_rooms_day"
+    MAX_ROOM_CHANGES = "max_room_changes"
+    MAX_BUILDING_CHANGES = "max_building_changes"
+    MAX_BUILDINGS_WEEK = "max_buildings_week"
+    MAX_ROOMS_POSITION = "max_rooms_position"
+    # Seçmeli ve öğrenci kuralları (çözücüde değil, seçmeli dağıtımında uygulanır)
+    ST_SAME_TEACHER = "st_same_teacher"
+    ST_DIFF_TEACHER = "st_diff_teacher"
+    ST_TEACHER_IN = "st_teacher_in"
+    ST_TEACHER_NOT_IN = "st_teacher_not_in"
+    ST_SAME_GROUP = "st_same_group"
+    ST_TERM_BEFORE = "st_term_before"
+    ST_TERM_BEFORE_SAME = "st_term_before_same"
+    ST_SAME_TERM = "st_same_term"
+    ST_DIFF_TERM = "st_diff_term"
+    ST_MIN_ELECTIVES = "st_min_electives"
+    ST_MAX_ELECTIVES = "st_max_electives"
     CONDITION_CHOICES = [
         ("Haftalık dağılım", [
             (MAX_PER_DAY, "Günde en fazla N kart"),
@@ -609,23 +659,96 @@ class CardRelationship(models.Model):
             (MAX_ROOMS_WEEK, "Haftada en fazla N farklı derslik"),
             (MAX_BUILDINGS_DAY, "Günde en fazla N farklı bina"),
         ]),
+        ("Gün yayılımı ve boşluklar (gelişmiş)", [
+            (DAY_SPAN_MAX, "Günlük zaman harcaması (ilk dersten son derse, boşluklar dahil) en fazla N saat · aSc #19"),
+            (DAY_SPAN_MIN, "Ders olan günlerde zaman harcaması en az N saat · aSc #18"),
+            (MIN_PER_DAY, "Her gün en az N saat (boş gün olmaz) · aSc #29"),
+            (MIN_GAP_LENGTH, "Boşluk varsa en az N saat sürsün · aSc #26"),
+            (MIN_DISTANCE, "Gün içinde kartlar arasında en az N boş saat · aSc #75"),
+            (GAPS_FROM_START, "Günlük boş saat en fazla N (1. saatten itibaren sayılır) · aSc #69"),
+            (GAPS_TO_END, "Günlük boş saat en fazla N (son saate kadar sayılır) · aSc #70"),
+            (MAX_GAPS_WEEK, "Haftalık boş saat en fazla N · aSc #5"),
+            (GAPS_WEEK_FROM_START, "Haftalık boş saat en fazla N (ilk dersten önceki boşluklar dahil) · aSc #67"),
+            (GAPS_WEEK_TO_END, "Haftalık boş saat en fazla N (son dersten sonraki boşluklar dahil) · aSc #68"),
+            (MAX_CONSEC_DAYS, "Art arda en fazla N ders günü · aSc #23"),
+            (MAX_FREE_DAYS, "Kartlar arasında en fazla N boş gün · aSc #20"),
+        ]),
+        ("A/B sıralama (gelişmiş)", [
+            (AB_AFTER, "Aynı gün A dersleri B derslerinden sonra · aSc #30"),
+            (AB_BEFORE, "Aynı gün A dersleri B derslerinden önce · aSc #40"),
+            (AB_NOT_MIXED, "Aynı gün A dersleri B'den ya önce ya sonra (karışmaz) · aSc #34"),
+            (AB_WEEK_BEFORE, "Hafta içinde tüm A dersleri B derslerinden önce · aSc #41"),
+            (AB_DAY_BEFORE, "A'nın günleri B'nin günlerinden önce · aSc #42"),
+            (AB_MAX_CONSECUTIVE, "A ve B birlikte art arda en fazla N saat · aSc #37"),
+            (AB_FILL_GAPS, "A'nın gün içindeki boşlukları B dersleriyle dolsun · aSc #49"),
+            (AB_A_FIRST, "B olan günde B'den önce en az bir A olsun · aSc #82"),
+            (AB_B_AFTER, "A olan günde A'dan sonra en az bir B olsun · aSc #83"),
+            (AB_NOT_FOLLOWED, "A'nın hemen ardından B gelmesin (sıralı) · aSc #22"),
+        ]),
+        ("Başlama ve bitiş", [
+            (NO_START_AT, "İşaretli saatlerde ders başlamasın · aSc #32"),
+            (NO_END_AT, "İşaretli saatlerde ders bitmesin · aSc #33"),
+            (FIRST_OR_LAST, "Dersler ilk saatte başlasın ya da son saatte bitsin"),
+            (RESERVE, "Rezerv alanı: işaretli saatler yalnızca seçilen derslere (sınıfın diğer dersleri giremez)"),
+        ]),
+        ("Farklılık sayıları (gelişmiş)", [
+            (MAX_SUBJECTS_WEEK, "Haftada (işaretli saatlerde) en fazla N farklı ders · aSc #17"),
+            (MAX_SUBJECTS_DAY, "Günde en fazla N farklı ders · aSc #54"),
+            (MAX_TEACHERS_DAY, "Günde en fazla N farklı öğretmen · aSc #43"),
+            (MAX_ROOMS_DAY, "Günde en fazla N farklı derslik · aSc #24"),
+            (MAX_ROOM_CHANGES, "Günde en fazla N derslik değişimi · aSc #81"),
+            (MAX_BUILDING_CHANGES, "Günde en fazla N bina değişimi · aSc #85"),
+            (MAX_BUILDINGS_WEEK, "Haftada en fazla N farklı bina · aSc #79"),
+            (MAX_ROOMS_POSITION, "Aynı saatte en fazla N derslik kullanılsın · aSc #39"),
+        ]),
+        ("Seçmeli ve öğrenci kuralları (seçmeli dağıtımında)", [
+            (ST_SAME_TEACHER, "Öğrenci seçilen derslerde aynı öğretmene düşsün · aSc #35"),
+            (ST_DIFF_TEACHER, "Öğrenci seçilen derslerde aynı öğretmene düşmesin · aSc #62"),
+            (ST_TEACHER_IN, "Öğrenci bu derslerde seçili öğretmenlerden birine düşsün · aSc #65"),
+            (ST_TEACHER_NOT_IN, "Öğrenci bu derslerde seçili öğretmenlere düşmesin · aSc #66"),
+            (ST_SAME_GROUP, "Seçilen seçmelilerde aynı şubedeki öğrenciler birlikte kalsın · aSc #2"),
+            (ST_TERM_BEFORE, "Öğrenci A seçmelisini B'den önceki dönemde alsın · aSc #44"),
+            (ST_TERM_BEFORE_SAME, "Öğrenci A seçmelisini B'den önce ya da aynı dönemde alsın · aSc #45"),
+            (ST_SAME_TERM, "Öğrenci A ve B seçmelilerini aynı dönemde alsın · aSc #46"),
+            (ST_DIFF_TERM, "Öğrenci A ve B seçmelilerini aynı dönemde almasın · aSc #47"),
+            (ST_MIN_ELECTIVES, "Seçilen derslerden en az N seçmeli · aSc #52"),
+            (ST_MAX_ELECTIVES, "Seçilen derslerden en fazla N seçmeli · aSc #53"),
+        ]),
     ]
     # Seçilen derslerin i. kartlarını eşleştiren koşullar (her ders bir küme).
     PAIRED = {SAME_TIME, SAME_DAY, CONSECUTIVE, CONSECUTIVE_ORDERED}
-    TWO_SIDED = {AB_NOT_SAME_DAY, AB_NOT_CONSECUTIVE, AB_NOT_DAY_AFTER}
+    TWO_SIDED = {
+        AB_NOT_SAME_DAY, AB_NOT_CONSECUTIVE, AB_NOT_DAY_AFTER, AB_AFTER, AB_BEFORE, AB_NOT_MIXED, AB_WEEK_BEFORE,
+        AB_DAY_BEFORE, AB_MAX_CONSECUTIVE, AB_FILL_GAPS, AB_A_FIRST, AB_B_AFTER, AB_NOT_FOLLOWED,
+        ST_TERM_BEFORE, ST_TERM_BEFORE_SAME, ST_SAME_TERM, ST_DIFF_TERM,
+    }
     ROOMS = {ROOM_MAX_WEEK, ROOM_MIN_WEEK}
+    # Çözücüye gitmeyen, seçmeli dağıtımında uygulanan kurallar.
+    STUDENT = {
+        ST_SAME_TEACHER, ST_DIFF_TEACHER, ST_TEACHER_IN, ST_TEACHER_NOT_IN, ST_SAME_GROUP, ST_TERM_BEFORE,
+        ST_TERM_BEFORE_SAME, ST_SAME_TERM, ST_DIFF_TERM, ST_MIN_ELECTIVES, ST_MAX_ELECTIVES,
+    }
+    # Öğretmen alanı süzgeç değil, kuralın öğretmen listesi olan koşullar.
+    TEACHER_LIST = {ST_TEACHER_IN, ST_TEACHER_NOT_IN}
     USES_N = {
         MAX_PER_DAY, MIN_GAP_DAYS, MAX_DAYS, MIN_DAYS, RANGE_MAX_PER_DAY, RANGE_MAX_DAYS, MAP_MAX_WEEK,
         MAP_MIN_WEEK, MAP_MIN_IF_ANY, MAX_CONSECUTIVE, MAX_GAPS_PER_DAY, MAX_GAP_LENGTH, MAX_DISTINCT_PERIODS,
         MAX_SAME_PERIOD_DAYS, MAX_PER_POSITION, MIN_PER_POSITION, ROOM_MAX_WEEK, ROOM_MIN_WEEK, MAX_ROOMS_WEEK,
-        MAX_BUILDINGS_DAY,
+        MAX_BUILDINGS_DAY, DAY_SPAN_MAX, DAY_SPAN_MIN, MIN_PER_DAY, MIN_GAP_LENGTH, MIN_DISTANCE, GAPS_FROM_START,
+        GAPS_TO_END, MAX_GAPS_WEEK, GAPS_WEEK_FROM_START, GAPS_WEEK_TO_END, MAX_CONSEC_DAYS, MAX_FREE_DAYS,
+        AB_MAX_CONSECUTIVE, MAX_SUBJECTS_WEEK, MAX_SUBJECTS_DAY, MAX_TEACHERS_DAY, MAX_ROOMS_DAY, MAX_ROOM_CHANGES,
+        MAX_BUILDING_CHANGES, MAX_BUILDINGS_WEEK, MAX_ROOMS_POSITION, ST_MIN_ELECTIVES, ST_MAX_ELECTIVES,
     }
     # Zaman haritasını kullanan koşullar (harita boşsa tüm hücreler sayılır).
     USES_MAP = {
         MAX_DAYS, RANGE_MAX_PER_DAY, RANGE_MAX_DAYS, MAP_MAX_WEEK, MAP_MIN_WEEK, MAP_MIN_IF_ANY, MAX_PER_POSITION,
-        MIN_PER_POSITION, AB_NOT_SAME_DAY, AB_NOT_DAY_AFTER, ROOM_MAX_WEEK, ROOM_MIN_WEEK,
+        MIN_PER_POSITION, AB_NOT_SAME_DAY, AB_NOT_DAY_AFTER, ROOM_MAX_WEEK, ROOM_MIN_WEEK, MIN_PER_DAY,
+        NO_START_AT, NO_END_AT, RESERVE, MAX_SUBJECTS_WEEK,
     }
-    NEEDS_MAP = {RANGE_MAX_PER_DAY, RANGE_MAX_DAYS, MAP_MAX_WEEK, MAP_MIN_WEEK, MAP_MIN_IF_ANY, MIN_PER_POSITION}
+    NEEDS_MAP = {
+        RANGE_MAX_PER_DAY, RANGE_MAX_DAYS, MAP_MAX_WEEK, MAP_MIN_WEEK, MAP_MIN_IF_ANY, MIN_PER_POSITION, NO_START_AT,
+        NO_END_AT, RESERVE,
+    }
 
     ALL = "all"
     EACH_CLASS = "each_class"

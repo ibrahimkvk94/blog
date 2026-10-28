@@ -98,16 +98,75 @@ def clashes(school, timetable):
 
 # --- dağıtım ------------------------------------------------------------------------------------
 
+def _terms(lesson):
+    """Şubenin dönemleri (bit maskesinden); boşsa tüm dönemler = None."""
+    mask = lesson.terms_mask
+    return None if not mask else {i for i in range(16) if mask >> i & 1}
+
+
+def student_rules(school):
+    """Seçmeli dağıtımında uygulanan kart ilişkileri (öğrenci kuralları)."""
+    from .models import CardRelationship
+
+    rules = []
+    for rel in school.relationships.filter(active=True, condition__in=CardRelationship.STUDENT).prefetch_related(
+        "subjects", "lessons", "subjects_b", "lessons_b", "teachers"
+    ):
+        rules.append({
+            "rel": rel, "cond": rel.condition, "hard": rel.importance == CardRelationship.STRICT, "n": rel.param,
+            "a": {x.id for x in rel.subjects.all()} | {x.subject_id for x in rel.lessons.all()},
+            "b": {x.id for x in rel.subjects_b.all()} | {x.subject_id for x in rel.lessons_b.all()},
+            "teachers": {t.id for t in rel.teachers.all()},
+        })
+    return rules
+
+
+def _rule_breaks(rule, subject_id, option, mine, teachers_of):
+    """Seçeneğin (şube) kuralı bozup bozmadığı. mine: {ders adı: öğrencinin şubesi}."""
+    cond, a, b = rule["cond"], rule["a"], rule["b"]
+    mine_teachers = teachers_of[option.id]
+    if cond in ("st_same_teacher", "st_diff_teacher") and subject_id in a:
+        others = [teachers_of[sec.id] for sid, sec in mine.items() if sid in a and sid != subject_id]
+        if cond == "st_same_teacher":
+            return any(not (t & mine_teachers) for t in others)
+        return any(t & mine_teachers for t in others)
+    if cond == "st_teacher_in" and subject_id in a:
+        return not (mine_teachers & rule["teachers"])
+    if cond == "st_teacher_not_in" and subject_id in a:
+        return bool(mine_teachers & rule["teachers"])
+    if cond.startswith("st_term") or cond in ("st_same_term", "st_diff_term"):
+        if subject_id in a:
+            pairs = [(option, sec) for sid, sec in mine.items() if sid in b and sid != subject_id]
+        elif subject_id in b:
+            pairs = [(sec, option) for sid, sec in mine.items() if sid in a and sid != subject_id]
+        else:
+            return False
+        for sec_a, sec_b in pairs:
+            ta, tb = _terms(sec_a), _terms(sec_b)
+            if ta is None or tb is None:
+                continue
+            first_a, first_b = min(ta), min(tb)
+            if (cond == "st_term_before" and not first_a < first_b) or (cond == "st_term_before_same" and not first_a <= first_b) \
+                    or (cond == "st_same_term" and first_a != first_b) or (cond == "st_diff_term" and first_a == first_b):
+                return True
+    return False
+
+
 def distribute(school, timetable=None, reset=False):
     """Öğrencileri seçtikleri ders adlarının seçmeli şubelerine dağıtır.
 
     Her seçim için: zaten kayıtlıysa korunur (reset değilse); yoksa kontenjanı dolmamış şubeler
-    arasından öğrencinin programıyla en az çakışan, sonra en az dolu olan seçilir. Az şubesi olan
-    seçimler önce dağıtılır. Dönüş: {"assigned": n, "kept": n, "unassigned": [(öğrenci, ders adı, neden)]}."""
-    lessons = list(school.lessons.filter(elective=True).select_related("subject").prefetch_related("students"))
+    arasından kesin öğrenci kurallarını bozmayanlar alınır; bunlardan öğrencinin programıyla en az
+    çakışan, sonra en az yumuşak kural bozan, sonra "aynı şube" arkadaşları en çok olan ve en boş
+    şube seçilir. Az şubesi olan seçimler önce dağıtılır.
+    Dönüş: {"assigned": n, "kept": n, "unassigned": [(öğrenci, ders adı, neden)]}."""
+    lessons = list(school.lessons.filter(elective=True).select_related("subject").prefetch_related("students", "teachers"))
     sections = defaultdict(list)
     for lesson in lessons:
         sections[lesson.subject_id].append(lesson)
+    teachers_of = {lesson.id: {t.id for t in lesson.teachers.all()} for lesson in lessons}
+    rules = student_rules(school)
+    group_rules = [r for r in rules if r["cond"] == "st_same_group"]
     cells = _placed_cells(timetable)
     students = list(school.students.prefetch_related("groups", "choices"))
     with transaction.atomic():
@@ -115,6 +174,10 @@ def distribute(school, timetable=None, reset=False):
             for lesson in lessons:
                 lesson.students.clear()
         members = {lesson.id: set() if reset else {s.id for s in lesson.students.all()} for lesson in lessons}
+        mine = defaultdict(dict)  # öğrenci → {ders adı: şube}
+        for lesson in lessons:
+            for sid in members[lesson.id]:
+                mine[sid][lesson.subject_id] = lesson
         base = attendance(school, students)  # seçmeliler dahil mevcut durum
         busy = {}
         for s in students:
@@ -124,6 +187,18 @@ def distribute(school, timetable=None, reset=False):
         todo.sort(key=lambda item: (len(sections.get(item[1].id, [])), item[0].id))
         assigned = kept = 0
         unassigned = []
+
+        def peers(s, subject_id, option):
+            """"Aynı şube" kuralında öğrencinin diğer seçmelilerdeki şube arkadaşlarından bu şubede olanlar."""
+            total = 0
+            for rule in group_rules:
+                if subject_id not in rule["a"]:
+                    continue
+                for sid, sec in mine[s.id].items():
+                    if sid in rule["a"] and sid != subject_id:
+                        total += len((members[sec.id] - {s.id}) & members[option.id])
+            return total
+
         for s, subject in todo:
             options = sections.get(subject.id, [])
             if not options:
@@ -136,17 +211,68 @@ def distribute(school, timetable=None, reset=False):
             if not free:
                 unassigned.append((s, subject, "tüm şubelerin kontenjanı dolu"))
                 continue
-            best = min(free, key=lambda o: (
+            hard = [r for r in rules if r["hard"]]
+            pending = [c.id for c in s.choices.all() if c.id != subject.id and c.id not in mine[s.id] and sections.get(c.id)]
+
+            def keeps_rest_possible(o):
+                """İleriye bakış: bu şube seçilirse öğrencinin bekleyen seçimleri kesin kurallarla hâlâ yerleşebilmeli."""
+                trial = {**mine[s.id], subject.id: o}
+                return all(
+                    any(not any(_rule_breaks(r, other, oo, trial, teachers_of) for r in hard) for oo in sections[other])
+                    for other in pending
+                )
+
+            allowed = [o for o in free if not any(_rule_breaks(r, subject.id, o, mine[s.id], teachers_of) for r in hard)]
+            allowed = [o for o in allowed if keeps_rest_possible(o)] or allowed
+            if not allowed:
+                broken = next(r["rel"].name for r in rules if r["hard"] and _rule_breaks(r, subject.id, free[0], mine[s.id], teachers_of))
+                unassigned.append((s, subject, f"kesin kural nedeniyle uygun şube yok ({broken})"))
+                continue
+            best = min(allowed, key=lambda o: (
                 sum(busy[s.id][c] for c in cells.get(o.id, ())),
+                sum(1 for r in rules if not r["hard"] and _rule_breaks(r, subject.id, o, mine[s.id], teachers_of)),
+                -peers(s, subject.id, o),
                 len(members[o.id]) / (o.capacity or 1000),
                 o.id,
             ))
             members[best.id].add(s.id)
+            mine[s.id][subject.id] = best
             busy[s.id].update(cells.get(best.id, ()))
             assigned += 1
         for lesson in lessons:
             lesson.students.set(members[lesson.id])
     return {"assigned": assigned, "kept": kept, "unassigned": unassigned}
+
+
+def rule_warnings(school):
+    """Öğrenci kurallarının mevcut seçim ve kayıtlara göre ihlalleri (metin listesi)."""
+    rules = student_rules(school)
+    if not rules:
+        return []
+    lessons = list(school.lessons.filter(elective=True).select_related("subject").prefetch_related("students", "teachers"))
+    teachers_of = {lesson.id: {t.id for t in lesson.teachers.all()} for lesson in lessons}
+    mine = defaultdict(dict)
+    for lesson in lessons:
+        for st in lesson.students.all():
+            mine[st.id][lesson.subject_id] = lesson
+    out = []
+    for st in school.students.prefetch_related("choices"):
+        chosen = {c.id for c in st.choices.all()}
+        for rule in rules:
+            name = rule["rel"].name
+            if rule["cond"] in ("st_min_electives", "st_max_electives"):
+                count = len(chosen & rule["a"])
+                if rule["cond"] == "st_min_electives" and count < rule["n"]:
+                    out.append(f"{st.full_name}: “{name}” – {count} seçim (en az {rule['n']}).")
+                if rule["cond"] == "st_max_electives" and count > rule["n"]:
+                    out.append(f"{st.full_name}: “{name}” – {count} seçim (en fazla {rule['n']}).")
+                continue
+            for subject_id, section in mine[st.id].items():
+                others = {k: v for k, v in mine[st.id].items() if k != subject_id}
+                if _rule_breaks(rule, subject_id, section, others, teachers_of):
+                    out.append(f"{st.full_name}: “{name}” kuralı bozuluyor ({section.subject.short or section.subject.name}).")
+                    break
+    return out
 
 
 # --- içe aktarma ---------------------------------------------------------------------------------
@@ -258,6 +384,7 @@ def students_page(request, pk):
     )
     demand = Counter(subject_id for s in school.students.prefetch_related("choices") for subject_id in (c.id for c in s.choices.all()))
     clash_list = clashes(school, timetable)
+    warnings = rule_warnings(school)
     clash_ids = {s.id for s, _ in clash_list}
     from .views import _nav
 
@@ -265,6 +392,7 @@ def students_page(request, pk):
         school, "students", students=students, classes=list(school.classes.all()), class_id=int(class_id) if class_id and class_id.isdigit() else None,
         electives=[{"lesson": e, "count": e.students.count(), "demand": demand.get(e.subject_id, 0),
                     "teachers": ", ".join(t.full_name for t in e.teachers.all())} for e in electives],
+        rule_warnings=warnings[:50], rule_warning_count=len(warnings),
         clash_list=[(s, _clash_text(bad)) for s, bad in clash_list[:50]], clash_ids=clash_ids, timetable=timetable,
         timetables=[t for t in school.timetables.all() if t.has_grid], total=school.students.count(),
     ))

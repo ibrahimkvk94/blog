@@ -19,8 +19,11 @@ boşlukları, koşullu (?) hücre kullanımı, önemi "kesin" olmayan kart iliş
 import threading
 import time
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 
 from ortools.sat.python import cp_model
+
+from . import relations_extra
 
 W_UNPLACED = 10000
 W_RELAXED = 1000
@@ -470,6 +473,14 @@ class _Builder:
                 return [busy(keys, d, s, tag) for s in range(P) if in_map((d, s), cells)]
 
             cond = rel.condition
+            if cond in relations_extra.ALL:
+                ctx = SimpleNamespace(
+                    limit=limit, at_least=at_least, violation=violation, busy=busy, in_map=in_map, name=name,
+                    any=self._any,
+                )
+                for g, keys in enumerate(rel.groups):
+                    relations_extra.encode(self, rel, g, keys, rel.groups_b[g] if rel.groups_b else [], ctx)
+                continue
             for g, keys in enumerate(rel.groups):
                 if cond in ("max_per_day", "different_days"):
                     n = 1 if cond == "different_days" else rel.param

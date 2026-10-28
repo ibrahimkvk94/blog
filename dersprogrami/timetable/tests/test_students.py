@@ -116,3 +116,86 @@ class StudentTests(TestCase):
         self.assertEqual(target.students.count(), 3)
         self.assertEqual(sum(lesson.students.count() for lesson in target.lessons.all()),
                          sum(lesson.students.count() for lesson in self.school.lessons.all()))
+
+
+class StudentRuleTests(TestCase):
+    """Seçmeli ve öğrenci kuralları (kart ilişkisi olarak tanımlanır, dağıtımda uygulanır)."""
+
+    def setUp(self):
+        from timetable.models import CardRelationship
+
+        self.R = CardRelationship
+        self.school = School.objects.create(name="MYO", days_per_week=1, terms_count=2)
+        Period.objects.create(school=self.school, index=0, name="1")
+        self.cls = SchoolClass.objects.create(school=self.school, name="1.KISIM")
+        self.ali = Teacher.objects.create(school=self.school, first_name="Ali", last_name="K")
+        self.veli = Teacher.objects.create(school=self.school, first_name="Veli", last_name="C")
+        self.x = Subject.objects.create(school=self.school, name="X", short="X")
+        self.y = Subject.objects.create(school=self.school, name="Y", short="Y")
+
+        def section(subject, teacher, term=None):
+            obj = Lesson.objects.create(school=self.school, subject=subject, elective=True, terms_mask=term)
+            obj.classes.set([self.cls])
+            obj.teachers.set([teacher])
+            return obj
+
+        self.x_ali, self.x_veli = section(self.x, self.ali, 1), section(self.x, self.veli, 2)
+        self.y_ali, self.y_veli = section(self.y, self.ali, 1), section(self.y, self.veli, 2)
+        self.st = Student.objects.create(school=self.school, first_name="Ayşe", school_class=self.cls)
+        self.st.choices.set([self.x, self.y])
+
+    def rule(self, condition, a=(), b=(), teachers=(), param=1, importance="strict"):
+        rel = self.R.objects.create(school=self.school, name=condition, condition=condition, param=param, importance=importance)
+        rel.subjects.set(a)
+        rel.subjects_b.set(b)
+        rel.teachers.set(teachers)
+        return rel
+
+    def sections(self):
+        return {lesson.subject_id: lesson for lesson in self.st.lessons.all()}
+
+    def test_same_and_different_teacher(self):
+        self.rule("st_same_teacher", a=[self.x, self.y])
+        students.distribute(self.school, reset=True)
+        mine = self.sections()
+        self.assertEqual(set(mine[self.x.id].teachers.all()), set(mine[self.y.id].teachers.all()))
+        self.R.objects.all().delete()
+        self.rule("st_diff_teacher", a=[self.x, self.y])
+        students.distribute(self.school, reset=True)
+        mine = self.sections()
+        self.assertNotEqual(set(mine[self.x.id].teachers.all()), set(mine[self.y.id].teachers.all()))
+
+    def test_teacher_list(self):
+        self.rule("st_teacher_in", a=[self.x, self.y], teachers=[self.veli])
+        students.distribute(self.school, reset=True)
+        self.assertEqual(set(self.st.lessons.all()), {self.x_veli, self.y_veli})
+        self.R.objects.all().delete()
+        self.rule("st_teacher_not_in", a=[self.x, self.y], teachers=[self.veli])
+        students.distribute(self.school, reset=True)
+        self.assertEqual(set(self.st.lessons.all()), {self.x_ali, self.y_ali})
+
+    def test_term_order(self):
+        self.rule("st_term_before", a=[self.y], b=[self.x])  # Y, X'ten önceki dönemde
+        students.distribute(self.school, reset=True)
+        self.assertEqual(set(self.st.lessons.all()), {self.y_ali, self.x_veli})
+        self.R.objects.all().delete()
+        self.rule("st_same_term", a=[self.x], b=[self.y])
+        students.distribute(self.school, reset=True)
+        terms = {lesson.terms_mask for lesson in self.st.lessons.all()}
+        self.assertEqual(len(terms), 1)
+
+    def test_impossible_hard_rule_leaves_choice_unassigned(self):
+        self.rule("st_teacher_in", a=[self.x], teachers=[])  # öğretmen listesi boş: hiçbir şube uymaz
+        result = students.distribute(self.school, reset=True)
+        self.assertEqual([s.id for s, subject, _ in result["unassigned"]], [self.st.id])
+
+    def test_min_max_electives_warnings(self):
+        self.rule("st_max_electives", a=[self.x, self.y], param=1)
+        self.rule("st_min_electives", a=[self.x, self.y], param=2)
+        warnings = students.rule_warnings(self.school)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("en fazla 1", warnings[0])
+
+    def test_student_rules_skip_solver(self):
+        self.rule("st_same_teacher", a=[self.x, self.y])
+        self.assertEqual(build_problem(self.school).relationships, [])

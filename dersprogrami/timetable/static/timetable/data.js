@@ -228,9 +228,28 @@
   const help = JSON.parse(select.dataset.help);
   const usesN = list("usesN"), usesMap = list("usesMap"), needsMap = list("needsMap");
   const paired = list("paired"), twoSided = list("twoSided"), rooms = list("rooms");
+  const student = list("student");
   const note = document.createElement("div");
   note.className = "condition-help";
   select.closest(".form-row").appendChild(note);
+  // Koşul arama: aSc numarası ya da sözcükle süz (ör. "#30", "boş saat").
+  const search = document.createElement("input");
+  search.type = "search";
+  search.className = "input input-sm condition-search";
+  search.placeholder = "Koşul ara: sözcük ya da aSc numarası (ör. #30)";
+  select.parentNode.insertBefore(search, select);
+  const norm = (t) => t.toLocaleLowerCase("tr");
+  search.addEventListener("input", () => {
+    const q = norm(search.value.trim());
+    let first = null;
+    select.querySelectorAll("option").forEach((o) => {
+      const hit = !q || norm(o.textContent).includes(q);
+      o.hidden = !hit;
+      if (hit && !first) first = o;
+    });
+    select.querySelectorAll("optgroup").forEach((g) => { g.hidden = ![...g.children].some((o) => !o.hidden); });
+    if (q && first && select.selectedOptions[0]?.hidden) { select.value = first.value; update(); }
+  });
 
   // ---- zaman haritası ızgaraları
   const metaNode = document.getElementById("time-map-meta");
@@ -282,7 +301,7 @@
     const show = (name, on) => { const r = row(name); if (r) r.hidden = !on; };
     const mapRow = (name, on) => { const r = document.querySelector('[data-map-row="' + name + '"]'); if (r) r.hidden = !on; };
     show("param", usesN.includes(c));
-    show("apply_to", !paired.includes(c));
+    show("apply_to", !paired.includes(c) && !student.includes(c));
     show("subjects_b", twoSided.includes(c));
     show("lessons_b", twoSided.includes(c));
     show("classrooms", rooms.includes(c));

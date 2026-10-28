@@ -55,6 +55,13 @@
       {% if students %}<div class="form-actions"><div><button class="btn btn-danger btn-sm" name="action" value="delete" onclick="return confirm('Seçili öğrenciler silinsin mi?')">Seçilenleri sil</button></div></div>{% endif %}
     </form>
 
+    {% if rule_warnings %}
+    <div class="panel">
+      <div class="panel-head"><h2>Öğrenci kuralı uyarıları</h2><span class="pill warn">{{ rule_warning_count }}</span></div>
+      <div class="panel-body"><ul class="small" style="margin:0;padding-left:18px">{% for w in rule_warnings %}<li>{{ w }}</li>{% endfor %}</ul>
+        <p class="subtle small">Kurallar Kart ilişkileri ekranındaki “Seçmeli ve öğrenci kuralları” koşullarıdır; Dağıt bunlara göre yerleştirir.</p></div>
+    </div>
+    {% endif %}
     {% if clash_list %}
     <div class="panel">
       <div class="panel-head"><h2>Çakışmalar</h2></div>

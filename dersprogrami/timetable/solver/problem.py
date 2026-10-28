@@ -37,6 +37,7 @@ class ProblemCard:
     blocked: dict = field(default_factory=dict)
     # Seçmeli dersler: aynı ders kümesini alan öğrenci topluluklarının anahtarları (aynı anda tek ders).
     students: tuple = ()
+    subject: int | None = None
 
     def cells(self, day, period):
         return [(day, period + i) for i in range(self.length)]

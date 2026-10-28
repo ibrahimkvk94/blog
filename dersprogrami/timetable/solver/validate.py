@@ -7,6 +7,8 @@ doğrulama raporu (aSc'deki "Verification") için kullanılır.
 from collections import defaultdict
 from dataclasses import dataclass
 
+from . import relations_extra
+
 
 @dataclass
 class Violation:
@@ -218,6 +220,11 @@ def _relationship_violations(problem, placements):
     for rel in problem.relationships:
         level = "hard" if rel.weight is None else "soft"
         cond, n = rel.condition, rel.param
+        if cond in relations_extra.ALL:
+            for g, keys in enumerate(rel.groups):
+                relations_extra.check(problem, placements, rel, keys, rel.groups_b[g] if rel.groups_b else [],
+                                      lambda text, rel=rel: add(rel, level, text))
+            continue
         for g, keys in enumerate(rel.groups):
             placed = [k for k in keys if k in placements]
             if cond in ("max_per_day", "different_days"):

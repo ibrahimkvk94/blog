@@ -327,6 +327,56 @@ class RelationshipForm(SchoolScopedForm):
         CardRelationship.ROOM_MIN_WEEK: "Kümenin seçili dersliklerde haftada en az N saati olur. Ör. her grup haftada en az bir kez büyük spor salonunda.",
         CardRelationship.MAX_ROOMS_WEEK: "Kümenin dersleri haftada en fazla N farklı dersliğe yayılır. Ör. Biyoloji'nin 3 saati hep aynı laboratuvarda: N=1.",
         CardRelationship.MAX_BUILDINGS_DAY: "Küme bir günde en fazla N farklı binada ders görür.",
+        # Gün yayılımı ve boşluklar
+        CardRelationship.DAY_SPAN_MAX: "İlk dersten son derse kadar geçen süre (boşluklar dahil) en fazla N saat olur. Ör. öğretmen okulda günde en fazla 6 saat kalsın.",
+        CardRelationship.DAY_SPAN_MIN: "Ders olan günlerde ilk dersten son derse en az N saat olur; boş günler serbesttir. Ör. tek derse gelinmesin.",
+        CardRelationship.MIN_PER_DAY: "Her gün (harita verilirse işaretli saatlerde) en az N saat ders olur; boş gün olmaz.",
+        CardRelationship.MIN_GAP_LENGTH: "Gün içinde boşluk olacaksa en az N saat sürer. Ör. N=2: tek saatlik boşluk olmasın, olacaksa 2 saat olsun.",
+        CardRelationship.MIN_DISTANCE: "Aynı gündeki iki kart arasında en az N boş saat olur. Ör. iki sınav arasında en az 1 saat ara.",
+        CardRelationship.GAPS_FROM_START: "Günlük boş saat sınırı; ilk dersten önceki boş saatler de sayılır (gün 1. saatten başlamış sayılır).",
+        CardRelationship.GAPS_TO_END: "Günlük boş saat sınırı; son dersten sonra gün sonuna kadar boş saatler de sayılır.",
+        CardRelationship.MAX_GAPS_WEEK: "Haftanın tüm günlerindeki boş saatlerin toplamı en fazla N olur.",
+        CardRelationship.GAPS_WEEK_FROM_START: "Haftalık boş saat sınırı; her günün ilk dersinden önceki boşluklar da sayılır.",
+        CardRelationship.GAPS_WEEK_TO_END: "Haftalık boş saat sınırı; her günün son dersinden sonraki boşluklar da sayılır.",
+        CardRelationship.MAX_CONSEC_DAYS: "Ders olan günler en fazla N gün art arda gelir. Ör. N=2: Pzt-Sal olur, Pzt-Sal-Çar olmaz.",
+        CardRelationship.MAX_FREE_DAYS: "İki ders günü arasında en fazla N boş gün olur. Ör. N=1: Pazartesi'den sonra en geç Çarşamba.",
+        # A/B sıralama
+        CardRelationship.AB_AFTER: "Aynı gün hem A hem B varsa A'nın tüm dersleri B'nin tüm derslerinden sonra gelir. Ör. teori (B) önce, uygulama (A) sonra.",
+        CardRelationship.AB_BEFORE: "Aynı gün hem A hem B varsa A'nın tüm dersleri B'nin tüm derslerinden önce gelir.",
+        CardRelationship.AB_NOT_MIXED: "Aynı gün A ve B dersleri iç içe geçmez: A'lar ya hep önce ya hep sonra.",
+        CardRelationship.AB_WEEK_BEFORE: "Hafta boyunca tüm A dersleri, B derslerinin hepsinden önce yerleşir.",
+        CardRelationship.AB_DAY_BEFORE: "A'nın ders günleri B'nin ders günlerinden önce gelir. Ör. A haftanın başında, B sonunda.",
+        CardRelationship.AB_MAX_CONSECUTIVE: "A ve B dersleri birlikte sayıldığında art arda en fazla N saat olur.",
+        CardRelationship.AB_FILL_GAPS: "A'nın gün içindeki boşlukları B dersleriyle doldurulur. Ör. öğretmenin boşluklarına etüt (B) gelsin.",
+        CardRelationship.AB_A_FIRST: "B'nin olduğu günlerde B'den önce en az bir A dersi olur.",
+        CardRelationship.AB_B_AFTER: "A'nın olduğu günlerde A'dan sonra en az bir B dersi olur.",
+        CardRelationship.AB_NOT_FOLLOWED: "A'nın hemen ardından B gelmez (ters sıra serbest). Ör. Beden Eğitimi'nin hemen ardından Matematik olmasın.",
+        # Başlama ve bitiş
+        CardRelationship.NO_START_AT: "Seçilen kartlar haritada işaretli saatlerde başlamaz. Ör. blok dersler öğle arasından hemen önce başlamasın.",
+        CardRelationship.NO_END_AT: "Seçilen kartlar haritada işaretli saatlerde bitmez.",
+        CardRelationship.FIRST_OR_LAST: "Her kart ya günün ilk saatinde başlar ya da son saatinde biter. Ör. dışarıdan gelen öğretmenin dersleri.",
+        CardRelationship.RESERVE: "Haritada işaretli saatler seçilen derslere ayrılır: aynı sınıfların diğer dersleri bu saatlere konmaz.",
+        # Farklılık sayıları
+        CardRelationship.MAX_SUBJECTS_WEEK: "Kümede haftada (harita verilirse işaretli saatlerde) en fazla N farklı ders adı olur.",
+        CardRelationship.MAX_SUBJECTS_DAY: "Kümede bir günde en fazla N farklı ders adı olur. Ör. sınıfın günde en fazla 4 farklı dersi.",
+        CardRelationship.MAX_TEACHERS_DAY: "Kümede bir günde en fazla N farklı öğretmen ders verir.",
+        CardRelationship.MAX_ROOMS_DAY: "Küme bir günde en fazla N farklı derslik kullanır.",
+        CardRelationship.MAX_ROOM_CHANGES: "Küme bir günde en fazla N kez derslik değiştirir (farklı derslik sayısı − 1 olarak sayılır).",
+        CardRelationship.MAX_BUILDING_CHANGES: "Küme bir günde en fazla N kez bina değiştirir (farklı bina sayısı − 1 olarak sayılır).",
+        CardRelationship.MAX_BUILDINGS_WEEK: "Küme haftada en fazla N farklı binada ders görür.",
+        CardRelationship.MAX_ROOMS_POSITION: "Kümenin aynı saatte kullandığı derslik sayısı en fazla N olur.",
+        # Öğrenci
+        CardRelationship.ST_SAME_TEACHER: "Seçmeli dağıtımında öğrenci, seçilen derslerin şubelerinde aynı öğretmene düşer. Program üretiminde değil, Öğrenciler → Dağıt'ta uygulanır.",
+        CardRelationship.ST_DIFF_TEACHER: "Seçmeli dağıtımında öğrenci, seçilen derslerin şubelerinde aynı öğretmene iki kez düşmez.",
+        CardRelationship.ST_TEACHER_IN: "Seçmeli dağıtımında öğrenci bu derslerde yalnızca “öğretmenler” alanında seçilenlerin şubelerine yerleşir.",
+        CardRelationship.ST_TEACHER_NOT_IN: "Seçmeli dağıtımında öğrenci bu derslerde “öğretmenler” alanında seçilenlerin şubelerine yerleşmez.",
+        CardRelationship.ST_SAME_GROUP: "Seçilen seçmelilerde aynı şubeye düşen öğrenciler diğer seçmelide de aynı şubede toplanır (dağıtım tercih eder).",
+        CardRelationship.ST_TERM_BEFORE: "Hem A hem B'yi seçen öğrenci A şubesini B'den önceki dönemde alır.",
+        CardRelationship.ST_TERM_BEFORE_SAME: "Hem A hem B'yi seçen öğrenci A'yı B'den önce ya da aynı dönemde alır.",
+        CardRelationship.ST_SAME_TERM: "Hem A hem B'yi seçen öğrenci ikisini aynı dönemde alır.",
+        CardRelationship.ST_DIFF_TERM: "Hem A hem B'yi seçen öğrenci ikisini aynı dönemde almaz.",
+        CardRelationship.ST_MIN_ELECTIVES: "Öğrenci seçilen derslerden en az N tanesini seçmiş olmalı; eksik seçimler Öğrenciler ekranında uyarı olarak çıkar.",
+        CardRelationship.ST_MAX_ELECTIVES: "Öğrenci seçilen derslerden en fazla N tanesini seçebilir; fazlası uyarı olarak çıkar.",
     }
 
     def __init__(self, *args, **kwargs):
@@ -346,6 +396,7 @@ class RelationshipForm(SchoolScopedForm):
                 "data-paired": " ".join(sorted(CardRelationship.PAIRED)),
                 "data-two-sided": " ".join(sorted(CardRelationship.TWO_SIDED)),
                 "data-rooms": " ".join(sorted(CardRelationship.ROOMS)),
+                "data-student": " ".join(sorted(CardRelationship.STUDENT)),
                 "data-help": json.dumps(self.CONDITION_HELP, ensure_ascii=False),
             }
         )
@@ -387,6 +438,8 @@ class RelationshipForm(SchoolScopedForm):
             self.add_error("subjects_b", "İki taraflı koşul için B tarafında ders ya da ders adı seçin.")
         if condition in CardRelationship.ROOMS and not data.get("classrooms"):
             self.add_error("classrooms", "Bu koşul için en az bir derslik seçin.")
+        if condition in CardRelationship.TEACHER_LIST and not data.get("teachers"):
+            self.add_error("teachers", "Bu koşul için öğretmenler alanında en az bir öğretmen seçin.")
         if condition in CardRelationship.NEEDS_MAP and not data.get("time_map"):
             self.add_error("time_map", "Bu koşul için zaman haritasında en az bir hücre işaretleyin.")
         if condition in (CardRelationship.MAX_DAYS, CardRelationship.MIN_DAYS) and data.get("param", 0) > self.school.days_per_week:
