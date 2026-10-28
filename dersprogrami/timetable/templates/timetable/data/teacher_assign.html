@@ -1,0 +1,82 @@
+{% extends "timetable/base.html" %}
+{% block title %}Öğretmen atama{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / Veri{% endblock %}
+{% block heading %}<h1>Öğretmen atama</h1>{% endblock %}
+{% block content %}
+{% include "timetable/data/subnav.html" %}
+<p class="muted small" style="margin-top:0">Soldan ders adını seçin; sağda o dersin bütün kısımları alt alta gelir. Her kısmın yanından öğretmeni seçip <b>Kaydet</b>'e basın. Listenin başında bu dersi zaten okutanlar ve branşı uyanlar, yanlarında haftalık yükleriyle yer alır. Birden çok öğretmenli dersler ders düzenleyicisinden değiştirilir.</p>
+<div class="ta-layout">
+  <aside class="panel ta-subjects">
+    <div class="panel-head"><input class="input input-sm" type="search" placeholder="Ders adı ara…" data-ta-search></div>
+    <nav class="ta-list">
+      {% for r in subject_rows %}
+        <a href="?ders={{ r.s.pk }}" class="ta-item{% if subject and r.s.pk == subject.pk %} active{% endif %}" data-name="{{ r.s.name|lower }} {{ r.s.short|lower }}">
+          <span><b>{{ r.s.name }}</b>{% if r.s.short and r.s.short != r.s.name %} <span class="subtle">{{ r.s.short }}</span>{% endif %}</span>
+          <small>{{ r.count }} kısım{% if r.missing %} · <span class="bad">{{ r.missing }} öğretmensiz</span>{% endif %}</small></a>
+      {% empty %}<p class="subtle small" style="padding:12px">Henüz ders yok.</p>{% endfor %}
+    </nav>
+  </aside>
+  {% if subject %}
+  <form method="post" class="panel" id="ta-form">
+    {% csrf_token %}<input type="hidden" name="ders" value="{{ subject.pk }}">
+    <div class="panel-head"><h2>{{ subject.name }} <span class="subtle">· {{ rows|length }} kısım</span></h2>
+      <div class="ta-bulk"><span class="subtle small">Seçili kısımlara:</span><select class="select select-sm" data-ta-bulk data-ta-teacher><option value="">— öğretmen —</option></select><button type="button" class="btn btn-sm" data-ta-apply>Ata</button></div></div>
+    <div class="panel-body flush table-wrap">
+      <table class="table ta-table">
+        <thead><tr><th style="width:32px"><input type="checkbox" data-ta-all aria-label="Tümünü seç"></th><th>Kısım</th><th class="num">Saat</th><th>Öğretmen</th><th></th></tr></thead>
+        <tbody>
+          {% for r in rows %}
+            <tr{% if not r.teacher_ids %} class="ta-missing"{% endif %}>
+              <td>{% if not r.multi %}<input type="checkbox" data-ta-row>{% endif %}</td>
+              <td><b>{{ r.classes }}</b>{% if r.groups %} <span class="subtle small">{{ r.groups }}</span>{% endif %}</td>
+              <td class="num">{{ r.lesson.periods_per_week }}</td>
+              <td>{% if r.multi %}{{ r.teachers }} <span class="pill">birden çok öğretmen</span>
+                {% else %}<select class="select select-sm" name="ogretmen-{{ r.lesson.pk }}" data-ta-teacher data-value="{{ r.teacher_ids.0|default:'' }}"><option value="">— atanmadı —</option></select>{% endif %}</td>
+              <td class="num"><a class="btn btn-ghost btn-sm" href="{% url 'timetable:lesson_edit' school.pk r.lesson.pk %}?back={{ request.get_full_path|urlencode }}">Ayrıntı</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="form-actions" style="padding:0 16px"><div><button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} Kaydet</button><span class="subtle small" data-ta-dirty></span></div></div>
+  </form>
+  {% endif %}
+</div>
+{{ options_json|json_script:"ta-data" }}
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const search = document.querySelector("[data-ta-search]");
+  search.addEventListener("input", () => {
+    const q = search.value.trim().toLocaleLowerCase("tr");
+    document.querySelectorAll(".ta-item").forEach((a) => { a.hidden = q && !a.dataset.name.includes(q); });
+  });
+  const active = document.querySelector(".ta-item.active");
+  if (active) active.scrollIntoView({ block: "center" });
+  const form = document.getElementById("ta-form");
+  if (!form) return;
+  const data = JSON.parse(document.getElementById("ta-data").textContent);
+  const group = (label, list) => list.length ? '<optgroup label="' + label + '">' + list.map((t) => '<option value="' + t.id + '">' + t.name.replace(/</g, "&lt;") + " · " + t.load + " saat</option>").join("") + "</optgroup>" : "";
+  const html = group("Bu dersi okutanlar", data.teaching) + group("Branşı uyanlar", data.branch) + group("Diğer öğretmenler", data.others);
+  const selects = [...form.querySelectorAll("select[data-ta-teacher]")];
+  selects.forEach((s) => { s.insertAdjacentHTML("beforeend", html); if (s.dataset.value !== undefined) s.value = s.dataset.value; });
+  const dirty = form.querySelector("[data-ta-dirty]");
+  const rowSelects = selects.filter((s) => !s.hasAttribute("data-ta-bulk"));
+  const update = () => {
+    const n = rowSelects.filter((s) => s.value !== s.dataset.value).length;
+    rowSelects.forEach((s) => s.closest("tr").classList.toggle("ta-changed", s.value !== s.dataset.value));
+    dirty.textContent = n ? n + " kısım değişti (kaydedilmedi)" : "";
+  };
+  form.addEventListener("change", update);
+  form.querySelector("[data-ta-all]").addEventListener("change", (e) => form.querySelectorAll("[data-ta-row]").forEach((c) => { c.checked = e.target.checked; }));
+  form.querySelector("[data-ta-apply]").addEventListener("click", () => {
+    const value = form.querySelector("[data-ta-bulk]").value;
+    form.querySelectorAll("[data-ta-row]:checked").forEach((c) => { c.closest("tr").querySelector("select[data-ta-teacher]").value = value; });
+    update();
+  });
+  window.addEventListener("beforeunload", (e) => { if (dirty.textContent) { e.preventDefault(); e.returnValue = ""; } });
+  form.addEventListener("submit", () => { dirty.textContent = ""; });
+})();
+</script>
+{% endblock %}

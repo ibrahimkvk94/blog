@@ -961,6 +961,18 @@ def _lesson_bulk(school, post):
     return "Bilinmeyen işlem.", "error"
 
 
+def _teacher_hints(school):
+    """Ders formunda öğretmen önerisi için: ders adını okutanlar, branşı uyanlar ve haftalık yükler."""
+    teaching, loads, branch = defaultdict(set), defaultdict(int), defaultdict(list)
+    for lesson in Lesson.objects.filter(school=school).prefetch_related("teachers"):
+        for t in lesson.teachers.all():
+            teaching[lesson.subject_id].add(t.id)
+            loads[t.id] += lesson.periods_per_week
+    for teacher_id, subject_id in Teacher.subjects.through.objects.filter(teacher__school=school).values_list("teacher_id", "subject_id"):
+        branch[subject_id].append(teacher_id)
+    return {"teaching": {k: sorted(v) for k, v in teaching.items()}, "branch": dict(branch), "loads": dict(loads)}
+
+
 def lesson_edit(request, pk, lesson_id=None):
     school = _school(pk)
     lesson = get_object_or_404(Lesson, pk=lesson_id, school=school) if lesson_id else None
@@ -1002,6 +1014,7 @@ def lesson_edit(request, pk, lesson_id=None):
             form=form,
             lesson=lesson,
             back=request.GET.get("back", ""),
+            teacher_hints=_teacher_hints(school),
             availability=_availability_grid(school, "lesson", lesson),
             availability_help="Bu ders yalnızca bu dersin kartları için geçerlidir; öğretmen ve sınıf müsaitliğiyle birlikte uygulanır.",
             tabs=[{"key": "ders", "title": "Ders", "errors": any(form[f].errors for f in form.fields)},
@@ -1418,3 +1431,59 @@ def distribution_paste(request, pk):
     summary = ", ".join(f"{n} {label}" for label, n in counts.items())
     messages.success(request, f"Yapıştırılan dağıtım aktarıldı: {summary}.")
     return JsonResponse({"ok": True, "applied": True, "message": summary})
+
+
+def teacher_assign(request, pk):
+    """Öğretmen atama: bir ders adının tüm kısımları alt alta, her birine tek öğretmen seçimi."""
+    school = _school(pk)
+    lessons = list(Lesson.objects.filter(school=school).select_related("subject")
+                   .prefetch_related("classes", "groups__division__school_class", "teachers"))
+    by_subject = defaultdict(list)
+    for lesson in lessons:
+        by_subject[lesson.subject_id].append(lesson)
+    subjects = sorted((s for s in school.subjects.all() if s.id in by_subject), key=lambda s: natural_key(s.name))
+    selected_id = request.POST.get("ders") or request.GET.get("ders")
+    subject = next((s for s in subjects if str(s.id) == str(selected_id)), None)
+    if subject is None:  # öğretmeni eksik ilk ders adı, yoksa ilki
+        subject = next((s for s in subjects if any(not l.teachers.all() for l in by_subject[s.id])), subjects[0] if subjects else None)
+    teachers = {t.id: t for t in school.teachers.all()}
+    if request.method == "POST" and subject is not None:
+        changed = 0
+        with transaction.atomic():
+            for lesson in by_subject[subject.id]:
+                key = f"ogretmen-{lesson.pk}"
+                current = [t.id for t in lesson.teachers.all()]
+                if key not in request.POST or len(current) > 1:
+                    continue  # çok öğretmenli dersler ders düzenleyicisinden
+                value = request.POST[key]
+                new = [int(value)] if value.isdigit() and int(value) in teachers else []
+                if new != current:
+                    lesson.teachers.set(new)
+                    changed += 1
+        messages.success(request, f"{subject.name}: {changed} kısmın öğretmeni güncellendi." if changed else "Değişiklik yok.")
+        return redirect(reverse("timetable:teacher_assign", args=[school.pk]) + f"?ders={subject.pk}")
+    loads = defaultdict(int)
+    for lesson in lessons:
+        for t in lesson.teachers.all():
+            loads[t.id] += lesson.periods_per_week
+    subject_rows = [{"s": s, "count": len(by_subject[s.id]), "missing": sum(1 for l in by_subject[s.id] if not l.teachers.all())}
+                    for s in subjects]
+    rows, teaching = [], set()
+    if subject is not None:
+        for lesson in sorted(by_subject[subject.id], key=lambda l: natural_key(", ".join(c.name for c in l.classes.all()) or "~")):
+            ids = [t.id for t in lesson.teachers.all()]
+            teaching.update(ids)
+            rows.append({"lesson": lesson, "teacher_ids": ids, "multi": len(ids) > 1,
+                         "classes": ", ".join(c.short or c.name for c in lesson.classes.all()) or "Sınıfsız",
+                         "groups": ", ".join(g.name for g in lesson.groups.all()),
+                         "teachers": ", ".join(t.full_name for t in lesson.teachers.all())})
+    branch = set(subject.qualified_teachers.values_list("id", flat=True)) if subject else set()
+    order = sorted(teachers.values(), key=lambda t: natural_key(t.full_name))
+    options = {
+        "teaching": [t for t in order if t.id in teaching],
+        "branch": [t for t in order if t.id in branch and t.id not in teaching],
+        "others": [t for t in order if t.id not in teaching and t.id not in branch],
+    }
+    return render(request, "timetable/data/teacher_assign.html", _nav(
+        school, "data", data_nav="ogretmen-atama", subject=subject, subject_rows=subject_rows, rows=rows,
+        options_json={k: [{"id": t.id, "name": t.full_name, "load": loads.get(t.id, 0)} for t in v] for k, v in options.items()}))

@@ -29,6 +29,110 @@
     }
   });
 
+  // ---- sade seçici: seçenek çoksa yalnızca seçilenler görünür, eklemek için yazılır ---------
+  // Kutunun kendi listesi (onay kutuları) aynen kalır; "Tümünü göster" ile açılabilir.
+  const COMPACT_AFTER = 12;
+  function compactChips(box) {
+    const opts = $$(".chip-opt", box);
+    const search = $(".chip-search", box);
+    const list = $(".chip-list", box);
+    if (opts.length <= COMPACT_AFTER || !search || !list) return;
+    box.classList.add("compact");
+    const picked = document.createElement("div");
+    picked.className = "chip-picked";
+    const drop = document.createElement("div");
+    drop.className = "chip-drop";
+    drop.hidden = true;
+    const more = document.createElement("button");
+    more.type = "button";
+    more.className = "btn btn-ghost btn-sm chip-more";
+    box.insertBefore(picked, search);
+    search.after(drop);
+    box.appendChild(more);
+    search.placeholder = "Eklemek için yazın…";
+    list.hidden = true;
+    let items = [], active = 0;
+    const input = (o) => o.querySelector("input");
+    const label = (o) => o.querySelector("span").textContent;
+    const setMore = () => { more.textContent = list.hidden ? "Tümünü göster (" + opts.length + ")" : "Listeyi gizle"; };
+    setMore();
+    more.addEventListener("click", () => { list.hidden = !list.hidden; setMore(); });
+
+    const renderPicked = () => {
+      const on = opts.filter((o) => input(o).checked);
+      picked.innerHTML = on.length
+        ? on.map((o) => '<span class="chip-pick">' + esc(label(o)) + '<button type="button" data-v="' + esc(input(o).value) + '" aria-label="Kaldır">×</button></span>').join("")
+        : '<span class="subtle small">Seçilmedi</span>';
+    };
+    const set = (o, checked) => {
+      input(o).checked = checked;
+      input(o).dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    const renderDrop = () => {
+      const q = search.value.trim().toLocaleLowerCase("tr");
+      const rank = box._rank;
+      let pool = opts.filter((o) => !input(o).checked && !o.hidden && (!q || o.dataset.label.includes(q)));
+      let ranked = pool.map((o) => ({ o, r: rank ? rank(input(o).value) : { score: 0, note: "" } }));
+      if (!q) ranked = ranked.filter((x) => x.r.score > 0);  // boş aramada yalnızca öneriler
+      ranked.sort((a, b) => b.r.score - a.r.score);
+      items = ranked.slice(0, 12);
+      active = 0;
+      if (!items.length) {
+        drop.style.top = search.offsetTop + search.offsetHeight + "px";
+        drop.innerHTML = q ? '<div class="chip-drop-empty">Eşleşen yok.</div>' : "";
+        drop.hidden = !q;
+        return;
+      }
+      drop.style.top = search.offsetTop + search.offsetHeight + "px";
+      drop.innerHTML = (q ? "" : '<div class="chip-drop-head">Öneriler</div>') + items.map((x, i) =>
+        '<div class="chip-drop-item' + (i === 0 ? " on" : "") + '" data-i="' + i + '"><span>' + esc(label(x.o)) + "</span>" +
+        (x.r.note ? '<small>' + esc(x.r.note) + "</small>" : "") + "</div>").join("") +
+        (q && pool.length > items.length ? '<div class="chip-drop-empty">' + (pool.length - items.length) + " sonuç daha; aramayı daraltın.</div>" : "");
+      drop.hidden = false;
+    };
+    const choose = (i) => {
+      const x = items[i];
+      if (!x) return;
+      set(x.o, true);
+      search.value = "";
+      renderDrop();
+      search.focus();
+    };
+    box._refresh = () => { renderPicked(); if (!drop.hidden) renderDrop(); };
+    box.addEventListener("change", renderPicked);
+    picked.addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-v]");
+      if (!b) return;
+      const o = opts.find((x) => input(x).value === b.dataset.v);
+      if (o) set(o, false);
+    });
+    search.addEventListener("focus", renderDrop);
+    search.addEventListener("input", renderDrop);
+    search.addEventListener("blur", () => setTimeout(() => { drop.hidden = true; }, 150));
+    search.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        if (!items.length) return;
+        active = (active + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length;
+        $$(".chip-drop-item", drop).forEach((el, i) => el.classList.toggle("on", i === active));
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        choose(active);
+      } else if (e.key === "Escape") {
+        drop.hidden = true;
+      } else if (e.key === "Backspace" && !search.value) {
+        const on = opts.filter((o) => input(o).checked);
+        if (on.length) set(on[on.length - 1], false);
+      }
+    });
+    drop.addEventListener("mousedown", (e) => {
+      const el = e.target.closest(".chip-drop-item");
+      if (el) { e.preventDefault(); choose(Number(el.dataset.i)); }
+    });
+    renderPicked();
+  }
+  $$("[data-chips]").forEach(compactChips);
+
   // ---- ders formu: grupları seçili sınıflara göre süz, kart önizlemesi ---------------------
   const lessonForm = $("#lesson-form");
   if (lessonForm) {
@@ -46,6 +150,20 @@
       groupWrap.hidden = visible === 0;
     };
     if (classBox && groupWrap) { classBox.addEventListener("change", filterGroups); filterGroups(); }
+
+    // Öğretmen önerisi: bu ders adını zaten okutanlar, sonra branşı uyanlar; yanında haftalık yük
+    const hints = readJSON("teacher-hints");
+    const teacherBox = $("input[name=teachers]", lessonForm)?.closest("[data-chips]");
+    const subjectSel = $("select[name=subject]", lessonForm);
+    if (hints && teacherBox && subjectSel) {
+      teacherBox._rank = (id) => {
+        const sid = subjectSel.value;
+        const teaching = (hints.teaching[sid] || []).includes(Number(id));
+        const branch = (hints.branch[sid] || []).includes(Number(id));
+        const load = (hints.loads[id] || 0) + " saat";
+        return { score: teaching ? 2 : branch ? 1 : 0, note: (teaching ? "bu dersi okutuyor · " : branch ? "branşı · " : "") + load };
+      };
+    }
 
     const preview = $("[data-card-preview]", lessonForm);
     const hours = $("input[name=periods_per_week]", lessonForm);

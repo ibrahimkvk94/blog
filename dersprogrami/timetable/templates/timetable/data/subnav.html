@@ -7,6 +7,7 @@
   <a href="{% url 'timetable:data_list' school.pk 'derslikler' %}" class="{% if data_nav == 'derslikler' %}active{% endif %}">Derslikler</a>
   <a href="{% url 'timetable:data_list' school.pk 'binalar' %}" class="{% if data_nav == 'binalar' %}active{% endif %}">Binalar</a>
   <a href="{% url 'timetable:lessons' school.pk %}" class="{% if data_nav == 'dersler' %}active{% endif %}">Dersler</a>
+  <a href="{% url 'timetable:teacher_assign' school.pk %}" class="{% if data_nav == 'ogretmen-atama' %}active{% endif %}">Öğretmen atama</a>
   <a href="{% url 'timetable:distribution' school.pk %}" class="{% if data_nav == 'dagitim' %}active{% endif %}">Ders dağıtımı</a>
   <a href="{% url 'timetable:data_list' school.pk 'kart-iliskileri' %}" class="{% if data_nav == 'kart-iliskileri' %}active{% endif %}">Kart ilişkileri</a>
   <a href="{% url 'timetable:room_wizard' school.pk %}" class="{% if data_nav == 'derslik-atama' %}active{% endif %}">Derslik atama</a>

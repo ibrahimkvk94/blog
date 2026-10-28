@@ -7,6 +7,7 @@
 {% block record_title %}{% if lesson %}{{ lesson.subject.name }}{% else %}Yeni ders{% endif %}{% endblock %}
 {% block bar_extra %}{% if lesson %}<button class="btn btn-ghost btn-danger" form="delete-form">Sil</button>{% endif %}{% endblock %}
 {% block editor_body %}
+{{ teacher_hints|json_script:"teacher-hints" }}
 <form method="post" class="data-form rec-form" id="lesson-form" novalidate>
   {% csrf_token %}
   <input type="hidden" name="back" value="{{ back }}">

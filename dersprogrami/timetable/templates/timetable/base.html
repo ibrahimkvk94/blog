@@ -50,6 +50,7 @@
       <nav class="side-nav">
         <a href="{% url 'timetable:school_settings' school.pk %}" class="{% if data_nav == 'okul' %}active{% endif %}">{% include "timetable/icon.html" with name="home" %} Program ayarları ve saatler</a>
         <a href="{% url 'timetable:lessons' school.pk %}" class="{% if data_nav == 'dersler' %}active{% endif %}">{% include "timetable/icon.html" with name="list" %} Dersler</a>
+        <a href="{% url 'timetable:teacher_assign' school.pk %}" class="{% if data_nav == 'ogretmen-atama' %}active{% endif %}">{% include "timetable/icon.html" with name="users" %} Öğretmen atama</a>
         <a href="{% url 'timetable:distribution' school.pk %}" class="{% if data_nav == 'dagitim' %}active{% endif %}">{% include "timetable/icon.html" with name="wand" %} Ders dağıtımı</a>
         <a href="{% url 'timetable:data_list' school.pk 'siniflar' %}" class="{% if data_nav == 'siniflar' %}active{% endif %}">{% include "timetable/icon.html" with name="grid" %} Sınıflar</a>
         <a href="{% url 'timetable:data_list' school.pk 'ogretmenler' %}" class="{% if data_nav == 'ogretmenler' %}active{% endif %}">{% include "timetable/icon.html" with name="users" %} Öğretmenler</a>
