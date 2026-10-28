@@ -115,3 +115,29 @@ Tarayıcı birkaç saniye içinde kendiliğinden **http://127.0.0.1:8000/** adre
 **Yedekleme:** Tüm veriler `dersprogrami` klasöründeki **`db.sqlite3`** dosyasındadır. Bu dosyayı kopyalamak yedek almak için yeterlidir.
 
 **Windows'ta terminal açmak:** klasörü Dosya Gezgini'nde aç, üstteki adres çubuğuna tıkla, `cmd` yaz ve Enter'a bas.
+
+## Kapalı ağ (internetsiz) kurulum — tüm ağın kullanımı için
+
+İnternete çıkamayan bir ağda program, bir **sunucu bilgisayarda** çalışır; ağdaki herkes tarayıcıdan bağlanır.
+Python ve tüm paketler pakete gömülüdür, hedef bilgisayara ayrıca bir şey kurulmaz (Windows 10/11 64 bit).
+
+**1. Paketi hazırla (internetli bir Windows bilgisayarda):**
+
+- *Kolay yol:* GitHub'da **Actions → “Kapalı ağ paketi”** sayfasında son başarılı çalıştırmayı aç, **Artifacts** bölümünden `DersProgrami-paket` dosyasını indir. İçinden `DersProgrami-YYYYMMDD.zip` çıkar. Paket her güncellemede gerçek bir Windows makinesinde kurulup sınanarak oluşturulur.
+- *Kendin üretmek istersen:* proje klasöründe `paketle.bat`'a çift tıkla. Python kurulu olması gerekmez. Sonuç `dist\DersProgrami-YYYYMMDD.zip` dosyasıdır (yaklaşık 150–200 MB).
+
+**2. Sunucu bilgisayara kur (kapalı ağda):**
+
+1. Zip'i USB ile taşı ve sabit bir klasöre aç, ör. `C:\DersProgrami`.
+2. `kurulum.bat`'a **sağ tıkla → Yönetici olarak çalıştır**. Gizli anahtar üretilir, veritabanı hazırlanır, yönetici hesabı sorulur ve güvenlik duvarında 8000 kapısı açılır.
+3. `baslat.bat` ile aç. Pencerede `http://192.168.x.x:8000/` gibi bir adres yazar; ağdaki bilgisayarlar bu adresi kullanır.
+4. Bilgisayar açılınca kendiliğinden başlasın istersen `otomatik_baslat.bat`'ı çalıştır (yönetici izni ister). Kaldırmak için `otomatik_baslat.bat kaldir` yaz.
+
+**3. Güncelleme:** Yeni zip'i açmadan kurulum klasörüne kopyala ve `guncelle.bat`'a çift tıkla. Önce yedek alınır. Veritabanı (`db.sqlite3`), ayarlar (`.env`) ve `yedekler` klasörü korunur.
+
+**Notlar:**
+
+- Sunucu bilgisayara ağ yöneticisinden **sabit IP** iste; adres değişirse kullanıcılar bağlanamaz.
+- Ayarlar `.env` dosyasındadır: `SUNUCU_PORT` kapı numarasıdır, `DJANGO_ALLOWED_HOSTS=*` ağdaki her adresten erişime izin verir.
+- E-posta bildirimleri kapalı ağda çalışmaz. Ağda bir e-posta sunucusu varsa `.env`'e `EMAIL_HOST` vb. eklenebilir.
+- Yedekler `yedekler` klasöründedir; bu klasörü düzenli olarak başka bir diske kopyala.

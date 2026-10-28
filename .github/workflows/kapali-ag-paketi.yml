@@ -1,0 +1,64 @@
+# Kapalı ağ kurulum paketini gerçek bir Windows makinesinde oluşturur, sınar ve indirilebilir yapar.
+# Actions → "Kapalı ağ paketi" → son çalıştırma → Artifacts → DersProgrami-paket
+name: Kapalı ağ paketi
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "dersprogrami/paket/**"
+      - "dersprogrami/paketle.bat"
+      - "dersprogrami/requirements.txt"
+      - ".github/workflows/kapali-ag-paketi.yml"
+
+jobs:
+  paket:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: dersprogrami
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Paketi oluştur
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File paket\paketle.ps1
+
+      - name: Zip'i boş klasöre açıp internetsiz kurulumu sına
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem dist -Filter "DersProgrami-*.zip" | Select-Object -First 1
+          $target = Join-Path $env:RUNNER_TEMP "kurulum"
+          New-Item -ItemType Directory -Force $target | Out-Null
+          tar.exe -xf $zip.FullName -C $target
+          Set-Location (Join-Path $target "DersProgrami")
+          $py = ".\python\python.exe"
+          & $py -c "import secrets; open('.env','w').write('DJANGO_SECRET_KEY=' + secrets.token_urlsafe(50) + '\nDJANGO_DEBUG=0\nDJANGO_ALLOWED_HOSTS=*\nSUNUCU_PORT=8000\n')"
+          & $py manage.py migrate --noinput; if ($LASTEXITCODE) { exit 1 }
+          & $py manage.py collectstatic --noinput | Out-Null; if ($LASTEXITCODE) { exit 1 }
+          & $py manage.py seed_demo; if ($LASTEXITCODE) { exit 1 }
+          # OR-Tools'un gömülü Python'da çalıştığını gerçek bir üretimle doğrula
+          $school = & $py manage.py shell -c "from timetable.models import School; print(School.objects.first().pk)"
+          & $py manage.py generate_timetable $school --time-limit 20; if ($LASTEXITCODE) { exit 1 }
+          $server = Start-Process -FilePath $py -ArgumentList "manage.py", "sunucu" -PassThru -RedirectStandardOutput sunucu.log -RedirectStandardError sunucu.err
+          $ok = $false
+          foreach ($i in 1..30) {
+            Start-Sleep -Seconds 2
+            try {
+              $r = Invoke-WebRequest "http://127.0.0.1:8000/giris/" -UseBasicParsing
+              $css = Invoke-WebRequest "http://127.0.0.1:8000/static/timetable/app.css" -UseBasicParsing
+              if ($r.StatusCode -eq 200 -and $r.Content -match "csrfmiddlewaretoken" -and $css.StatusCode -eq 200) { $ok = $true; break }
+            } catch { }
+          }
+          Get-Content sunucu.log, sunucu.err
+          Stop-Process -Id $server.Id -Force
+          if (-not $ok) { throw "Sunucu yanıt vermedi" }
+          Write-Host "Kurulum ve sunucu sınaması başarılı."
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DersProgrami-paket
+          path: dersprogrami/dist/DersProgrami-*.zip
+          compression-level: 0
+          retention-days: 30
