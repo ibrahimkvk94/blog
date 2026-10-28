@@ -614,3 +614,22 @@ html.focus-mode .tray-body { max-height: 19vh; }
 .ok-text { color: var(--success, #15803d); }
 @media (max-width: 1000px) { .sc-layout { grid-template-columns: 1fr; } }
 .sc-form [hidden] { display: none !important; }
+
+/* Çözüm merkezi önizlemesi */
+.preview-bar { position: sticky; top: 0; z-index: 35; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between;
+  background: #fff8e6; border: 1px solid #f3dca8; border-radius: 10px; padding: 10px 14px; margin-bottom: 10px; box-shadow: var(--shadow); }
+.preview-bar .pv-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.preview-bar form { display: inline; }
+.tt-board { position: relative; }
+.tt-board.previewing .tt-row { content-visibility: visible; }
+.tt-board.previewing .tt-card { opacity: .35; }
+.tt-board.previewing .tt-card.pv-moved { opacity: 1; outline: 3px solid #f59e0b; outline-offset: -1px; z-index: 3; box-shadow: 0 0 0 4px rgba(245, 158, 11, .25); }
+.tt-board.previewing .tt-card.pv-ghost { opacity: .55; border-style: dashed; background: repeating-linear-gradient(135deg, var(--c), var(--c) 6px, #fff 6px, #fff 10px); cursor: default; }
+.tt-board .tt-row.pv-hide { display: none; }
+.pv-arrows { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 5; overflow: visible; }
+.pv-arrows path { fill: none; stroke: #d97706; stroke-width: 2.5; stroke-dasharray: 6 4; }
+.pv-arrows marker path { fill: #d97706; stroke: none; }
+.sc-text { margin-bottom: 16px; display: grid; gap: 8px; }
+.sc-text-row { display: flex; gap: 8px; }
+.sc-text-row .input { flex: 1; }
+.sc-understood { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }

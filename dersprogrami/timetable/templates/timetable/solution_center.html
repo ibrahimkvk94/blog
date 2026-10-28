@@ -5,6 +5,24 @@
 {% block content %}
 <p class="muted small" style="margin-top:0">Kalıcı program değişikliği için: ne olması gerektiğini söyleyin; sistem çakışmasız ve <b>en az dersi oynatan</b> çözümleri, etkilenenlerin raporuyla birlikte önersin. Uyguladığınız öneri yeni sürüm olarak kaydedilir ve ana görünümde “Geri al” ile geri alınabilir. Geçici durumlar için <a href="{% url 'timetable:substitutions' school.pk %}">Vekâlet</a> ekranını kullanın.</p>
 
+<form method="post" class="panel panel-body sc-text" id="sc-text">{% csrf_token %}
+  <input type="hidden" name="action" value="text">
+  <label class="label" for="sc-istek" style="margin-top:0">Ne olsun? Yazın, sistem anlasın ve çözsün</label>
+  <div class="sc-text-row">
+    <input class="input" name="istek" id="sc-istek" value="{{ text }}" autocomplete="off"
+           placeholder="Ör. “Yasin Türkmen salı 1. saat dersini kaydır” · “Ayşe Hoca perşembe gelemiyor” · “1SVN SVN211 dersini çarşamba 3'e al” · “Spor Salonu 1 cuma öğleden sonra kullanılamıyor”">
+    <button class="btn btn-primary">{% include "timetable/icon.html" with name="wand" %} Anla ve çöz</button>
+  </div>
+  {% if parsed %}
+    <div class="sc-understood">
+      <span class="subtle small">Anlaşılan:</span>{% for u in parsed.understood %}<span class="chip">{{ u }}</span>{% endfor %}
+    </div>
+    {% for p in parsed.problems %}<div class="small bad">{{ p }}</div>{% endfor %}
+    {% if parsed.candidates %}<div class="sc-understood"><span class="subtle small">Hangisi?</span>{% for id, name in parsed.candidates %}<button type="submit" class="btn btn-sm" name="istek" value="{{ text }} – {{ name }}">{{ name }}</button>{% endfor %}</div>{% endif %}
+    {% if parsed.problems %}<p class="subtle small" style="margin-bottom:0">Anlaşılanlar aşağıdaki forma işlendi; eksikleri tamamlayıp <b>Çözüm öner</b> diyebilirsiniz.</p>{% endif %}
+  {% endif %}
+</form>
+
 <div class="sc-layout">
   <form method="post" class="panel sc-form" id="sc-form">{% csrf_token %}
     <input type="hidden" name="action" value="solve">
@@ -88,7 +106,8 @@
             <input type="hidden" name="action" value="apply"><input type="hidden" name="oneri" value="{{ forloop.counter0 }}">
             {% if form.kind == "teacher" or form.kind == "room" %}<label class="check small"><input type="checkbox" name="musaitlik" value="1" checked> <span>Kapanan saatleri {% if form.kind == "teacher" %}öğretmenin{% else %}dersliğin{% endif %} müsaitliğine de işle (sonraki üretimlerde de geçerli)</span></label>{% endif %}
             {% if can_notify %}<label class="check small"><input type="checkbox" name="bildir" value="1" checked> <span>Yeri değişen derslerin öğretmenlerine e-posta</span></label>{% endif %}
-            <button class="btn btn-primary btn-sm" onclick="return confirm('Bu öneri programa uygulansın mı? (Geri alınabilir)')">{% include "timetable/icon.html" with name="check" %} Bu öneriyi uygula</button>
+<a class="btn btn-sm" href="{% url 'timetable:timetable_detail' timetable.pk %}?onizleme={{ forloop.counter0 }}">{% include "timetable/icon.html" with name="grid" %} Ana görünümde göster</a>
+                        <button class="btn btn-primary btn-sm" onclick="return confirm('Bu öneri programa uygulansın mı? (Geri alınabilir)')">{% include "timetable/icon.html" with name="check" %} Bu öneriyi uygula</button>
           </form>
         </div>
       </div>

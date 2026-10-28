@@ -115,6 +115,20 @@
     <div class="right chips" id="stats"></div>
   </div>
 
+  <div class="preview-bar" id="preview-bar" hidden>
+    <div class="pv-text"><b>Önizleme</b> · <span id="pv-label"></span><div class="subtle small" id="pv-moves"></div></div>
+    <div class="pv-actions">
+      <label class="check small"><input type="checkbox" id="pv-only" checked> <span>Yalnızca etkilenen satırlar</span></label>
+      <button type="button" class="btn btn-sm" id="pv-prev">‹ Önceki</button>
+      <button type="button" class="btn btn-sm" id="pv-next">Sonraki ›</button>
+      <form method="post" action="{% url 'timetable:solution_center' timetable.pk %}" id="pv-apply" onsubmit="return confirm('Bu öneri programa uygulansın mı? (Geri alınabilir)')">{% csrf_token %}
+        <input type="hidden" name="action" value="apply"><input type="hidden" name="oneri" id="pv-index">
+        <button class="btn btn-sm btn-primary">{% include "timetable/icon.html" with name="check" %} Bu öneriyi uygula</button>
+      </form>
+      <a class="btn btn-sm btn-ghost" href="{% url 'timetable:solution_center' timetable.pk %}">Çözüm merkezine dön</a>
+      <a class="btn btn-sm btn-ghost" href="{% url 'timetable:timetable_detail' timetable.pk %}">Önizlemeyi kapat</a>
+    </div>
+  </div>
   <div class="tt-wrap" id="tt-wrap">
     <div>
       <div class="tt-frame">

@@ -146,6 +146,7 @@ def timetable_detail(request, pk):
         "unplaceUrl": reverse("timetable:api_card_unplace", args=[0]),
         "lockUrl": reverse("timetable:api_card_lock", args=[0]),
         "solutionUrl": reverse("timetable:solution_center", args=[timetable.pk]),
+        "previewUrl": reverse("timetable:api_resolve_preview", args=[timetable.pk, 0]),
         "undoUrl": reverse("timetable:api_undo", args=[timetable.pk]),
         "redoUrl": reverse("timetable:api_redo", args=[timetable.pk]),
         "bulkUrl": reverse("timetable:api_bulk", args=[timetable.pk]),

@@ -90,6 +90,7 @@
     options: null,
     dragging: null,
     compare: "",
+    preview: null,  // çözüm merkezi önizlemesi: {index, total, moves, ...}
   };
 
   async function load() {
@@ -99,9 +100,11 @@
       toast(e.message, "error");
       return;
     }
+    if (state.preview) applyPreview(state.data);
     state.cards = new Map();
     state.data.cards.concat(state.data.unplaced).forEach((c) => state.cards.set(c.id, c));
     render();
+    if (state.preview) drawPreview();
     if (state.selected && state.cards.has(state.selected)) select(state.selected);
     else clearSelection();
   }
@@ -182,6 +185,7 @@
         const [s, e] = span(c);
         const overlaps = cards.some((o, j) => j !== i && span(o)[0] < e && s < span(o)[1]);
         const card = cardEl(c);
+        if (c.pv) { card.classList.add(c.pv); if (c.pv === "pv-ghost") { card.draggable = false; card.dataset.card = ""; } }
         card.style.gridColumn = 2 + c.day * P + c.period + " / span " + c.length;
         card.style.gridRow = overlaps ? String(lanes[i] + 1) : "1 / -1";
         rowEl.appendChild(card);
@@ -215,6 +219,68 @@
     redo.disabled = !h.redo;
     undo.title = h.undo ? "Geri al: " + h.undo + " (Ctrl+Z)" : "Geri alınacak işlem yok";
     redo.title = h.redo ? "Yinele: " + h.redo + " (Ctrl+Y)" : "Yinelenecek işlem yok";
+  }
+
+  // ---- çözüm merkezi önizlemesi ---------------------------------------------------------------
+  // Taşınan kartlar yeni yerlerinde vurgulu, eski yerlerinde soluk "hayalet" olarak çizilir; okla bağlanır.
+  function applyPreview(data) {
+    const moves = new Map(state.preview.moves.map((m) => [m.card, m]));
+    const ghosts = [];
+    const moveCard = (c) => {
+      const m = moves.get(c.id);
+      if (!m) return c;
+      if (m.from) ghosts.push({ ...c, day: m.from[0], period: m.from[1], pv: "pv-ghost" });
+      return { ...c, day: m.to[0], period: m.to[1], pv: "pv-moved" };
+    };
+    const placed = data.cards.map(moveCard);
+    const unplacedMoved = data.unplaced.filter((c) => moves.has(c.id)).map(moveCard);
+    data.cards = placed.concat(unplacedMoved, ghosts);
+    data.unplaced = data.unplaced.filter((c) => !moves.has(c.id));
+  }
+
+  function drawPreview() {
+    board.classList.add("previewing");
+    const only = $("#pv-only").checked;
+    const rows = new Set();
+    board.querySelectorAll(".pv-moved, .pv-ghost").forEach((n) => rows.add(n.closest(".tt-row")));
+    board.querySelectorAll(".tt-row").forEach((r) => r.classList.toggle("pv-hide", only && !rows.has(r)));
+    board.querySelector("svg.pv-arrows")?.remove();
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "pv-arrows");
+    const base = board.getBoundingClientRect();
+    svg.setAttribute("width", board.scrollWidth);
+    svg.setAttribute("height", board.scrollHeight);
+    svg.innerHTML = '<defs><marker id="pv-head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z"/></marker></defs>';
+    rows.forEach((row) => {
+      row.querySelectorAll(".pv-ghost").forEach((g) => {
+        const target = [...row.querySelectorAll(".pv-moved")].find((m) => m.title === g.title);
+        if (!target) return;
+        const a = g.getBoundingClientRect(), b = target.getBoundingClientRect();
+        const x1 = a.left + a.width / 2 - base.left, y1 = a.top + a.height / 2 - base.top;
+        const x2 = b.left + b.width / 2 - base.left, y2 = b.top + b.height / 2 - base.top;
+        const bend = Math.min(40, Math.abs(x2 - x1) / 4 + 12);
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", `M${x1} ${y1} C ${x1} ${y1 - bend}, ${x2} ${y2 - bend}, ${x2} ${y2}`);
+        path.setAttribute("marker-end", "url(#pv-head)");
+        svg.appendChild(path);
+      });
+    });
+    board.appendChild(svg);
+  }
+
+  async function startPreview(index) {
+    let res;
+    try { res = await api(urlFor(cfg.previewUrl, index)); } catch (e) { toast(e.message, "error"); return; }
+    state.preview = res;
+    $("#preview-bar").hidden = false;
+    $("#pv-label").textContent = "Öneri " + (res.index + 1) + "/" + res.total + " · " + res.label + " · " + res.count + " ders yer değiştiriyor" +
+      (res.new_violations ? " · " + res.new_violations + " yeni ihlal" : "");
+    $("#pv-moves").textContent = res.moves.map((m) => m.text).join("  ·  ");
+    $("#pv-index").value = res.index;
+    $("#pv-prev").disabled = res.index === 0;
+    $("#pv-next").disabled = res.index >= res.total - 1;
+    history.replaceState(null, "", "?onizleme=" + res.index);
+    await load();
   }
 
   function renderCompare() {
@@ -333,6 +399,7 @@
   }
 
   async function select(cardId) {
+    if (state.preview) return;  // önizlemede düzenleme yok
     const card = state.cards.get(cardId);
     if (!card) return;
     state.selected = cardId;
@@ -535,6 +602,7 @@
 
   // Sürükle-bırak
   document.addEventListener("dragstart", (e) => {
+    if (state.preview) { e.preventDefault(); return; }
     const cardNode = e.target.closest && e.target.closest(".tt-card");
     if (!cardNode) return;
     const id = Number(cardNode.dataset.card);
@@ -858,6 +926,7 @@
   }
 
   function onContext(e) {
+    if (state.preview) { e.preventDefault(); return; }
     const cardNode = e.target.closest(".tt-card");
     const labelNode = e.target.closest(".tt-label");
     const rowNode = e.target.closest(".tt-row");
@@ -874,5 +943,15 @@
   board.addEventListener("contextmenu", onContext);
   $("#tray").addEventListener("contextmenu", onContext);
 
-  load();
+  // Önizleme: ?onizleme=N ile açılır; önceki/sonraki öneri arasında gezilir.
+  const previewParam = new URLSearchParams(location.search).get("onizleme");
+  if (previewParam !== null && cfg.previewUrl) {
+    $("#pv-prev").addEventListener("click", () => startPreview(state.preview.index - 1));
+    $("#pv-next").addEventListener("click", () => startPreview(state.preview.index + 1));
+    $("#pv-only").addEventListener("change", drawPreview);
+    window.addEventListener("resize", () => { if (state.preview) drawPreview(); });
+    startPreview(Number(previewParam) || 0);
+  } else {
+    load();
+  }
 })();

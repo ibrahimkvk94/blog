@@ -112,3 +112,55 @@ class SolutionCenterTests(TestCase):
         self.client.force_login(self.admin)
         page = self.client.get(url, {"tur": "shift", "kart": self.card.pk})
         self.assertContains(page, "Çözüm öner")
+
+
+class TextRequestTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = create_demo_school()
+        cls.timetable = generate_timetable(cls.school, "t", time_limit=20)
+
+    def setUp(self):
+        from timetable.resolve_text import parse
+
+        self.parse = lambda text: parse(self.school, self.timetable, text)
+        self.card = self.timetable.cards.filter(day__isnull=False, locked=False).select_related("lesson__subject").first()
+        self.teacher = self.card.lesson.teachers.first()
+        self.day = self.school.day_names[self.card.day].lower()
+
+    def test_shift_sentence(self):
+        r = self.parse(f"{self.teacher.full_name} {self.day} {self.card.period + 1}. saat dersini aynı gün içinde kaydır")
+        self.assertEqual(r["problems"], [])
+        self.assertEqual((r["form"]["kind"], r["form"]["card"], r["form"]["teacher"], r["form"]["same_day"]),
+                         ("shift", self.card.id, self.teacher.id, True))
+
+    def test_teacher_unavailable_sentence(self):
+        r = self.parse(f"{self.teacher.full_name} perşembe 5-7 arası gelemeyecek, en fazla 6 değişiklik")
+        f = r["form"]
+        self.assertEqual((f["kind"], f["day"], f["periods"], f["max_moves"]), ("teacher", 3, [4, 5, 6], 6))
+        r = self.parse(f"{self.teacher.full_name} cuma gelemiyor")
+        self.assertEqual(r["form"]["periods"], list(range(self.school.periods.count())))
+
+    def test_place_sentence_with_class_and_code(self):
+        cls = self.card.lesson.classes.first()
+        code = self.card.lesson.subject.short
+        r = self.parse(f"{cls.name} {code} {self.day} {self.card.period + 1} dersini çarşamba 3'e al")
+        self.assertEqual((r["form"]["kind"], r["form"]["day"], r["form"]["period"], r["form"]["card"]), ("place", 2, 2, self.card.id))
+
+    def test_room_sentence(self):
+        from timetable.models import Classroom
+
+        room = Classroom.objects.filter(school=self.school).first()
+        r = self.parse(f"{room.name} salı tüm gün kullanılamıyor")
+        self.assertEqual((r["form"]["kind"], r["form"]["room"], r["form"]["day"]), ("room", room.id, 1))
+
+    def test_unclear_sentence_reports_problem(self):
+        r = self.parse("bir şeyler yapalım")
+        self.assertTrue(r["problems"])
+
+    def test_view_parses_and_solves(self):
+        self.client.force_login(User.objects.create_superuser("admin", "a@x.tr", "pw"))
+        url = reverse("timetable:solution_center", args=[self.timetable.pk])
+        page = self.client.post(url, {"action": "text", "istek": f"{self.teacher.full_name} {self.day} {self.card.period + 1}. saat dersini kaydır"})
+        self.assertContains(page, "Anlaşılan")
+        self.assertContains(page, "Öneri 1")

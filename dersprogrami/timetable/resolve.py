@@ -152,7 +152,9 @@ class Center:
                 if req.teacher_id not in card.teachers or place is None:
                     continue
                 if not set(card.cells(place.day, place.period)) & closed:
-                    continue  # bu kart kapanan saatlere değmiyor
+                    # Kapanan saatlere değmiyor ama oraya da taşınamamalı.
+                    card.starts = [st for st in card.starts if not set(card.cells(*st)) & closed]
+                    continue
                 if card.fixed is not None:
                     raise ResolveError(f"{self.full.label('lesson', card.lesson_id)} kilitli ve kapanan saate düşüyor.")
                 allowed[card.key] = [s for s in card.starts if not set(card.cells(*s)) & closed]
@@ -442,7 +444,14 @@ def center_view(request, pk):
         return redirect("timetable:timetable_detail", pk=timetable.pk)
 
     proposals, label, error = None, "", ""
-    if request.method == "POST" and request.POST.get("action") == "solve":
+    parsed = None
+    if request.method == "POST" and request.POST.get("action") == "text":
+        from .resolve_text import parse
+
+        parsed = parse(school, timetable, request.POST.get("istek", ""))
+        form.update({k: v for k, v in parsed["form"].items() if v is not None})
+        teacher_id = form["teacher"]
+    if (request.method == "POST" and request.POST.get("action") == "solve") or (parsed and not parsed["problems"]):
         center = Center(timetable)
         try:
             req, label, availability = _build_request(center, form)
@@ -465,7 +474,7 @@ def center_view(request, pk):
         school, "solution", timetable=timetable, form=form, teachers=teachers, teacher_cards=teacher_cards,
         rooms=list(school.classrooms.all()), days=list(enumerate(school.day_names)),
         periods=[(p.index, f"{p.index + 1}. saat" + (f" ({p.start_time:%H:%M})" if p.start_time else "")) for p in school.periods.all()],
-        proposals=proposals, label=label, error=error, can_notify=__import__("timetable.notify", fromlist=["enabled"]).enabled(),
+        proposals=proposals, label=label, error=error, parsed=parsed, text=request.POST.get("istek", ""), can_notify=__import__("timetable.notify", fromlist=["enabled"]).enabled(),
     ))
 
 
@@ -498,3 +507,20 @@ def _build_request(center, form):
         raise ResolveError("Derslik seçin.")
     return (Request("room", room_id=room.id, day=form["day"], periods=form["periods"], max_moves=form["max_moves"]),
             f"{room} {days[form['day']]} {hours}. saatlerde kullanılamıyor", ("classroom", room.id, form["day"], form["periods"]))
+
+
+def preview_api(request, pk, index):
+    """Ana görünümde önizleme için oturumdaki önerinin hareketleri."""
+    from django.http import JsonResponse
+
+    stored = request.session.get(f"resolve-{pk}") or {}
+    proposals = stored.get("proposals") or []
+    if not 0 <= index < len(proposals):
+        return JsonResponse({"ok": False, "message": "Öneri bulunamadı; çözüm merkezinde yeniden hesaplayın."}, status=404)
+    p = proposals[index]
+    return JsonResponse({
+        "ok": True, "label": stored.get("label", ""), "index": index, "total": len(proposals), "count": p["count"],
+        "new_violations": len(p["new_violations"]),
+        "moves": [{"card": m["card_id"], "from": m["state_from"][:2] if m["state_from"] else None, "to": m["state_to"][:2],
+                   "text": f"{m['subject']} ({m['classes']}): {m['from']} → {m['to']}"} for m in p["moves"] if m["time_moved"]],
+    })

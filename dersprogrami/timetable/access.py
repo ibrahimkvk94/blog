@@ -80,6 +80,7 @@ TIMETABLE_ROUTES = {
     "statistics": (M.VIEW, M.VIEW),
     "reports": (M.VIEW, M.VIEW),
     "solution_center": (M.PROGRAM, M.PROGRAM),
+    "api_resolve_preview": (M.PROGRAM, M.PROGRAM),
     "report_render": (M.VIEW, M.VIEW),
     "report_excel": (M.VIEW, M.VIEW),
     "report_pdf": (M.VIEW, M.VIEW),
