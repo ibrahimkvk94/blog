@@ -39,8 +39,13 @@
         <label class="label" for="asc-target">Nereye</label>
         <select class="select" id="asc-target" name="target">
           <option value="new">Yeni program olarak ekle</option>
-          {% for p in programs %}<option value="{{ p.pk }}">“{{ p.name }}” programının yerine (eski veri silinir)</option>{% endfor %}
+          {% for p in programs %}<option value="{{ p.pk }}">“{{ p.name }}” programına</option>{% endfor %}
         </select>
+        <div id="asc-mode" class="user-perms column" style="margin-top:8px;display:none">
+          <label><input type="radio" name="mode" value="update" checked> <b>Güncelleyerek aktar</b> (önerilen: referanslar, müsaitlikler ve ayarlar korunur)</label>
+          <label><input type="radio" name="mode" value="replace"> <b>Yerine aktar</b> (eski veri silinir)</label>
+          <p class="subtle small" style="margin:4px 0 0">Güncellemede kayıtlar kısa ada ya da ada göre eşleştirilir; yalnızca aSc'den gelen alanlar değişir, dosyada olmayan dersler silinir, yerleşim yeni bir sürüm olarak açılır (yayındaki program değişmez).</p>
+        </div>
         <label class="label" for="asc-name">Program adı</label>
         <input class="input" id="asc-name" name="name" placeholder="ör. 2026/2027 MYO 1.YY (boş = dosya ya da hedef programın adı)">
         <button class="btn btn-primary" style="margin-top:12px">{% include "timetable/icon.html" with name="upload" %} İçe aktar</button>
@@ -84,9 +89,18 @@
 {% endblock %}
 {% block scripts %}
 <script>
-  document.getElementById("asc-import")?.addEventListener("submit", (e) => {
-    const target = e.target.target;
-    if (target.value !== "new" && !confirm(target.options[target.selectedIndex].text + " — mevcut veri ve sürümler silinip dosyadaki veriyle değiştirilsin mi?")) e.preventDefault();
-  });
+  const ascForm = document.getElementById("asc-import");
+  if (ascForm) {
+    const ascTarget = document.getElementById("asc-target"), ascMode = document.getElementById("asc-mode");
+    const syncMode = () => { ascMode.style.display = ascTarget.value === "new" ? "none" : ""; };
+    ascTarget.addEventListener("change", syncMode);
+    syncMode();
+    ascForm.addEventListener("submit", (e) => {
+      if (ascTarget.value === "new") return;
+      const mode = ascForm.querySelector('input[name="mode"]:checked')?.value;
+      const label = ascTarget.options[ascTarget.selectedIndex].text;
+      if (mode === "replace" && !confirm(label + " — mevcut veri, referanslar ve sürümler silinip dosyadaki veriyle değiştirilsin mi?")) e.preventDefault();
+    });
+  }
 </script>
 {% endblock %}

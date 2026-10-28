@@ -60,7 +60,11 @@ def program_new(request, pk):
 
 @require_POST
 def program_import(request, pk):
-    """aSc TimeTables XML'i kurumun içine aktarır: yeni program olarak ya da seçilen programın yerine."""
+    """aSc TimeTables XML'i kurumun içine aktarır: yeni program olarak, seçilen programı güncelleyerek
+    (mode="update", varsayılan; elle girilen veri korunur, bkz. asc_merge) ya da programın yerine
+    (mode="replace"; eski program silinir)."""
+    from . import asc_merge
+
     institution = get_object_or_404(Institution, pk=pk)
     upload = request.FILES.get("file")
     if not upload:
@@ -70,25 +74,38 @@ def program_import(request, pk):
         messages.error(request, "Dosya çok büyük (en fazla 20 MB).")
         return redirect("timetable:institution_detail", pk=institution.pk)
     target = request.POST.get("target") or "new"
+    mode = "replace" if request.POST.get("mode") == "replace" else "update"
     old = None
     if target != "new":
         old = get_object_or_404(School, pk=target, institution=institution)
         if not access.school_permissions(request.user, old):
             messages.error(request, "Bu programa erişim yetkiniz yok.")
             return redirect("timetable:institution_detail", pk=institution.pk)
-    name = (request.POST.get("name") or "").strip() or (old.name if old else upload.name.rsplit(".", 1)[0])
+    given_name = (request.POST.get("name") or "").strip()
+    name = given_name or (old.name if old else upload.name.rsplit(".", 1)[0])
     try:
-        with transaction.atomic():
-            school, timetable = asc_xml.import_school(upload.read(), name=name, institution=institution)
-            school.name = name[:200]
-            school.save(update_fields=["name"])
-            if old is not None:
-                _replace(old, school)
+        if old is not None and mode == "update":
+            with transaction.atomic():
+                timetable, summary = asc_merge.merge_into(old, upload.read())
+                if given_name and given_name[:200] != old.name:
+                    old.name = given_name[:200]
+                    old.save(update_fields=["name"])
+            school = old
+        else:
+            with transaction.atomic():
+                school, timetable = asc_xml.import_school(upload.read(), name=name, institution=institution)
+                school.name = name[:200]
+                school.save(update_fields=["name"])
+                if old is not None:
+                    _replace(old, school)
     except asc_xml.AscImportError as exc:
         messages.error(request, f"İçe aktarılamadı: {exc}")
         return redirect("timetable:institution_detail", pk=institution.pk)
-    verb = "yerine aktarıldı" if old else "yeni program olarak aktarıldı"
-    messages.success(request, f"“{school}” {verb}.")
+    if old is not None and mode == "update":
+        messages.success(request, f"“{school}” güncellenerek aktarıldı. {asc_merge.describe(summary)}")
+    else:
+        verb = "yerine aktarıldı" if old else "yeni program olarak aktarıldı"
+        messages.success(request, f"“{school}” {verb}.")
     if timetable:
         return redirect("timetable:timetable_detail", pk=timetable.pk)
     return redirect("timetable:school_detail", pk=school.pk)

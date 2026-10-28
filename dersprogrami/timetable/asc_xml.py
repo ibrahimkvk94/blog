@@ -246,7 +246,7 @@ def import_school(data, name=None, institution=None):
         subjects = {}
         for i, s in enumerate(rows("subjects", "subject")):
             color = s.get("color") if (s.get("color") or "").startswith("#") and len(s.get("color")) == 7 else PALETTE[i % len(PALETTE)]
-            subjects[s.get("id")] = Subject.objects.create(school=school, name=s.get("name") or "?", short=(s.get("short") or "")[:20], color=color)
+            subjects[s.get("id")] = Subject.objects.create(school=school, name=s.get("name") or "?", short=(s.get("short") or "")[:60], color=color)
 
         teachers = {}
         for t in rows("teachers", "teacher"):
