@@ -130,12 +130,40 @@ def run_generation(timetable_id, base_id=None, seed=0):
                 )
             )
         Card.objects.bulk_create(cards)
+        if solution.teacher_choice:
+            report["pools"] = apply_teacher_choice(timetable.school, problem, solution.teacher_choice)
         versions.save_version(timetable, note="Üretim sonucu", auto=True)
         violations, stats = validate(problem, solution.placements)
         report["validation"] = {"violations": [v.as_dict() for v in violations], "stats": stats}
         timetable.objective = solution.objective
         status = Timetable.PARTIAL if solution.unplaced else Timetable.OK
         _finish(timetable, status, report)
+
+
+def apply_teacher_choice(school, problem, choice):
+    """Öğretmen havuzu: çözücünün seçtiği öğretmenleri derslere yazar ve doğrulama için problemdeki kartlara
+    işler. Dönüş: rapor özeti {"changed": n, "pools": {ad: {öğretmen: kısım}}}."""
+    from collections import Counter
+
+    from .models import Lesson
+    from .problem_cache import bump
+
+    current = {}
+    for lesson_id, teacher_id in Lesson.teachers.through.objects.filter(lesson_id__in=list(choice)).values_list("lesson_id", "teacher_id"):
+        current.setdefault(lesson_id, []).append(teacher_id)
+    changed = 0
+    for lesson in Lesson.objects.filter(pk__in=list(choice)):
+        if current.get(lesson.id) != [choice[lesson.id]]:
+            lesson.teachers.set([choice[lesson.id]])
+            changed += 1
+    for card in problem.cards:
+        if card.lesson_id in choice:
+            card.teachers = (choice[card.lesson_id],)
+    names = problem.labels.get("teacher", {})
+    pools = {pool.name: dict(Counter(names.get(choice[l], str(choice[l])) for l in pool.lessons)) for pool in problem.teacher_pools}
+    if changed:
+        bump(school.pk)
+    return {"changed": changed, "pools": pools}
 
 
 def _finish(timetable, status, report):

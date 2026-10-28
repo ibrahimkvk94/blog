@@ -25,6 +25,7 @@
       <div class="fsec-head"><h3>Kim, nerede?</h3><p>Birden çok derslik seçilirse çözücü o saatte boş olanı atar. Derslik seçilmezse sırasıyla ders adının varsayılan derslikleri, öğretmen dersliği ve sınıf dersliği kullanılır.</p></div>
       <div class="fsec-body form-grid">
         {% include "timetable/data/field.html" with field=form.teachers %}
+        {% include "timetable/data/field.html" with field=form.teacher_locked %}
         {% include "timetable/data/field.html" with field=form.classrooms %}
         {% include "timetable/data/field.html" with field=form.rooms_needed %}
       </div>

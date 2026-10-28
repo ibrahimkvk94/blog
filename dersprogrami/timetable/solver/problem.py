@@ -77,6 +77,19 @@ class RelationshipSpec:
 
 
 @dataclass
+class TeacherPool:
+    """Öğretmen havuzu: lessons'ın her birine quotas'taki öğretmenlerden biri atanır; her öğretmen tam
+    quotas[t] ders alır. Havuzdaki derslerin kartlarında teachers boştur; seçilen öğretmenin müsaitliği
+    (closed), çakışmaları ve kuralları çözücüde seçime bağlı uygulanır. hints: dersin şu anki öğretmeni."""
+
+    name: str
+    lessons: tuple[int, ...]
+    quotas: dict[int, int]
+    closed: dict[int, frozenset] = field(default_factory=dict)
+    hints: dict[int, int] = field(default_factory=dict)
+
+
+@dataclass
 class Problem:
     days: int
     periods: int
@@ -105,6 +118,11 @@ class Problem:
     # Programı iyileştirme: öğretmen → (boşluk saati başına, okula gelinen gün başına) ceza.
     # Verilen öğretmenlerde varsayılan boşluk cezasının yerine geçer; gün cezası yalnızca burada vardır.
     teacher_weights: dict = field(default_factory=dict)
+    teacher_pools: list[TeacherPool] = field(default_factory=list)
+
+    def pooled_lessons(self):
+        """{ders: havuz} — öğretmeni çözücünün seçeceği dersler."""
+        return {lesson_id: pool for pool in self.teacher_pools for lesson_id in pool.lessons}
 
     @staticmethod
     def atom_class(atom_id):

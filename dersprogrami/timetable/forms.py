@@ -208,7 +208,7 @@ class LessonForm(SchoolScopedForm):
     class Meta:
         model = Lesson
         fields = [
-            "subject", "classes", "groups", "teachers", "classrooms", "periods_per_week", "card_length", "split",
+            "subject", "classes", "groups", "teachers", "teacher_locked", "classrooms", "periods_per_week", "card_length", "split",
             "max_per_day", "rooms_needed", "weeks_mask", "terms_mask", "elective", "capacity",
         ]
         widgets = {

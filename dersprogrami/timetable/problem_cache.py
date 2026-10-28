@@ -87,7 +87,7 @@ def invalidate(**kwargs):
 
 
 WATCHED = ("School", "Period", "Building", "Classroom", "Subject", "Teacher", "SchoolClass", "Division", "Group",
-           "Lesson", "Availability", "CardRelationship", "Student")
+           "Lesson", "Availability", "CardRelationship", "Student", "TeacherQuota")
 
 
 def connect_signals():

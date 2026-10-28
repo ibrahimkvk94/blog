@@ -31,6 +31,7 @@ W_CLASS_GAP = 100
 W_CLASS_LATE_START = 50
 W_TEACHER_GAP = 10
 W_MAYBE = 5
+W_TEACHER_CHANGED = 5  # öğretmen havuzunda kısmın öğretmeni değişirse (bir öğretmen boşluğundan ucuz)
 
 STRICT = "strict"
 RELAXED = "relaxed"
@@ -44,6 +45,7 @@ PENALTY_LABELS = {
     "teacher_gap": "Öğretmen boşluğu",
     "teacher_day": "Öğretmenin okula geldiği gün",
     "maybe": "Koşullu hücre",
+    "teacher_changed": "Kısmın öğretmeni değişti (öğretmen havuzu)",
 }
 
 STATUS_NAMES = {
@@ -75,6 +77,7 @@ class Solution:
     objective: int | None = None
     penalties: dict[str, int] = field(default_factory=dict)
     stats: dict = field(default_factory=dict)
+    teacher_choice: dict[int, int] = field(default_factory=dict)  # havuzdaki ders -> seçilen öğretmen
 
     @property
     def ok(self):
@@ -97,6 +100,9 @@ class _Builder:
         self.penalties = []  # (kategori, ağırlık, ifade)
         self.room_usage = {}  # derslik -> {(kart, hücre): 0/1 ifadesi}
         self._busy_cache = {}
+        self.z = {}  # havuzdaki ders -> {öğretmen: var}
+        self.pool_usage = {}  # öğretmen -> {(kart, hücre): var} (havuzdaki kart bu hücrede ve bu öğretmende)
+        self.pool_cells = {}  # öğretmen -> {hücre: [var, ...]}
 
     # --- yardımcılar -------------------------------------------------------------------------
 
@@ -179,12 +185,15 @@ class _Builder:
     def _day_expr(self, key, day):
         return sum(v for (d, _), v in self.x[key].items() if d == day)
 
-    def _busy(self, keys, day, slot, name):
-        """Kaynağın (d, s) hücresinde dolu olup olmadığını gösteren bool; hiç aday yoksa 0."""
-        cache_key = (tuple(keys), day, slot)
+    def _busy(self, keys, day, slot, name, teacher=None):
+        """Kaynağın (d, s) hücresinde dolu olup olmadığını gösteren bool; hiç aday yoksa 0.
+        teacher: havuzdan bu öğretmene düşebilecek kartlar da sayılır."""
+        cache_key = (tuple(keys), day, slot, teacher)
         if cache_key in self._busy_cache:
             return self._busy_cache[cache_key]
         terms = [v for k in keys for v in self.occ[k].get((day, slot), ())]
+        if teacher is not None:
+            terms += self.pool_cells.get(teacher, {}).get((day, slot), [])
         busy = 0
         if terms:
             busy = self.m.NewBoolVar(name)
@@ -273,6 +282,51 @@ class _Builder:
                 for (d, p), var in xs.items():
                     self.m.AddHint(var, int((d, p) == card.hint[:2]))
 
+    def teacher_pools(self):
+        """Öğretmen havuzu: her derse bir öğretmen, her öğretmene kotası kadar ders. Kartın bir hücrede bu
+        öğretmende olması w = (kart orada) ∧ (öğretmen seçildi) ile gösterilir (derslik seçimiyle aynı yol)."""
+        cards_of = {}
+        for card in self.problem.cards:
+            cards_of.setdefault(card.lesson_id, []).append(card.key)
+        for p_index, pool in enumerate(self.problem.teacher_pools):
+            teachers = sorted(pool.quotas)
+            for lesson_id in pool.lessons:
+                zs = {t: self.m.NewBoolVar(f"z{lesson_id}_{t}") for t in teachers}
+                self.m.AddExactlyOne(zs.values())
+                hint = pool.hints.get(lesson_id)
+                if hint in zs:
+                    for t, var in zs.items():
+                        self.m.AddHint(var, int(t == hint))
+                    # Kısmın şu anki öğretmeni küçük bir tercihle korunur: her üretimde gereksiz karışmasın
+                    self._penalize("teacher_changed", W_TEACHER_CHANGED, 1 - zs[hint])
+                self.z[lesson_id] = zs
+                for key in cards_of.get(lesson_id, ()):
+                    for t, zt in zs.items():
+                        closed = pool.closed.get(t, frozenset())
+                        usage = self.pool_usage.setdefault(t, {})
+                        for cell, terms in self.occ[key].items():
+                            occupied = sum(terms)
+                            if cell in closed:
+                                self.m.Add(occupied + zt <= 1)  # öğretmen o saatte gelemiyor
+                                continue
+                            w = self.m.NewBoolVar(f"pw{key}_{t}_{cell[0]}_{cell[1]}")
+                            self.m.Add(w >= occupied + zt - 1)
+                            self.m.Add(w <= occupied)
+                            self.m.Add(w <= zt)
+                            usage[(key, cell)] = w
+            for t in teachers:
+                self.m.Add(sum(self.z[l][t] for l in pool.lessons) == pool.quotas[t])
+        # Havuzdan gelen kartlar öğretmenin sabit kartlarıyla ve birbiriyle çakışamaz
+        fixed = self.problem.cards_by("teachers")
+        for t, usage in self.pool_usage.items():
+            by_cell = self.pool_cells.setdefault(t, {})
+            for (key, cell), w in usage.items():
+                by_cell.setdefault(cell, []).append(w)
+            for cell, ws in by_cell.items():
+                terms = ws + [v for k in fixed.get(t, ()) for v in self.occ[k].get(cell, ())]
+                if len(terms) > 1:
+                    self.m.Add(sum(terms) <= 1)
+
     def resource_conflicts(self):
         for attr in ("teachers", "atoms", "students"):
             for keys in self.problem.cards_by(attr).values():
@@ -359,12 +413,16 @@ class _Builder:
                     self.m.Add(start_a < start_b)
 
     def teacher_rules(self):
-        for teacher_id, keys in self.problem.cards_by("teachers").items():
+        by_teacher = dict(self.problem.cards_by("teachers"))
+        for t in self.pool_usage:
+            by_teacher.setdefault(t, [])
+        for teacher_id, keys in by_teacher.items():
             limits = self.problem.teacher_limits.get(teacher_id)
             who = self.problem.label("teacher", teacher_id)
             week_gaps, days_used = [], []
+            pooled = teacher_id if teacher_id in self.pool_usage else None
             for d in range(self.problem.days):
-                busy = [self._busy(keys, d, s, f"tb{teacher_id}_{d}_{s}") for s in range(self.problem.periods)]
+                busy = [self._busy(keys, d, s, f"tb{teacher_id}_{d}_{s}", pooled) for s in range(self.problem.periods)]
                 gaps, _ = self._gaps(busy, f"tg{teacher_id}_{d}")
                 week_gaps += gaps
                 if limits and limits.max_periods_per_day is not None:
@@ -692,6 +750,7 @@ class _Builder:
 
     def build(self):
         self.placement_vars()
+        self.teacher_pools()
         self.resource_conflicts()
         self.rooms()
         self.anchor_rules()
@@ -854,6 +913,8 @@ def solve(
             if value:
                 totals[category] = totals.get(category, 0) + weight * value
         solution.penalties = totals
+    for lesson_id, zs in builder.z.items():
+        solution.teacher_choice[lesson_id] = next(t for t, var in zs.items() if solver.Value(var))
     for card in problem.cards:
         start = next((slot for slot, var in builder.x[card.key].items() if solver.Value(var)), None)
         if start is None:

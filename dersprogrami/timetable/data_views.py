@@ -31,6 +31,7 @@ from .models import (
     SchoolClass,
     Subject,
     Teacher,
+    TeacherQuota,
 )
 from .views import _nav
 
@@ -1447,7 +1448,37 @@ def teacher_assign(request, pk):
     if subject is None:  # öğretmeni eksik ilk ders adı, yoksa ilki
         subject = next((s for s in subjects if any(not l.teachers.all() for l in by_subject[s.id])), subjects[0] if subjects else None)
     teachers = {t.id: t for t in school.teachers.all()}
-    if request.method == "POST" and subject is not None:
+    proposed, notes, quota_rows = {}, [], None
+    action = request.POST.get("action") if request.method == "POST" else None
+    back = redirect(reverse("timetable:teacher_assign", args=[school.pk]) + f"?ders={subject.pk}") if subject else None
+    if action in ("distribute", "save_quotas") and subject is not None:
+        from . import bulk_assign
+
+        quotas = defaultdict(int)
+        for t, n in zip(request.POST.getlist("kota-ogretmen"), request.POST.getlist("kota-sayi")):
+            if t.isdigit() and int(t) in teachers and n.strip().isdigit():
+                quotas[int(t)] += int(n)
+        quotas = {t: n for t, n in quotas.items() if n > 0}
+        quota_rows = [{"teacher": t, "count": n} for t, n in quotas.items()]
+        if action == "save_quotas":
+            with transaction.atomic():
+                TeacherQuota.objects.filter(school=school, subject=subject).delete()
+                TeacherQuota.objects.bulk_create(TeacherQuota(school=school, subject=subject, teacher_id=t, count=n) for t, n in quotas.items())
+            status = bulk_assign.pool_status(by_subject[subject.id], quotas)
+            if quotas and status["ok"]:
+                messages.success(request, f"{subject.name}: öğretmen havuzu kaydedildi. Üretimde kilitsiz {status['free']} kısmın "
+                                          "öğretmenini çözücü kotalara göre seçecek.")
+            elif quotas:
+                messages.warning(request, f"Kotalar kaydedildi ama tutmuyor: {status['message']} Düzeltilmezse üretim başlamaz.")
+            else:
+                messages.info(request, f"{subject.name}: öğretmen havuzu kaldırıldı; kısımlar atanan öğretmenleriyle kalır.")
+            return back
+        try:
+            proposed, notes = bulk_assign.distribute(school, by_subject[subject.id], quotas,
+                                                     use_timetable=request.POST.get("program") == "1")
+        except bulk_assign.DistributeError as exc:
+            messages.error(request, str(exc))
+    elif action == "save" and subject is not None:
         changed = 0
         with transaction.atomic():
             for lesson in by_subject[subject.id]:
@@ -1457,11 +1488,15 @@ def teacher_assign(request, pk):
                     continue  # çok öğretmenli dersler ders düzenleyicisinden
                 value = request.POST[key]
                 new = [int(value)] if value.isdigit() and int(value) in teachers else []
-                if new != current:
+                locked = f"kilit-{lesson.pk}" in request.POST
+                if new != current or locked != lesson.teacher_locked:
                     lesson.teachers.set(new)
+                    if locked != lesson.teacher_locked:
+                        lesson.teacher_locked = locked
+                        lesson.save(update_fields=["teacher_locked"])
                     changed += 1
-        messages.success(request, f"{subject.name}: {changed} kısmın öğretmeni güncellendi." if changed else "Değişiklik yok.")
-        return redirect(reverse("timetable:teacher_assign", args=[school.pk]) + f"?ders={subject.pk}")
+        messages.success(request, f"{subject.name}: {changed} kısım güncellendi." if changed else "Değişiklik yok.")
+        return back
     loads = defaultdict(int)
     for lesson in lessons:
         for t in lesson.teachers.all():
@@ -1473,10 +1508,25 @@ def teacher_assign(request, pk):
         for lesson in sorted(by_subject[subject.id], key=lambda l: natural_key(", ".join(c.name for c in l.classes.all()) or "~")):
             ids = [t.id for t in lesson.teachers.all()]
             teaching.update(ids)
-            rows.append({"lesson": lesson, "teacher_ids": ids, "multi": len(ids) > 1,
+            rows.append({"lesson": lesson, "teacher_ids": ids, "multi": len(ids) > 1, "locked": lesson.teacher_locked,
                          "classes": ", ".join(c.short or c.name for c in lesson.classes.all()) or "Sınıfsız",
                          "groups": ", ".join(g.name for g in lesson.groups.all()),
                          "teachers": ", ".join(t.full_name for t in lesson.teachers.all())})
+    saved = {q.teacher_id: q.count for q in TeacherQuota.objects.filter(school=school, subject=subject)} if subject else {}
+    if subject is not None and quota_rows is None:  # kota tablosunun başlangıcı: kayıtlı kotalar, yoksa şu anki dağılım
+        counts = saved or defaultdict(int)
+        if not saved:
+            for r in rows:
+                if not r["multi"] and r["teacher_ids"]:
+                    counts[r["teacher_ids"][0]] += 1
+        quota_rows = [{"teacher": t, "count": n} for t, n in sorted(counts.items(), key=lambda kv: -kv[1])]
+    pool = None
+    if saved:
+        from . import bulk_assign
+
+        pool = bulk_assign.pool_status(by_subject[subject.id], saved)
+    for r in rows:
+        r["proposed"] = proposed.get(r["lesson"].id)
     branch = set(subject.qualified_teachers.values_list("id", flat=True)) if subject else set()
     order = sorted(teachers.values(), key=lambda t: natural_key(t.full_name))
     options = {
@@ -1486,4 +1536,6 @@ def teacher_assign(request, pk):
     }
     return render(request, "timetable/data/teacher_assign.html", _nav(
         school, "data", data_nav="ogretmen-atama", subject=subject, subject_rows=subject_rows, rows=rows,
+        quota_rows=quota_rows or [], notes=notes, pool=pool, distributable=sum(1 for r in rows if not r["multi"]),
+        use_program=request.POST.get("program", "1") == "1",
         options_json={k: [{"id": t.id, "name": t.full_name, "load": loads.get(t.id, 0)} for t in v] for k, v in options.items()}))

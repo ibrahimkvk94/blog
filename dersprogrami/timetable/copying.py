@@ -19,6 +19,7 @@ from .models import (
     SchoolClass,
     Subject,
     Teacher,
+    TeacherQuota,
     Timetable,
 )
 
@@ -109,6 +110,10 @@ def copy_program(source, name, parts):
             new.teachers.set([teachers[t.id] for t in lesson.teachers.all()])
             new.classrooms.set([rooms[r.id] for r in lesson.classrooms.all()])
             lessons[lesson.id] = new
+        TeacherQuota.objects.bulk_create(  # öğretmen havuzu kotaları
+            TeacherQuota(school=target, subject=subjects[q.subject_id], teacher=teachers[q.teacher_id], count=q.count)
+            for q in source.teacher_quotas.all() if q.subject_id in subjects and q.teacher_id in teachers
+        )
     if "musaitlik" in parts:
         maps = {"teacher": teachers, "school_class": classes, "classroom": rooms, "subject": subjects, "lesson": lessons}
         rows = []

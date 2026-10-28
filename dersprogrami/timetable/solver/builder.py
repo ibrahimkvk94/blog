@@ -9,6 +9,7 @@ from .problem import (
     ProblemCard,
     RelationshipSpec,
     TeacherLimits,
+    TeacherPool,
     card_universes,
     class_atoms,
     lesson_atoms,
@@ -166,10 +167,18 @@ def build_problem(school, timetable=None, base=None):
             for group in division.groups.all():
                 group_students[group.id] = group.student_count
 
+    # Öğretmen havuzları (yalnızca üretimde; kaydedilmiş bir program doğrulanırken dersin öğretmeni geçerlidir)
+    pools, pooled = [], set()
+    if timetable is None:
+        pools, notes_pools = _teacher_pools(school, lessons, avail)
+        notes += notes_pools
+        pooled = {lesson_id for pool in pools for lesson_id in pool.lessons}
+
     lesson_data = {}
     for lesson in lessons:
         class_ids = [c.id for c in lesson.classes.all()]
-        teacher_ids = tuple(t.id for t in lesson.teachers.all())
+        # Havuzdaki dersin öğretmeni çözücüde seçilir: sabit öğretmeni ve onun müsaitliği yok
+        teacher_ids = () if lesson.id in pooled else tuple(t.id for t in lesson.teachers.all())
         label = lesson_label(lesson)
         rooms = lesson_rooms(lesson, subject_rooms, teacher_home, home_room)
         needed = max(1, lesson.rooms_needed)
@@ -348,6 +357,7 @@ def build_problem(school, timetable=None, base=None):
     }
     grades = {cls.id: cls.grade for cls in classes}
     return Problem(
+        teacher_pools=pools,
         relationships=_relationships(school, cards, lesson_data, grades),
         class_limits=class_limits,
         room_building={r.id: r.building_id for r in school.classrooms.all() if r.building_id},
@@ -379,6 +389,51 @@ def build_problem(school, timetable=None, base=None):
             },
         },
     )
+
+
+def _teacher_pools(school, lessons, avail):
+    """Ders adı başına öğretmen kotalarından havuzlar. Kilitli (öğretmeni sabit) kısımlar öğretmeninin
+    kotasından düşer; kalan kısımların öğretmenini çözücü seçer. Kotalar tutmazsa hata notu döner ve o ders
+    adının kısımları şu anki öğretmenleriyle kalır."""
+    from ..models import TeacherQuota
+
+    quotas = defaultdict(dict)
+    for subject_id, teacher_id, count in TeacherQuota.objects.filter(school=school).values_list("subject_id", "teacher_id", "count"):
+        if count:
+            quotas[subject_id][teacher_id] = count
+    if not quotas:
+        return [], []
+    by_subject = defaultdict(list)
+    for lesson in lessons:
+        by_subject[lesson.subject_id].append(lesson)
+    pools, notes = [], []
+    for subject_id, quota in quotas.items():
+        sections = [l for l in by_subject.get(subject_id, []) if len(l.teachers.all()) <= 1]
+        if not sections:
+            continue
+        name = sections[0].subject.short or sections[0].subject.name
+        remaining = dict(quota)
+        free = []
+        for lesson in sections:
+            current = lesson.teachers.all()[0].id if lesson.teachers.all() else None
+            if lesson.teacher_locked and current is not None:
+                if current in remaining:
+                    remaining[current] -= 1
+            else:
+                free.append(lesson)
+        over = [t for t, n in remaining.items() if n < 0]
+        if over or sum(remaining.values()) != len(free):
+            locked = len(sections) - len(free)
+            notes.append(("error", "teacher_pool", f"{name} öğretmen kotaları tutmuyor: kotaların toplamı {sum(quota.values())}, "
+                          f"kısım sayısı {len(sections)} ({locked} sabit). Öğretmen atama sayfasında kotaları düzeltin."))
+            continue
+        remaining = {t: n for t, n in remaining.items() if n > 0}
+        if not free or not remaining:
+            continue
+        closed = {t: frozenset(c for c, state in avail.get(("teacher", t), {}).items() if state == Availability.NO) for t in remaining}
+        hints = {l.id: l.teachers.all()[0].id for l in free if l.teachers.all() and l.teachers.all()[0].id in remaining}
+        pools.append(TeacherPool(name=name, lessons=tuple(l.id for l in free), quotas=remaining, closed=closed, hints=hints))
+    return pools, notes
 
 
 def _advisor_notes(school, classes, lessons, lesson_data, cards, avail, days, periods, school_closed):

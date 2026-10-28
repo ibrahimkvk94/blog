@@ -17,13 +17,42 @@
     </nav>
   </aside>
   {% if subject %}
+  <div class="ta-main">
+  <details class="panel ta-dist"{% if notes or pool or request.POST.action == "distribute" %} open{% endif %}>
+    <summary class="panel-head"><h2>{% include "timetable/icon.html" with name="users" %} Öğretmen havuzu</h2>
+      {% if pool %}{% if pool.ok %}<span class="pill ok">etkin · üretimde {{ pool.free }} kısım dağıtılır</span>{% else %}<span class="pill error">kotalar tutmuyor</span>{% endif %}
+      {% else %}<span class="subtle small">öğretmenleri ve kaçar kısım alacaklarını girin; hangi kısmı kimin alacağını üretim seçer</span>{% endif %}</summary>
+    <form method="post" class="panel-body" id="ta-dist-form">
+      {% csrf_token %}<input type="hidden" name="ders" value="{{ subject.pk }}">
+      {% if pool and not pool.ok %}<div class="alert alert-error" style="margin-top:0">{{ pool.message }} Düzeltilmezse üretim başlamaz.</div>{% endif %}
+      <p class="subtle small" style="margin-top:0">Kotaları kaydedince <b>üretim</b>, kilitsiz kısımların öğretmenini kotalara göre kendisi seçer: aynı saatteki kısımları farklı öğretmenlere verir, öğretmenin gelemediği saatleri ve diğer derslerini dikkate alır, yerleşmeyen kart kalmasın diye gerekirse kısımları öğretmenler arasında değiştirir. Belli bir kısmı belli bir öğretmende tutmak için aşağıdaki tabloda <b>Sabit</b> kutusunu işaretleyin; sabit kısımlar o öğretmenin kotasından düşer.</p>
+      <div class="ta-quotas" data-ta-quotas>
+        {% for q in quota_rows %}<div class="ta-quota"><select class="select select-sm" name="kota-ogretmen" data-ta-teacher data-value="{{ q.teacher }}"><option value="">— öğretmen —</option></select><input class="input input-sm" type="number" name="kota-sayi" min="0" max="{{ distributable }}" value="{{ q.count }}"><span class="subtle small">kısım</span><button type="button" class="btn btn-ghost btn-sm" data-ta-remove title="Satırı sil">✕</button></div>{% endfor %}
+      </div>
+      <template id="ta-quota-row"><div class="ta-quota"><select class="select select-sm" name="kota-ogretmen" data-ta-teacher><option value="">— öğretmen —</option></select><input class="input input-sm" type="number" name="kota-sayi" min="0" max="{{ distributable }}" value=""><span class="subtle small">kısım</span><button type="button" class="btn btn-ghost btn-sm" data-ta-remove title="Satırı sil">✕</button></div></template>
+      <div class="ta-dist-foot">
+        <button type="button" class="btn btn-sm" data-ta-add>{% include "timetable/icon.html" with name="plus" %} Öğretmen ekle</button>
+        <span class="ta-total" data-ta-total data-need="{{ distributable }}"></span>
+        <button class="btn btn-primary btn-sm" name="action" value="save_quotas">{% include "timetable/icon.html" with name="check" %} Kotaları kaydet</button>
+        {% if pool %}<button class="btn btn-ghost btn-sm btn-danger" name="action" value="save_quotas" data-ta-clear>Havuzu kaldır</button>{% endif %}
+      </div>
+      <details class="ta-preview">
+        <summary class="small">Şimdi ön-dağıt (isteğe bağlı önizleme)</summary>
+        <p class="subtle small">Üretimi beklemeden kotaları şu anki programa göre hemen paylaştırır ve tabloya işler; mevcut atamalar mümkün olduğunca korunur. Beğenirseniz tablodan <b>Kaydet</b> deyin.</p>
+        <label class="check small"><input type="checkbox" name="program" value="1"{% if use_program %} checked{% endif %}> <span>Programdaki saat çakışmalarını önle</span></label>
+        <button class="btn btn-sm" name="action" value="distribute" style="margin-top:6px">{% include "timetable/icon.html" with name="wand" %} Ön-dağıt</button>
+      </details>
+      {% if rows|length != distributable %}<p class="subtle small" style="margin-bottom:0">Birden çok öğretmenli kısımlar havuza katılmaz.</p>{% endif %}
+    </form>
+  </details>
+  {% if notes %}<div class="alert ta-notes">{% for n in notes %}<div>{{ n }}</div>{% endfor %}<div><b>Önizleme:</b> değişen kısımlar sarı; onaylamak için Kaydet.</div></div>{% endif %}
   <form method="post" class="panel" id="ta-form">
-    {% csrf_token %}<input type="hidden" name="ders" value="{{ subject.pk }}">
+    {% csrf_token %}<input type="hidden" name="ders" value="{{ subject.pk }}"><input type="hidden" name="action" value="save">
     <div class="panel-head"><h2>{{ subject.name }} <span class="subtle">· {{ rows|length }} kısım</span></h2>
       <div class="ta-bulk"><span class="subtle small">Seçili kısımlara:</span><select class="select select-sm" data-ta-bulk data-ta-teacher><option value="">— öğretmen —</option></select><button type="button" class="btn btn-sm" data-ta-apply>Ata</button></div></div>
     <div class="panel-body flush table-wrap">
       <table class="table ta-table">
-        <thead><tr><th style="width:32px"><input type="checkbox" data-ta-all aria-label="Tümünü seç"></th><th>Kısım</th><th class="num">Saat</th><th>Öğretmen</th><th></th></tr></thead>
+        <thead><tr><th style="width:32px"><input type="checkbox" data-ta-all aria-label="Tümünü seç"></th><th>Kısım</th><th class="num">Saat</th><th>Öğretmen</th><th title="İşaretli kısmın öğretmeni üretimde değişmez">Sabit</th><th></th></tr></thead>
         <tbody>
           {% for r in rows %}
             <tr{% if not r.teacher_ids %} class="ta-missing"{% endif %}>
@@ -31,7 +60,8 @@
               <td><b>{{ r.classes }}</b>{% if r.groups %} <span class="subtle small">{{ r.groups }}</span>{% endif %}</td>
               <td class="num">{{ r.lesson.periods_per_week }}</td>
               <td>{% if r.multi %}{{ r.teachers }} <span class="pill">birden çok öğretmen</span>
-                {% else %}<select class="select select-sm" name="ogretmen-{{ r.lesson.pk }}" data-ta-teacher data-value="{{ r.teacher_ids.0|default:'' }}"><option value="">— atanmadı —</option></select>{% endif %}</td>
+                {% else %}<select class="select select-sm" name="ogretmen-{{ r.lesson.pk }}" data-ta-teacher data-value="{{ r.teacher_ids.0|default:'' }}"{% if r.proposed %} data-proposed="{{ r.proposed }}"{% endif %}><option value="">— atanmadı —</option></select>{% endif %}</td>
+              <td>{% if not r.multi %}<label class="ta-lock" title="Öğretmeni sabit: üretimde değişmez"><input type="checkbox" name="kilit-{{ r.lesson.pk }}" data-value="{{ r.locked|yesno:'1,' }}"{% if r.locked %} checked{% endif %}><span>{% include "timetable/icon.html" with name="lock" %}</span></label>{% if pool.ok and not r.locked %}<span class="ta-pooled" title="Öğretmenini üretim seçer">havuz</span>{% endif %}{% endif %}</td>
               <td class="num"><a class="btn btn-ghost btn-sm" href="{% url 'timetable:lesson_edit' school.pk r.lesson.pk %}?back={{ request.get_full_path|urlencode }}">Ayrıntı</a></td>
             </tr>
           {% endfor %}
@@ -40,6 +70,7 @@
     </div>
     <div class="form-actions" style="padding:0 16px"><div><button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} Kaydet</button><span class="subtle small" data-ta-dirty></span></div></div>
   </form>
+  </div>
   {% endif %}
 </div>
 {{ options_json|json_script:"ta-data" }}
@@ -59,13 +90,48 @@
   const data = JSON.parse(document.getElementById("ta-data").textContent);
   const group = (label, list) => list.length ? '<optgroup label="' + label + '">' + list.map((t) => '<option value="' + t.id + '">' + t.name.replace(/</g, "&lt;") + " · " + t.load + " saat</option>").join("") + "</optgroup>" : "";
   const html = group("Bu dersi okutanlar", data.teaching) + group("Branşı uyanlar", data.branch) + group("Diğer öğretmenler", data.others);
+  const fill = (s) => { s.insertAdjacentHTML("beforeend", html); if (s.dataset.value !== undefined) s.value = s.dataset.value; };
   const selects = [...form.querySelectorAll("select[data-ta-teacher]")];
-  selects.forEach((s) => { s.insertAdjacentHTML("beforeend", html); if (s.dataset.value !== undefined) s.value = s.dataset.value; });
+  selects.forEach(fill);
+  selects.forEach((s) => { if (s.dataset.proposed) s.value = s.dataset.proposed; });  // toplu dağıtım önizlemesi
+
+  // Toplu dağıt: kota satırları ve toplam
+  const dist = document.getElementById("ta-dist-form");
+  const quotas = dist.querySelector("[data-ta-quotas]");
+  const total = dist.querySelector("[data-ta-total]");
+  const sumUp = () => {
+    const sum = [...quotas.querySelectorAll("input[name=kota-sayi]")].reduce((a, i) => a + (parseInt(i.value, 10) || 0), 0);
+    const need = Number(total.dataset.need);
+    total.textContent = sum + " / " + need + " kısım";
+    total.className = "ta-total " + (sum === need ? "ok" : "bad");
+  };
+  const addRow = () => {
+    const row = document.getElementById("ta-quota-row").content.firstElementChild.cloneNode(true);
+    fill(row.querySelector("select"));
+    quotas.appendChild(row);
+    sumUp();
+    return row;
+  };
+  quotas.querySelectorAll("select[data-ta-teacher]").forEach(fill);
+  if (!quotas.children.length) addRow();
+  dist.querySelector("[data-ta-add]").addEventListener("click", () => addRow().querySelector("select").focus());
+  quotas.addEventListener("click", (e) => { if (e.target.closest("[data-ta-remove]")) { e.target.closest(".ta-quota").remove(); sumUp(); } });
+  quotas.addEventListener("input", sumUp);
+  sumUp();
+  const clear = dist.querySelector("[data-ta-clear]");
+  if (clear) clear.addEventListener("click", (e) => {
+    if (!confirm("Öğretmen havuzu kaldırılsın mı? Kısımlar şu anki öğretmenleriyle kalır.")) { e.preventDefault(); return; }
+    quotas.innerHTML = "";
+  });
   const dirty = form.querySelector("[data-ta-dirty]");
-  const rowSelects = selects.filter((s) => !s.hasAttribute("data-ta-bulk"));
+  const rowChanged = (tr) => {
+    const s = tr.querySelector("select[data-ta-teacher]"), l = tr.querySelector(".ta-lock input");
+    return (s && s.value !== s.dataset.value) || (l && l.checked !== (l.dataset.value === "1"));
+  };
   const update = () => {
-    const n = rowSelects.filter((s) => s.value !== s.dataset.value).length;
-    rowSelects.forEach((s) => s.closest("tr").classList.toggle("ta-changed", s.value !== s.dataset.value));
+    const trs = [...form.querySelectorAll("tbody tr")];
+    trs.forEach((tr) => tr.classList.toggle("ta-changed", rowChanged(tr)));
+    const n = trs.filter(rowChanged).length;
     dirty.textContent = n ? n + " kısım değişti (kaydedilmedi)" : "";
   };
   form.addEventListener("change", update);
@@ -75,6 +141,7 @@
     form.querySelectorAll("[data-ta-row]:checked").forEach((c) => { c.closest("tr").querySelector("select[data-ta-teacher]").value = value; });
     update();
   });
+  update();
   window.addEventListener("beforeunload", (e) => { if (dirty.textContent) { e.preventDefault(); e.returnValue = ""; } });
   form.addEventListener("submit", () => { dirty.textContent = ""; });
 })();

@@ -360,6 +360,11 @@ class Lesson(models.Model):
         help_text="Boş bırakılan sınıflar için ders tüm sınıfa verilir.",
     )
     teachers = models.ManyToManyField(Teacher, blank=True, related_name="lessons", verbose_name="öğretmenler")
+    teacher_locked = models.BooleanField(
+        "öğretmeni sabit", default=False,
+        help_text="Ders adının öğretmen kotası varsa üretim kilitsiz kısımların öğretmenini kotaya göre kendisi seçer; "
+                  "işaretliyse bu kısmın öğretmeni değişmez.",
+    )
     classrooms = models.ManyToManyField(
         Classroom,
         blank=True,
@@ -466,6 +471,21 @@ class Availability(models.Model):
     def __str__(self):
         target = next((getattr(self, f) for f in self.TARGET_FIELDS if getattr(self, f + "_id")), "Okul geneli")
         return f"{target}: gün {self.day + 1}, saat {self.period + 1} = {self.get_state_display()}"
+
+
+class TeacherQuota(models.Model):
+    """Öğretmen havuzu: bir ders adının kısımlarından bir öğretmenin kaç tanesini okutacağı (ör. TEM100:
+    Ahmet 12, Mehmet 12, Ayşe 11). Üretimde kilitsiz kısımların öğretmenini çözücü bu kotalara göre seçer."""
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="teacher_quotas")
+    subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name="teacher_quotas")
+    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, related_name="quotas")
+    count = models.PositiveSmallIntegerField("kısım sayısı")
+
+    class Meta:
+        verbose_name = "öğretmen kotası"
+        verbose_name_plural = "öğretmen kotaları"
+        constraints = [models.UniqueConstraint(fields=["subject", "teacher"], name="unique_teacher_quota")]
 
 
 class AvailabilityRequest(models.Model):

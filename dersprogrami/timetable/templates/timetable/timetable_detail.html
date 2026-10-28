@@ -95,6 +95,12 @@
     </div>
   </div>
 {% else %}
+  {% with pools=timetable.report.pools %}{% if pools.pools %}
+    <div class="pool-note">{% include "timetable/icon.html" with name="users" %}
+      <span><b>Öğretmen havuzu</b> bu üretimde kısımları dağıttı{% if pools.changed %} · <b>{{ pools.changed }}</b> kısmın öğretmeni değişti{% endif %}:
+      {% for name, counts in pools.pools.items %}<b>{{ name }}</b> ({% for t, n in counts.items %}{{ t }} {{ n }}{% if not forloop.last %}, {% endif %}{% endfor %}){% if not forloop.last %} · {% endif %}{% endfor %}</span>
+      <a href="{% url 'timetable:teacher_assign' school.pk %}">Öğretmen atama</a></div>
+  {% endif %}{% endwith %}
   <div class="tt-toolbar">
     <div class="left">
       <label class="search">{% include "timetable/icon.html" with name="search" %}<input class="input" id="row-filter" placeholder="Satır ara…" autocomplete="off"></label>
