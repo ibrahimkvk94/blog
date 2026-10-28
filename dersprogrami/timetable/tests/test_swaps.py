@@ -77,7 +77,43 @@ class WhyRedTests(_Base):
         Card.objects.create(timetable=self.timetable, lesson=other, length=1, day=0, period=1)
         options, why = editing.Board(self.timetable).options_explained(card.id)
         by = {w["who"]: w for w in why}
-        self.assertEqual(by["Sınıf 2.KISIM"]["busy"], 1)
+        # Sınıfın kendi (kilitsiz) dersiyle dolu hücre kırmızı sayılmaz: yer açarak uygundur
+        self.assertEqual(by["Sınıf 2.KISIM"]["busy"], 0)
         self.assertEqual(by["Sınıf 2.KISIM"]["closed"], 1)
+        self.assertEqual(next(o for o in options if (o["day"], o["period"]) == (0, 1))["status"], "shift")
         friday = next(o for o in options if (o["day"], o["period"]) == (4, 0))
         self.assertEqual(friday["reasons"], ["Kapalı saat: Sınıf 2.KISIM müsaitliği"])
+
+
+class ShiftTests(_Base):
+    """Aynı sınıfın kartıyla dolu hücre "yer açarak" uygundur; öğretmen başka sınıfta doluysa çakışmadır."""
+
+    def test_shift_status_and_chain_move(self):
+        from timetable import editing
+
+        Card.objects.filter(lesson=self.l1).update(locked=False)
+        physics = Subject.objects.create(school=self.school, name="Fizik")
+        cls = self.l1.classes.first()
+        other = Lesson.objects.create(school=self.school, subject=physics, periods_per_week=1, card_length=1)
+        other.classes.add(cls)
+        other.teachers.add(self.ahmet)
+        occupant = Card.objects.create(timetable=self.timetable, lesson=other, length=1, day=0, period=0)
+        # Mehmet'in başka sınıfta dersi olan hücre: kırmızı
+        busy = Lesson.objects.create(school=self.school, subject=physics, periods_per_week=1, card_length=1)
+        busy.classes.add(SchoolClass.objects.create(school=self.school, name="9.KISIM"))
+        busy.teachers.add(self.mehmet)
+        Card.objects.create(timetable=self.timetable, lesson=busy, length=1, day=0, period=1)
+        card = self.l1.cards.first()
+        board = editing.Board(self.timetable)
+        self.assertEqual(board.evaluate(card.id, 0, 0)["status"], editing.SHIFT)
+        self.assertEqual(board.evaluate(card.id, 0, 1)["status"], editing.CONFLICT)
+        result = editing.move_card(card, 0, 0, "displace")
+        self.assertEqual(result["displaced"], [occupant.id])
+        occupant.refresh_from_db()
+        self.assertIsNone(occupant.day)
+        # Çıkan kart için kartın boşalttığı yer (perşembe 1) uygun
+        self.assertEqual(editing.Board(self.timetable).evaluate(occupant.id, 3, 0)["status"], editing.FREE)
+        # Kilitli sınıf kartı yer açmaz
+        occupant.day, occupant.period, occupant.locked = 4, 1, True
+        occupant.save()
+        self.assertEqual(editing.Board(self.timetable).evaluate(card.id, 4, 1)["status"], editing.CONFLICT)

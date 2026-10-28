@@ -969,3 +969,8 @@ a.q-card { color: inherit; } a.q-card:hover { border-color: var(--primary); }
 .ta-table select { min-width: 280px; }
 .ta-table tr.ta-missing td:nth-child(2) b { color: var(--danger-strong); }
 .ta-table tr.ta-changed { background: var(--warning-soft); }
+/* Yer açarak: oradaki aynı sınıf dersi yerinden çıkar, sıradaki taşınacak kart olur */
+.tt-cell.opt-shift { background: #c9f0d4 !important; cursor: pointer; }
+.tt-period.opt-shift { background: #16a34a; color: #fff; }
+.tt-card.shift-target { box-shadow: 0 0 0 2px #22c55e, inset 0 0 0 999px rgba(34, 197, 94, .14) !important; cursor: pointer; }
+.tt-card.shift-target::after { content: "⇄"; position: absolute; top: 1px; right: 3px; font-size: 10px; font-weight: 700; color: #15803d; }

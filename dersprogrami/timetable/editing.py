@@ -15,6 +15,9 @@ FREE = "free"
 WARN = "warn"
 CONFLICT = "conflict"
 BLOCKED = "blocked"
+# Hücrede yalnızca aynı sınıfın kilitsiz kart(lar)ı var; öğretmen ve derslik uygun. Kart bırakılınca o
+# kartlar yerinden çıkar ve sıradaki taşınacak kart olur (aSc'deki gibi zincirleme taşıma).
+SHIFT = "shift"
 
 
 class Board:
@@ -111,6 +114,12 @@ class Board:
         ]
         reasons = [f"{', '.join(d['resources'])}: {d['lesson']}" + (" (kilitli)" if d["locked"] else "") for d in details]
         status = CONFLICT if conflicts else WARN if warnings else FREE
+        # Çakışan her kart bu kartın sınıfındansa (o kart çıkınca öğretmeni/dersliği de boşalır) ve kilitsizse
+        # hücre "yer açarak" uygundur.
+        if details and not any(d["locked"] for d in details) and all(
+                any(r.startswith(self.RESOURCE_NAMES["atom"] + " ") for r in d["resources"]) for d in details):
+            status = SHIFT
+            reasons = [f"Yer açar: {d['lesson']} yerinden çıkar, sonra onu yerleştirirsiniz" for d in details] + warnings
         return {
             "status": status,
             "reasons": reasons + warnings,

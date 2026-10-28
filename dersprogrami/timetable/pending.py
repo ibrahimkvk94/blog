@@ -9,7 +9,7 @@ En büyük engel kartın "neden"i olur; öneri ona göre verilir.
 
 from collections import Counter
 
-from .editing import BLOCKED, CONFLICT, Board
+from .editing import BLOCKED, CONFLICT, SHIFT, Board
 from .refs import DAY_SHORT
 
 KINDS = {
@@ -44,7 +44,7 @@ def analyze(timetable):
             info = board.evaluate(pc.card_id, day, period)
             if info["status"] == BLOCKED:
                 continue
-            if info["status"] == CONFLICT:
+            if info["status"] in (CONFLICT, SHIFT):
                 busy += 1
                 for c in info["conflicts"]:
                     for resource in c["resources"]:
@@ -119,7 +119,7 @@ def try_place(timetable, card_id, limit=15):
     first_reason, tried = "", 0
     for day, period in sorted(pc.starts):
         info = board.evaluate(card_id, day, period)
-        if info["status"] in (BLOCKED, CONFLICT):
+        if info["status"] in (BLOCKED, CONFLICT, SHIFT):
             continue
         tried += 1
         rooms = info.get("rooms") or []

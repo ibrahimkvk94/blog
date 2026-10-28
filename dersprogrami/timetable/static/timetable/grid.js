@@ -442,6 +442,7 @@
   function clearOptions() {
     board.querySelectorAll(".tt-cell[class*=opt-], .tt-period[class*=opt-]").forEach((c) => { c.className = c.className.replace(/\s?opt-\w+/g, ""); if (c.classList.contains("tt-cell")) c.removeAttribute("title"); });
     board.querySelectorAll(".tt-row.focus").forEach((r) => r.classList.remove("focus"));
+    board.querySelectorAll(".tt-card.shift-target").forEach((c) => { c.classList.remove("shift-target"); delete c.dataset.shiftAt; });
   }
 
   function clearSelection() {
@@ -501,6 +502,15 @@
         cell.classList.add("opt-" + status);
         cell.title = o && o.reasons.length ? o.reasons.join("\n") : (status === "free" ? "Uygun" : "Kapalı: kart buraya konamaz");
       });
+      // Yer açarak konulabilecek hücreleri kaplayan kartlar (sıradaki taşınacak kart adayları) yeşil çerçeveli
+      row.querySelectorAll(".tt-card").forEach((node) => {
+        const other = state.cards.get(Number(node.dataset.card));
+        if (!other || other.id === card.id || other.day == null) return;
+        for (let i = 0; i < other.length; i++) {
+          const o = state.options.get(other.day + "-" + (other.period + i));
+          if (o && o.status === "shift") { node.classList.add("shift-target"); node.dataset.shiftAt = o.day + "-" + o.period; break; }
+        }
+      });
     });
   }
 
@@ -534,7 +544,7 @@
     const where = card.day == null
       ? "Yerleşmedi"
       : d.days[card.day] + ", " + (card.period + 1) + (card.length > 1 ? "–" + (card.period + card.length) : "") + ". saat";
-    const counts = { free: 0, warn: 0, conflict: 0 };
+    const counts = { free: 0, warn: 0, shift: 0, conflict: 0 };
     (options || []).forEach((o) => { if (o.status in counts) counts[o.status]++; });
     drawer.innerHTML =
       '<div class="panel-head"><h2><span class="swatch" style="background:' + esc(card.color) + '"></span> ' + esc(card.subject_name) + "</h2>" +
@@ -547,9 +557,9 @@
       "<dt>Süre</dt><dd>" + card.length + " saat" + (card.length > 1 ? " (blok)" : "") + "</dd>" +
       "</dl>" +
       (options
-        ? '<p class="small muted" style="margin:14px 0 6px">Uygun yer: <b>' + counts.free + "</b> · uyarılı: <b>" + counts.warn + "</b> · çakışmalı: <b>" + counts.conflict + "</b></p>" +
+        ? '<p class="small muted" style="margin:14px 0 6px">Uygun yer: <b>' + counts.free + "</b> · yer açarak: <b>" + counts.shift + "</b> · uyarılı: <b>" + counts.warn + "</b> · çakışmalı: <b>" + counts.conflict + "</b></p>" +
           whyHtml(why) +
-          '<p class="small subtle" style="margin:0 0 14px">Taşımak için ızgarada renklendirilmiş bir hücreye tıklayın ya da kartı sürükleyin.</p>'
+          '<p class="small subtle" style="margin:0 0 14px">Taşımak için yeşil bir hücreye tıklayın ya da kartı sürükleyin. ⇄ işaretli yeşil hücrede oradaki ders yerinden çıkar ve sıradaki taşınacak kart olur.</p>'
         : '<p class="small subtle" style="margin:14px 0">Uygun hücreler hesaplanıyor…</p>') +
       '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
       '<button class="btn btn-sm" data-act="lock">' + (card.locked ? "Kilidi aç" : "Kilitle") + "</button>" +
@@ -629,6 +639,20 @@
   async function moveCard(id, day, period) {
     if (!cfg.canEdit) { toast("Programı düzenleme yetkiniz yok.", "error"); return; }
     let r = null;
+    const option = state.selected === id && state.options ? state.options.get(day + "-" + period) : null;
+    if (option && option.status === "shift") {
+      // Zincirleme taşıma: oradaki kart(lar) yerinden çıkar, ilki seçilir ve onun uygun yerleri yanar.
+      try {
+        r = await postMove(id, day, period, "displace");
+      } catch (e) { toast(e.message, "error"); return; }
+      const next = (r.displaced || [])[0];
+      const moved = state.cards.get(next);
+      toast(moved ? moved.subject_name + " (" + moved.classes + ") yerinden çıktı: şimdi onu yerleştirin. Bırakmak için Esc."
+                  : r.message || "Kart taşındı.");
+      state.selected = next || null;
+      await refresh(r);
+      return;
+    }
     try {
       r = await postMove(id, day, period, "ask");
       if (r.message) toast(r.message);
@@ -656,8 +680,12 @@
 
   function onCardOrCellClick(e) {
     const cardNode = e.target.closest(".tt-card");
-    const option = optionAt(cellAt(e.clientX, e.clientY));
+    let option = optionAt(cellAt(e.clientX, e.clientY));
     const selected = state.selected;
+    // Yer açarak hedef kart: tıklanan nokta değil, kartın üzerindeki "yer açarak" uygun başlangıç kullanılır
+    if (selected && cardNode && cardNode.dataset.shiftAt && (!option || option.status === "conflict")) {
+      option = state.options.get(cardNode.dataset.shiftAt);
+    }
     if (selected && option && (!cardNode || Number(cardNode.dataset.card) !== selected)) {
       moveCard(selected, option.day, option.period);
       return;
@@ -1013,7 +1041,7 @@
     if (!res.cards.length) items.push({ label: "Bu satırda buraya konabilecek bekleyen kart yok", disabled: true });
     res.cards.forEach((c) => items.push({
       label: c.lesson + (c.length > 1 ? " (" + c.length + " saat)" : ""),
-      hint: c.status === "free" ? "uygun" : c.status === "warn" ? "uyarılı" : "çakışma",
+      hint: c.status === "free" ? "uygun" : c.status === "warn" ? "uyarılı" : c.status === "shift" ? "yer açar" : "çakışma",
       cls: "st-" + c.status,
       action: () => moveCard(c.card, day, period),
     }));
