@@ -991,6 +991,7 @@ class CardRelationship(models.Model):
     classes = models.ManyToManyField(SchoolClass, blank=True, related_name="relationships", verbose_name="yalnızca bu sınıflar")
     teachers = models.ManyToManyField(Teacher, blank=True, related_name="relationships", verbose_name="yalnızca bu öğretmenler")
     classrooms = models.ManyToManyField(Classroom, blank=True, related_name="relationships", verbose_name="derslikler")
+    note = models.CharField("not", max_length=300, blank=True)
 
     class Meta:
         verbose_name = "kart ilişkisi"

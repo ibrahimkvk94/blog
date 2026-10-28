@@ -288,7 +288,7 @@ class RelationshipForm(SchoolScopedForm):
         fields = [
             "name", "active", "condition", "param", "param_max", "apply_to", "importance", "card_length",
             "subjects", "lessons", "subjects_b", "lessons_b", "classes", "teachers", "classrooms",
-            "time_map", "time_map_b",
+            "time_map", "time_map_b", "note",
         ]
         widgets = {
             "subjects": ChipSelectMultiple(),
@@ -393,6 +393,7 @@ class RelationshipForm(SchoolScopedForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["name"].required = False  # boşsa koşul ve seçimden üretilir
         for name in ("lessons", "lessons_b"):
             self.fields[name].queryset = self.fields[name].queryset.select_related("subject").prefetch_related("classes")
         self.fields["teachers"].label_from_instance = lambda t: f"{t.first_name} {t.last_name}"
@@ -462,4 +463,13 @@ class RelationshipForm(SchoolScopedForm):
             self.add_error("time_map", "Bu koşul için zaman haritasında en az bir hücre işaretleyin.")
         if condition in (CardRelationship.MAX_DAYS, CardRelationship.MIN_DAYS) and data.get("param", 0) > self.school.days_per_week:
             self.add_error("param", f"Okulda haftada {self.school.days_per_week} gün var.")
+        if not (data.get("name") or "").strip() and condition:
+            # Ad verilmediyse koşul ve seçimden: "Art arda, bitişik – BİL103, BİL103 (U)"
+            label = dict(c for _, group in CardRelationship.CONDITION_CHOICES for c in group).get(condition, condition)
+            label = label.split(" · ")[0].replace(" N ", f" {data.get('param', 1)} ")
+            picked = [s.short or s.name for s in data.get("subjects") or []]
+            picked += [f"{l.subject.short or l.subject.name} ({', '.join(c.short or c.name for c in l.classes.all())})"
+                       for l in data.get("lessons") or []]
+            picked += [c.short or c.name for c in data.get("classes") or []][: max(0, 3 - len(picked))]
+            data["name"] = (label + (" – " + ", ".join(picked[:3]) + (f" +{len(picked) - 3}" if len(picked) > 3 else "") if picked else ""))[:200]
         return data

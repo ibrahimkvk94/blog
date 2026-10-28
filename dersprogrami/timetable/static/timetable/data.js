@@ -340,7 +340,7 @@
 (function () {
   "use strict";
   const select = document.querySelector("select[name=condition][data-help]");
-  if (!select) return;
+  if (!select || select.closest("[data-rel-editor]")) return;  // yeni düzenleyici: relationship.js
   const row = (name) => document.querySelector("[name=" + name + "]")?.closest(".form-row");
   const list = (key) => (select.dataset[key] || "").split(" ");
   const help = JSON.parse(select.dataset.help);

@@ -580,9 +580,10 @@ def entity_edit(request, pk, slug, obj_id=None):
         extra.append(("bolunmeler", "Bölünmeler"))
     if entity.availability:
         extra.append(("musaitlik", "Müsaitlik"))
+    relationship = entity.model is CardRelationship
     return render(
         request,
-        "timetable/data/form.html",
+        "timetable/data/relationship_form.html" if relationship else "timetable/data/form.html",
         _nav(
             school,
             "data",
@@ -590,6 +591,7 @@ def entity_edit(request, pk, slug, obj_id=None):
             entity=entity,
             obj=obj,
             form=form,
+            picker=_relationship_picker(school, form) if relationship else None,
             impact=impact,
             availability=_availability_grid(school, entity.availability, obj) if entity.availability else None,
             copy_targets=_copy_targets(school, entity.availability, obj) if entity.availability else None,
@@ -604,6 +606,56 @@ def entity_edit(request, pk, slug, obj_id=None):
             new_url=reverse("timetable:data_new", args=[school.pk, slug]),
         ),
     )
+
+
+def _relationship_picker(school, form):
+    """Kart ilişkisi düzenleyicisinin seçici verileri: ders adları ve kısımları (teori/uygulama rozetiyle),
+    bölüme göre gruplu sınıf/öğretmen/derslikler ve formdaki seçimler."""
+    import re
+
+    from .rooms_wizard import PRACTICAL
+
+    letters = re.compile(r"[^\W\d_]+", re.UNICODE)
+
+    def prefix(text):
+        m = letters.search(text or "")
+        return m.group(0).upper() if m else "Diğer"
+
+    lessons = defaultdict(list)
+    for lesson in Lesson.objects.filter(school=school).prefetch_related("classes", "teachers"):
+        classes = sorted((c.short or c.name for c in lesson.classes.all()), key=natural_key)
+        lessons[lesson.subject_id].append({
+            "id": lesson.id, "classes": ", ".join(classes) or "Sınıfsız",
+            "teachers": ", ".join(t.full_name for t in lesson.teachers.all()) or "öğretmensiz",
+            "hours": lesson.periods_per_week, "blocks": lesson.card_length,
+        })
+    subjects = list(school.subjects.all())
+    practical = {s.id for s in subjects if PRACTICAL.search(s.name or "")}
+    by_code = defaultdict(set)
+    for s in subjects:
+        by_code[(s.short or "").strip().upper()].add(s.id in practical)
+    subject_rows = []
+    for s in sorted(subjects, key=lambda s: (natural_key(s.short or s.name), natural_key(s.name))):
+        code = (s.short or "").strip()
+        kind = "U" if s.id in practical else ("T" if code and True in by_code[code.upper()] else "")
+        subject_rows.append({"id": s.id, "code": code, "name": s.name, "kind": kind,
+                             "lessons": sorted(lessons.get(s.id, []), key=lambda l: natural_key(l["classes"]))})
+    classes = [{"id": c.id, "name": c.short or c.name, "full": c.name, "group": prefix(c.short or c.name)}
+               for c in sorted(school.classes.all(), key=lambda c: natural_key(c.short or c.name))]
+    teachers = [{"id": t.id, "name": t.full_name, "full": " ".join(filter(None, [t.title, t.full_name])),
+                 "group": t.department or "Bölümü girilmemiş"}
+                for t in sorted(school.teachers.all(), key=lambda t: natural_key(t.full_name))]
+    rooms = [{"id": r.id, "name": r.name, "full": r.name, "group": r.building.name if r.building_id else prefix(r.name.split("-")[0])}
+             for r in sorted(school.classrooms.select_related("building"), key=lambda r: natural_key(r.name))]
+
+    def selected(name):
+        value = form[name].value() or []
+        return [int(v) for v in value if str(v).isdigit()]
+
+    return {
+        "subjects": subject_rows, "classes": classes, "teachers": teachers, "rooms": rooms,
+        "selected": {n: selected(n) for n in ("subjects", "lessons", "subjects_b", "lessons_b", "classes", "teachers", "classrooms")},
+    }
 
 
 def _has_new_divisions(raw):
