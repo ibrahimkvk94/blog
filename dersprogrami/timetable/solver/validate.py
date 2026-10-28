@@ -54,6 +54,7 @@ def validate(problem, placements):
                 )
             )
         resources = [("teacher", t) for t in card.teachers] + [("atom", a) for a in card.atoms]
+        resources += [("students", s) for s in card.students]
         resources += [("room", r) for r in dict.fromkeys(rooms)]
         for day, period in card.cells(place.day, place.period):
             for room in rooms:

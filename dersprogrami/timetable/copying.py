@@ -31,6 +31,7 @@ PARTS = {
     "iliskiler": "Kart ilişkileri",
     "nobet": "Nöbet yerleri",
     "refler": "ÜYBS referansları",
+    "ogrenciler": "Öğrenciler, seçimleri ve seçmeli kayıtları",
     "yerlesim": "Yayındaki programın yerleşimi (başlangıç sürümü olarak)",
 }
 # Bir parça başka parçalara dayanır: dersler sınıf/öğretmen/derslik olmadan kopyalanamaz.
@@ -38,6 +39,7 @@ REQUIRES = {
     "dersler": {"ogretmenler", "derslikler", "siniflar"},
     "iliskiler": {"dersler"},
     "refler": {"dersler"},
+    "ogrenciler": {"dersler"},
     "yerlesim": {"dersler"},
 }
 
@@ -68,6 +70,7 @@ def copy_program(source, name, parts):
     target = School.objects.create(
         institution=source.institution, name=name[:200], days_per_week=source.days_per_week,
         weeks_count=source.weeks_count, terms_count=source.terms_count, duties_per_teacher=source.duties_per_teacher,
+        uybs_settings=source.uybs_settings,
     )
     for p in source.periods.all():
         _clone(p, school_id=target.id)
@@ -135,6 +138,13 @@ def copy_program(source, name, parts):
             LessonRef(lesson=lessons[r.lesson_id], school_class=classes.get(r.school_class_id), ordinal=r.ordinal, ref=r.ref)
             for r in LessonRef.objects.filter(lesson__school=source)
         )
+    if "ogrenciler" in parts:
+        for st in source.students.prefetch_related("groups", "choices", "lessons"):
+            new = _clone(st, school_id=target.id, school_class_id=classes[st.school_class_id].id if st.school_class_id in classes else None)
+            new.groups.set([groups[g.id] for g in st.groups.all() if g.id in groups])
+            new.choices.set([subjects[c.id] for c in st.choices.all()])
+            for lesson in st.lessons.all():
+                lessons[lesson.id].students.add(new)
     if "yerlesim" in parts:
         timetable = source.active_timetable or source.timetables.filter(status__in=[Timetable.OK, Timetable.PARTIAL]).first()
         if timetable is not None:

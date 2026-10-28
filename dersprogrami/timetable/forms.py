@@ -147,6 +147,7 @@ class TeacherForm(SchoolScopedForm):
             "first_name", "last_name", "short", "target_periods", "home_classroom",
             "max_periods_per_day", "min_periods_per_day", "max_consecutive",
             "max_gaps_per_day", "max_gaps_per_week", "max_days_per_week", "duty_exempt", "max_duties", "subjects",
+            "tc_no", "email",
         ]
         widgets = {"subjects": ChipSelectMultiple()}
         help_texts = {
@@ -155,6 +156,12 @@ class TeacherForm(SchoolScopedForm):
             "max_gaps_per_week": "Boş = sınır yok",
             "max_days_per_week": "Ör. 4 = haftada bir boş gün",
         }
+
+    def clean_tc_no(self):
+        tc = (self.cleaned_data.get("tc_no") or "").strip()
+        if tc and not (tc.isdigit() and len(tc) == 11):
+            raise forms.ValidationError("TC kimlik no 11 haneli olmalı.")
+        return tc
 
 
 class ClassroomForm(SchoolScopedForm):
@@ -170,7 +177,7 @@ class SchoolClassForm(SchoolScopedForm):
 
     class Meta:
         model = SchoolClass
-        fields = ["name", "short", "grade", "class_teacher", "home_classroom", "student_count", "min_periods_per_day", "max_periods_per_day"]
+        fields = ["name", "short", "grade", "class_teacher", "home_classroom", "student_count", "min_periods_per_day", "max_periods_per_day", "uybs_no"]
         help_texts = {"home_classroom": "Derslik seçilmemiş tek sınıflık dersler bu derslikte yapılır."}
 
     def __init__(self, *args, **kwargs):
@@ -191,7 +198,7 @@ class LessonForm(SchoolScopedForm):
         model = Lesson
         fields = [
             "subject", "classes", "groups", "teachers", "classrooms", "periods_per_week", "card_length", "split",
-            "max_per_day", "rooms_needed", "weeks_mask", "terms_mask",
+            "max_per_day", "rooms_needed", "weeks_mask", "terms_mask", "elective", "capacity",
         ]
         widgets = {
             "classes": ChipSelectMultiple(),

@@ -34,6 +34,12 @@ services:
       DJANGO_SUPERUSER_PASSWORD: ${ADMIN_PASSWORD:-}
       BACKUP_DIR: /backups
       BACKUP_KEEP: ${BACKUP_KEEP:-30}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-1}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-}
     volumes:
       - backups:/backups
 

@@ -38,8 +38,9 @@
       </div>
     </div>
     {% if timetable.pk != school.active_timetable_id and can.yayin %}
-      <form method="post" action="{% url 'timetable:publish' timetable.pk %}">{% csrf_token %}
+      <form method="post" action="{% url 'timetable:publish' timetable.pk %}" class="publish-form">{% csrf_token %}
         <button class="btn btn-primary">{% include "timetable/icon.html" with name="star" %} Yayınla</button>
+        {% if school.active_timetable_id %}<label class="check small" title="Programı değişen ve e-postası girilmiş öğretmenlere değişiklik listesi gider"><input type="checkbox" name="notify" value="1" checked> <span>Değişenlere e-posta</span></label>{% endif %}
       </form>
     {% endif %}
   {% endif %}

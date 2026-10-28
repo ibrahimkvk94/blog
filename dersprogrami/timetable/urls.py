@@ -1,7 +1,7 @@
 from django.contrib.auth import views as auth_views
 from django.urls import path
 
-from . import accounts, data_views, institutions, public, views
+from . import accounts, data_views, institutions, public, students, uybs, views
 
 app_name = "timetable"
 
@@ -29,6 +29,9 @@ urlpatterns = [
     path("okul/<int:pk>/vekalet/", views.substitutions, name="substitutions"),
     path("okul/<int:pk>/nobet/", views.duties, name="duties"),
     path("okul/<int:pk>/uybs/", views.lesson_refs, name="lesson_refs"),
+    path("okul/<int:pk>/uybs/ayarlar/", uybs.settings_page, name="uybs_settings"),
+    path("okul/<int:pk>/ogrenciler/", students.students_page, name="students"),
+    path("okul/<int:pk>/ogrenciler/<int:student_id>/", students.student_timetable, name="student_timetable"),
     path("okul/<int:pk>/web-yayini/", public.settings, name="publish_settings"),
     path("yayin/<str:token>/", public.index, name="public_index"),
     path("yayin/<str:token>/vekalet/", public.substitution_board, name="public_board"),
@@ -69,6 +72,8 @@ urlpatterns = [
     path("program/<int:pk>/raporlar/", views.reports_page, name="reports"),
     path("program/<int:pk>/rapor/", views.report_render, name="report_render"),
     path("program/<int:pk>/rapor.xlsx", views.report_excel, name="report_excel"),
+    path("program/<int:pk>/uybs-aktarim.xlsx", uybs.export, name="uybs_export"),
+    path("program/<int:pk>/uybs-arsiv/", uybs.archive, name="uybs_archive"),
     path("api/kart/<int:pk>/secenekler/", views.api_card_options, name="api_card_options"),
     path("api/kart/<int:pk>/tasi/", views.api_card_move, name="api_card_move"),
     path("api/kart/<int:pk>/cikar/", views.api_card_unplace, name="api_card_unplace"),

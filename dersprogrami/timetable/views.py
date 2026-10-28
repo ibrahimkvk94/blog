@@ -189,8 +189,21 @@ def publish(request, pk):
     if not timetable.has_grid:
         messages.error(request, "Yalnızca üretilmiş programlar yayınlanabilir.")
     else:
+        school = timetable.school
+        old = school.active_timetable
         School.objects.filter(pk=timetable.school_id).update(active_timetable=timetable)
         messages.success(request, f"“{timetable.name}” yayındaki program olarak ayarlandı.")
+        if request.POST.get("notify") == "1" and old is not None:
+            from . import notify
+
+            link = request.build_absolute_uri(reverse("timetable:public_index", args=[school.publish_token])) if school.publish_enabled else ""
+            sent, no_mail, errors = notify.publish_notices(school, old, timetable, link)
+            if sent:
+                messages.info(request, f"Programı değişen {sent} öğretmene e-posta gönderildi.")
+            if no_mail:
+                messages.warning(request, f"Programı değişen {no_mail} öğretmenin e-postası yok (ÜYBS şablonu ve TC ekranından girilebilir).")
+            for e in errors[:5]:
+                messages.warning(request, e)
     return redirect("timetable:timetable_detail", pk=pk)
 
 
@@ -325,8 +338,22 @@ def substitutions(request, pk):
             Absence.objects.filter(pk=request.POST.get("absence"), school=school).delete()
         elif action == "save":
             absence = get_object_or_404(Absence, pk=request.POST.get("absence"), school=school)
+            before = dict(absence.substitutions.values_list("id", "substitute_id"))
             saved = substitutes.save_assignments(absence, timetable, request.POST)
             messages.success(request, f"{saved} ders saati için vekil kaydedildi.")
+            if request.POST.get("notify") == "1":
+                from . import notify
+
+                changed = [
+                    sub for sub in absence.substitutions.select_related("substitute", "card__lesson__subject", "card__classroom")
+                    .prefetch_related("card__lesson__classes")
+                    if sub.substitute_id and before.get(sub.id) != sub.substitute_id
+                ]
+                sent, errors = notify.substitution_notices(absence, changed)
+                if sent:
+                    messages.info(request, f"{sent} vekil öğretmene e-posta gönderildi.")
+                for e in errors[:5]:
+                    messages.warning(request, e)
         return redirect(f"{reverse('timetable:substitutions', args=[school.pk])}?tarih={date.isoformat()}")
 
     weekday_ok = date.weekday() < school.days_per_week

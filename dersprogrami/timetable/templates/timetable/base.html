@@ -53,6 +53,8 @@
         <a href="{% url 'timetable:data_list' school.pk 'ders-adlari' %}" class="{% if data_nav == 'ders-adlari' or data_nav == 'derslikler' or data_nav == 'binalar' %}active{% endif %}">{% include "timetable/icon.html" with name="database" %} Ders adları, derslikler</a>
         <a href="{% url 'timetable:data_list' school.pk 'kart-iliskileri' %}" class="{% if data_nav == 'kart-iliskileri' %}active{% endif %}">{% include "timetable/icon.html" with name="link" %} Kart ilişkileri</a>
         <a href="{% url 'timetable:lesson_refs' school.pk %}" class="{% if nav == 'refs' %}active{% endif %}">{% include "timetable/icon.html" with name="list" %} ÜYBS referansları</a>
+        <a href="{% url 'timetable:uybs_settings' school.pk %}" class="{% if nav == 'uybs' %}active{% endif %}">{% include "timetable/icon.html" with name="database" %} ÜYBS şablonu ve TC</a>
+        <a href="{% url 'timetable:students' school.pk %}" class="{% if nav == 'students' %}active{% endif %}">{% include "timetable/icon.html" with name="users" %} Öğrenciler ve seçmeliler</a>
       </nav>
       {% endif %}
     {% else %}

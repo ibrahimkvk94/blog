@@ -1,0 +1,96 @@
+{% extends "timetable/base.html" %}
+{% block title %}Öğrenciler ve seçmeliler{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:institution_detail' school.institution_id %}">{{ school.institution }}</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
+{% block heading %}<h1>Öğrenciler ve seçmeliler</h1><span class="pill">{{ total }} öğrenci</span>{% if clash_list %}<span class="pill warn">{{ clash_ids|length }} öğrencide çakışma</span>{% endif %}{% endblock %}
+{% block content %}
+<p class="muted small" style="margin-top:0">Seçmeli dersler, Dersler ekranında <b>seçmeli ders</b> işaretlenen derslerdir; aynı ders adının birden çok seçmeli dersi şube gibi davranır. Öğrencilerin seçimlerini yapıştırın, <b>Dağıt</b> deyin: her öğrenci seçtiği dersin programına çakışmayan ve kontenjanı dolmamış şubesine yerleşir. Program üretilirken aynı öğrencinin dersleri çakıştırılmaz.</p>
+
+<form method="get" class="refs-filter">
+  <label class="label" for="st-sinif">Sınıf</label>
+  <select class="select" name="sinif" id="st-sinif" onchange="this.form.submit()">
+    <option value="">Tüm sınıflar</option>
+    {% for c in classes %}<option value="{{ c.pk }}"{% if class_id == c.pk %} selected{% endif %}>{{ c.short|default:c.name }}</option>{% endfor %}
+  </select>
+  <label class="label" for="st-program">Yerleşim için sürüm</label>
+  <select class="select" name="program" id="st-program" onchange="this.form.submit()">
+    {% for t in timetables %}<option value="{{ t.pk }}"{% if timetable and timetable.pk == t.pk %} selected{% endif %}>{% if t.pk == school.active_timetable_id %}★ {% endif %}{{ t.name }}</option>{% empty %}<option value="">Henüz sürüm yok</option>{% endfor %}
+  </select>
+</form>
+
+<div class="refs-layout">
+  <div class="stack">
+    <div class="panel">
+      <div class="panel-head"><h2>Seçmeli dersler (şubeler)</h2></div>
+      <div class="panel-body flush table-wrap">
+        <table class="table">
+          <thead><tr><th>Ders</th><th>Öğretmen</th><th>Sınıf</th><th class="num">Kayıtlı</th><th class="num">Kontenjan</th><th class="num">Seçen (toplam)</th></tr></thead>
+          <tbody>{% for e in electives %}<tr>
+            <td><span class="swatch" style="background:{{ e.lesson.subject.color }}"></span> <b>{{ e.lesson.subject.short|default:e.lesson.subject.name }}</b> <span class="subtle small">{{ e.lesson.subject.name }}</span></td>
+            <td class="small">{{ e.teachers|default:"–" }}</td>
+            <td class="small">{% for c in e.lesson.classes.all %}{{ c.short|default:c.name }}{% if not forloop.last %}, {% endif %}{% empty %}–{% endfor %}</td>
+            <td class="num"><b>{{ e.count }}</b></td>
+            <td class="num">{{ e.lesson.capacity|default:"–" }}</td>
+            <td class="num">{{ e.demand }}</td>
+          </tr>{% empty %}<tr><td colspan="6" class="subtle">Henüz seçmeli ders yok. Dersler ekranında bir dersi açıp “seçmeli ders” kutusunu işaretleyin.</td></tr>{% endfor %}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <form method="post" class="panel">{% csrf_token %}<input type="hidden" name="program" value="{{ timetable.pk|default:'' }}">
+      <div class="panel-head"><h2>Öğrenciler</h2></div>
+      <div class="panel-body flush table-wrap">
+        <table class="table">
+          <thead><tr><th style="width:28px"><input type="checkbox" onclick="this.closest('table').querySelectorAll('[name=sec]').forEach(c=>c.checked=this.checked)" aria-label="Tümünü seç"></th><th>No</th><th>Öğrenci</th><th>Sınıf</th><th>Gruplar</th><th>Seçtikleri</th><th>Kayıtlı seçmeliler</th></tr></thead>
+          <tbody>{% for s in students %}<tr>
+            <td><input type="checkbox" name="sec" value="{{ s.pk }}"></td>
+            <td class="small">{{ s.number }}</td>
+            <td><a href="{% url 'timetable:student_timetable' school.pk s.pk %}{% if timetable %}?program={{ timetable.pk }}{% endif %}">{{ s.full_name }}</a>{% if s.pk in clash_ids %} <span class="pill warn">çakışma</span>{% endif %}</td>
+            <td class="small">{{ s.school_class.short|default:s.school_class.name|default:"–" }}</td>
+            <td class="small">{% for g in s.groups.all %}{{ g.name }}{% if not forloop.last %}, {% endif %}{% empty %}–{% endfor %}</td>
+            <td class="small">{% for c in s.choices.all %}{{ c.short|default:c.name }}{% if not forloop.last %}, {% endif %}{% empty %}–{% endfor %}</td>
+            <td class="small">{% for l in s.lessons.all %}{{ l.subject.short|default:l.subject.name }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="subtle">–</span>{% endfor %}</td>
+          </tr>{% empty %}<tr><td colspan="7" class="subtle">Öğrenci yok. Sağdaki kutuya Excel'den yapıştırın.</td></tr>{% endfor %}</tbody>
+        </table>
+      </div>
+      {% if students %}<div class="form-actions"><div><button class="btn btn-danger btn-sm" name="action" value="delete" onclick="return confirm('Seçili öğrenciler silinsin mi?')">Seçilenleri sil</button></div></div>{% endif %}
+    </form>
+
+    {% if clash_list %}
+    <div class="panel">
+      <div class="panel-head"><h2>Çakışmalar</h2></div>
+      <div class="panel-body">
+        <ul class="small" style="margin:0;padding-left:18px">{% for s, text in clash_list %}<li><a href="{% url 'timetable:student_timetable' school.pk s.pk %}{% if timetable %}?program={{ timetable.pk }}{% endif %}">{{ s.full_name }}</a>: {{ text }}</li>{% endfor %}</ul>
+        <p class="subtle small">Çakışmalar, seçmeliler dağıtıldıktan sonra program yeniden üretilince giderilir (aynı öğrencinin dersleri aynı saate konmaz).</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if can.veri %}
+  <aside class="stack">
+    <form method="post" class="panel">{% csrf_token %}<input type="hidden" name="action" value="distribute"><input type="hidden" name="program" value="{{ timetable.pk|default:'' }}">
+      <div class="panel-head"><h2>Seçmelilere dağıt</h2></div>
+      <div class="panel-body">
+        <p class="subtle small" style="margin-top:0">Önce az şubesi olan seçimler dağıtılır. Öğrencinin seçili sürümdeki programına çakışmayan, sonra en boş şube seçilir.</p>
+        <label class="check"><input type="checkbox" name="reset" value="1"> <span>Mevcut kayıtları sıfırla ve baştan dağıt</span></label>
+        <button class="btn btn-primary" style="margin-top:10px">{% include "timetable/icon.html" with name="wand" %} Dağıt</button>
+      </div>
+    </form>
+    <form method="post" class="panel">{% csrf_token %}<input type="hidden" name="action" value="import">
+      <div class="panel-head"><h2>Excel'den yapıştır</h2></div>
+      <div class="panel-body">
+        <textarea class="input" name="text" rows="8" placeholder="2024001	Ayşe Kaya	1SVN	Grup 1	BİL103, YDL201&#10;2024002	Mehmet Demir	1SVN	Grup 2	BİL103"></textarea>
+        <p class="subtle small">Sütunlar: numara, ad soyad, sınıf, gruplar (virgülle), seçtiği dersler (ders kodu ya da adı, virgülle). Aynı numaralı öğrenci güncellenir.</p>
+        <button class="btn">Aktar</button>
+      </div>
+    </form>
+    {% if total %}
+    <form method="post" class="panel panel-body" onsubmit="return confirm('Tüm öğrenciler silinsin mi?')">{% csrf_token %}
+      <input type="hidden" name="action" value="delete_all"><input type="hidden" name="confirm" value="SİL">
+      <button class="btn btn-danger btn-sm">Tüm öğrencileri sil</button>
+    </form>
+    {% endif %}
+  </aside>
+  {% endif %}
+</div>
+{% endblock %}

@@ -129,3 +129,13 @@ TIMETABLE_JOB_BACKEND = os.environ.get("TIMETABLE_JOB_BACKEND", "thread")
 # Yedekler (merkez paneli → Yedekler ya da `python manage.py yedekle`)
 BACKUP_DIR = Path(os.environ.get("BACKUP_DIR", BASE_DIR / "yedekler"))
 BACKUP_KEEP = int(os.environ.get("BACKUP_KEEP", "30"))
+
+# E-posta (program değişikliği ve vekâlet bildirimleri). EMAIL_HOST verilmezse bildirim gönderilmez.
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL") == "1"
+EMAIL_USE_TLS = not EMAIL_USE_SSL and os.environ.get("EMAIL_USE_TLS", "1") == "1"
+EMAIL_TIMEOUT = 15
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER or "ders-programi@localhost")

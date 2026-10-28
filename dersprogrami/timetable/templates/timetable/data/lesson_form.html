@@ -40,6 +40,8 @@
         {% include "timetable/data/field.html" with field=form.max_per_day %}
         {% if form.weeks_mask %}{% include "timetable/data/field.html" with field=form.weeks_mask %}{% endif %}
         {% if form.terms_mask %}{% include "timetable/data/field.html" with field=form.terms_mask %}{% endif %}
+        {% include "timetable/data/field.html" with field=form.elective %}
+        {% include "timetable/data/field.html" with field=form.capacity %}
       </div>
     </div>
   </div>

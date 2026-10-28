@@ -11,7 +11,7 @@ from collections import defaultdict
 
 from django.db import transaction
 
-from .models import LessonRef
+from .models import LessonRef, Substitution
 
 DAY_SHORT = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"]
 
@@ -189,33 +189,61 @@ def import_text(school, text):
     return written, errors
 
 
-def report_rows(timetable, week_start=None, school_class_ids=None):
-    """ÜYBS aktarım listesi: her kısım × ders saati için gün, tarih, saat ve referans."""
+def report_rows(timetable, week_start=None, school_class_ids=None, substitutions=True):
+    """ÜYBS aktarım listesi: her kısım × ders saati için gün, tarih, saat ve referans.
+
+    Hafta verilip substitutions açıksa o haftanın vekâletleri işlenir: gelmeyen öğretmenin yerine
+    vekili yazılır (vekil atanmamışsa öğretmen satırda kalır, "sub" alanında not düşülür)."""
     school = timetable.school
     days = school.day_names
     periods = {p.index: p for p in school.periods.all()}
     hours = lesson_hours(timetable)
     refs = ref_index(school)
     room_names = {r.id: str(r) for r in school.classrooms.all()}
+    teachers_by_id = {t.id: t for t in school.teachers.all()}
+    subs = {}
+    if week_start and substitutions:
+        for s in Substitution.objects.filter(
+            card__timetable=timetable, absence__date__range=(week_start, week_start + datetime.timedelta(days=6))
+        ).select_related("absence"):
+            subs[(s.card_id, s.period)] = (s.absence.teacher_id, s.substitute_id)
     rows = []
-    for cls, lesson in class_lessons(school):
+    for cls, lesson in class_lessons(school, None):
         if school_class_ids and (cls is None or cls.id not in school_class_ids):
             continue
-        teachers = ", ".join(t.full_name for t in lesson.teachers.all())
+        lesson_teachers = [t.id for t in lesson.teachers.all()]
         for ordinal, (day, period, card) in enumerate(hours.get(lesson.id, []), start=1):
             p = periods.get(period) if period is not None else None
             rooms = ", ".join(room_names.get(r, "") for r in card.room_ids) if card is not None and card.is_placed else ""
+            teacher_ids, note = list(lesson_teachers), ""
+            sub = subs.get((card.id, period)) if card is not None else None
+            if sub and sub[0] in teacher_ids:
+                absent, substitute = sub
+                if substitute:
+                    teacher_ids[teacher_ids.index(absent)] = substitute
+                    note = f"{teachers_by_id[absent].full_name} yerine vekil"
+                else:
+                    note = f"{teachers_by_id[absent].full_name} gelmedi (vekil yok)"
+            date = (week_start + datetime.timedelta(days=day)) if (week_start and day is not None) else None
             rows.append({
                 "class": (cls.short or cls.name) if cls else "–",
                 "class_name": cls.name if cls else "",
+                "class_id": cls.id if cls else None,
+                "kisim_no": uybs_class_no(cls) if cls else "",
                 "code": lesson.subject.short or "",
                 "subject": lesson.subject.name,
                 "groups": ", ".join(sorted({g.name for g in lesson.groups.all()})),
-                "teachers": teachers,
+                "teachers": ", ".join(teachers_by_id[t].full_name for t in teacher_ids),
+                "tcs": [teachers_by_id[t].tc_no for t in teacher_ids],
+                "teacher_ids": teacher_ids,
+                "sub": note,
                 "ordinal": ordinal,
+                "day_index": day,
                 "day": days[day] if day is not None else "yerleşmedi",
-                "date": (week_start + datetime.timedelta(days=day)) if (week_start and day is not None) else None,
+                "date": date,
                 "period": period + 1 if period is not None else None,
+                "start": f"{p.start_time:%H:%M}" if p and p.start_time else "",
+                "end": f"{p.end_time:%H:%M}" if p and p.end_time else "",
                 "time": f"{p.start_time:%H:%M}–{p.end_time:%H:%M}" if p and p.start_time and p.end_time else "",
                 "ref": refs.get((lesson.id, cls.id if cls else None, ordinal), ""),
                 "room": rooms,
@@ -223,3 +251,14 @@ def report_rows(timetable, week_start=None, school_class_ids=None):
             })
     rows.sort(key=lambda r: r["sort"])
     return rows
+
+
+def uybs_class_no(cls):
+    """Kısım no: elle girilmişse o, yoksa adın (ya da kısa adın) başındaki sayı."""
+    if cls.uybs_no:
+        return cls.uybs_no
+    for text in (cls.name, cls.short):
+        m = re.match(r"\s*(\d+)", text or "")
+        if m:
+            return m[1]
+    return cls.short or cls.name

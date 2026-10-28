@@ -258,6 +258,9 @@ def build_problem(school, timetable=None, base=None):
     if base is not None:
         sources = _match_base_cards(sources, base)
 
+    from ..students import solver_student_keys
+
+    student_keys = solver_student_keys(school)
     cards = []
     for key, (lesson_id, length, db_card) in enumerate(sources):
         data = lesson_data[lesson_id]
@@ -273,6 +276,7 @@ def build_problem(school, timetable=None, base=None):
             starts=starts_for(lesson_id, length),
             maybe_slots=data["maybe"],
             blocked=blocked_for(lesson_id, length),
+            students=student_keys.get(lesson_id, ()),
         )
         if db_card is not None:
             card.card_id = db_card.id
@@ -361,6 +365,7 @@ def build_problem(school, timetable=None, base=None):
             "teacher": {t.id: t.full_name for t in teachers},
             "class": {c.id: c.name for c in classes},
             "atom": labels_atom,
+            "students": {k: "Seçmeli dersleri ortak öğrenciler" for keys in student_keys.values() for k in keys},
             "room": {r.id: str(r) for r in school.classrooms.all()},
             "entity": {
                 school_entity: "Okul geneli kapalı saatler",

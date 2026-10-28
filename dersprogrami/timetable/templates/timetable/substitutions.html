@@ -60,6 +60,7 @@
           {% endfor %}
           <div class="panel-body no-print" style="display:flex;justify-content:flex-end;gap:8px;border-top:1px solid var(--border)">
             <button class="btn" type="button" onclick="this.form.querySelectorAll('select').forEach(s=>{if(!s.value&&s.options.length>1&&!s.options[1].disabled)s.selectedIndex=1})">{% include "timetable/icon.html" with name="wand" %} Önerilenleri seç</button>
+            <label class="check small" style="margin-right:auto"><input type="checkbox" name="notify" value="1" checked> <span>Yeni atanan vekillere e-posta gönder</span></label>
             <button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} Kaydet</button>
           </div>
         </form>

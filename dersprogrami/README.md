@@ -125,6 +125,8 @@ atom kümeleri kesişiyorsa çakışır. Böylece bölünme kuralları tek ve ge
 Katı modda sert kısıtlar:
 - her kart tam bir kez yerleşir; blok kartlar ardışık saatleri kaplar ve gün sonunu aşmaz
 - öğretmen, öğrenci atomu ve derslik çakışmaz (ortak hafta-dönem içinde)
+- seçmeli derslere kayıtlı öğrencilerin dersleri çakışmaz (aynı ders kümesini alan öğrenciler tek
+  kaynakta birleştirilir; kısıt sayısı öğrenci sayısıyla büyümez)
 - yasak müsaitlik hücreleri kullanılmaz; derslik birden çok seçenekten birine atanır
 - aynı dersin kartları günde en fazla N (varsayılan: mümkün olduğunca farklı günler)
 - öğretmen: günde en fazla ders, günde/haftada en fazla boşluk, haftada en fazla gün, art arda en
@@ -152,9 +154,8 @@ Yumuşak kısıtlar (ceza puanı):
 
 ## Bilinen sınırlar
 
-- Arka plan üretimi aynı süreçte bir iş parçacığında çalışır; ilerleme ve durdurma bilgisi
-  bellektedir. Birden çok uygulama süreciyle (ör. gunicorn çok işçili) çalışırken ilerleme ekranı
-  başka süreçteki işi göremez; bu durumda Celery/RQ'ya geçilmelidir (`jobs.start`).
+- Yerel kurulumda (`TIMETABLE_JOB_BACKEND=thread`) üretim web sürecinde bir iş parçacığında çalışır.
+  Sunucu kurulumunda `worker` kipi ve ayrı çalışan süreç kullanılır (bkz. YAYIN.md).
 
 ## Yol haritası
 
@@ -171,7 +172,9 @@ Yumuşak kısıtlar (ceza puanı):
 - [x] Ders bazında müsaitlik ızgarası
 - [x] Excel ile toplu aktarım (ders adları, derslikler, sınıflar ve bölünmeler, öğretmenler, dersler)
 - [x] Tek tıkla yerel kurulum ve çalıştırma betikleri
-- [ ] Seminer (öğrenci seçimli) dersler ve öğrenci bazlı program
+- [x] Seçmeli dersler, öğrenci seçimleri, şubelere dağıtım ve öğrenci bazlı program
+- [x] ÜYBS referansları, ÜYBS aktarım şablonu (öğretmen TC'leriyle), haftalık arşiv ve vekâlet işleme
+- [x] Program değişikliği ve vekâlet için e-posta bildirimleri
 - [x] Çözülemezlik açıklaması (QuickXplain ile birlikte imkânsız en küçük kural kümesi)
 - [x] Ders dağıtım çizelgesi: öğretmen fırçası, toplu saat, Excel'den yapıştırma
 - [x] aSc'deki kart ilişkisi türlerinin çoğu (aynı gün, art arda, aynı anda olmasın, boş gün, gün sayısı, saat aralığı kuralları)

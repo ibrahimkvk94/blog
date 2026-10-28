@@ -270,7 +270,7 @@ class _Builder:
                     self.m.AddHint(var, int((d, p) == card.hint[:2]))
 
     def resource_conflicts(self):
-        for attr in ("teachers", "atoms"):
+        for attr in ("teachers", "atoms", "students"):
             for keys in self.problem.cards_by(attr).values():
                 for subset in self._universe_subsets(keys):
                     cells = {cell for k in subset for cell in self.occ[k]}

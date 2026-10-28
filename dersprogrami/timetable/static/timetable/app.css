@@ -556,3 +556,18 @@ html.focus-mode .tt-scroll { max-height: calc(100vh - 110px); }
 .qr-box { display: grid; place-items: center; }
 .qr-box img, .qr-box svg { width: 260px; height: 260px; }
 pre.code { background: #141a2a; color: #e2e8f0; padding: 10px 14px; border-radius: 8px; font-size: 13px; overflow-x: auto; }
+.uybs-layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 18px; align-items: start; }
+.uybs-layout .dialog-row > div { flex: 1; }
+.prefix-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
+.prefix-grid label { display: flex; align-items: center; gap: 6px; }
+.prefix-grid span { width: 38px; font-weight: 600; font-size: 13px; }
+.prefix-grid .input { height: 30px; }
+.uybs-people { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 0 18px; }
+.empty-tc { border-color: #f3dca8; background: var(--warning-soft); }
+.uybs-box { border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-top: 10px; display: grid; gap: 6px; }
+@media (max-width: 1000px) { .uybs-layout, .uybs-people { grid-template-columns: 1fr; } }
+.student-grid td { vertical-align: top; padding: 4px; }
+.student-grid td.clash { background: var(--danger-soft, #fde8e8); }
+.sg-card { border-radius: 6px; padding: 4px 6px; margin-bottom: 3px; font-size: 12.5px; display: grid; }
+.sg-card span { color: #3b4352; font-size: 11.5px; }
+textarea.input { height: auto; min-height: 120px; padding-top: 8px; resize: vertical; font-family: inherit; }

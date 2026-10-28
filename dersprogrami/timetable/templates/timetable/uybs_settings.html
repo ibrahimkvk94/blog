@@ -1,0 +1,75 @@
+{% extends "timetable/base.html" %}
+{% block title %}ÜYBS şablonu ve TC{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:institution_detail' school.institution_id %}">{{ school.institution }}</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
+{% block heading %}<h1>ÜYBS şablonu ve TC</h1>{% if missing_tc %}<span class="pill warn">{{ missing_tc }} öğretmenin TC'si yok</span>{% else %}<span class="pill ok">Tüm TC'ler girildi</span>{% endif %}{% endblock %}
+{% block actions %}
+  <a class="btn" href="{% url 'timetable:lesson_refs' school.pk %}">{% include "timetable/icon.html" with name="list" %} Referanslar</a>
+  {% with tt=school.active_timetable|default:latest_timetable %}{% if tt %}<a class="btn btn-primary" href="{% url 'timetable:reports' tt.pk %}?tur=uybs">{% include "timetable/icon.html" with name="printer" %} Haftalık aktarım</a>{% endif %}{% endwith %}
+{% endblock %}
+{% block content %}
+<p class="muted small" style="margin-top:0">ÜYBS aktarım dosyası (<b>UYBS_Ders_Aktarim</b>) bu ayarlarla üretilir. Her satır bir kısımdaki bir ders saatidir: kısım no, ders kodu, gün (Pazartesi 0 … Cuma 4), başlangıç–bitiş, sabit sütunlar, ders kodu önekinin ÜYBS karşılığı ve öğretim elemanlarının TC'leri. Raporlar → <b>ÜYBS aktarım listesi</b> ekranından haftayı seçip <b>ÜYBS şablonunda indir</b> deyin.</p>
+
+<div class="uybs-layout">
+  <form method="post" class="panel">{% csrf_token %}<input type="hidden" name="action" value="template">
+    <div class="panel-head"><h2>Şablon sütunları</h2></div>
+    <div class="panel-body">
+      <div class="dialog-row">
+        <div><label class="label" for="u-ksm">G · KSM yazacak</label><input class="input" id="u-ksm" name="ksm" value="{{ settings.ksm }}"></div>
+        <div><label class="label" for="u-h1">I · HEP 1</label><input class="input" id="u-h1" name="hep1" value="{{ settings.hep1 }}"></div>
+        <div><label class="label" for="u-h1b">J · HEP 1</label><input class="input" id="u-h1b" name="hep1b" value="{{ settings.hep1b }}"></div>
+        <div><label class="label" for="u-h11">M · HEP 11</label><input class="input" id="u-h11" name="hep11" value="{{ settings.hep11 }}"></div>
+      </div>
+      <label class="label" for="u-ref">ÜYBS referansı hangi sütuna yazılsın?</label>
+      <select class="select" id="u-ref" name="ref_col">{% for key, label in ref_columns.items %}<option value="{{ key }}"{% if settings.ref_col == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+
+      <h3 class="small" style="margin:16px 0 4px">K · L — ders kodu önekinin ÜYBS karşılığı</h3>
+      <p class="subtle small" style="margin-top:0">Ders kodunun ilk üç harfi (ör. ASK203 → ASK) yazılır; farklı bir kod gerekiyorsa karşısına girin (ör. ASK → AB, İŞL → YÖ). Boş bırakılan önek olduğu gibi yazılır.</p>
+      <div class="prefix-grid">
+        {% for p in prefixes %}<label><span>{{ p.prefix }}</span><input class="input" name="prefix-{{ p.prefix }}" value="{{ p.value }}" placeholder="{{ p.prefix }}" maxlength="10"></label>{% empty %}<span class="subtle">Kısa adı (ders kodu) girilmiş ders yok.</span>{% endfor %}
+      </div>
+    </div>
+    <div class="form-actions"><div><button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} Kaydet</button></div></div>
+  </form>
+
+  <aside class="stack">
+    <div class="panel">
+      <div class="panel-head"><h2>Excel'den TC / e-posta yapıştır</h2></div>
+      <form method="post" class="panel-body">{% csrf_token %}<input type="hidden" name="action" value="import_tc">
+        <textarea class="input" name="text" rows="6" placeholder="Ahmet Yılmaz	12345678901	ahmet@okul.edu.tr&#10;AYILMAZ	12345678901"></textarea>
+        <p class="subtle small">Her satırda öğretmen (ad soyad ya da kısa ad), 11 haneli TC ve/veya e-posta.</p>
+        <button class="btn">Aktar</button>
+      </form>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Arşivlenmiş haftalar</h2></div>
+      <div class="panel-body flush">
+        <table class="table"><tbody>
+          {% for a in archives %}<tr><td><b>{{ a.week_start|date:"d.m.Y" }}</b> haftası<div class="subtle small">{{ a.source }} · {{ a.rows|length }} saat</div></td><td class="subtle small">{{ a.created_at|date:"d.m.Y H:i" }}</td></tr>
+          {% empty %}<tr><td class="subtle">Henüz arşivlenen hafta yok. Bir haftayı aktardığınızda burada görünür.</td></tr>{% endfor %}
+        </tbody></table>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<form method="post" class="panel" style="margin-top:16px">{% csrf_token %}<input type="hidden" name="action" value="people">
+  <div class="panel-head"><h2>Kısım numaraları ve öğretim elemanları</h2></div>
+  <div class="uybs-people">
+    <div class="panel-body flush table-wrap">
+      <table class="table">
+        <thead><tr><th>Kısım</th><th>ÜYBS kısım no</th></tr></thead>
+        <tbody>{% for c in classes %}<tr><td><b>{{ c.short|default:c.name }}</b> <span class="subtle small">{{ c.name }}</span></td><td><input class="input input-sm" name="class-{{ c.pk }}" value="{{ c.uybs_no }}" placeholder="{{ c.auto_no }}" maxlength="20"></td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+    <div class="panel-body flush table-wrap">
+      <table class="table">
+        <thead><tr><th>Öğretim elemanı</th><th>TC kimlik no</th><th>E-posta (bildirimler)</th></tr></thead>
+        <tbody>{% for t in teachers %}<tr><td>{{ t.full_name }}{% if t.short %} <span class="subtle small">{{ t.short }}</span>{% endif %}</td>
+          <td><input class="input input-sm{% if not t.tc_no %} empty-tc{% endif %}" name="tc-{{ t.pk }}" value="{{ t.tc_no }}" maxlength="11" inputmode="numeric" pattern="\d{11}" title="11 haneli TC kimlik no"></td>
+          <td><input class="input input-sm" type="email" name="mail-{{ t.pk }}" value="{{ t.email }}"></td></tr>{% endfor %}</tbody>
+      </table>
+    </div>
+  </div>
+  <div class="form-actions"><div><button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} Kaydet</button> <span class="subtle small">Kısım no boşsa adın başındaki sayı kullanılır (soluk yazan).</span></div></div>
+</form>
+{% endblock %}

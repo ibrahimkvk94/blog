@@ -1,0 +1,18 @@
+{% extends "timetable/base.html" %}
+{% block title %}{{ student.full_name }} · programı{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{% url 'timetable:students' school.pk %}">Öğrenciler</a>{% endblock %}
+{% block heading %}<h1>{{ student.full_name }}</h1><span class="pill">{{ student.school_class.short|default:student.school_class.name|default:"sınıfsız" }}{% if student.number %} · {{ student.number }}{% endif %}</span>{% endblock %}
+{% block actions %}<button class="btn" type="button" onclick="print()">{% include "timetable/icon.html" with name="printer" %} Yazdır</button>{% endblock %}
+{% block content %}
+<p class="muted small" style="margin-top:0">{% if timetable %}“{{ timetable.name }}” sürümüne göre.{% else %}Henüz yerleşmiş program yok.{% endif %} Gruplar: {% for g in student.groups.all %}{{ g.name }}{% if not forloop.last %}, {% endif %}{% empty %}–{% endfor %} · Seçtikleri: {% for c in student.choices.all %}{{ c.short|default:c.name }}{% if not forloop.last %}, {% endif %}{% empty %}–{% endfor %}</p>
+<div class="panel">
+  <div class="panel-body flush table-wrap">
+    <table class="table student-grid">
+      <thead><tr><th style="width:90px">Saat</th>{% for d in days %}<th>{{ d }}</th>{% endfor %}</tr></thead>
+      <tbody>{% for row in rows %}<tr><th>{{ row.period.index|add:1 }}.<div class="subtle small">{{ row.period.start_time|time:"H:i" }}</div></th>
+        {% for cell in row.cells %}<td{% if cell|length > 1 %} class="clash"{% endif %}>{% for c in cell %}<div class="sg-card" style="background:{{ c.lesson.subject.color }}"><b>{{ c.lesson.subject.short|default:c.lesson.subject.name }}</b><span>{{ c.lesson.subject.name }}</span><span>{% for t in c.lesson.teachers.all %}{{ t.full_name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if c.classroom %} · {{ c.classroom }}{% endif %}</span></div>{% endfor %}</td>{% endfor %}</tr>{% endfor %}</tbody>
+    </table>
+  </div>
+</div>
+{% if unplaced %}<p class="small"><b>Yerleşmemiş dersler:</b> {% for l in unplaced %}{{ l.subject.short|default:l.subject.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+{% endblock %}

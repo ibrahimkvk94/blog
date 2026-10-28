@@ -69,6 +69,8 @@ class School(models.Model):
         verbose_name="yayındaki program",
         help_text="Vekâlet işlemlerinde esas alınan program.",
     )
+    # ÜYBS aktarım şablonu ayarları: sabit sütunlar, ders kodu öneki eşlemesi, ref sütunu (bkz. uybs.py).
+    uybs_settings = models.JSONField("ÜYBS ayarları", default=dict, blank=True)
 
     class Meta:
         verbose_name = "program"
@@ -200,6 +202,8 @@ class Teacher(models.Model):
     max_duties = models.PositiveSmallIntegerField(
         "haftada en fazla nöbet", null=True, blank=True, help_text="Boş = okulun genel ayarı"
     )
+    tc_no = models.CharField("TC kimlik no", max_length=11, blank=True, help_text="ÜYBS aktarımında öğretim elemanı sütununa yazılır.")
+    email = models.EmailField("e-posta", blank=True, help_text="Program değişikliği ve vekâlet bildirimleri için.")
 
     class Meta:
         ordering = ["last_name", "first_name"]
@@ -230,6 +234,9 @@ class SchoolClass(models.Model):
     class_teacher = models.ForeignKey(
         Teacher, on_delete=models.SET_NULL, null=True, blank=True, related_name="homeroom_classes",
         verbose_name="sınıf öğretmeni", help_text="Çıktılarda sınıf programının başlığında yazar.",
+    )
+    uybs_no = models.CharField(
+        "ÜYBS kısım no", max_length=20, blank=True, help_text="Boşsa adın başındaki sayı kullanılır (ör. 1.KISIM → 1)."
     )
 
     # Doğal sıralama için: "2.KISIM" "10.KISIM"dan önce gelsin (sayılar sıfırla doldurulur).
@@ -329,6 +336,12 @@ class Lesson(models.Model):
         "haftalar (bit maskesi)", null=True, blank=True, help_text="Boş = her hafta. 1 = A haftası, 2 = B haftası."
     )
     terms_mask = models.PositiveIntegerField("dönemler (bit maskesi)", null=True, blank=True, help_text="Boş = tüm dönemler.")
+    elective = models.BooleanField(
+        "seçmeli ders", default=False,
+        help_text="Öğrenciler seçimlerine göre bu derse (şubeye) dağıtılır; aynı öğrencinin dersleri çakışmaz.",
+    )
+    capacity = models.PositiveSmallIntegerField("kontenjan", null=True, blank=True, help_text="Seçmeli dersin en fazla öğrenci sayısı.")
+    students = models.ManyToManyField("Student", blank=True, related_name="lessons", verbose_name="kayıtlı öğrenciler")
 
     class Meta:
         verbose_name = "ders"
@@ -859,3 +872,51 @@ class AuditLog(models.Model):
 
     def __str__(self):
         return f"{self.created_at:%d.%m.%Y %H:%M} {self.username}: {self.action}"
+
+
+class WeekArchive(models.Model):
+    """ÜYBS aktarımının bir haftalık arşivi: o haftanın satırları alındığı haliyle saklanır.
+
+    Program sonradan değişse de geçmiş haftanın raporu o haftanın gerçek yerleşimiyle çıkar."""
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="week_archives")
+    week_start = models.DateField("hafta (pazartesi)")
+    source = models.CharField("kaynak sürüm", max_length=200, blank=True)
+    rows = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now=True)
+    user = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+
+    class Meta:
+        ordering = ["-week_start"]
+        verbose_name = "hafta arşivi"
+        verbose_name_plural = "hafta arşivleri"
+        constraints = [models.UniqueConstraint(fields=["school", "week_start"], name="unique_week_archive")]
+
+    def __str__(self):
+        return f"{self.school} {self.week_start:%d.%m.%Y}"
+
+
+class Student(models.Model):
+    """Öğrenci: sınıfı, bölünmelerdeki grupları ve seçtiği seçmeli dersler."""
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="students")
+    number = models.CharField("numara", max_length=30, blank=True)
+    first_name = models.CharField("ad", max_length=100)
+    last_name = models.CharField("soyad", max_length=100, blank=True)
+    school_class = models.ForeignKey(
+        SchoolClass, on_delete=models.SET_NULL, null=True, blank=True, related_name="students", verbose_name="sınıf"
+    )
+    groups = models.ManyToManyField(Group, blank=True, related_name="students", verbose_name="gruplar")
+    choices = models.ManyToManyField(Subject, blank=True, related_name="choosers", verbose_name="seçtiği dersler")
+
+    class Meta:
+        ordering = ["school_class__sort_key", "number", "last_name", "first_name"]
+        verbose_name = "öğrenci"
+        verbose_name_plural = "öğrenciler"
+
+    def __str__(self):
+        return self.full_name
+
+    @property
+    def full_name(self):
+        return f"{self.first_name} {self.last_name}".strip()

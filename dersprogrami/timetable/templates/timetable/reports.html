@@ -19,6 +19,16 @@
         <div data-show="uybs">
           <label class="label" for="r-hafta">Hafta (tarih yazmak için; boş = tarihsiz)</label>
           <input class="input" type="date" name="hafta" id="r-hafta" value="{{ o.hafta }}">
+          <label class="check"><input type="checkbox" name="vekalet" value="1"{% if o.vekalet == "1" %} checked{% endif %}> <span>O haftanın vekâletlerini işle</span></label>
+          <div class="uybs-box">
+            <a class="btn btn-primary" id="uybs-export" href="{% url 'timetable:uybs_export' timetable.pk %}?{{ query }}">{% include "timetable/icon.html" with name="download" %} ÜYBS şablonunda indir</a>
+            <span class="subtle small">Hafta seçiliyse indirilen hafta arşivlenir; program sonradan değişse de o haftanın raporu aynı kalır.</span>
+            {% if can.veri %}<div class="dialog-row">
+              <button class="btn btn-sm" type="submit" form="uybs-archive-form" name="action" value="save" title="Seçili haftayı bu sürümün güncel yerleşimiyle arşivle">Haftayı arşivle</button>
+              <button class="btn btn-sm btn-danger" type="submit" form="uybs-archive-form" name="action" value="delete" title="Arşivi sil; rapor güncel programdan çıkar">Arşivi sil</button>
+            </div>{% endif %}
+            <a class="small" href="{% url 'timetable:uybs_settings' school.pk %}">Şablon ayarları ve öğretmen TC'leri →</a>
+          </div>
         </div>
 
         <div data-show="bireysel carsaf carsaf_gun yuk sinif_dersleri uybs">
@@ -86,6 +96,9 @@
     <iframe id="report-frame" src="{% url 'timetable:report_render' timetable.pk %}?{{ query }}&gomulu=1" title="Rapor ön izleme"></iframe>
   </div>
 </div>
+<form method="post" id="uybs-archive-form" action="{% url 'timetable:uybs_archive' timetable.pk %}" hidden>{% csrf_token %}
+  <input type="hidden" name="hafta"><input type="hidden" name="vekalet"><input type="hidden" name="next">
+</form>
 {% endblock %}
 {% block scripts %}
 <script>
@@ -130,6 +143,18 @@
     });
   });
   document.getElementById("print-report").addEventListener("click", () => frame.contentWindow.print());
+  // ÜYBS: şablon bağlantısı ve hafta arşivi formu güncel seçimleri taşısın.
+  const uybsLink = document.getElementById("uybs-export");
+  const uybsBase = "{% url 'timetable:uybs_export' timetable.pk %}?";
+  form.addEventListener("change", () => { uybsLink.href = uybsBase + params(); });
+  document.getElementById("uybs-archive-form").addEventListener("submit", (e) => {
+    const f = e.target;
+    if (!form.hafta.value) { e.preventDefault(); alert("Önce haftayı seçin."); return; }
+    if (e.submitter && e.submitter.value === "delete" && !confirm("Bu haftanın arşivi silinsin mi?")) { e.preventDefault(); return; }
+    f.hafta.value = form.hafta.value;
+    f.vekalet.value = form.vekalet.checked ? "1" : "0";
+    f.next.value = location.pathname + "?" + params();
+  });
   toggle();
 })();
 </script>

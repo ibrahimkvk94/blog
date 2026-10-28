@@ -26,6 +26,7 @@ CONTENT = {"ogretmen": "Öğretmen", "sinif": "Sınıf", "derslik": "Derslik", "
 DEFAULTS = {
     "tur": "bireysel", "varlik": "sinif", "gunler": "sutun", "ders_adi": "tam", "renk": "1", "boyut": "normal",
     "yon": "yatay", "sayfa": "1", "saat": "1", "gun": "0", "baslik": "", "alt": "", "hafta": "",
+    "vekalet": "1",
 }
 PARAM_KEYS = list(DEFAULTS) + ["icerik", "secim"]
 
@@ -47,6 +48,7 @@ def options(params):
     if "icerik_set" in params:  # form gönderildi: işaretsiz onay kutuları "kapalı" demektir
         o["renk"] = get("renk") or "0"
         o["saat"] = get("saat") or "0"
+        o["vekalet"] = get("vekalet") or "0"
     o["secim"] = [int(x) for x in getlist("secim") if str(x).isdigit()]
     o["sayfa"] = o["sayfa"] if o["sayfa"] in ("1", "2", "4") else "1"
     try:
@@ -318,8 +320,9 @@ def selectable(school, kind):
 
 
 def _uybs(timetable, o, cards, periods, days):
-    from . import refs
+    from . import uybs
 
     ids = o["secim"] if o["varlik"] == "sinif" else None
-    rows = refs.report_rows(timetable, o["hafta_tarih"], ids)
-    return {"uybs_rows": rows, "uybs_missing": sum(1 for r in rows if not r["ref"])}
+    rows, archive = uybs.week_rows(timetable, o["hafta_tarih"], ids, substitutions=o["vekalet"] == "1")
+    return {"uybs_rows": rows, "uybs_missing": sum(1 for r in rows if not r["ref"]), "uybs_archive": archive,
+            "uybs_subs": sum(1 for r in rows if r.get("sub"))}
