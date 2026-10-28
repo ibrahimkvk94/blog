@@ -124,8 +124,41 @@
         </div>
       </div>
       {% endfor %}
-    {% elif not error %}
+    {% elif not error and not swaps %}
       <div class="panel panel-body subtle">İsteği seçip <b>Çözüm öner</b> deyin. Ana görünümde bir karta sağ tıklayıp “Çözüm merkezinde kaydır” ile de buraya gelebilirsiniz.</div>
+    {% endif %}
+    {% if swaps %}
+      <div class="panel sc-swaps">
+        <div class="panel-head"><h2>Kısım değişikliği önerileri</h2><span class="subtle small">kart oynatmadan: aynı dersi okutan öğretmenler kısımlarını değiştirir</span></div>
+        <div class="panel-body">
+          <p class="subtle small" style="margin-top:0">Kartların yeri değişmez; yalnızca derslerin öğretmenleri yer değiştirir. Bu bir <b>ders verisi</b> değişikliğidir: programın tüm sürümlerinde ve sonraki üretimlerde geçerlidir. Her öneri, program yeniden kurularak yeni kural ihlali çıkarmadığı doğrulandı.</p>
+          {% for o in swaps %}
+            <div class="sc-swap">
+              <div class="sc-swap-head"><b>Öneri {{ forloop.counter }}</b>
+                {% if o.resolved == o.total %}<span class="pill ok">gelemediği {{ o.total }} dersin tümü çözülüyor</span>{% else %}<span class="pill warn">{{ o.total }} dersten {{ o.resolved }}'i çözülüyor</span>{% endif %}</div>
+              {% for x in o.swaps %}
+                <div class="sc-swap-row">
+                  <div><b>{{ x.subject }}</b> <span class="subtle small">{{ x.subject_name }}</span></div>
+                  <div class="sc-swap-pair">
+                    <div><span class="label">{{ x.class1 }} <span class="subtle">({{ x.hours1 }})</span></span>{{ x.teacher }} → <b>{{ x.other }}</b></div>
+                    <div><span class="label">{{ x.class2 }} <span class="subtle">({{ x.hours2 }})</span></span>{{ x.other }} → <b>{{ x.teacher }}</b></div>
+                  </div>
+                  <div class="small subtle">
+                    Haftalık saat: {{ x.teacher }} {{ x.load.0 }} → {{ x.load.1 }}, {{ x.other }} {{ x.load.1 }} → {{ x.load.0 }}{% if x.load.0 != x.load.1 %} <span class="bad">(yük değişiyor)</span>{% endif %}
+                    · Boşluk: {{ x.teacher }} {{ x.gaps.m.0 }} → {{ x.gaps.m.1 }}, {{ x.other }} {{ x.gaps.a.0 }} → {{ x.gaps.a.1 }}
+                    {% if x.branch is False %}· <span class="bad">{{ x.other }} için bu ders branş listesinde yok</span>{% endif %}
+                  </div>
+                </div>
+              {% endfor %}
+              <form method="post" class="sc-apply">{% csrf_token %}
+                <input type="hidden" name="action" value="swap"><input type="hidden" name="oneri" value="{{ forloop.counter0 }}">
+                <label class="check small"><input type="checkbox" name="musaitlik" value="1" checked> <span>Kapanan saatleri öğretmenin müsaitliğine de işle</span></label>
+                <button class="btn btn-primary btn-sm" onclick="return confirm('Kısımlar değiştirilsin mi? Ders verisi değişir.')">{% include "timetable/icon.html" with name="swap" %} Kısımları değiştir</button>
+              </form>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
     {% endif %}
   </div>
 </div>

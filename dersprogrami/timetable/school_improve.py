@@ -8,7 +8,6 @@ bellekteki programa uygular. Program veritabanında değişmez: sonuç tek bir �
 "Durdur" o ana kadar bulunan iyileştirmeyle bitirir.
 """
 
-import math
 import threading
 import time
 from collections import defaultdict
@@ -30,9 +29,9 @@ STEP_LIMIT = 20      # bir adımın çözüm süresi (sn)
 MIN_STEP = 8         # bundan az süre kaldıysa yeni adım başlatılmaz
 STALE_AFTER = 180    # nabız bu kadar saniye gelmezse iş yarıda kalmış sayılır
 LIMITS = (10, 20, 30)  # dakika seçenekleri
-# Adımın kabulü tüm okulun toplamına bakar: okula fazladan gelinen gün bir boş saatten pahalıdır, böylece
-# boşluğu azaltırken gün sayısını artıran değişiklikler kolay kabul edilmez.
-SCORE = {"teacher_gaps": 40, "teacher_days": 60, "class_gaps": 30}
+# Adımın kabulü tüm okulun toplamına bakar. Öğretmenler zaten tam mesaide olduğundan okula gelinen gün
+# sayısı neredeyse önemsizdir (yalnızca eşitlikte belirleyici); hedef boş saatlerdir.
+SCORE = {"teacher_gaps": 40, "teacher_days": 2, "class_gaps": 30}
 
 J = ImproveJob
 
@@ -109,16 +108,15 @@ def _owner_stats(full, placements):
             for o, days in busy.items()}
 
 
-def _candidates(full, placements, kind, periods, skip):
-    """İyileştirme payı olanlar, en kötüden: boşluğu olanlar ve gerekenden fazla gün gelen öğretmenler."""
+def _candidates(full, placements, kind, skip):
+    """Boşluğu olanlar, en kötüden."""
     rows = []
     for (k, owner), (gaps, days, hours) in _owner_stats(full, placements).items():
         if k != kind or owner in skip:
             continue
-        extra_days = max(0, days - math.ceil(hours / max(1, periods))) if kind == "t" else 0
-        if gaps or extra_days:
-            rows.append((-(gaps * 4 + extra_days * 3), owner))
-    return [owner for _, owner in sorted(rows)]
+        if gaps:
+            rows.append((-gaps, -hours, owner))
+    return [row[-1] for row in sorted(rows)]
 
 
 def _totals(full, placements):
@@ -151,7 +149,6 @@ def run(job_id):
         full, original = center.full, dict(center.placements)
         baseline_v, baseline_stats = validate(full, original)
         start_totals = _totals(full, original)
-        periods = len(job.timetable.school.periods.all())
         progress.update(before=start_totals, now=start_totals)
         names = {**{("t", t.id): t.full_name for t in job.timetable.school.teachers.all()},
                  **{("c", c.id): c.short or c.name for c in job.timetable.school.classes.all()}}
@@ -159,7 +156,7 @@ def run(job_id):
         tried = set()  # bu turda sonuçsuz denenenler
         kind, round_no, round_gain = "t", 1, False
         while not stopped and deadline - time.monotonic() >= MIN_STEP:
-            queue = _candidates(full, center.placements, kind, periods, tried)
+            queue = _candidates(full, center.placements, kind, tried)
             if not queue:
                 # Tur bitti: öğretmenlerden sınıflara, sınıflardan yeni tura; ilerleme yoksa erken bitir
                 if kind == "t":

@@ -920,3 +920,10 @@ a.q-card { color: inherit; } a.q-card:hover { border-color: var(--primary); }
 .im-limit small { color: var(--text-3); font-size: 12px; }
 .im-limit input:checked + span { border-color: var(--primary); background: var(--primary-soft); box-shadow: 0 0 0 1px var(--primary); }
 .im-limit input:focus-visible + span { box-shadow: 0 0 0 3px rgba(79,70,229,.25); }
+.sc-swap { padding: 12px 0; border-bottom: 1px solid var(--border); }
+.sc-swap:last-child { border-bottom: 0; padding-bottom: 0; }
+.sc-swap-head { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.sc-swap-row { padding: 8px 10px; background: var(--surface-2); border-radius: var(--radius-sm); margin-bottom: 8px; display: grid; gap: 6px; }
+.sc-swap-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px; }
+.sc-swap-pair .label { margin: 0 0 2px; }
+@media (max-width: 900px) { .sc-swap-pair { grid-template-columns: 1fr; } }

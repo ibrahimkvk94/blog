@@ -19,7 +19,7 @@ class SchoolImproveTests(TestCase):
             Period.objects.create(school=self.school, index=i, name=str(i + 1))
         self.timetable = Timetable.objects.create(school=self.school, name="t", status=Timetable.OK)
         subject = Subject.objects.create(school=self.school, name="Fizik", short="FİZ")
-        # İki öğretmen: biri aynı gün 1. ve 4. saatte (2 boşluk), diğeri iki ayrı günde birer ders (1 gün fazla)
+        # İki öğretmen: biri aynı gün 1. ve 4. saatte (2 boşluk), diğeri iki ayrı günde birer ders
         self.ayse = Teacher.objects.create(school=self.school, first_name="Ayşe", last_name="Er")
         self.can = Teacher.objects.create(school=self.school, first_name="Can", last_name="Ak")
         for n, (teacher, cells) in enumerate(((self.ayse, ((0, 0), (0, 3))), (self.can, ((1, 0), (2, 0)))), 1):
@@ -38,8 +38,9 @@ class SchoolImproveTests(TestCase):
         job = ImproveJob.objects.get()
         self.assertEqual(job.status, ImproveJob.DONE)  # iyileşecek şey kalmayınca süre dolmadan biter
         totals = job.result["totals"]
-        self.assertEqual((totals["before"]["teacher_days"], totals["after"]["teacher_days"]), (3, 2))
-        self.assertLess(totals["after"]["teacher_gaps"], totals["before"]["teacher_gaps"])
+        # Hedef boşluk: Ayşe'nin 2 boşluğu kapanır; boşluğu olmayan Can'a (iki ayrı gün) dokunulmaz
+        self.assertEqual((totals["before"]["teacher_gaps"], totals["after"]["teacher_gaps"]), (2, 0))
+        self.assertEqual(totals["after"]["teacher_days"], 3)
         self.assertEqual(job.result["new_violations_hard"], 0)
         self.assertGreaterEqual(job.progress["accepted"], 1)
         # Program değişmedi; sonuç öneri olarak bekliyor

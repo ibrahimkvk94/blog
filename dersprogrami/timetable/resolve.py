@@ -489,6 +489,30 @@ def center_view(request, pk):
         "max_moves": min(10, max(1, _int(data.get("en_fazla"), 4))), "same_day": data.get("ayni_gun") == "1",
     }
 
+    if request.method == "POST" and request.POST.get("action") == "swap":
+        from . import swaps
+
+        stored = request.session.get(session_key) or {}
+        index = _int(request.POST.get("oneri"), -1)
+        options = stored.get("swaps") or []
+        if not 0 <= index < len(options):
+            messages.error(request, "Öneri bulunamadı; yeniden hesaplayın.")
+            return redirect("timetable:solution_center", pk=timetable.pk)
+        option = options[index]
+        closure = None
+        if request.POST.get("musaitlik") == "1" and stored.get("availability"):
+            _, teacher_pk, day, periods = stored["availability"]
+            closure = (teacher_pk, day, periods)
+        try:
+            swaps.apply(timetable, option, closure)
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            return redirect("timetable:solution_center", pk=timetable.pk)
+        request.session.pop(session_key, None)
+        text = "; ".join(f"{s['subject']}: {s['teacher']} {s['class1']} ↔ {s['other']} {s['class2']}" for s in option["swaps"])
+        messages.success(request, f"Kısım değişikliği yapıldı: {text}. Ders verisi değişti; programın tüm sürümlerinde geçerlidir.")
+        return redirect("timetable:timetable_detail", pk=timetable.pk)
+
     if request.method == "POST" and request.POST.get("action") == "apply":
         stored = request.session.get(session_key) or {}
         index = _int(request.POST.get("oneri"), -1)
@@ -519,10 +543,10 @@ def center_view(request, pk):
         return redirect("timetable:timetable_detail", pk=timetable.pk)
 
     proposals, label, error = None, "", ""
-    parsed = None
+    parsed, swap_list = None, None
     if request.method == "GET" and request.GET.get("goster") == "1":  # kalite karnesinden "İyileştir" sonucu
         stored = request.session.get(session_key) or {}
-        proposals, label = stored.get("proposals") or None, stored.get("label", "")
+        proposals, label, swap_list = stored.get("proposals") or None, stored.get("label", ""), stored.get("swaps")
     if request.method == "POST" and request.POST.get("action") == "text":
         from .resolve_text import parse
 
@@ -532,14 +556,20 @@ def center_view(request, pk):
     auto = request.method == "GET" and request.GET.get("hesapla") == "1"  # bekleyenler ekranından "yer aç"
     if (request.method == "POST" and request.POST.get("action") == "solve") or (parsed and not parsed["problems"]) or auto:
         center = Center(timetable)
+        req = availability = None
         try:
             req, label, availability = _build_request(center, form)
             proposals = center.proposals(req)
-            request.session[session_key] = {"label": label, "proposals": proposals, "availability": availability}
             if not proposals:
                 error = f"En fazla {form['max_moves']} değişiklikle çakışmasız çözüm bulunamadı. Değişiklik sınırını artırıp yeniden deneyin."
         except ResolveError as exc:
             error = str(exc)
+        if req is not None and req.kind == "teacher":  # kart oynatmadan: aynı dersin kısımlarını öğretmenler arasında değiştir
+            from . import swaps
+
+            swap_list = swaps.find(timetable, req.teacher_id, req.day, req.periods)
+        if req is not None:
+            request.session[session_key] = {"label": label, "proposals": proposals or [], "availability": availability, "swaps": swap_list}
 
     teachers = list(school.teachers.all())
     teacher_cards = []
@@ -553,7 +583,7 @@ def center_view(request, pk):
         school, "solution", timetable=timetable, form=form, teachers=teachers, teacher_cards=teacher_cards,
         rooms=list(school.classrooms.all()), days=list(enumerate(school.day_names)),
         periods=[(p.index, f"{p.index + 1}. saat" + (f" ({p.start_time:%H:%M})" if p.start_time else "")) for p in school.periods.all()],
-        proposals=proposals, label=label, error=error, parsed=parsed, text=request.POST.get("istek", ""), can_notify=__import__("timetable.notify", fromlist=["enabled"]).enabled(),
+        proposals=proposals, label=label, error=error, swaps=swap_list, parsed=parsed, text=request.POST.get("istek", ""), can_notify=__import__("timetable.notify", fromlist=["enabled"]).enabled(),
     ))
 
 
