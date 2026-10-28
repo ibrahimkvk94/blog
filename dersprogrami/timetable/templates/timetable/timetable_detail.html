@@ -137,13 +137,29 @@
         <div class="panel-head"><h2>Karşılaştırma <span class="pill" id="compare-summary"></span></h2><button class="btn btn-sm btn-ghost" id="compare-close">Kapat</button></div>
         <div class="panel-body flush table-wrap"><table class="table"><thead><tr><th>Ders</th><th>Seçilen sürümde</th><th>Bu sürümde</th></tr></thead><tbody id="compare-rows"></tbody></table></div>
       </div>
-      <div class="panel tray">
-        <div class="panel-head"><h2>Yerleşmeyen kartlar <span class="pill" id="tray-count">0</span></h2><span class="subtle small">Bir kartı buraya bırakmak onu programdan çıkarır</span></div>
-        <div class="tray-body" id="tray"></div>
-      </div>
       <div class="panel" style="margin-top:14px">
         <div class="panel-head"><h2>Doğrulama</h2><span id="violation-pill"></span></div>
         <div class="panel-body flush"><ul class="issues" id="violations"></ul></div>
+      </div>
+      <div class="panel tray" id="tray-panel">
+        <div class="panel-head tray-head">
+          <button type="button" class="tray-toggle" id="tray-toggle" aria-expanded="true" title="Paneli daralt / aç">
+            <h2>Yerleşmeyen kartlar <span class="pill" id="tray-count">0</span></h2><span class="tray-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="tray-filters" id="tray-filters">
+            <input type="search" class="input input-sm" id="tray-q" placeholder="Ara: ders, sınıf, öğretmen…" aria-label="Yerleşmeyen kartlarda ara">
+            <select class="select input-sm" id="tray-class" aria-label="Sınıfa göre"><option value="">Tüm sınıflar</option></select>
+            <select class="select input-sm" id="tray-teacher" aria-label="Öğretmene göre"><option value="">Tüm öğretmenler</option></select>
+            <select class="select input-sm" id="tray-length" aria-label="Kart uzunluğu"><option value="">Her uzunluk</option></select>
+            <select class="select input-sm" id="tray-sort" aria-label="Sıralama">
+              <option value="">Sıra: ders</option><option value="classes">Sıra: sınıf</option><option value="teachers">Sıra: öğretmen</option><option value="length">Sıra: uzunluk (uzun önce)</option>
+            </select>
+            <label class="check small" title="Üstteki satır aramasıyla görünen sınıf/öğretmen/derslik satırlarının kartları"><input type="checkbox" id="tray-row"> <span>Yalnızca görünen satırlar</span></label>
+            <button type="button" class="btn btn-sm btn-ghost" id="tray-clear" hidden>Süzgeci temizle</button>
+          </div>
+          <span class="subtle small tray-hint">Kartı buraya bırakmak onu programdan çıkarır</span>
+        </div>
+        <div class="tray-body" id="tray"></div>
       </div>
     </div>
     <aside class="panel drawer" id="drawer" hidden></aside>

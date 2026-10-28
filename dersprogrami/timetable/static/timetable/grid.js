@@ -242,12 +242,51 @@
     return e;
   }
 
+  // ---- yerleşmeyen kartlar: ekranın altına sabit, süzülebilir ------------------------------
+  const trayCtl = {
+    q: $("#tray-q"), cls: $("#tray-class"), teacher: $("#tray-teacher"), length: $("#tray-length"),
+    sort: $("#tray-sort"), row: $("#tray-row"), clear: $("#tray-clear"),
+  };
+  const split = (text) => (text || "").split(", ").filter(Boolean);
+  const trLower = (t) => (t || "").toLocaleLowerCase("tr");
+
+  function fillSelect(select, values, label) {
+    const current = select.value;
+    select.innerHTML = '<option value="">' + esc(label) + "</option>" +
+      values.map((v) => '<option value="' + esc(v) + '"' + (String(v) === current ? " selected" : "") + ">" + esc(v) + "</option>").join("");
+    if (current && !values.map(String).includes(current)) select.value = "";
+  }
+
+  function visibleRows() {
+    return new Set([...board.querySelectorAll(".tt-row:not(.hidden)")].map((r) => r.dataset.row));
+  }
+
   function renderTray() {
     const tray = $("#tray");
+    const all = state.data.unplaced;
+    const byText = (a, b) => a.localeCompare(b, "tr");
+    fillSelect(trayCtl.cls, [...new Set(all.flatMap((c) => split(c.classes)))].sort(byText), "Tüm sınıflar");
+    fillSelect(trayCtl.teacher, [...new Set(all.flatMap((c) => split(c.teachers)))].sort(byText), "Tüm öğretmenler");
+    fillSelect(trayCtl.length, [...new Set(all.map((c) => c.length))].sort((a, b) => a - b).map((n) => n + " saat"), "Her uzunluk");
+    const q = trLower(trayCtl.q.value.trim());
+    const rows = trayCtl.row.checked ? visibleRows() : null;
+    let shown = all.filter((c) =>
+      (!q || trLower([c.subject, c.subject_name, c.classes, c.teachers, c.groups].join(" ")).includes(q)) &&
+      (!trayCtl.cls.value || split(c.classes).includes(trayCtl.cls.value)) &&
+      (!trayCtl.teacher.value || split(c.teachers).includes(trayCtl.teacher.value)) &&
+      (!trayCtl.length.value || c.length + " saat" === trayCtl.length.value) &&
+      (!rows || c.rows.some((r) => rows.has(String(r)))));
+    const key = trayCtl.sort.value;
+    shown = shown.slice().sort((a, b) => key === "length" ? b.length - a.length || byText(a.subject, b.subject)
+      : key ? byText(a[key] || "", b[key] || "") || byText(a.subject, b.subject) : byText(a.subject, b.subject));
     tray.innerHTML = "";
-    state.data.unplaced.forEach((c) => tray.appendChild(cardEl(c)));
-    if (!state.data.unplaced.length) tray.appendChild(el("div", "subtle small", "Tüm kartlar yerleşmiş."));
-    $("#tray-count").textContent = state.data.unplaced.length;
+    shown.forEach((c) => tray.appendChild(cardEl(c)));
+    if (!all.length) tray.appendChild(el("div", "subtle small", "Tüm kartlar yerleşmiş."));
+    else if (!shown.length) tray.appendChild(el("div", "subtle small", "Süzgece uyan kart yok."));
+    const filtered = shown.length !== all.length;
+    $("#tray-count").textContent = filtered ? shown.length + " / " + all.length : all.length;
+    trayCtl.clear.hidden = !filtered && !trayCtl.q.value;
+    $("#tray-panel").classList.toggle("empty", !all.length);
   }
 
   function renderStats() {
@@ -445,6 +484,21 @@
     }
   }
   board.addEventListener("click", onCardOrCellClick);
+  ["input", "change"].forEach((ev) => $("#tray-filters").addEventListener(ev, () => state.data && renderTray()));
+  trayCtl.clear.addEventListener("click", () => {
+    ["q", "cls", "teacher", "length"].forEach((k) => { trayCtl[k].value = ""; });
+    trayCtl.row.checked = false;
+    renderTray();
+  });
+  $("#row-filter").addEventListener("input", () => { if (trayCtl.row.checked && state.data) renderTray(); });
+  const trayToggle = $("#tray-toggle");
+  const setTrayOpen = (open) => {
+    $("#tray-panel").classList.toggle("collapsed", !open);
+    trayToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    store("tt-tray", open ? "1" : "0");
+  };
+  trayToggle.addEventListener("click", () => setTrayOpen($("#tray-panel").classList.contains("collapsed")));
+  setTrayOpen(store("tt-tray") !== "0");
   $("#tray").addEventListener("click", (e) => {
     const cardNode = e.target.closest(".tt-card");
     if (cardNode) select(Number(cardNode.dataset.card));

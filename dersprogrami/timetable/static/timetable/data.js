@@ -228,7 +228,7 @@
   const help = JSON.parse(select.dataset.help);
   const usesN = list("usesN"), usesMap = list("usesMap"), needsMap = list("needsMap");
   const paired = list("paired"), twoSided = list("twoSided"), rooms = list("rooms");
-  const student = list("student");
+  const student = list("student"), softTarget = list("softTarget");
   const note = document.createElement("div");
   note.className = "condition-help";
   select.closest(".form-row").appendChild(note);
@@ -301,6 +301,7 @@
     const show = (name, on) => { const r = row(name); if (r) r.hidden = !on; };
     const mapRow = (name, on) => { const r = document.querySelector('[data-map-row="' + name + '"]'); if (r) r.hidden = !on; };
     show("param", usesN.includes(c));
+    show("param_max", softTarget.includes(c));
     show("apply_to", !paired.includes(c) && !student.includes(c));
     show("subjects_b", twoSided.includes(c));
     show("lessons_b", twoSided.includes(c));

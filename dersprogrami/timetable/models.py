@@ -741,6 +741,14 @@ class CardRelationship(models.Model):
         AB_MAX_CONSECUTIVE, MAX_SUBJECTS_WEEK, MAX_SUBJECTS_DAY, MAX_TEACHERS_DAY, MAX_ROOMS_DAY, MAX_ROOM_CHANGES,
         MAX_BUILDING_CHANGES, MAX_BUILDINGS_WEEK, MAX_ROOMS_POSITION, ST_MIN_ELECTIVES, ST_MAX_ELECTIVES,
     }
+    # "En fazla N" koşulları: istisna üst sınırı (param_max) verilebilir.
+    SOFT_TARGET = {
+        MAX_PER_DAY, MAX_DAYS, RANGE_MAX_PER_DAY, RANGE_MAX_DAYS, MAP_MAX_WEEK, MAX_CONSECUTIVE, MAX_GAPS_PER_DAY,
+        MAX_GAP_LENGTH, MAX_DISTINCT_PERIODS, MAX_SAME_PERIOD_DAYS, MAX_PER_POSITION, ROOM_MAX_WEEK, MAX_ROOMS_WEEK,
+        MAX_BUILDINGS_DAY, DAY_SPAN_MAX, GAPS_FROM_START, GAPS_TO_END, MAX_GAPS_WEEK, GAPS_WEEK_FROM_START,
+        GAPS_WEEK_TO_END, MAX_CONSEC_DAYS, MAX_FREE_DAYS, AB_MAX_CONSECUTIVE, MAX_SUBJECTS_WEEK, MAX_SUBJECTS_DAY,
+        MAX_TEACHERS_DAY, MAX_ROOMS_DAY, MAX_ROOM_CHANGES, MAX_BUILDING_CHANGES, MAX_BUILDINGS_WEEK, MAX_ROOMS_POSITION,
+    }
     # Zaman haritasını kullanan koşullar (harita boşsa tüm hücreler sayılır).
     USES_MAP = {
         MAX_DAYS, RANGE_MAX_PER_DAY, RANGE_MAX_DAYS, MAP_MAX_WEEK, MAP_MIN_WEEK, MAP_MIN_IF_ANY, MAX_PER_POSITION,
@@ -781,6 +789,11 @@ class CardRelationship(models.Model):
     active = models.BooleanField("etkin", default=True)
     condition = models.CharField("koşul", max_length=24, choices=CONDITION_CHOICES, default=MAX_PER_DAY)
     param = models.PositiveSmallIntegerField("N", default=1)
+    param_max = models.PositiveSmallIntegerField(
+        "istisna üst sınırı", null=True, blank=True,
+        help_text="Doluysa N tercih edilen sınır olur (aşılması cezalandırılır), bu değer ise hiç aşılamaz. "
+                  "Ör. öğretmen günde en fazla 6 saat, zorunlu kalırsa 8.",
+    )
     time_map = models.JSONField("zaman haritası", default=list, blank=True, help_text='"gün-saat" listesi (0\'dan başlar)')
     time_map_b = models.JSONField("B tarafı zaman haritası", default=list, blank=True)
     card_length = models.PositiveSmallIntegerField(

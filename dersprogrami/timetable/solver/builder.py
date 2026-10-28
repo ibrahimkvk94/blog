@@ -1,6 +1,7 @@
 """Veritabanındaki okul verisini çözücünün Problem yapısına çevirir."""
 
 from collections import defaultdict
+from dataclasses import replace
 
 from ..models import Availability
 from .problem import (
@@ -528,7 +529,7 @@ def _relationships(school, cards, lesson_data, grades):
                 groups = list(by_owner.values())
         if not groups:
             continue
-        specs.append(
+        spec = (
             RelationshipSpec(
                 rel.name,
                 rel.condition,
@@ -542,4 +543,9 @@ def _relationships(school, cards, lesson_data, grades):
                 tuple(r.id for r in rel.classrooms.all()),
             )
         )
+        if rel.condition in rel.SOFT_TARGET and rel.param_max is not None and rel.param_max > rel.param:
+            # N tercih edilen sınır (aşımı cezalı), param_max hiç aşılamayan istisna sınırı.
+            specs.append(replace(spec, name=f"{rel.name} (istisna sınırı {rel.param_max})", param=rel.param_max, weight=None))
+            spec = replace(spec, name=f"{rel.name} (tercih {rel.param})", weight=rel.weight or rel.WEIGHTS[rel.HIGH])
+        specs.append(spec)
     return specs

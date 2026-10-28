@@ -170,3 +170,47 @@ class ReserveFromDatabaseTests(SimpleTestCase):
         self.assertEqual({by_lesson[lessons[1].id].period, by_lesson[lessons[2].id].period}, {2, 3})
         self.assertEqual(validate(problem, solution.placements)[0], [])
         school.delete()
+
+
+class ExceptionLimitTests(SimpleTestCase):
+    """“6 8”: öğretmen günde tercihen en fazla 6 saat, zorunlu kalırsa 8."""
+
+    databases = {"default"}
+
+    def _school(self, hours):
+        from timetable.models import CardRelationship, Lesson, Period, School, SchoolClass, Subject, Teacher
+
+        school = School.objects.create(name="İstisna", days_per_week=1)
+        for i in range(9):
+            Period.objects.create(school=school, index=i, name=str(i + 1))
+        teacher = Teacher.objects.create(school=school, first_name="Ali", last_name="K")
+        for i in range(hours):
+            cls = SchoolClass.objects.create(school=school, name=f"S{i}")
+            lesson = Lesson.objects.create(school=school, subject=Subject.objects.create(school=school, name=f"D{i}"))
+            lesson.classes.set([cls])
+            lesson.teachers.set([teacher])
+        rel = CardRelationship.objects.create(
+            school=school, name="günlük", condition="range_max_per_day", param=6, param_max=8,
+            apply_to=CardRelationship.EACH_TEACHER, time_map=[f"0-{p}" for p in range(9)],
+        )
+        return school, rel
+
+    def _solve(self, school):
+        from timetable.solver.builder import build_problem
+
+        return cpsat.solve(build_problem(school), time_limit=10, workers=1)
+
+    def test_preferred_limit_can_be_exceeded_up_to_exception(self):
+        school, rel = self._school(7)
+        solution = self._solve(school)
+        self.assertTrue(solution.ok)
+        self.assertEqual(solution.penalties.get("relationship"), 300)  # 1 saat aşım, yüksek önem cezası
+        rel.param_max = None
+        rel.save()
+        self.assertEqual(self._solve(school).status, "infeasible")  # istisnasız 6 kesin
+        school.delete()
+
+    def test_exception_limit_is_hard(self):
+        school, _ = self._school(9)
+        self.assertEqual(self._solve(school).status, "infeasible")
+        school.delete()

@@ -155,6 +155,7 @@ ENTITIES = {
             ("Ad", lambda r, ctx: r.name),
             ("Koşul", lambda r, ctx: r.get_condition_display()
                 + (f" · N={r.param}" if r.condition in r.USES_N else "")
+                + (f" (istisna {r.param_max})" if r.param_max and r.condition in r.SOFT_TARGET else "")
                 + (f" · {len(r.time_map)} saat işaretli" if r.condition in r.USES_MAP and r.time_map else "")),
             ("Uygula", lambda r, ctx: r.get_apply_to_display()),
             ("Önem", lambda r, ctx: r.get_importance_display()),

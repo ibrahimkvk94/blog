@@ -247,10 +247,13 @@ def plan(school, rows):
             for name in [x.strip() for x in re.split(r",\s+", scope) if x.strip()]:
                 (scope_classes.append(classes[name.casefold()]) if name.casefold() in classes else unknown.append(name))
         warning = f"Bulunamayan sınıflar: {', '.join(unknown)}. " if unknown else ""
-        if len(numbers) > 1:
+        param_max = None
+        if len(numbers) > 1 and condition in R.SOFT_TARGET and numbers[1] > numbers[0]:
+            param_max = numbers[1]  # aSc'de "6 8": tercih 6, zorunlu kalırsa 8
+        elif len(numbers) > 1:
             warning += f"aSc parametreleri “{row['params']}”: N={param} alındı, doğrulayın. "
         title = _title(condition)
-        common = {**base, "condition": condition, "param": param, "classes": [c.id for c in scope_classes],
+        common = {**base, "condition": condition, "param": param, "param_max": param_max, "classes": [c.id for c in scope_classes],
                   "teachers": [], "time_map": [], "lessons": [], "subjects": [], "subjects_b": [],
                   "apply_to": R.EACH_TEACHER if teacher_scope else R.EACH_CLASS}
         if condition in MAP_ALL:
@@ -320,7 +323,7 @@ def plan(school, rows):
             who = "her öğretmen" if teacher_scope else (", ".join(c.short or c.name for c in scope_classes) or "tüm sınıflar")
             add({**common, "subjects": subject_ids, "subjects_b": subject_ids if kind == "ab_same" else [], "warning": warning,
                  "name": f"aSc {row['no']}: {title}" + (f" – {', '.join(dict.fromkeys(codes))}" if codes else f" – {who}"),
-                 "detail": (f"{len(matched)} ders · " if codes else "tüm dersler · ") + who + (f" · N={param}" if condition in R.USES_N else "")})
+                 "detail": (f"{len(matched)} ders · " if codes else "tüm dersler · ") + who + (f" · N={param}" if condition in R.USES_N else "") + (f", istisna {param_max}" if param_max else "")})
     return proposals
 
 
@@ -329,7 +332,8 @@ def create(school, proposals):
     made = []
     for p in proposals:
         rel = R.objects.create(
-            school=school, name=p["name"][:200], condition=p["condition"], param=p["param"], apply_to=p["apply_to"],
+            school=school, name=p["name"][:200], condition=p["condition"], param=p["param"], param_max=p.get("param_max"),
+            apply_to=p["apply_to"],
             importance=p["importance"], active=p["active"], time_map=p["time_map"],
         )
         rel.lessons.set(p["lessons"])

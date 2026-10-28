@@ -275,7 +275,7 @@ class RelationshipForm(SchoolScopedForm):
     class Meta:
         model = CardRelationship
         fields = [
-            "name", "active", "condition", "param", "apply_to", "importance", "card_length",
+            "name", "active", "condition", "param", "param_max", "apply_to", "importance", "card_length",
             "subjects", "lessons", "subjects_b", "lessons_b", "classes", "teachers", "classrooms",
             "time_map", "time_map_b",
         ]
@@ -398,6 +398,7 @@ class RelationshipForm(SchoolScopedForm):
                 "data-two-sided": " ".join(sorted(CardRelationship.TWO_SIDED)),
                 "data-rooms": " ".join(sorted(CardRelationship.ROOMS)),
                 "data-student": " ".join(sorted(CardRelationship.STUDENT)),
+                "data-soft-target": " ".join(sorted(CardRelationship.SOFT_TARGET)),
                 "data-help": json.dumps(self.CONDITION_HELP, ensure_ascii=False),
             }
         )
@@ -439,6 +440,11 @@ class RelationshipForm(SchoolScopedForm):
             self.add_error("subjects_b", "İki taraflı koşul için B tarafında ders ya da ders adı seçin.")
         if condition in CardRelationship.ROOMS and not data.get("classrooms"):
             self.add_error("classrooms", "Bu koşul için en az bir derslik seçin.")
+        if data.get("param_max") is not None:
+            if condition not in CardRelationship.SOFT_TARGET:
+                data["param_max"] = None
+            elif data["param_max"] <= data.get("param", 0):
+                self.add_error("param_max", "İstisna üst sınırı N'den büyük olmalı.")
         if condition in CardRelationship.TEACHER_LIST and not data.get("teachers"):
             self.add_error("teachers", "Bu koşul için öğretmenler alanında en az bir öğretmen seçin.")
         if condition in CardRelationship.NEEDS_MAP and not data.get("time_map"):
