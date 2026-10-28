@@ -534,7 +534,7 @@ def reports_page(request, pk):
             messages.info(request, "Rapor şablonu silindi.")
         else:
             name = (request.POST.get("name") or "").strip()[:100]
-            params = {k: request.POST.getlist(k) if k in ("icerik", "secim") else request.POST.get(k, "") for k in reports.PARAM_KEYS}
+            params = {k: request.POST.getlist(k) if k in ("icerik", "secim", "kunye") else request.POST.get(k, "") for k in reports.PARAM_KEYS}
             params["icerik_set"] = "1"
             if name:
                 ReportPreset.objects.update_or_create(school=school, name=name, defaults={"params": params})
@@ -547,7 +547,7 @@ def reports_page(request, pk):
         "timetable/reports.html",
         _nav(
             school, "reports", timetable=timetable, o=o, types=reports.TYPES, kinds=reports.KIND_LABELS,
-            content=reports.CONTENT, choices=reports.selectable(school, o["varlik"]), presets=presets,
+            content=reports.CONTENT, kunye=reports.KUNYE, choices=reports.selectable(school, o["varlik"]), presets=presets,
             query=request.GET.urlencode(), days=school.day_names,
         ),
     )

@@ -67,6 +67,38 @@
           <label class="check"><input type="checkbox" name="renk" value="1"{% if o.renk == "1" %} checked{% endif %}> <span>Renkli</span></label>
         </div>
 
+        <div data-show="carsaf carsaf_gun">
+          <label class="label">Çarşaf düzeni</label>
+          <div class="seg-radio" data-varlik="ogretmen">
+            <label><input type="radio" name="satir" value="kisi"{% if o.satir == "kisi" %} checked{% endif %}> Kişi başına tek satır</label>
+            <label><input type="radio" name="satir" value="ders"{% if o.satir == "ders" %} checked{% endif %}> Her ders ayrı satır</label>
+          </div>
+          <div class="seg-radio">
+            <label><input type="radio" name="hucre" value="tam"{% if o.hucre == "tam" %} checked{% endif %}> Hücrede ders bilgisi</label>
+            <label><input type="radio" name="hucre" value="kisim"{% if o.hucre == "kisim" %} checked{% endif %}> Yalnızca kısım adı</label>
+          </div>
+          <label class="check"><input type="checkbox" name="blok" value="1"{% if o.blok == "1" %} checked{% endif %}> <span>Blok dersler tek kart (birleşik hücre)</span></label>
+          <label class="label">Ek sütunlar</label>
+          <div class="report-checks inline">
+            <label><input type="checkbox" name="sutun_ders" value="1"{% if o.sutun_ders == "1" %} checked{% endif %}> Ders adı</label>
+            <label><input type="checkbox" name="sutun_kod" value="1"{% if o.sutun_kod == "1" %} checked{% endif %}> Ders kodu</label>
+            <label><input type="checkbox" name="sutun_saat" value="1"{% if o.sutun_saat == "1" %} checked{% endif %}> Ders saati / toplam</label>
+          </div>
+        </div>
+
+        <div data-show="bireysel carsaf carsaf_gun">
+          <label class="label">Kısım adları</label>
+          <div class="seg-radio">
+            <label><input type="radio" name="kisim_ad" value="kisa"{% if o.kisim_ad == "kisa" %} checked{% endif %}> Kısa ad</label>
+            <label><input type="radio" name="kisim_ad" value="no"{% if o.kisim_ad == "no" %} checked{% endif %}> Yalnızca numara (70.KISIM → 70)</label>
+          </div>
+        </div>
+
+        <div data-show="bireysel carsaf carsaf_gun yuk">
+          <label class="label">Öğretmen adının önünde</label>
+          <div class="report-checks inline">{% for key, label in kunye.items %}<label><input type="checkbox" name="kunye" value="{{ key }}"{% if key in o.kunye %} checked{% endif %}> {{ label }}</label>{% endfor %}</div>
+        </div>
+
         <label class="label">Sayfa</label>
         <div class="dialog-row">
           <select class="select" name="yon"><option value="yatay"{% if o.yon == "yatay" %} selected{% endif %}>Yatay A4</option><option value="dikey"{% if o.yon == "dikey" %} selected{% endif %}>Dikey A4</option></select>
@@ -75,7 +107,7 @@
         <label class="label" for="r-baslik">Başlık (boş = otomatik)</label>
         <input class="input" name="baslik" id="r-baslik" value="{{ o.baslik }}" placeholder="ör. 2026-2027 Güz Dönemi Ders Programı">
         <label class="label" for="r-alt">Alt bilgi / imza</label>
-        <input class="input" name="alt" id="r-alt" value="{{ o.alt }}" placeholder="ör. Okul Müdürü">
+        <textarea class="input" name="alt" id="r-alt" rows="3" placeholder="En fazla 3 satır, ör.&#10;Ad SOYAD&#10;Rütbe&#10;Okul Müdürü">{{ o.alt }}</textarea>
       </div>
     </form>
     <div class="panel-body" style="border-top:1px solid var(--border)">
@@ -112,6 +144,7 @@
   const toggle = () => {
     const tur = form.tur.value;
     form.querySelectorAll("[data-show]").forEach((el) => { el.hidden = !el.dataset.show.split(" ").includes(tur); });
+    form.querySelectorAll("[data-varlik]").forEach((el) => { el.hidden = form.varlik.value !== el.dataset.varlik; });
   };
   let timer;
   const refresh = () => {
@@ -136,7 +169,7 @@
     toggle();
     refresh();
   });
-  form.addEventListener("input", (e) => { if (e.target.matches("input[type=text], input:not([type])")) refresh(); });
+  form.addEventListener("input", (e) => { if (e.target.matches("input[type=text], input:not([type]), textarea")) refresh(); });
   document.getElementById("preset-form").addEventListener("submit", (e) => {
     new FormData(form).forEach((v, k) => {
       const input = document.createElement("input");

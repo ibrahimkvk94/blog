@@ -26,8 +26,8 @@ MARGIN = 10 * mm
 HEAD = colors.HexColor("#EEF0FF")
 LINE = colors.HexColor("#B9BFCA")
 SIZES = {"kucuk": 7, "normal": 8.5, "buyuk": 10}
-TITLE = ParagraphStyle("baslik", fontName=BOLD, fontSize=14, leading=17, spaceAfter=2)
-INFO = ParagraphStyle("bilgi", fontName=FONT, fontSize=8.5, leading=11, textColor=colors.HexColor("#4B5563"), spaceAfter=4)
+TITLE = ParagraphStyle("baslik", fontName=BOLD, fontSize=14, leading=17, spaceAfter=2, alignment=1)
+INFO = ParagraphStyle("bilgi", fontName=FONT, fontSize=8.5, leading=11, textColor=colors.HexColor("#4B5563"), spaceAfter=4, alignment=1)
 
 
 def _style(size, bold=False, center=False):
@@ -124,12 +124,18 @@ def _individual(page, data, width, height, size, colored):
 
 
 def _sheet(data, width, colored):
-    """Çarşaf liste: sütunlar çok daralırsa günler sayfalara bölünür; başlık satırları tekrarlanır."""
+    """Çarşaf liste: sütunlar çok daralırsa günler sayfalara bölünür; başlık satırları tekrarlanır.
+    Ders adı/kodu sütunları addan sonra, saat sütunları en sonda (her sayfada) yer alır."""
     periods, days = data["periods"], list(data["sheet_days"])
+    pre_h, post_h = data.get("pre_headers", []), data.get("post_headers", [])
     P = max(len(periods), 1)
     first = 24 * mm
-    per = max(1, min(len(days), int((width - first) / (P * 6 * mm))))
-    col = (width - first) / (P * per)
+    pre_w = [24 * mm if h == "Ders adı" else 14 * mm for h in pre_h]
+    post_w = [12 * mm] * len(post_h)
+    lead = 1 + len(pre_h)
+    fixed = first + sum(pre_w) + sum(post_w)
+    per = max(1, min(len(days), int((width - fixed) / (P * 6 * mm))))
+    col = (width - fixed) / (P * per)
     fs = max(4.5, min(7, col / mm * 0.62))
     hstyle, cstyle, tstyle = _style(fs + 0.5, True, True), _style(fs, center=True), _style(fs + 0.5, True)
     # Satır hücrelerini günlere ayır (birleşik hücreler gün sınırını aşmaz).
@@ -140,22 +146,27 @@ def _sheet(data, width, colored):
             if c["day_start"] or not by_day:
                 by_day.append([])
             by_day[-1].append(c)
-        split.append((r["title"], by_day))
+        split.append((r, by_day))
     out = []
     for start in range(0, len(days), per):
         chunk = days[start:start + per]
-        top = [_p("", hstyle)]
-        nums = [_p("", hstyle)]
+        top = [_p("", hstyle)] + [_p(h, hstyle) for h in pre_h]
+        nums = [""] * lead
         style = [("BACKGROUND", (0, 0), (-1, 1), HEAD), ("BACKGROUND", (0, 2), (0, -1), HEAD)]
+        style += [("SPAN", (x, 0), (x, 1)) for x in range(lead)]
         for i, day in enumerate(chunk):
             top += [_p(day, hstyle)] + [""] * (P - 1)
             nums += [_p(p.index + 1, hstyle) for p in periods]
-            style.append(("SPAN", (1 + i * P, 0), (P + i * P, 0)))
+            style.append(("SPAN", (lead + i * P, 0), (lead + P - 1 + i * P, 0)))
+        end = lead + len(chunk) * P
+        top += [_p(h, hstyle) for h in post_h]
+        nums += [""] * len(post_h)
+        style += [("SPAN", (end + k, 0), (end + k, 1)) for k in range(len(post_h))]
         rows = [top, nums]
-        for y, (title, by_day) in enumerate(split, start=2):
-            line = [_p(title, tstyle)]
+        for y, (r, by_day) in enumerate(split, start=2):
+            line = [_p(r["title"], tstyle)] + [_p(v, cstyle) for v in r.get("pre", [])]
             for i, cells in enumerate(by_day[start:start + per]):
-                x = 1 + i * P
+                x = lead + i * P
                 for c in cells:
                     line += [_cards(c["cards"], cstyle)] + [""] * (c["span"] - 1)
                     if c["span"] > 1:
@@ -164,9 +175,10 @@ def _sheet(data, width, colored):
                     if fill:
                         style.append(("BACKGROUND", (x, y), (x + c["span"] - 1, y), fill))
                     x += c["span"]
-            line += [""] * (1 + len(chunk) * P - len(line))
+            line += [""] * (end - len(line))
+            line += [_p(v, tstyle) for v in r.get("post", [])] + [""] * (len(post_h) - len(r.get("post", [])))
             rows.append(line)
-        t = Table(rows, colWidths=[first] + [col] * (P * len(chunk)), repeatRows=2)
+        t = Table(rows, colWidths=[first] + pre_w + [col] * (P * len(chunk)) + post_w, repeatRows=2)
         t.setStyle(_base(style))
         if out:
             out.append(PageBreak())
@@ -182,7 +194,9 @@ def build(data):
     school, timetable = data["school"], data["timetable"]
     subtitle = f"{school} · {timetable.name}"
     pagesize = landscape(A4) if o["yon"] != "dikey" or kind in ("carsaf", "carsaf_gun") else portrait(A4)
-    width, height = pagesize[0] - 2 * MARGIN - 12, pagesize[1] - 2 * MARGIN - 8 * mm - 12  # çerçeve iç boşluğu + alt bilgi
+    sign = o["imza"]
+    sign_h = (len(sign) * 11 + 6 * mm) if sign else 0  # imza satırları (en fazla 3) ve imza boşluğu
+    width, height = pagesize[0] - 2 * MARGIN - 12, pagesize[1] - 2 * MARGIN - 8 * mm - sign_h - 12  # çerçeve iç boşluğu + alt bilgi
     story = []
 
     if kind == "bireysel":
@@ -198,7 +212,7 @@ def build(data):
         rows = []
         for r in data["load_rows"]:
             for lesson in r["lessons"] or [{"subject": "–", "classes": "", "groups": "", "hours": 0, "split": ""}]:
-                rows.append([r["teacher"].full_name, lesson["subject"], lesson["classes"], lesson["groups"], lesson["hours"],
+                rows.append([r["title"], lesson["subject"], lesson["classes"], lesson["groups"], lesson["hours"],
                              lesson["split"], r["total"], r["target"] or "", r["diff"] if r["diff"] is not None else ""])
         story = _header(o["baslik"] or "Öğretmen ders yükü", subtitle) + _table(
             ["Öğretmen", "Ders", "Sınıf", "Grup", "Saat", "Dağılım", "Toplam", "Hedef", "Fark"], rows,
@@ -235,14 +249,15 @@ def build(data):
         canvas.setFillColor(colors.HexColor("#6B7280"))
         canvas.drawString(MARGIN, MARGIN, subtitle)
         canvas.drawRightString(pagesize[0] - MARGIN, MARGIN, f"Sayfa {doc.page}")
-        if o["alt"]:
-            canvas.setFont(FONT, 9)
+        x = pagesize[0] - MARGIN - 35 * mm
+        for i, line in enumerate(sign):  # imza bloğu sağda, satırlar alt alta (ilki kalın)
+            canvas.setFont(BOLD if i == 0 else FONT, 9)
             canvas.setFillColor(colors.black)
-            canvas.drawCentredString(pagesize[0] / 2, MARGIN + 1, o["alt"])
+            canvas.drawCentredString(x, MARGIN + 6 * mm + (len(sign) - 1 - i) * 11, line)
         canvas.restoreState()
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=pagesize, leftMargin=MARGIN, rightMargin=MARGIN, topMargin=MARGIN,
-                            bottomMargin=MARGIN + 8 * mm, title=o["baslik"] or data["type_label"], author=str(school))
+                            bottomMargin=MARGIN + 8 * mm + sign_h, title=o["baslik"] or data["type_label"], author=str(school))
     doc.build(story, onFirstPage=footer, onLaterPages=footer)
     return buffer.getvalue()

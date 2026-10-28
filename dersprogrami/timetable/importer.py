@@ -30,7 +30,7 @@ SHEETS = {
 OPTIONAL = {
     "Ders adları": ["Varsayılan derslikler"],
     "Sınıflar": ["Öğrenci sayısı", "Sınıf öğretmeni"],
-    "Öğretmenler": ["Haftalık ders yükü", "Branşlar", "Öğretmen dersliği"],
+    "Öğretmenler": ["Haftalık ders yükü", "Branşlar", "Öğretmen dersliği", "Bölüm", "Rütbe", "Ünvan"],
     "Dersler": ["Kart dağılımı", "Derslik sayısı"],
 }
 
@@ -345,6 +345,9 @@ class _Importer:
                 teacher.target_periods = target
             if "Öğretmen dersliği" in v:
                 teacher.home_classroom = home
+            for column, attr, size in (("Bölüm", "department", 60), ("Rütbe", "rank", 40), ("Ünvan", "title", 60)):
+                if column in v:
+                    setattr(teacher, attr, str(v[column] or "").strip()[:size])
             teacher.save()
             if "Branşlar" in v:
                 teacher.subjects.set(subjects)

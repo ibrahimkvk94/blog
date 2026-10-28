@@ -518,9 +518,31 @@ def preview_api(request, pk, index):
     if not 0 <= index < len(proposals):
         return JsonResponse({"ok": False, "message": "Öneri bulunamadı; çözüm merkezinde yeniden hesaplayın."}, status=404)
     p = proposals[index]
+    from django.shortcuts import get_object_or_404
+
+    from .models import Timetable
+
+    violations, stats = _preview_validation(get_object_or_404(Timetable.objects.select_related("school"), pk=pk), p)
     return JsonResponse({
         "ok": True, "label": stored.get("label", ""), "index": index, "total": len(proposals), "count": p["count"],
         "new_violations": len(p["new_violations"]),
         "moves": [{"card": m["card_id"], "from": m["state_from"][:2] if m["state_from"] else None, "to": m["state_to"][:2],
                    "text": f"{m['subject']} ({m['classes']}): {m['from']} → {m['to']}"} for m in p["moves"] if m["time_moved"]],
+        "violations": [v.as_dict() for v in violations], "stats": stats,
     })
+
+
+def _preview_validation(timetable, proposal):
+    """Öneri uygulanmış gibi doğrulama listesi ve istatistikler (ana görünüm önizlemede bunları gösterir)."""
+    from .problem_cache import problem_for
+
+    problem = problem_for(timetable)
+    placements = placements_of(problem, timetable)
+    keys = {card.card_id: card.key for card in problem.cards}
+    for m in proposal["moves"]:
+        key = keys.get(m["card_id"])
+        if key is None:
+            continue
+        day, period, room, extra = m["state_to"]
+        placements[key] = cpsat.Placement(day, period, room, tuple(extra or ()))
+    return validate(problem, placements)

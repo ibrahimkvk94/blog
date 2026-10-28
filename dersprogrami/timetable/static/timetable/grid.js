@@ -236,6 +236,9 @@
     const unplacedMoved = data.unplaced.filter((c) => moves.has(c.id)).map(moveCard);
     data.cards = placed.concat(unplacedMoved, ghosts);
     data.unplaced = data.unplaced.filter((c) => !moves.has(c.id));
+    // Doğrulama listesi ve sayaçlar önerinin uygulanmış haline göre (sunucu hesaplar).
+    if (state.preview.violations) data.violations = state.preview.violations;
+    if (state.preview.stats) data.stats = state.preview.stats;
   }
 
   function drawPreview() {
@@ -373,6 +376,7 @@
     $("#violation-pill").innerHTML = v.length
       ? '<span class="pill ' + (v.some((x) => x.level === "hard") ? "failed" : "warn") + '">' + v.length + " ihlal</span>"
       : '<span class="pill ok">Kural ihlali yok</span>';
+    if (state.preview) $("#violation-pill").insertAdjacentHTML("afterbegin", '<span class="pill">öneriye göre</span> ');
     list.innerHTML = v.length
       ? v.map((x) => '<li class="' + x.level + '"><span class="dot"></span>' + esc(x.message) + "</li>").join("")
       : '<li class="subtle">Program tüm kuralları sağlıyor.</li>';

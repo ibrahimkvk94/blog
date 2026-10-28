@@ -144,7 +144,7 @@ class TeacherForm(SchoolScopedForm):
     class Meta:
         model = Teacher
         fields = [
-            "first_name", "last_name", "short", "target_periods", "home_classroom",
+            "first_name", "last_name", "short", "department", "rank", "title", "target_periods", "home_classroom",
             "max_periods_per_day", "min_periods_per_day", "max_consecutive",
             "max_gaps_per_day", "max_gaps_per_week", "max_days_per_week", "duty_exempt", "max_duties", "subjects",
             "tc_no", "email",

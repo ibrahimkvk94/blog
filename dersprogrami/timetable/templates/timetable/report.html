@@ -15,11 +15,11 @@
   .page.per-2 { grid-template-rows: 1fr 1fr; }
   .page.per-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
   .page.wide { width: auto; margin: 14px; }
-  header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #1c2230; padding-bottom: 4px; margin-bottom: 6px; gap: 16px; }
+  header { display: flex; flex-direction: column; align-items: center; text-align: center; border-bottom: 2px solid #1c2230; padding-bottom: 4px; margin-bottom: 6px; gap: 2px; }
   header h1 { font-size: 1.9em; margin: 0; line-height: 1.1; }
   .per-2 header h1, .per-4 header h1 { font-size: 1.4em; }
   header .info { color: #3b4352; margin-top: 2px; }
-  header .meta { color: #5b6474; text-align: right; }
+  header .meta { color: #5b6474; font-size: .9em; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   th, td { border: 1px solid #b9bfca; padding: 3px; vertical-align: top; }
   th { background: #f1f2f6; }
@@ -29,11 +29,15 @@
   .per-4 .sheet td { height: 2.6em; }
   .c { border-radius: 3px; padding: 2px 4px; margin-bottom: 2px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .c b { display: block; }
-  .c span { color: #3b4352; font-size: .9em; }
+  .c span { display: block; color: #3b4352; font-size: .9em; }
   .bw .c { border: 1px solid #9aa1ad; background: #fff !important; }
   .overview th, .overview td { padding: 1px 2px; text-align: center; vertical-align: middle; font-size: .9em; }
   .overview th.row { text-align: left; width: 72px; }
   .overview .ds { border-left: 2px solid #1c2230; }
+  .overview th.row { width: 110px; white-space: normal; }
+  .overview .col { width: 90px; text-align: left; white-space: normal; }
+  .overview .num { width: 38px; font-weight: 600; }
+  .overview tr.first td, .overview tr.first th { border-top: 1.5px solid #6b7280; }
   .overview .c { margin: 0 0 1px; padding: 1px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .overview .c span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .list td, .list th { padding: 4px 6px; }
@@ -41,8 +45,10 @@
   .block { break-inside: avoid; margin-bottom: 10px; }
   .block h2 { font-size: 1.25em; margin: 0 0 4px; display: flex; justify-content: space-between; }
   .free td { font-size: .9em; }
-  .sign { margin-top: 10mm; text-align: right; padding-right: 20mm; }
-  .sign div { display: inline-block; min-width: 50mm; text-align: center; border-top: 1px solid #1c2230; padding-top: 3px; }
+  .sign { margin-top: 6mm; text-align: right; padding-right: 20mm; break-inside: avoid; }
+  .sign div { display: inline-block; min-width: 55mm; text-align: center; padding-top: 12mm; }
+  .sign span { display: block; line-height: 1.35; }
+  .sign span:first-child { font-weight: 600; }
   footer { color: #8a93a3; font-size: .85em; display: flex; justify-content: space-between; align-self: end; }
   .ok { color: #15803d; } .bad { color: #b91c1c; }
   @media print { body { background: #fff; } .bar { display: none; } .page { box-shadow: none; margin: 0; width: auto; padding: 0; } }
@@ -65,12 +71,12 @@
             <tbody>
               {% for row in page.rows %}
                 <tr><th class="p">{{ row.head }}{% if row.sub %}<br><span>{{ row.sub }}</span>{% endif %}</th>
-                  {% for cell in row.cells %}<td>{% for c in cell %}<div class="c" style="background:{{ c.color }}"><b>{{ c.lines.0 }}</b>{% if c.lines.1 %}<span>{{ c.lines.1 }}</span>{% endif %}</div>{% endfor %}</td>{% endfor %}
+                  {% for cell in row.cells %}<td>{% for c in cell %}<div class="c" style="background:{{ c.color }}">{% for line in c.lines %}{% if forloop.first %}<b>{{ line }}</b>{% else %}<span>{{ line }}</span>{% endif %}{% endfor %}</div>{% endfor %}</td>{% endfor %}
                 </tr>
               {% endfor %}
             </tbody>
           </table>
-          {% if o.alt %}<div class="sign"><div>{{ o.alt }}</div></div>{% endif %}
+          {% if o.imza %}<div class="sign"><div>{% for line in o.imza %}<span>{{ line }}</span>{% endfor %}</div></div>{% endif %}
         </div>
       {% endfor %}
     </section>
@@ -82,18 +88,18 @@
     <header><div><h1>{% firstof o.baslik kind_label %}</h1><div class="info">{{ type_label }}{% if o.tur == "carsaf_gun" %} · {{ sheet_days.0 }}{% endif %}</div></div><div class="meta">{{ school }}<br>{{ timetable.name }}</div></header>
     <table class="overview">
       <thead>
-        <tr><th class="row"></th>{% for d in sheet_days %}<th colspan="{{ periods|length }}" class="ds">{{ d }}</th>{% endfor %}</tr>
-        <tr><th class="row"></th>{% for d in sheet_days %}{% for p in periods %}<th class="{% if forloop.first %}ds{% endif %}">{{ p.index|add:1 }}{% if o.tur == "carsaf_gun" and p.start_time %}<br><span style="font-weight:400">{{ p.start_time|time:"H:i" }}</span>{% endif %}</th>{% endfor %}{% endfor %}</tr>
+        <tr><th class="row" rowspan="2"></th>{% for h in pre_headers %}<th class="col" rowspan="2">{{ h }}</th>{% endfor %}{% for d in sheet_days %}<th colspan="{{ periods|length }}" class="ds">{{ d }}</th>{% endfor %}{% for h in post_headers %}<th class="num ds" rowspan="2">{{ h }}</th>{% endfor %}</tr>
+        <tr>{% for d in sheet_days %}{% for p in periods %}<th class="{% if forloop.first %}ds{% endif %}">{{ p.index|add:1 }}{% if o.tur == "carsaf_gun" and p.start_time %}<br><span style="font-weight:400">{{ p.start_time|time:"H:i" }}</span>{% endif %}</th>{% endfor %}{% endfor %}</tr>
       </thead>
       <tbody>
         {% for row in sheet_rows %}
-          <tr><th class="row">{{ row.title }}</th>
-            {% for cell in row.cells %}<td colspan="{{ cell.span }}" class="{% if cell.day_start %}ds{% endif %}">{% for c in cell.cards %}<div class="c" style="background:{{ c.color }}" title="{{ c.title }}">{{ c.lines.0 }}{% if c.lines.1 %}<span>{{ c.lines.1 }}</span>{% endif %}</div>{% endfor %}</td>{% endfor %}
+          <tr class="{% if row.first %}first{% endif %}"><th class="row">{{ row.title }}</th>{% for v in row.pre %}<td class="col">{{ v }}</td>{% endfor %}
+            {% for cell in row.cells %}<td colspan="{{ cell.span }}" class="{% if cell.day_start %}ds{% endif %}">{% for c in cell.cards %}<div class="c" style="background:{{ c.color }}" title="{{ c.title }}">{% for line in c.lines %}{% if forloop.first %}{{ line }}{% else %}<span>{{ line }}</span>{% endif %}{% endfor %}</div>{% endfor %}</td>{% endfor %}{% for v in row.post %}<td class="num{% if forloop.first %} ds{% endif %}">{{ v }}</td>{% endfor %}
           </tr>
         {% endfor %}
       </tbody>
     </table>
-    {% if o.alt %}<div class="sign"><div>{{ o.alt }}</div></div>{% endif %}
+    {% if o.imza %}<div class="sign"><div>{% for line in o.imza %}<span>{{ line }}</span>{% endfor %}</div></div>{% endif %}
     <footer><span>Ders Programı</span><span>{% now "d.m.Y" %}</span></footer>
   </section>
 
@@ -103,13 +109,13 @@
     <div>
       {% for r in load_rows %}
         <div class="block">
-          <h2><span>{{ r.teacher.full_name }}</span><span>{{ r.total }} saat{% if r.target %} / hedef {{ r.target }} <span class="{% if r.diff == 0 %}ok{% else %}bad{% endif %}">({{ r.diff|stringformat:"+d" }})</span>{% endif %}</span></h2>
+          <h2><span>{{ r.title }}</span><span>{{ r.total }} saat{% if r.target %} / hedef {{ r.target }} <span class="{% if r.diff == 0 %}ok{% else %}bad{% endif %}">({{ r.diff|stringformat:"+d" }})</span>{% endif %}</span></h2>
           <table class="list"><thead><tr><th>Ders</th><th>Sınıf</th><th>Grup</th><th class="num">Saat</th><th class="num">Dağılım</th></tr></thead>
             <tbody>{% for l in r.lessons %}<tr><td>{{ l.subject }}</td><td>{{ l.classes }}</td><td>{{ l.groups|default:"–" }}</td><td class="num">{{ l.hours }}</td><td class="num">{{ l.split }}</td></tr>{% empty %}<tr><td colspan="5">Dersi yok.</td></tr>{% endfor %}</tbody>
           </table>
         </div>
       {% endfor %}
-      {% if o.alt %}<div class="sign"><div>{{ o.alt }}</div></div>{% endif %}
+      {% if o.imza %}<div class="sign"><div>{% for line in o.imza %}<span>{{ line }}</span>{% endfor %}</div></div>{% endif %}
     </div>
   </section>
 
@@ -125,7 +131,7 @@
           </table>
         </div>
       {% endfor %}
-      {% if o.alt %}<div class="sign"><div>{{ o.alt }}</div></div>{% endif %}
+      {% if o.imza %}<div class="sign"><div>{% for line in o.imza %}<span>{{ line }}</span>{% endfor %}</div></div>{% endif %}
     </div>
   </section>
 
@@ -146,7 +152,7 @@
       <thead><tr><th>Kısım</th><th>Ders kodu</th><th>Ders</th><th>Öğretmen</th><th>Gün</th>{% if o.hafta_tarih %}<th>Tarih</th>{% endif %}<th class="num">Saat</th><th>Saat aralığı</th><th class="num">Sıra</th><th>ÜYBS ref</th><th>Derslik</th></tr></thead>
       <tbody>{% for r in uybs_rows %}<tr><td>{{ r.class }}</td><td>{{ r.code }}</td><td>{{ r.subject }}{% if r.groups %} <span class="subtle">({{ r.groups }})</span>{% endif %}</td><td>{{ r.teachers }}{% if r.sub %}<div class="subtle">{{ r.sub }}</div>{% endif %}</td><td>{{ r.day }}</td>{% if o.hafta_tarih %}<td>{{ r.date|date:"d.m.Y"|default:"–" }}</td>{% endif %}<td class="num">{{ r.period|default:"–" }}</td><td>{{ r.time }}</td><td class="num">{{ r.ordinal }}</td><td>{% if r.ref %}<b>{{ r.ref }}</b>{% else %}<span class="bad">yok</span>{% endif %}</td><td>{{ r.room }}</td></tr>{% endfor %}</tbody>
     </table>
-    {% if o.alt %}<div class="sign"><div>{{ o.alt }}</div></div>{% endif %}
+    {% if o.imza %}<div class="sign"><div>{% for line in o.imza %}<span>{{ line }}</span>{% endfor %}</div></div>{% endif %}
   </section>
 
 {% elif o.tur == "nobet" %}
@@ -156,7 +162,7 @@
       <thead><tr><th>Nöbet yeri</th>{% for d in duty.days %}<th>{{ d }}</th>{% endfor %}</tr></thead>
       <tbody>{% for row in duty.rows %}<tr><th>{{ row.place.name }}</th>{% for cell in row.cells %}<td>{% for d in cell.duties %}<div>{{ d.teacher.full_name }}</div>{% empty %}{% if not cell.active %}–{% endif %}{% endfor %}</td>{% endfor %}</tr>{% empty %}<tr><td>Nöbet yeri tanımlı değil.</td></tr>{% endfor %}</tbody>
     </table>
-    {% if o.alt %}<div class="sign"><div>{{ o.alt }}</div></div>{% endif %}
+    {% if o.imza %}<div class="sign"><div>{% for line in o.imza %}<span>{{ line }}</span>{% endfor %}</div></div>{% endif %}
   </section>
 {% endif %}
 </body>

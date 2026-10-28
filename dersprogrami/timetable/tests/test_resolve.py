@@ -98,6 +98,14 @@ class SolutionCenterTests(TestCase):
             moved = next(m for m in p["moves"] if m["card_id"] == self.card.id)
             self.assertEqual(moved["state_to"][:2], list(target))
 
+    def test_preview_returns_validation_of_proposal(self):
+        url = reverse("timetable:solution_center", args=[self.timetable.pk])
+        self.client.post(url, {"action": "solve", "tur": "shift", "kart": self.card.pk, "en_fazla": 4})
+        data = self.client.get(reverse("timetable:api_resolve_preview", args=[self.timetable.pk, 0])).json()
+        self.assertTrue(data["ok"])
+        self.assertIn("placed", data["stats"])
+        self.assertFalse([v for v in data["violations"] if v["level"] == "hard"])
+
     def test_locked_card_is_refused(self):
         Card.objects.filter(pk=self.card.pk).update(locked=True)
         with self.assertRaises(ResolveError):

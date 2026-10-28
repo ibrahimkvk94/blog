@@ -205,6 +205,9 @@ class Teacher(models.Model):
     max_duties = models.PositiveSmallIntegerField(
         "haftada en fazla nöbet", null=True, blank=True, help_text="Boş = okulun genel ayarı"
     )
+    department = models.CharField("bölüm", max_length=60, blank=True, help_text="Raporlarda adın önüne yazılabilir (ör. ELN).")
+    rank = models.CharField("rütbe", max_length=40, blank=True, help_text="Ör. Ütğm., Bnb.")
+    title = models.CharField("ünvan", max_length=60, blank=True, help_text="Ör. Öğr.Gör., Dr.")
     tc_no = models.CharField("TC kimlik no", max_length=11, blank=True, help_text="ÜYBS aktarımında öğretim elemanı sütununa yazılır.")
     email = models.EmailField("e-posta", blank=True, help_text="Program değişikliği ve vekâlet bildirimleri için.")
 
@@ -219,6 +222,11 @@ class Teacher(models.Model):
     @property
     def full_name(self):
         return f"{self.first_name} {self.last_name}".strip()
+
+    def label(self, parts=("bolum", "rutbe", "unvan")):
+        """Raporlarda: seçilen künye bilgileri + ad soyad (ör. "ELN Ütğm. Öğr.Gör. Ali Kaya")."""
+        values = {"bolum": self.department, "rutbe": self.rank, "unvan": self.title}
+        return " ".join(filter(None, [values[p] for p in ("bolum", "rutbe", "unvan") if p in parts] + [self.full_name]))
 
 
 class SchoolClass(models.Model):
@@ -252,6 +260,17 @@ class SchoolClass(models.Model):
 
     def __str__(self):
         return self.name
+
+    def number_label(self):
+        """Yalnızca numara: "70.KISIM" → "70"; numarasızsa sözcük baş harfleri + numara ("Hazırlık 1" → "H1",
+        "Kr.Tm.İşl." → "KTİ")."""
+        m = re.match(r"\s*(\d+)", self.name or "") or re.match(r"\s*(\d+)", self.short or "")
+        if m:
+            return m[1]
+        words = re.findall(r"[^\W\d_]+", self.name or "", re.UNICODE)
+        digits = "".join(re.findall(r"\d+", self.name or ""))
+        initials = "".join(w[0].upper() if w[0] != "i" else "İ" for w in words)
+        return (initials + digits) or (self.short or self.name)
 
     @staticmethod
     def sort_key_of(name):

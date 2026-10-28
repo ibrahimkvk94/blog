@@ -27,8 +27,15 @@ DEFAULTS = {
     "tur": "bireysel", "varlik": "sinif", "gunler": "sutun", "ders_adi": "tam", "renk": "1", "boyut": "normal",
     "yon": "yatay", "sayfa": "1", "saat": "1", "gun": "0", "baslik": "", "alt": "", "hafta": "",
     "vekalet": "1",
+    # Çarşaf liste seçenekleri
+    "satir": "kisi",      # kisi: kişi/sınıf başına bir satır · ders: öğretmenin her dersi ayrı satır
+    "hucre": "tam",       # tam: hücrede ders ve ayrıntılar · kisim: yalnızca kısım (sınıf) adı
+    "kisim_ad": "kisa",   # kisa: kısa ad · no: yalnızca numara (70.KISIM → 70, Hazırlık 1 → H1)
+    "blok": "1",          # 1: blok ders tek hücre · 0: her saat ayrı hücre
+    "sutun_ders": "0", "sutun_kod": "0", "sutun_saat": "0",
 }
-PARAM_KEYS = list(DEFAULTS) + ["icerik", "secim"]
+KUNYE = {"bolum": "Bölüm", "rutbe": "Rütbe", "unvan": "Ünvan"}
+PARAM_KEYS = list(DEFAULTS) + ["icerik", "secim", "kunye"]
 
 
 def options(params):
@@ -49,7 +56,13 @@ def options(params):
         o["renk"] = get("renk") or "0"
         o["saat"] = get("saat") or "0"
         o["vekalet"] = get("vekalet") or "0"
+        o["blok"] = get("blok") or "0"
+        for key in ("sutun_ders", "sutun_kod", "sutun_saat"):
+            o[key] = get(key) or "0"
     o["secim"] = [int(x) for x in getlist("secim") if str(x).isdigit()]
+    kunye = getlist("kunye")
+    o["kunye"] = [k for k in kunye if k in KUNYE] if "icerik_set" in params or kunye else list(KUNYE)
+    o["imza"] = [line.strip() for line in (o["alt"] or "").replace("\r", "").split("\n") if line.strip()][:3]
     o["sayfa"] = o["sayfa"] if o["sayfa"] in ("1", "2", "4") else "1"
     try:
         o["gun"] = int(o["gun"])
@@ -68,21 +81,30 @@ def default_content(kind):
     return {"sinif": ["ogretmen", "derslik"], "ogretmen": ["sinif", "derslik"], "derslik": ["sinif", "ogretmen"]}[kind]
 
 
-def _cell_lines(c, kind, o, ref=""):
-    """Kart hücresinin satırları: ders adı + seçilen ayrıntılar (satırın kendisi tekrar yazılmaz)."""
+def _class_label(cls, o):
+    return cls.number_label() if o.get("kisim_ad") == "no" else (cls.short or cls.name)
+
+
+def _cell_lines(c, kind, o, ref="", class_names=None):
+    """Kart hücresinin satırları: ders adı + seçilen ayrıntılar (satırın kendisi tekrar yazılmaz).
+    Derslik ayrı satırdadır. Hücre "yalnızca kısım" ise yalnızca sınıf adları yazılır."""
+    classes = ", ".join(class_names[i] for i in c["class_ids"] if i in class_names) if class_names else c["classes"]
+    color = c["color"] if o["renk"] == "1" else "#ffffff"
+    if o.get("hucre") == "kisim" and kind != "sinif":
+        return {"lines": [classes or c["subject"]], "color": color, "title": c["title"], "length": c["length"]}
     lines = [c["subject_name"] if o["ders_adi"] == "tam" else c["subject"]]
     extra = [f"ref {ref}"] if ref else []
     if "ogretmen" in o["icerik"] and kind != "ogretmen" and c["teachers"]:
         extra.append(c["teachers"])
-    if "sinif" in o["icerik"] and kind != "sinif" and c["classes"]:
-        extra.append(c["classes"])
+    if "sinif" in o["icerik"] and kind != "sinif" and classes:
+        extra.append(classes)
     if "grup" in o["icerik"] and c["groups"]:
         extra.append(c["groups"])
-    if "derslik" in o["icerik"] and kind != "derslik" and c["room"]:
-        extra.append(c["room"])
     if extra:
         lines.append(" · ".join(extra))
-    return {"lines": lines, "color": c["color"] if o["renk"] == "1" else "#ffffff", "title": c["title"], "length": c["length"]}
+    if "derslik" in o["icerik"] and kind != "derslik" and c["room"]:
+        lines.append(c["room"])
+    return {"lines": lines, "color": color, "title": c["title"], "length": c["length"]}
 
 
 def _entities(school, kind, o):
@@ -94,11 +116,11 @@ def _entities(school, kind, o):
     return objects
 
 
-def _title(obj, kind):
+def _title(obj, kind, o=None):
     if kind == "ogretmen":
-        return obj.full_name
+        return obj.label(o["kunye"]) if o is not None else obj.full_name
     if kind == "sinif":
-        return obj.short or obj.name
+        return _class_label(obj, o) if o is not None else (obj.short or obj.name)
     return str(obj)
 
 
@@ -154,8 +176,10 @@ def _individual(timetable, o, cards, periods, days):
     pages = []
     refs_at = _ref_lookup(timetable, o)
 
+    names = _class_names(timetable.school, o)
+
     def cell(mine, obj, d, p):
-        return [_cell_lines(c, kind, o, refs_at.get((c["id"], obj.id, d, p), "")) for c in _at(mine, d, p)]
+        return [_cell_lines(c, kind, o, refs_at.get((c["id"], obj.id, d, p), ""), names) for c in _at(mine, d, p)]
 
     for obj in _entities(timetable.school, kind, o):
         mine = [c for c in cards if obj.id in c["rows"]]
@@ -180,42 +204,78 @@ def _individual(timetable, o, cards, periods, days):
             if obj.home_classroom:
                 info.append(f"Derslik: {obj.home_classroom}")
         info.append(f"Haftalık {sum(c['length'] for c in mine)} saat")
-        pages.append({"title": _title(obj, kind), "info": info, "rows": rows})
+        pages.append({"title": _title(obj, kind, o), "info": info, "rows": rows})
     per = int(o["sayfa"])
     columns = [f"{p.index + 1}." for p in periods] if o["gunler"] == "satir" else days
     return {"pages": [pages[i:i + per] for i in range(0, len(pages), per)], "columns": columns}
 
 
-def _sheet_cells(mine, kind, o, day_range, periods):
+def _class_names(school, o):
+    return {c.id: _class_label(c, o) for c in school.classes.all()}
+
+
+def _sheet_cells(mine, kind, o, day_range, periods, names=None):
     cells = []
+    merge = o.get("blok", "1") == "1"
     for d in day_range:
         p = 0
         while p < len(periods):
             starting = [c for c in mine if c["day"] == d and c["period"] == p]
-            span = max((c["length"] for c in starting), default=1)
+            span = max((c["length"] for c in starting), default=1) if merge else 1
             span = min(span, len(periods) - p)
-            cells.append({"cards": [_cell_lines(c, kind, o) for c in (starting or _at(mine, d, p))], "span": span, "day_start": p == 0})
+            here = starting if (merge and starting) else _at(mine, d, p)
+            cells.append({"cards": [_cell_lines(c, kind, o, class_names=names) for c in here], "span": span, "day_start": p == 0})
             p += span
     return cells
 
 
-def _sheet(timetable, o, cards, periods, days):
+def _sheet_rows(timetable, o, cards, periods, day_range):
+    """Çarşaf satırları. Öğretmenlerde "ders" satır kipinde her ders (kodu) ayrı satır; isteğe bağlı ders adı/kodu
+    sütunları ve son iki sütunda o dersin ve toplam haftalık saat."""
     kind = o["varlik"]
+    names = _class_names(timetable.school, o)
+    per_lesson = kind == "ogretmen" and o["satir"] == "ders"
     rows = []
     for obj in _entities(timetable.school, kind, o):
         mine = [c for c in cards if obj.id in c["rows"]]
-        rows.append({"title": _title(obj, kind), "cells": _sheet_cells(mine, kind, o, range(len(days)), periods)})
-    return {"sheet_rows": rows, "sheet_days": days}
+        total = sum(c["length"] for c in mine)
+        groups = []
+        if per_lesson:
+            by_lesson = {}
+            for c in sorted(mine, key=lambda c: (c["subject"], c["day"], c["period"])):
+                by_lesson.setdefault(c["subject"], []).append(c)  # aynı ders farklı kısımlarda: tek satır
+            groups = list(by_lesson.values()) or [[]]
+        else:
+            groups = [mine]
+        for i, group in enumerate(groups):
+            subjects = list(dict.fromkeys(c["subject_name"] for c in group))
+            codes = list(dict.fromkeys(c["subject"] for c in group))
+            if per_lesson and subjects:  # aynı kodun "(U)" gibi varyantları: en kısa ad
+                subjects = [min(subjects, key=len)]
+            pre = []
+            if o["sutun_ders"] == "1":
+                pre.append(", ".join(subjects))
+            if o["sutun_kod"] == "1":
+                pre.append(", ".join(codes))
+            post = []
+            if o["sutun_saat"] == "1":
+                if per_lesson:
+                    post.append(sum(c["length"] for c in group))
+                post.append(total if i == 0 else "")
+            rows.append({"title": _title(obj, kind, o), "first": i == 0, "pre": pre, "post": post,
+                         "cells": _sheet_cells(group, kind, o, day_range, periods, names)})
+    pre_headers = (["Ders adı"] if o["sutun_ders"] == "1" else []) + (["Ders kodu"] if o["sutun_kod"] == "1" else [])
+    post_headers = (["Ders saati"] if o["sutun_saat"] == "1" and per_lesson else []) + (["Toplam"] if o["sutun_saat"] == "1" else [])
+    return {"sheet_rows": rows, "pre_headers": pre_headers, "post_headers": post_headers}
+
+
+def _sheet(timetable, o, cards, periods, days):
+    return {**_sheet_rows(timetable, o, cards, periods, range(len(days))), "sheet_days": days}
 
 
 def _day_sheet(timetable, o, cards, periods, days):
-    kind = o["varlik"]
     day = min(max(o["gun"], 0), len(days) - 1)
-    rows = []
-    for obj in _entities(timetable.school, kind, o):
-        mine = [c for c in cards if obj.id in c["rows"]]
-        rows.append({"title": _title(obj, kind), "cells": _sheet_cells(mine, kind, o, [day], periods)})
-    return {"sheet_rows": rows, "sheet_days": [days[day]]}
+    return {**_sheet_rows(timetable, o, cards, periods, [day]), "sheet_days": [days[day]]}
 
 
 def _loads(timetable, o, cards, periods, days):
@@ -232,7 +292,7 @@ def _loads(timetable, o, cards, periods, days):
         lessons = sorted(by_teacher.get(t.id, []), key=lambda x: x.subject.name)
         total = sum(x.periods_per_week for x in lessons)
         rows.append({
-            "teacher": t, "total": total, "target": t.target_periods,
+            "teacher": t, "title": t.label(o["kunye"]), "total": total, "target": t.target_periods,
             "diff": (total - t.target_periods) if t.target_periods else None,
             "lessons": [{
                 "subject": x.subject.name, "classes": ", ".join(c.short or c.name for c in x.classes.all()) or "–",

@@ -88,3 +88,32 @@ class ReportTests(TestCase):
         self.assertContains(page, "tur=carsaf")
         self.client.post(reverse("timetable:reports", args=[self.timetable.pk]), {"action": "delete_preset", "preset": preset.pk})
         self.assertFalse(ReportPreset.objects.exists())
+
+    def test_sheet_rows_per_lesson_columns_and_signature(self):
+        from timetable import report_excel, report_pdf, reports
+        from timetable.models import Teacher
+
+        teacher = Teacher.objects.filter(school=self.school, lessons__isnull=False).distinct().first()
+        Teacher.objects.filter(pk=teacher.pk).update(department="Mat.", rank="Yb.", title="Öğr.Gör.")
+        query = (f"tur=carsaf&varlik=ogretmen&secim={teacher.pk}&icerik_set=1&satir=ders&hucre=kisim&kisim_ad=no"
+                 "&sutun_ders=1&sutun_kod=1&sutun_saat=1&kunye=rutbe&alt=Ad+SOYAD%0AYb.%0AOkul+M%C3%BCd%C3%BCr%C3%BC%0Afazla")
+        html = self.get(query).content.decode()
+        self.assertIn("Yb. " + teacher.full_name, html)
+        self.assertNotIn("Mat. ", html)
+        self.assertIn("Ders kodu", html)
+        self.assertIn("Toplam", html)
+        self.assertNotIn("fazla", html)  # imza en fazla 3 satır
+        o = reports.options(dict(p.split("=", 1) for p in query.replace("%0A", "\n").replace("+", " ").split("&")) | {"secim": [teacher.pk], "kunye": ["rutbe"]})
+        data = reports.build(self.timetable, o)
+        rows = data["sheet_rows"]
+        subjects = {l.subject_id for l in teacher.lessons.all()}
+        self.assertEqual(len(rows), len(subjects), [(r["title"], r["pre"]) for r in rows])  # her ders ayrı satır, ad her satırda
+        self.assertTrue(all(r["title"].startswith("Yb.") for r in rows))
+        self.assertEqual(sum(r["post"][0] for r in rows), rows[0]["post"][1])  # ders saatleri toplamı = toplam
+        self.assertTrue(report_pdf.build(data).startswith(b"%PDF"))
+        self.assertTrue(report_excel.build(data))
+
+    def test_class_number_labels(self):
+        cases = {"70.KISIM": "70", "70. KISIM": "70", "Hazırlık 1": "H1", "9-A": "9"}
+        for name, expected in cases.items():
+            self.assertEqual(SchoolClass(name=name).number_label(), expected, name)
