@@ -94,6 +94,7 @@ jobs:
           cmd /c "otomatik_baslat.bat kaldir < nul"
           schtasks /query /tn "Ders Programi" 2>$null | Out-Null; if (-not $LASTEXITCODE) { throw "Görev kaldırılmadı" }
           Write-Host "Kaldırma tamam."
+          exit 0  # son sorgunun beklenen hata kodu adımı başarısız saymasın
 
       - uses: actions/upload-artifact@v4
         with:
