@@ -10,6 +10,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from .access import grantable, institution_permissions
@@ -235,11 +236,32 @@ def backups(request):
     from . import backup
 
     if request.method == "POST":
-        if request.POST.get("action") == "delete":
+        action = request.POST.get("action")
+        if action == "delete":
             path = backup.path_of(request.POST.get("name"))
             if path:
                 path.unlink()
                 messages.info(request, f"{path.name} silindi.")
+        elif action == "upload":
+            try:
+                path = backup.save_upload(request.FILES["dosya"]) if "dosya" in request.FILES else None
+            except ValueError as exc:
+                messages.error(request, str(exc))
+            else:
+                if path:
+                    messages.success(request, f"Yedek dosyası alındı: {path.name}. Geri yüklemek için listeden seçin.")
+        elif action == "restore":
+            path = backup.path_of(request.POST.get("name"))
+            if path is None or request.POST.get("onay", "").strip().upper() != "GERİ YÜKLE":
+                messages.error(request, "Geri yükleme için yedeği seçip onay kutusuna GERİ YÜKLE yazın.")
+                return redirect("timetable:backups")
+            try:
+                safety = backup.restore(path)
+            except Exception as exc:  # bozuk ya da uyumsuz yedek: veritabanı değişmez
+                messages.error(request, f"Geri yüklenemedi, veriler değişmedi: {exc}")
+                return redirect("timetable:backups")
+            # Oturumlar da silindi: giriş sayfasına
+            return redirect(reverse("timetable:login") + f"?geri_yuklendi={path.name}&guvenlik={safety.name}")
         else:
             path = backup.create()
             messages.success(request, f"Yedek alındı: {path.name}")

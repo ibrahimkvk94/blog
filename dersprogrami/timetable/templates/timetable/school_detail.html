@@ -11,7 +11,7 @@
 {% block content %}
 <div class="tiles">
   {% for tile in tiles %}
-    <a class="tile tile-link" href="{{ tile.url }}"><div class="k">{{ tile.label }}</div><div class="v">{{ tile.value }}</div>{% if tile.hint %}<div class="h">{{ tile.hint }}</div>{% endif %}</a>
+    <a class="tile tile-link" href="{{ tile.url }}"><div class="k">{{ tile.label }}</div><div class="v{% if tile.bad %} bad{% endif %}">{{ tile.value }}</div>{% if tile.hint %}<div class="h">{{ tile.hint }}</div>{% endif %}</a>
   {% endfor %}
 </div>
 

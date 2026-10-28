@@ -6,6 +6,7 @@
 
 import os
 import socket
+import threading
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
@@ -27,6 +28,25 @@ def lan_addresses():
     return sorted(a for a in found if not a.startswith("127."))
 
 
+def backup_loop(hours, stop):
+    """Sunucu açık kaldıkça son yedek `hours` saatten eskiyse yedek alır (saatte bir denetler)."""
+    from django.db import connection
+
+    from timetable import backup
+
+    stop.wait(60)  # açılışta sunucuyu bekletmesin
+    while not stop.is_set():
+        try:
+            path = backup.ensure_recent(hours)
+            if path:
+                print(f"Otomatik yedek alındı: {path}", flush=True)
+        except Exception as exc:  # yedek alınamasa da sunucu çalışmaya devam etsin
+            print(f"Otomatik yedek alınamadı: {exc}", flush=True)
+        finally:
+            connection.close()
+        stop.wait(3600)
+
+
 class Command(BaseCommand):
     help = "Ders programını yerel ağdaki tüm bilgisayarlara açar (waitress)."
 
@@ -34,6 +54,8 @@ class Command(BaseCommand):
         parser.add_argument("--port", type=int, default=int(os.environ.get("SUNUCU_PORT", "8000")))
         parser.add_argument("--host", default="0.0.0.0")
         parser.add_argument("--threads", type=int, default=8)
+        parser.add_argument("--yedek-saat", type=int, default=int(os.environ.get("AUTO_BACKUP_HOURS", "24")),
+                            help="Kaç saatte bir otomatik yedek (0 = kapalı)")
 
     def handle(self, *args, **options):
         from waitress import serve
@@ -47,5 +69,8 @@ class Command(BaseCommand):
         self.stdout.write(f"Bu bilgisayardan: http://127.0.0.1:{port}/")
         if settings.DEBUG:
             self.stdout.write(self.style.WARNING("Uyarı: DJANGO_DEBUG=1 açık; ağ kurulumunda .env dosyasında DJANGO_DEBUG=0 olmalı."))
+        if options["yedek_saat"] > 0:
+            threading.Thread(target=backup_loop, args=(options["yedek_saat"], threading.Event()), daemon=True).start()
+            self.stdout.write(f"Otomatik yedek: {options['yedek_saat']} saatte bir (yedekler klasörü).")
         self.stdout.write("Kapatmak için bu pencerede Ctrl+C'ye basın ya da pencereyi kapatın.")
         serve(application, host=options["host"], port=port, threads=options["threads"], ident="DersProgrami")

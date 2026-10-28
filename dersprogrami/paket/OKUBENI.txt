@@ -25,8 +25,11 @@ GUNCELLEME
    Once yedek alinir; veritabani (db.sqlite3), ayarlar (.env) ve yedekler korunur.
 
 YEDEK
-- Merkez paneli > Yedekler ekranindan ya da:  python\python.exe manage.py yedekle
-- Yedekler "yedekler" klasorundedir. Bu klasoru zaman zaman baska bir diske kopyalayin.
+- Program acik kaldikca 24 saatte bir kendiliginden yedek alir ("yedekler" klasoru, son 30 yedek).
+- Elle yedek: Merkez paneli > Yedekler > "Simdi yedek al".
+- Geri yukleme: ayni ekranda yedegin yanindaki "Geri yukle"; once mevcut durumun yedegi alinir.
+  Baska bilgisayardan gelen yedek dosyasi da ayni ekrandan yuklenebilir.
+- "yedekler" klasorunu zaman zaman baska bir diske (USB) kopyalayin.
 
 SIK SORULANLAR
 - Diger bilgisayarlar baglanamiyor:

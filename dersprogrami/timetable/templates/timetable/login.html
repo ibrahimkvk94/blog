@@ -10,6 +10,7 @@
   <main class="login-card panel">
     <div class="brand login-brand"><span class="brand-mark">{% include "timetable/icon.html" with name="grid" %}</span> Ders Programı</div>
     <h1>Giriş yap</h1>
+    {% if request.GET.geri_yuklendi %}<div class="alert alert-success">Veriler “{{ request.GET.geri_yuklendi }}” yedeğinden geri yüklendi; lütfen yeniden giriş yapın (yedekteki kullanıcılar geçerlidir). Önceki hal “{{ request.GET.guvenlik }}” olarak yedeklendi.</div>{% endif %}
     {% if form.errors %}<div class="alert alert-error">Kullanıcı adı ya da parola hatalı.</div>{% endif %}
     <form method="post">
       {% csrf_token %}

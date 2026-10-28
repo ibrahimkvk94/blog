@@ -152,13 +152,13 @@
   const none = $("[data-nav-none]", root);
   const norm = (t) => t.toLocaleLowerCase("tr");
   items.forEach((i) => { i.dataset.q = norm(i.textContent); });
-  search.addEventListener("input", () => {
+  if (search) search.addEventListener("input", () => {
     const q = norm(search.value.trim());
     let shown = 0;
     items.forEach((i) => { i.hidden = q && !i.dataset.q.includes(q); if (!i.hidden) shown++; });
     none.hidden = shown > 0 || !items.length;
   });
-  search.addEventListener("keydown", (e) => {
+  if (search) search.addEventListener("keydown", (e) => {
     if (e.key === "Enter") { e.preventDefault(); const first = items.find((i) => !i.hidden); if (first) first.click(); }
   });
   $$(".is-disabled", root).forEach((a) => a.addEventListener("click", (e) => e.preventDefault()));

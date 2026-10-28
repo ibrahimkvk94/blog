@@ -140,4 +140,4 @@ Python ve tüm paketler pakete gömülüdür, hedef bilgisayara ayrıca bir şey
 - Sunucu bilgisayara ağ yöneticisinden **sabit IP** iste; adres değişirse kullanıcılar bağlanamaz.
 - Ayarlar `.env` dosyasındadır: `SUNUCU_PORT` kapı numarasıdır, `DJANGO_ALLOWED_HOSTS=*` ağdaki her adresten erişime izin verir.
 - E-posta bildirimleri kapalı ağda çalışmaz. Ağda bir e-posta sunucusu varsa `.env`'e `EMAIL_HOST` vb. eklenebilir.
-- Yedekler `yedekler` klasöründedir; bu klasörü düzenli olarak başka bir diske kopyala.
+- Program açık kaldıkça 24 saatte bir kendiliğinden yedek alınır (`yedekler` klasörü). Geri yükleme ve başka bilgisayardan yedek yükleme: **Merkez paneli → Yedekler**. Bu klasörü düzenli olarak başka bir diske kopyala.

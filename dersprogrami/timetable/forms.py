@@ -81,8 +81,9 @@ class PeriodForm(StyledFormMixin, forms.ModelForm):
         model = Period
         fields = ["name", "start_time", "end_time", "long_break_after"]
         widgets = {
-            "start_time": forms.TimeInput(attrs={"type": "time"}, format="%H:%M"),
-            "end_time": forms.TimeInput(attrs={"type": "time"}, format="%H:%M"),
+            # Tarayıcının AM/PM gösterimi yerine her yerde 24 saat: 08:20
+            "start_time": forms.TimeInput(attrs={"placeholder": "08:20", "inputmode": "numeric", "maxlength": 5}, format="%H:%M"),
+            "end_time": forms.TimeInput(attrs={"placeholder": "09:00", "inputmode": "numeric", "maxlength": 5}, format="%H:%M"),
         }
 
     def __init__(self, *args, **kwargs):

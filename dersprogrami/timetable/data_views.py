@@ -686,14 +686,22 @@ def school_create(request):
     return render(request, "timetable/data/settings.html", {"form": form, "formset": None, "creating": True})
 
 
+def _school_sub(school):
+    return f"{school.days_per_week} gün × {school.periods.count()} ders saati"
+
+
 def school_settings(request, pk):
     school = _school(pk)
     form = forms.SchoolForm(request.POST or None, instance=school)
     formset = forms.PeriodFormSet(request.POST or None, queryset=school.periods.all(), prefix="periods")
+    ajax = _wants_json(request)
     if request.method == "POST" and form.is_valid() and formset.is_valid():
         kept = [f for f in formset.forms if f.has_changed() or f.instance.pk]
         kept = [f for f in kept if not (formset.can_delete and formset._should_delete_form(f))]
+        structure_changed = bool(formset.deleted_forms) or any(not f.instance.pk for f in kept)
         if not kept:
+            if ajax:
+                return JsonResponse({"ok": False, "message": "En az bir ders saati olmalı.", "errors": {}, "non_field": ["En az bir ders saati olmalı."]}, status=400)
             messages.error(request, "En az bir ders saati olmalı.")
         else:
             with transaction.atomic():
@@ -713,13 +721,38 @@ def school_settings(request, pk):
                     if not period.name:
                         period.name = f"{i + 1}. saat"
                     period.save()
-            messages.success(request, "Okul ayarları ve ders saatleri kaydedildi.")
+            message = "Program ayarları ve ders saatleri kaydedildi."
+            if ajax:
+                # Saat eklendi/silindiyse satırlar yeni kimlik ve sırayla yeniden açılmalı.
+                if structure_changed:
+                    messages.success(request, message)
+                return JsonResponse({"ok": True, "message": message, "reload": structure_changed,
+                                     "url": reverse("timetable:school_settings", args=[school.pk]),
+                                     "title": school.name, "sub": _school_sub(school)})
+            messages.success(request, message)
             return redirect("timetable:school_settings", pk=school.pk)
+    if request.method == "POST" and ajax:
+        errors = {name: [str(e) for e in errs] for name, errs in form.errors.items() if name != "__all__"}
+        non_field = [str(e) for e in form.non_field_errors()] + [str(e) for e in formset.non_form_errors()]
+        for f in formset.forms:
+            for name, errs in f.errors.items():
+                if name == "__all__":
+                    row = int(f.prefix.split("-")[-1]) + 1 if f.prefix and f.prefix.split("-")[-1].isdigit() else ""
+                    non_field += [f"{row}. saat: {e}" for e in errs]
+                else:
+                    errors[f.add_prefix(name)] = [str(e) for e in errs]
+        return JsonResponse({"ok": False, "message": "Kaydedilemedi: işaretli alanları düzeltin.", "errors": errors, "non_field": non_field}, status=400)
+    tab_specs = (("program", "Program", (
+        ("Program", "Programın adı, haftalık gün sayısı ve hafta/dönem döngüsü.", ("name", "days_per_week", "weeks_count", "terms_count")),
+        ("Birlikte çalışan programlar", "Bu programların yayındaki programında dolu olan öğretmen ve derslik saatleri burada kapalı sayılır.", ("linked_programs",)),
+    )),)
     return render(
         request,
-        "timetable/data/settings.html",
+        "timetable/data/settings_editor.html",
         _nav(
-            school, "data", data_nav="okul", form=form, formset=formset, creating=False,
+            school, "data", data_nav="okul", form=form, formset=formset, creating=False, form_id="settings-form",
+            tabs=_tabs(tab_specs, form, (("saatler", "Ders saatleri"), ("kapali", "Kapalı saatler"))),
+            record_sub=_school_sub(school), navigator={},
             availability=_availability_grid(school, "school", school),
             availability_title="Okul geneli kapalı saatler",
             availability_help="Burada kapatılan saatlere hiçbir ders konmaz (ör. Cuma 6. saatten sonra ders yok, "

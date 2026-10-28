@@ -6,7 +6,8 @@ Kayıt düzenleyici iskeleti: solda aranabilir kayıt listesi, sağda kayıt ba�
 {% endcomment %}
 {% block content %}
 {% include "timetable/data/subnav.html" %}
-<div class="editor" data-editor data-form="{{ form_id }}">
+<div class="editor{% block editor_class %}{% endblock %}" data-editor data-form="{{ form_id }}">
+  {% block navigator %}
   <aside class="rec-nav" aria-label="Kayıtlar">
     <div class="rec-nav-head">
       <div><b>{% block nav_title %}{{ navigator.title }}{% endblock %}</b> <span class="rec-count">{{ navigator.items|length }}</span></div>
@@ -23,6 +24,7 @@ Kayıt düzenleyici iskeleti: solda aranabilir kayıt listesi, sağda kayıt ba�
     </div>
     <a class="rec-nav-foot" href="{{ list_url }}">{% include "timetable/icon.html" with name="list" %} Tablo görünümü</a>
   </aside>
+  {% endblock %}
 
   <section class="rec-main">
     <header class="rec-head">
@@ -35,10 +37,10 @@ Kayıt düzenleyici iskeleti: solda aranabilir kayıt listesi, sağda kayıt ba�
       <div class="rec-tools">
         {% block head_actions %}{% endblock %}
         {% if navigator.position %}<span class="rec-pos">{{ navigator.position }}</span>{% endif %}
-        <div class="btn-group">
+        {% if navigator.items %}<div class="btn-group">
           <a class="btn btn-sm btn-icon{% if not navigator.prev %} is-disabled{% endif %}" href="{{ navigator.prev|default:'#' }}" data-nav-prev title="Önceki kayıt (Alt+↑)" aria-label="Önceki kayıt">‹</a>
           <a class="btn btn-sm btn-icon{% if not navigator.next %} is-disabled{% endif %}" href="{{ navigator.next|default:'#' }}" data-nav-next title="Sonraki kayıt (Alt+↓)" aria-label="Sonraki kayıt">›</a>
-        </div>
+        </div>{% endif %}
       </div>
     </header>
     {% if tabs|length > 1 %}
@@ -54,7 +56,7 @@ Kayıt düzenleyici iskeleti: solda aranabilir kayıt listesi, sağda kayıt ba�
       <div class="rec-bar-actions">
         {% block bar_extra %}{% endblock %}
         <button type="button" class="btn btn-ghost" data-revert hidden>Geri al</button>
-        <button class="btn" form="{{ form_id }}" name="next" value="new">Kaydet ve yeni</button>
+        {% block save_new %}<button class="btn" form="{{ form_id }}" name="next" value="new">Kaydet ve yeni</button>{% endblock %}
         <button class="btn btn-primary" form="{{ form_id }}" data-save>{% include "timetable/icon.html" with name="check" %} Kaydet <kbd>Ctrl S</kbd></button>
       </div>
     </div>

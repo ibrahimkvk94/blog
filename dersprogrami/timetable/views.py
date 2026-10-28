@@ -91,6 +91,16 @@ def school_detail(request, pk):
         {"label": "Ders", "value": len(lessons), "hint": f"haftada {sum(x.periods_per_week for x in lessons)} saat", "url": reverse("timetable:lessons", args=[school.pk])},
         {"label": "Zaman ızgarası", "value": f"{school.days_per_week} × {school.periods.count()}", "hint": "gün × saat", "url": reverse("timetable:school_settings", args=[school.pk])},
     ]
+    main = school.active_timetable or next((t for t in timetables if t.has_grid), None)
+    if main is not None and main.has_grid:
+        waiting = main.cards.filter(day__isnull=True).count()
+        _, stats = verify_timetable(main)  # problem önbellekten: hızlı
+        tiles += [
+            {"label": "Bekleyen kart", "value": waiting, "hint": "neden yerleşmiyor →" if waiting else "tümü yerleşmiş",
+             "url": reverse("timetable:pending", args=[main.pk]), "bad": waiting > 0},
+            {"label": "Öğretmen boşluğu", "value": stats.get("teacher_gaps", 0), "hint": "kalite karnesi →",
+             "url": reverse("timetable:quality", args=[main.pk])},
+        ]
     return render(
         request,
         "timetable/school_detail.html",

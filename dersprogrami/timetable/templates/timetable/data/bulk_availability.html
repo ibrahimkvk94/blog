@@ -12,7 +12,7 @@
 <form method="post" id="entity-form">{% csrf_token %}<input type="hidden" name="tur" value="{{ kind }}">
   <div class="bulk-layout">
     <div class="panel">
-      <div class="panel-head"><h2>Uygulanacak {{ singular }}lar</h2></div>
+      <div class="panel-head"><h2><span class="step-no">1</span>Uygulanacak {{ singular }}lar</h2></div>
       <div class="panel-body">
         {% include "timetable/data/target_picker.html" with picker=targets default_mode="close" %}
       </div>
@@ -26,8 +26,8 @@
         </select>
         {% if source %}<p class="subtle small" style="margin-bottom:0">“{{ source }}” müsaitliği yüklendi; “Aynısı olsun” ile seçilenlere kopyalayabilirsiniz.</p>{% endif %}
       </div>
-      <div class="panel">{% include "timetable/data/availability.html" with availability_title="İşaretlenecek saatler" %}</div>
-      <div class="form-actions"><div><button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} Seçilenlere uygula</button></div></div>
+      <div class="panel">{% include "timetable/data/availability.html" with availability_title="2 · İşaretlenecek saatler" %}</div>
+      <div class="form-actions"><div><button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} Seçilenlere uygula</button><span class="subtle small">Nasıl uygulanacağı soldaki listenin altında seçilir.</span></div></div>
     </div>
   </div>
 </form>

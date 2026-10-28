@@ -10,6 +10,7 @@ on:
       - "dersprogrami/paketle.bat"
       - "dersprogrami/requirements.txt"
       - "dersprogrami/manage.py"
+      - "dersprogrami/timetable/management/commands/sunucu.py"
       - ".github/workflows/kapali-ag-paketi.yml"
 
 jobs:
@@ -55,6 +56,44 @@ jobs:
           Stop-Process -Id $server.Id -Force
           if (-not $ok) { throw "Sunucu yanıt vermedi" }
           Write-Host "Kurulum ve sunucu sınaması başarılı."
+
+      - name: Otomatik başlatma, güncelleme ve kaldırmayı sına
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $false  # beklenen hatalı çıkış kodlarını kendimiz denetleriz
+          $zip = (Get-ChildItem dist -Filter "DersProgrami-*.zip" | Select-Object -First 1).FullName
+          Set-Location (Join-Path $env:RUNNER_TEMP "kurulum\DersProgrami")
+          $py = ".\python\python.exe"
+          function Wait-Server {
+            foreach ($i in 1..45) {
+              Start-Sleep -Seconds 2
+              try { if ((Invoke-WebRequest "http://127.0.0.1:8000/giris/" -UseBasicParsing).StatusCode -eq 200) { return $true } } catch { }
+            }
+            return $false
+          }
+          # 1) Otomatik başlatma: görev kurulur ve sunucu SYSTEM olarak kendiliğinden açılır
+          cmd /c "otomatik_baslat.bat < nul"
+          schtasks /query /tn "Ders Programi" | Out-Null; if ($LASTEXITCODE) { throw "Zamanlanmış görev oluşmadı" }
+          if (-not (Wait-Server)) { throw "Otomatik başlatılan sunucu yanıt vermedi" }
+          Write-Host "Otomatik başlatma tamam."
+          # 2) Güncelleme: kayıt ve .env korunmalı, silinen dosya zip'ten geri gelmeli, önce yedek alınmalı
+          & $py manage.py shell -c "from django.contrib.auth.models import User; User.objects.create_user('isaret', password='Parola-12345')"
+          $secret = (Select-String -Path .env -Pattern "DJANGO_SECRET_KEY").Line
+          Remove-Item kurulum.bat
+          Copy-Item $zip "DersProgrami-99999999.zip"
+          cmd /c "guncelle.bat < nul"
+          if (-not (Test-Path kurulum.bat)) { throw "Güncelleme dosyaları kopyalamadı" }
+          if ((Select-String -Path .env -Pattern "DJANGO_SECRET_KEY").Line -ne $secret) { throw ".env korunmadı" }
+          $user = & $py manage.py shell -c "from django.contrib.auth.models import User; print(User.objects.filter(username='isaret').exists())"
+          if (-not ($user -match "True")) { throw "Veritabanı korunmadı" }
+          if (-not (Test-Path "yedekler\db-guncelleme-oncesi.sqlite3")) { throw "Güncelleme öncesi yedek alınmadı" }
+          if (Test-Path "DersProgrami-99999999.zip") { throw "Güncelleme zip'i silinmedi" }
+          if (-not (Wait-Server)) { throw "Güncellemeden sonra sunucu yeniden başlamadı" }
+          Write-Host "Güncelleme tamam."
+          # 3) Kaldırma
+          cmd /c "otomatik_baslat.bat kaldir < nul"
+          schtasks /query /tn "Ders Programi" 2>$null | Out-Null; if (-not $LASTEXITCODE) { throw "Görev kaldırılmadı" }
+          Write-Host "Kaldırma tamam."
 
       - uses: actions/upload-artifact@v4
         with:
