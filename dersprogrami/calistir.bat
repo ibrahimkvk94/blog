@@ -11,7 +11,7 @@ cd /d "%~dp0"
   )
   echo [1/3] Guncellemeler kontrol ediliyor...
   git --version >nul 2>&1 && git rev-parse --is-inside-work-tree >nul 2>&1 && (
-    git pull --ff-only || echo Guncelleme alinamadi: internet yok ya da yerel degisiklik var. Mevcut surumle devam ediliyor.
+    git -c advice.diverging=false pull --ff-only || call :yeniden_yazilmis
   ) || echo Otomatik guncelleme kapali: proje git ile indirilmemis. Bilgi icin KURULUM.md dosyasina bakin.
   call .venv\Scripts\activate.bat
   echo [2/3] Paketler ve veritabani guncelleniyor...
@@ -23,3 +23,12 @@ cd /d "%~dp0"
   python manage.py runserver 127.0.0.1:8000
   exit /b
 )
+
+REM Sunucudaki gecmis yeniden yazildiysa (force push) hizli ileri sarma olmaz. Yerel degisiklik yoksa
+REM en son surume gecilir; eski hal "onceki-surum" dalinda saklanir. Veritabani (db.sqlite3) git disidir.
+:yeniden_yazilmis
+git fetch >nul 2>&1 || (echo Guncelleme alinamadi: internete baglanilamadi. Mevcut surumle devam ediliyor. & exit /b)
+git diff --quiet HEAD -- || (echo Guncelleme atlandi: yerel degisiklik var. Mevcut surumle devam ediliyor. & exit /b)
+git branch -f onceki-surum HEAD >nul 2>&1
+git reset --hard @{u} >nul && echo Sunucudaki surum yeniden duzenlenmisti; en son surume gecildi. Eski hal "onceki-surum" dalinda.
+exit /b
