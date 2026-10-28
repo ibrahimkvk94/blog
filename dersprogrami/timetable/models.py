@@ -236,6 +236,11 @@ class Teacher(models.Model):
     title = models.CharField("ünvan / rütbe", max_length=100, blank=True, help_text="Ör. Öğr.Gör. Ütğm., Dr., Bnb.")
     tc_no = models.CharField("TC kimlik no", max_length=11, blank=True, help_text="ÜYBS aktarımında öğretim elemanı sütununa yazılır.")
     email = models.EmailField("e-posta", blank=True, help_text="Program değişikliği ve vekâlet bildirimleri için.")
+    user = models.ForeignKey(
+        "auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="teacher_profiles",
+        verbose_name="kullanıcı hesabı",
+        help_text="Bu hesapla giren öğretmen “İsteklerim” sayfasından gelemeyeceği saatleri bildirir.",
+    )
 
     class Meta:
         ordering = ["last_name", "first_name"]
@@ -461,6 +466,37 @@ class Availability(models.Model):
     def __str__(self):
         target = next((getattr(self, f) for f in self.TARGET_FIELDS if getattr(self, f + "_id")), "Okul geneli")
         return f"{target}: gün {self.day + 1}, saat {self.period + 1} = {self.get_state_display()}"
+
+
+class AvailabilityRequest(models.Model):
+    """Öğretmenin müsaitlik isteği ("şu saatlerde gelemem"). Program sorumlusu onaylayınca öğretmenin
+    müsaitliğine yazılır. changes: [[gün, saat, durum], ...]; durum "no" gelemem, "maybe" tercih etmem,
+    "" artık gelebilirim (kısıt kaldırılsın)."""
+
+    PENDING = "bekliyor"
+    APPROVED = "onaylandi"
+    REJECTED = "reddedildi"
+    WITHDRAWN = "geri_alindi"
+    STATUS_CHOICES = [(PENDING, "Bekliyor"), (APPROVED, "Onaylandı"), (REJECTED, "Reddedildi"), (WITHDRAWN, "Geri alındı")]
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="availability_requests")
+    teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, related_name="availability_requests")
+    requested_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, related_name="availability_requests")
+    changes = models.JSONField(default=list)
+    reason = models.TextField("gerekçe", blank=True)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+    decided_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    decided_at = models.DateTimeField(null=True, blank=True)
+    note = models.TextField("yanıt", blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "müsaitlik isteği"
+        verbose_name_plural = "müsaitlik istekleri"
+
+    def __str__(self):
+        return f"{self.teacher}: {len(self.changes)} saat ({self.get_status_display()})"
 
 
 class Timetable(models.Model):

@@ -33,6 +33,7 @@ SCHOOL_ROUTES = {
     "relationship_import": (M.DATA, M.DATA),
     "bulk_availability": (M.DATA, M.DATA),
     "room_wizard": (M.DATA, M.DATA),
+    "teacher_requests": (M.DATA, M.DATA),
     "students": (M.VIEW, M.DATA),
     "student_timetable": (M.VIEW, M.VIEW),
     "publish_settings": (M.PUBLISH, M.PUBLISH),
@@ -104,7 +105,7 @@ CARD_ROUTES = {
 }
 VERSION_ROUTES = {"api_version": (M.VIEW, M.PROGRAM)}
 # Herkese açık (giriş yapmış) ve yalnızca merkez yöneticiye açık sayfalar
-OPEN_ROUTES = {"school_list", "login", "logout", "account", "public_index", "public_board", "public_timetable"}
+OPEN_ROUTES = {"school_list", "login", "logout", "account", "my_requests", "public_index", "public_board", "public_timetable"}
 CENTRAL_ROUTES = {"create_demo", "import_asc", "school_create", "central", "central_school_new", "central_log", "backups"}
 
 
@@ -265,6 +266,14 @@ def can(request):
     if school_id and request.user.is_authenticated:
         institution_id = School.objects.filter(pk=school_id).values_list("institution_id", flat=True).first()
         context["sibling_programs"] = visible_schools(request.user).filter(institution_id=institution_id).order_by("name")
+        if M.DATA in perms:
+            from .models import AvailabilityRequest
+
+            context["pending_requests"] = AvailabilityRequest.objects.filter(school_id=school_id, status=AvailabilityRequest.PENDING).count()
+    if request.user.is_authenticated:
+        from .models import Teacher
+
+        context["has_teacher_profile"] = Teacher.objects.filter(user=request.user).exists()
     return context
 
 
@@ -289,7 +298,7 @@ ACTION_LABELS = {
     "program_copy": "Program kopyaladı", "program_import": "aSc'den program aktardı", "program_delete": "Program sildi",
     "generate": "Üretim başlattı", "stop": "Üretimi durdurdu", "publish": "Programı yayınladı",
     "substitutions": "Vekâlet", "duties": "Nöbet çizelgesi", "lesson_refs": "ÜYBS referansları",
-    "uybs_settings": "ÜYBS ayarları", "relationship_import": "aSc kart ilişkisi aktarımı", "bulk_availability": "Toplu müsaitlik", "room_wizard": "Derslik atama", "solution_center": "Çözüm merkezi", "quality": "Kalite karnesi", "pending": "Bekleyen kart yerleştirme", "uybs_archive": "ÜYBS hafta arşivi", "students": "Öğrenciler",
+    "uybs_settings": "ÜYBS ayarları", "relationship_import": "aSc kart ilişkisi aktarımı", "bulk_availability": "Toplu müsaitlik", "room_wizard": "Derslik atama", "teacher_requests": "Öğretmen istekleri", "my_requests": "Müsaitlik isteği", "solution_center": "Çözüm merkezi", "quality": "Kalite karnesi", "pending": "Bekleyen kart yerleştirme", "uybs_archive": "ÜYBS hafta arşivi", "students": "Öğrenciler",
     "school_settings": "Program ayarları/saatler", "lesson_new": "Ders ekledi", "lesson_edit": "Dersi düzenledi",
     "lesson_delete": "Ders sildi", "class_lessons": "Sınıf ders tablosu", "distribution_save": "Ders dağıtımı",
     "distribution_paste": "Ders dağıtımı (yapıştırma)", "copy_divisions": "Bölünme kopyaladı", "excel_import": "Excel'den veri aktardı",

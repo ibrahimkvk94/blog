@@ -878,3 +878,34 @@ a.q-card { color: inherit; } a.q-card:hover { border-color: var(--primary); }
 .ru-day i.st-busy { background: var(--primary); }
 .ru-day i.st-free { background: var(--border); }
 .ru-day i.st-closed { background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
+.nav-badge { margin-left: auto; min-width: 20px; padding: 0 6px; border-radius: 999px; background: #f59e0b; color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+
+/* ---- Öğretmen istekleri ---- */
+.rq-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .rq-layout { grid-template-columns: 1fr; } }
+.rq-grid .av-cell[disabled] { cursor: default; }
+.rq-grid .av-cell[disabled]:hover { filter: none; box-shadow: none; }
+.av-cell.rq-changed { box-shadow: 0 0 0 2px var(--primary); }
+.av-cell.rq-changed:not(.av-no):not(.av-maybe) { color: var(--success); }
+.av-cell.rq-closed { display: inline-block; cursor: default; background: repeating-linear-gradient(45deg, var(--surface-2), var(--surface-2) 4px, var(--border) 4px, var(--border) 5px); }
+.legend .lg-changed { background: var(--surface); box-shadow: 0 0 0 2px var(--primary); }
+.rq-items { list-style: none; padding: 0; margin: 6px 0 10px; font-size: 13px; }
+.rq-items li { padding: 4px 0; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rq-dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.rq-dot.st-no { background: #dc2626; } .rq-dot.st-maybe { background: #f59e0b; } .rq-dot.st-free { background: #86d3a5; }
+.rq-card + .rq-card { margin-top: 16px; }
+.rq-review { display: grid; grid-template-columns: auto minmax(260px, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 1100px) { .rq-review { grid-template-columns: 1fr; } }
+.rq-reason { padding: 8px 10px; background: var(--surface-2); border-left: 3px solid var(--border-strong); border-radius: 4px; font-size: 13px; margin-bottom: 10px; }
+.rq-conflict { padding: 8px 10px; background: var(--warning-soft); border: 1px solid #f3dca8; border-radius: var(--radius-sm); font-size: 12.5px; margin-bottom: 10px; color: var(--warning); }
+.rq-conflict ul { margin: 4px 0 0; padding-left: 18px; }
+.rq-hist { padding: 6px 0; border-bottom: 1px solid var(--border); }
+.rq-accounts > summary { cursor: pointer; list-style: none; }
+.rq-accounts > summary::-webkit-details-marker { display: none; }
+.rq-account-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 6px 16px; }
+.rq-account { display: grid; grid-template-columns: minmax(0, 1fr) 170px; gap: 2px 8px; align-items: center; padding: 4px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.rq-account small { grid-column: 2; }
+.rq-account[hidden] { display: none; }
+.rq-chev svg { width: 16px; height: 16px; margin-right: 6px; vertical-align: -2px; transform: rotate(-90deg); transition: transform .15s; }
+.rq-accounts[open] .rq-chev svg { transform: none; }
+.subnav .nav-badge { margin-left: 4px; display: inline-block; }

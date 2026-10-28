@@ -1,0 +1,91 @@
+{% extends "timetable/base.html" %}
+{% block title %}Öğretmen istekleri{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / Veri{% endblock %}
+{% block heading %}<h1>Öğretmen istekleri</h1><span class="pill{% if pending %} warn{% else %} ok{% endif %}">{{ pending|length }} bekleyen</span>{% endblock %}
+{% block content %}
+{% include "timetable/data/subnav.html" %}
+<p class="muted small" style="margin-top:0">Öğretmenler kendi hesaplarıyla <b>İsteklerim</b> sayfasından gelemeyecekleri (ya da tercih etmedikleri) saatleri bildirir. Onayladığınız istek öğretmenin müsaitliğine yazılır; bir sonraki üretimde ve elle düzenlemede uygulanır. Bunun için öğretmen kartı bir kullanıcı hesabına bağlı olmalı (aşağıda, <a href="#hesaplar">Hesap bağlantıları</a>).</p>
+
+{% for item in pending %}
+  {% with r=item.r %}
+  <section class="panel rq-card">
+    <div class="panel-head"><h2>{{ r.teacher.full_name }}{% if r.teacher.department %} <span class="subtle">· {{ r.teacher.department }}</span>{% endif %}</h2>
+      <span class="subtle small">{{ r.requested_by.username|default:"?" }} · {{ r.created_at|date:"j F Y H:i" }}</span></div>
+    <div class="panel-body rq-review">
+      <div>
+        {% include "timetable/request_grid.html" with grid=item.grid editable=False %}
+        <div class="legend" style="margin-top:8px"><span><i class="lg-ok"></i>Uygun</span><span><i class="lg-no"></i>Gelemem</span><span><i class="lg-maybe"></i>Tercih etmem</span><span><i class="lg-changed"></i>İstenen değişiklik</span></div>
+      </div>
+      <div>
+        <div class="label">İstenen değişiklikler <span class="pill">{{ item.items|length }}</span></div>
+        <ul class="rq-items">{% for i in item.items %}<li><i class="rq-dot st-{{ i.state|default:'free' }}"></i>{{ i.label }} <span class="subtle">{{ i.span }}</span> · <b>{{ i.text }}</b></li>{% endfor %}</ul>
+        {% if r.reason %}<div class="rq-reason">“{{ r.reason }}”</div>{% endif %}
+        {% if item.conflicts %}
+          <div class="rq-conflict"><b>Programda bu saatlere düşen {{ item.conflicts|length }} ders var</b> ({{ timetable.name }}). Onaylarsanız bu dersler müsaitlik ihlali olur; çözüm merkezinden taşıyabilirsiniz.
+            <ul>{% for c in item.conflicts %}<li>{{ c }}</li>{% endfor %}</ul></div>
+        {% endif %}
+        <form method="post" class="rq-decide">{% csrf_token %}<input type="hidden" name="istek" value="{{ r.pk }}">
+          <input class="input" name="note" placeholder="Öğretmene not (isteğe bağlı)">
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button class="btn btn-primary" name="action" value="approve">{% include "timetable/icon.html" with name="check" %} Onayla ve yaz</button>
+            <button class="btn" name="action" value="reject">{% include "timetable/icon.html" with name="x" %} Reddet</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </section>
+  {% endwith %}
+{% empty %}
+  <div class="panel panel-body"><b>Bekleyen istek yok.</b> <span class="muted">{{ linked }} öğretmenin hesabı bağlı.</span></div>
+{% endfor %}
+
+{% if history %}
+<section class="panel" style="margin-top:16px">
+  <div class="panel-head"><h2>Yanıtlanan istekler</h2></div>
+  <div class="panel-body flush table-wrap">
+    <table class="table">
+      <thead><tr><th>Öğretmen</th><th>Durum</th><th>Saatler</th><th>Gerekçe / yanıt</th><th>Tarih</th></tr></thead>
+      <tbody>{% for h in history %}
+        <tr><td><b>{{ h.r.teacher.full_name }}</b></td>
+          <td><span class="pill {% if h.r.status == 'onaylandi' %}ok{% elif h.r.status == 'reddedildi' %}error{% endif %}">{{ h.r.get_status_display }}</span></td>
+          <td class="small">{% for i in h.items %}{{ i.label }} ({{ i.text }}){% if not forloop.last %}, {% endif %}{% endfor %}</td>
+          <td class="small">{% if h.r.reason %}“{{ h.r.reason }}”{% endif %}{% if h.r.note %}<div class="subtle">Yanıt: {{ h.r.note }}</div>{% endif %}</td>
+          <td class="subtle small">{{ h.r.decided_at|default:h.r.created_at|date:"j M Y H:i" }}{% if h.r.decided_by %}<div>{{ h.r.decided_by.username }}</div>{% endif %}</td></tr>
+      {% endfor %}</tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+<details class="panel rq-accounts" id="hesaplar" style="margin-top:16px"{% if not linked %} open{% endif %}>
+  <summary class="panel-head"><h2><span class="rq-chev">{% include "timetable/icon.html" with name="chevron" %}</span>Hesap bağlantıları</h2><span class="pill{% if linked %} ok{% endif %}">{{ linked }} / {{ accounts|length }} bağlı</span></summary>
+  <form method="post" class="panel-body">
+    {% csrf_token %}<input type="hidden" name="action" value="link">
+    <p class="subtle small" style="margin-top:0">Öğretmen kartını, öğretmenin giriş yaptığı kullanıcı hesabına bağlayın. Hesabı yoksa önce <a href="{% url 'timetable:institution_users' school.institution_id %}">Kullanıcılar</a> sayfasından açın (yalnızca görüntüleme yetkisi yeterli). Adı soyadı aynı olan hesaplar öneri olarak gösterilir.
+      {% if users %}<button type="button" class="btn btn-sm" data-rq-suggest>Önerileri seç</button>{% endif %}</p>
+    <input class="input input-sm" type="search" placeholder="Öğretmen ara…" data-rq-search style="max-width:260px;margin-bottom:8px">
+    <div class="rq-account-list">
+      {% for a in accounts %}
+        <label class="rq-account" data-name="{{ a.t.full_name|lower }}"><span>{{ a.t.full_name }}{% if a.t.department %} <span class="subtle">{{ a.t.department }}</span>{% endif %}</span>
+          <select class="select select-sm" name="hesap-{{ a.t.pk }}"{% if a.suggest %} data-suggest="{{ a.suggest.pk }}"{% endif %}><option value="">— bağlı değil</option>{% for u in users %}<option value="{{ u.pk }}"{% if u.pk == a.t.user_id %} selected{% endif %}>{{ u.username }}{% if u.get_full_name %} ({{ u.get_full_name }}){% endif %}</option>{% endfor %}</select>
+          {% if a.suggest %}<small class="subtle">öneri: {{ a.suggest.username }}</small>{% endif %}</label>
+      {% endfor %}
+    </div>
+    <div class="form-actions"><div><button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} Bağlantıları kaydet</button></div></div>
+  </form>
+</details>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const box = document.getElementById("hesaplar");
+  if (location.hash === "#hesaplar") box.open = true;
+  const suggest = box.querySelector("[data-rq-suggest]");
+  if (suggest) suggest.addEventListener("click", () => box.querySelectorAll("select[data-suggest]").forEach((s) => { if (!s.value) s.value = s.dataset.suggest; }));
+  box.querySelector("[data-rq-search]").addEventListener("input", (e) => {
+    const q = e.target.value.trim().toLocaleLowerCase("tr");
+    box.querySelectorAll(".rq-account").forEach((r) => { r.hidden = q && !r.dataset.name.includes(q); });
+  });
+})();
+</script>
+{% endblock %}

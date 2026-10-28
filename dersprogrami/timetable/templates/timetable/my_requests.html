@@ -1,0 +1,84 @@
+{% extends "timetable/base.html" %}
+{% block title %}İsteklerim{% endblock %}
+{% block heading %}<h1>İsteklerim</h1>{% if pending %}<span class="pill warn">onay bekliyor</span>{% endif %}{% endblock %}
+{% block content %}
+{% if not teachers %}
+  <div class="panel panel-body"><b>Hesabınız bir öğretmen kartına bağlı değil.</b>
+    <p class="muted" style="margin-bottom:0">Program sorumlusundan, öğretmen kartınızdaki “Kullanıcı hesabı” alanına bu hesabı ({{ user.username }}) seçmesini isteyin. Sonra buradan gelemeyeceğiniz saatleri bildirebilirsiniz.</p></div>
+{% else %}
+{% if teachers|length > 1 %}
+  <nav class="subnav" aria-label="Programlar">{% for t in teachers %}<a href="?ogretmen={{ t.pk }}" class="{% if t.pk == teacher.pk %}active{% endif %}">{{ t.school.name }}</a>{% endfor %}</nav>
+{% endif %}
+<div class="rq-layout">
+  <form method="post" class="panel" id="rq-form">
+    {% csrf_token %}<input type="hidden" name="ogretmen" value="{{ teacher.pk }}">
+    <div class="panel-head"><h2>{{ teacher.full_name }} · {{ teacher.school.name }}</h2>
+      <div class="legend"><span><i class="lg-ok"></i>Gelebilirim</span><span><i class="lg-no"></i>Gelemem</span><span><i class="lg-maybe"></i>Tercih etmem</span><span><i class="lg-changed"></i>İstek</span></div></div>
+    <div class="panel-body">
+      <p class="subtle small" style="margin-top:0">Hücreye tıklayın: gelebilirim → gelemem → tercih etmem. Kalın çerçeveli hücreler kayıtlı müsaitliğinizden farklı olanlardır; program sorumlusu onaylayınca geçerli olur. Taralı saatler okul genelinde kapalıdır.</p>
+      {% include "timetable/request_grid.html" with editable=True %}
+      <label class="label" for="rq-reason" style="margin-top:14px">Gerekçe <span class="subtle">(isteğe bağlı)</span></label>
+      <textarea class="input" id="rq-reason" name="reason" rows="2" placeholder="Ör. Salı öğleden sonra yüksek lisans dersim var.">{{ pending.reason }}</textarea>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap">
+        <button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} {% if pending %}İsteği güncelle{% else %}İsteği gönder{% endif %}</button>
+        <button type="button" class="btn btn-ghost" data-rq-reset>Değişiklikleri temizle</button>
+        <span class="subtle small" data-rq-count></span>
+      </div>
+    </div>
+  </form>
+  <aside>
+    <section class="panel">
+      <div class="panel-head"><h2>Bekleyen istek</h2></div>
+      <div class="panel-body">
+        {% if pending %}
+          <div class="subtle small">{{ pending.created_at|date:"j F Y H:i" }} tarihinde gönderildi</div>
+          <ul class="rq-items">{% for i in pending_items %}<li><i class="rq-dot st-{{ i.state|default:'free' }}"></i>{{ i.label }} <span class="subtle">{{ i.span }}</span> · <b>{{ i.text }}</b></li>{% endfor %}</ul>
+          {% if pending.reason %}<p class="small">“{{ pending.reason }}”</p>{% endif %}
+          <form method="post">{% csrf_token %}<input type="hidden" name="action" value="withdraw"><input type="hidden" name="istek" value="{{ pending.pk }}"><input type="hidden" name="ogretmen" value="{{ teacher.pk }}">
+            <button class="btn btn-sm">İsteği geri al</button></form>
+        {% else %}<p class="muted small" style="margin:0">Bekleyen isteğiniz yok.</p>{% endif %}
+      </div>
+    </section>
+    <section class="panel" style="margin-top:16px">
+      <div class="panel-head"><h2>Geçmiş</h2></div>
+      <div class="panel-body">
+        {% for h in history %}
+          <div class="rq-hist"><span class="pill {% if h.r.status == 'onaylandi' %}ok{% elif h.r.status == 'reddedildi' %}error{% endif %}">{{ h.r.get_status_display }}</span>
+            <span class="subtle small">{{ h.r.created_at|date:"j M Y" }} · {{ h.items|length }} saat</span>
+            {% if h.r.note %}<div class="small">Yanıt: “{{ h.r.note }}”</div>{% endif %}</div>
+        {% empty %}<p class="muted small" style="margin:0">Henüz yanıtlanmış isteğiniz yok.</p>{% endfor %}
+      </div>
+    </section>
+  </aside>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const form = document.getElementById("rq-form");
+  if (!form) return;
+  const order = ["", "no", "maybe"];
+  const cells = [...form.querySelectorAll(".rq-edit button.av-cell")];
+  const paint = (b) => {
+    const input = b.nextElementSibling, state = input.value, changed = state !== b.dataset.current;
+    b.className = "av-cell" + (state ? " av-" + state : "") + (changed ? " rq-changed" : "");
+    b.textContent = changed && !state ? "✓" : state === "maybe" ? "?" : "";
+  };
+  const count = () => {
+    const n = cells.filter((b) => b.nextElementSibling.value !== b.dataset.current).length;
+    form.querySelector("[data-rq-count]").textContent = n ? n + " saat değişti" : "Kayıtlı müsaitliğinizle aynı";
+  };
+  cells.forEach((b) => b.addEventListener("click", () => {
+    const input = b.nextElementSibling;
+    input.value = order[(order.indexOf(input.value) + 1) % order.length];
+    paint(b); count();
+  }));
+  form.querySelector("[data-rq-reset]").addEventListener("click", () => {
+    cells.forEach((b) => { b.nextElementSibling.value = b.dataset.current; paint(b); });
+    count();
+  });
+  count();
+})();
+</script>
+{% endblock %}

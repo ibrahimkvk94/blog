@@ -158,7 +158,7 @@ ENTITIES = {
             ("genel", "Genel", (
                 ("Kimlik", "Ad, kısa ad ve raporlarda adın önüne yazılabilen künye.", ("first_name", "last_name", "short", "department", "title")),
                 ("Görev", "Ders yükü hedefi, branşlar ve öğretmenin dersliği.", ("target_periods", "home_classroom", "subjects")),
-                ("İletişim ve ÜYBS", "Bildirimler ve ÜYBS aktarımı için.", ("email", "tc_no")),
+                ("İletişim ve hesap", "Bildirimler, ÜYBS aktarımı ve öğretmenin kendi kullanıcı hesabı (istek formu için).", ("email", "tc_no", "user")),
             )),
             ("kisitlar", "Kısıtlar", (
                 ("Günlük", "Boş bırakılan alan sınır koymaz.", ("max_periods_per_day", "min_periods_per_day", "max_consecutive", "max_gaps_per_day")),

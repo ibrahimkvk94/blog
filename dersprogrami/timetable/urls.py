@@ -1,7 +1,7 @@
 from django.contrib.auth import views as auth_views
 from django.urls import path
 
-from . import accounts, asc_relations, data_views, resolve, institutions, public, students, uybs, views
+from . import accounts, asc_relations, data_views, request_views, resolve, institutions, public, students, uybs, views
 
 app_name = "timetable"
 
@@ -10,6 +10,7 @@ urlpatterns = [
     path("giris/", auth_views.LoginView.as_view(template_name="timetable/login.html", redirect_authenticated_user=True), name="login"),
     path("cikis/", auth_views.LogoutView.as_view(), name="logout"),
     path("hesabim/", accounts.account, name="account"),
+    path("isteklerim/", request_views.my_requests, name="my_requests"),
     path("merkez/", accounts.central, name="central"),
     path("merkez/gunluk/", accounts.central_log, name="central_log"),
     path("merkez/yedekler/", accounts.backups, name="backups"),
@@ -52,6 +53,7 @@ urlpatterns = [
     path("okul/<int:pk>/veri/excel/indir/", data_views.excel_export, name="excel_export"),
     path("okul/<int:pk>/veri/toplu-musaitlik/", data_views.bulk_availability, name="bulk_availability"),
     path("okul/<int:pk>/veri/derslik-atama/", data_views.room_wizard, name="room_wizard"),
+    path("okul/<int:pk>/veri/ogretmen-istekleri/", request_views.teacher_requests, name="teacher_requests"),
     path("okul/<int:pk>/veri/kart-iliskileri/asc-aktar/", asc_relations.import_view, name="relationship_import"),
     path("okul/<int:pk>/veri/<slug:slug>/", data_views.entity_list, name="data_list"),
     path("okul/<int:pk>/veri/<slug:slug>/yeni/", data_views.entity_edit, name="data_new"),

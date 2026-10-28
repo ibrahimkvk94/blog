@@ -148,7 +148,7 @@ class TeacherForm(SchoolScopedForm):
             "first_name", "last_name", "short", "department", "title", "target_periods", "home_classroom",
             "max_periods_per_day", "min_periods_per_day", "max_consecutive",
             "max_gaps_per_day", "max_gaps_per_week", "max_days_per_week", "duty_exempt", "max_duties", "subjects",
-            "tc_no", "email",
+            "tc_no", "email", "user",
         ]
         widgets = {"subjects": ChipSelectMultiple()}
         help_texts = {
@@ -157,6 +157,15 @@ class TeacherForm(SchoolScopedForm):
             "max_gaps_per_week": "Boş = sınır yok",
             "max_days_per_week": "Ör. 4 = haftada bir boş gün",
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from django.contrib.auth.models import User
+        from django.db.models import Q
+
+        users = User.objects.filter(Q(memberships__institution_id=self.school.institution_id) | Q(pk=self.instance.user_id))
+        self.fields["user"].queryset = users.distinct().order_by("username")
+        self.fields["user"].label_from_instance = lambda u: f"{u.username} ({u.get_full_name()})" if u.get_full_name() else u.username
 
     def clean_tc_no(self):
         tc = (self.cleaned_data.get("tc_no") or "").strip()

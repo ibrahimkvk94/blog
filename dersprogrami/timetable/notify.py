@@ -124,3 +124,18 @@ def substitution_notices(absence, substitutions):
     if not messages or not enabled():
         return 0, []
     return _send(messages)
+
+
+def request_decision_notice(req, items, link=""):
+    """Öğretmene müsaitlik isteğinin onaylandığını/reddedildiğini bildirir. Dönüş: (gönderilen, hatalar)."""
+    teacher = req.teacher
+    if not enabled() or not teacher.email:
+        return 0, []
+    verdict = "onaylandı" if req.status == req.APPROVED else "reddedildi"
+    lines = [f"Merhaba {teacher.full_name},", "", f"{req.school} programı için gönderdiğiniz müsaitlik isteği {verdict}.", ""]
+    lines += [f"- {i['label']} {i['span']}: {i['text']}" for i in items]
+    if req.note:
+        lines += ["", f"Yanıt: {req.note}"]
+    if link:
+        lines += ["", link]
+    return _send([EmailMessage(f"Müsaitlik isteğiniz {verdict} – {req.school}", "\n".join(lines), to=[teacher.email])])
