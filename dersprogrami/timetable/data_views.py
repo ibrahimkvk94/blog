@@ -731,6 +731,22 @@ def _school_sub(school):
     return f"{school.days_per_week} gün × {school.periods.count()} ders saati"
 
 
+def room_wizard(request, pk):
+    """Derslik atama sihirbazı (rooms_wizard.py)."""
+    from . import rooms_wizard
+
+    school = _school(pk)
+    if request.method == "POST":
+        before = len(rooms_wizard.roomless(school))
+        n_classes, n_subjects = rooms_wizard.apply(school, request.POST)
+        after = len(rooms_wizard.roomless(school))
+        messages.success(request, f"{n_classes} sınıfa derslik, {n_subjects} ders adına varsayılan derslik atandı. "
+                                  f"Dersliği belirsiz ders: {before} → {after}.")
+        return redirect("timetable:room_wizard", pk=school.pk)
+    return render(request, "timetable/data/room_wizard.html", _nav(
+        school, "data", data_nav="derslik-atama", data=rooms_wizard.analyze(school)))
+
+
 def school_settings(request, pk):
     school = _school(pk)
     form = forms.SchoolForm(request.POST or None, instance=school)
