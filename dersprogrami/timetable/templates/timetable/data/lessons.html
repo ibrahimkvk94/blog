@@ -1,52 +1,157 @@
 {% extends "timetable/base.html" %}
 {% block title %}Dersler{% endblock %}
 {% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / Veri{% endblock %}
-{% block heading %}<h1>Dersler</h1><span class="pill">{{ rows|length }} ders · {{ total }} saat</span>{% endblock %}
-{% block actions %}<a class="btn btn-primary" href="{% url 'timetable:lesson_new' school.pk %}{% if filters.sinif %}?sinif={{ filters.sinif }}{% endif %}">{% include "timetable/icon.html" with name="plus" %} Yeni ders</a>{% endblock %}
+{% block heading %}<h1>Dersler</h1><span class="pill">{{ count }} ders · {{ total }} saat</span>{% endblock %}
+{% block actions %}<a class="btn btn-primary" href="{% url 'timetable:lesson_new' school.pk %}">{% include "timetable/icon.html" with name="plus" %} Yeni ders</a>{% endblock %}
 {% block content %}
 {% include "timetable/data/subnav.html" %}
-<div class="panel" style="margin-bottom:16px">
-  <div class="panel-head"><h2>Sınıf yükleri</h2><span class="subtle small">Haftalık ders saati / uygun saat · sınıfa tıklayarak ders tablosunu açın</span></div>
-  <div class="panel-body load-cards">
-    {% for cls, load in class_loads %}
-      <a class="load-card{% if load.0 > load.1 %} over{% endif %}" href="{% url 'timetable:class_lessons' school.pk cls.pk %}">
-        <b>{{ cls }}</b>
-        <span>{{ load.0 }} / {{ load.1 }} saat</span>
-        <div class="progress"><div style="width:{% widthratio load.0 load.1 100 %}%"></div></div>
-      </a>
-    {% empty %}<span class="subtle">Önce sınıf ekleyin.</span>{% endfor %}
+{{ payload|json_script:"lessons-data" }}
+<div class="ls-tools">
+  <input class="input" type="search" placeholder="Ders adı ya da kodu ara…" data-ls-q value="{{ filters.q }}">
+  <select class="select" data-ls-class aria-label="Sınıf"><option value="">Tüm sınıflar</option>{% for c in classes %}<option value="{{ c.id }}"{% if filters.sinif == c.id|stringformat:'s' %} selected{% endif %}>{{ c.name }}</option>{% endfor %}</select>
+  <select class="select" data-ls-teacher aria-label="Öğretmen"><option value="">Tüm öğretmenler</option>{% for t in teachers %}<option value="{{ t.pk }}"{% if filters.ogretmen == t.pk|stringformat:'s' %} selected{% endif %}>{{ t.first_name }} {{ t.last_name }}</option>{% endfor %}</select>
+  <span class="subtle small" data-ls-count></span>
+  <div class="ls-expand">
+    <button type="button" class="btn btn-sm btn-ghost" data-ls-open>Tümünü aç</button>
+    <button type="button" class="btn btn-sm btn-ghost" data-ls-close>Tümünü kapat</button>
   </div>
 </div>
+<div class="ls-groups" data-ls-groups></div>
 
-<form method="get" class="filter-bar">
-  <select class="select" name="sinif" onchange="this.form.submit()"><option value="">Tüm sınıflar</option>{% for c in classes %}<option value="{{ c.pk }}" {% if filters.sinif == c.pk|stringformat:'s' %}selected{% endif %}>{{ c }}</option>{% endfor %}</select>
-  <select class="select" name="ogretmen" onchange="this.form.submit()"><option value="">Tüm öğretmenler</option>{% for t in teachers %}<option value="{{ t.pk }}" {% if filters.ogretmen == t.pk|stringformat:'s' %}selected{% endif %}>{{ t.first_name }} {{ t.last_name }}</option>{% endfor %}</select>
-  <input class="input" name="q" value="{{ filters.q }}" placeholder="Ders adı ara…">
-  <button class="btn">Filtrele</button>
-  {% if filters.sinif or filters.ogretmen or filters.q %}<a class="btn btn-ghost" href="{% url 'timetable:lessons' school.pk %}">Temizle</a>{% endif %}
+<form method="post" class="ls-bulk" data-ls-bulk hidden>
+  {% csrf_token %}
+  <input type="hidden" name="query" data-ls-query>
+  <div data-ls-ids></div>
+  <b data-ls-selected>0 ders seçili</b>
+  <button type="button" class="btn btn-sm btn-ghost" data-ls-clear>Seçimi temizle</button>
+  <select class="select select-sm" name="islem" data-ls-action aria-label="Toplu işlem">
+    <option value="ogretmen">Öğretmen</option><option value="derslik">Derslik</option>
+    <option value="saat">Haftalık saat</option><option value="uzunluk">Kart uzunluğu</option><option value="gunde">Günde en fazla kart</option>
+    <option value="sil">Sil</option>
+  </select>
+  <select class="select select-sm" name="mod" data-for="ogretmen derslik" aria-label="Nasıl">{% for k, v in modes.items %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+  <select class="select select-sm ls-pick" name="deger" data-for="ogretmen" aria-label="Öğretmen seç"><option value="">— öğretmensiz</option>{% for t in teachers %}<option value="{{ t.pk }}">{{ t.first_name }} {{ t.last_name }}</option>{% endfor %}</select>
+  <select class="select select-sm ls-pick" name="deger" data-for="derslik" aria-label="Derslik seç" disabled><option value="">— derslik seçilmesin (sınıf dersliği)</option>{% for r in rooms %}<option value="{{ r.pk }}">{{ r }}</option>{% endfor %}</select>
+  <input class="input input-sm ls-num" type="number" name="sayi" min="1" max="40" data-for="saat uzunluk gunde" placeholder="sayı" aria-label="Sayı">
+  <button class="btn btn-primary btn-sm" data-ls-apply>Uygula</button>
 </form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+  const data = JSON.parse(document.getElementById("lessons-data").textContent);
+  const byId = new Map(data.rows.map((r) => [r.id, r]));
+  const box = document.querySelector("[data-ls-groups]");
+  const q = document.querySelector("[data-ls-q]");
+  const classSel = document.querySelector("[data-ls-class]");
+  const teacherSel = document.querySelector("[data-ls-teacher]");
+  const count = document.querySelector("[data-ls-count]");
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const norm = (t) => (t || "").toLocaleLowerCase("tr");
+  const selected = new Set();
+  let open = new Set();
+  try { open = new Set(JSON.parse(sessionStorage.getItem("ls-open") || "[]")); } catch (e) { /* yok */ }
+  const saveOpen = () => { try { sessionStorage.setItem("ls-open", JSON.stringify([...open])); } catch (e) { /* yok */ } };
+  const back = () => location.pathname + location.search;
+  const editUrl = (id) => data.edit.replace("/0/", "/" + id + "/") + "?back=" + encodeURIComponent(back());
 
-<div class="panel">
-  {% if rows %}
-  <div class="table-wrap">
-    <table class="table">
-      <thead><tr><th>Ders</th><th>Sınıf / grup</th><th>Öğretmen</th><th class="num">Saat</th><th>Derslik</th><th></th></tr></thead>
-      <tbody>
-        {% for r in rows %}
-          <tr>
-            <td><a href="{% url 'timetable:lesson_edit' school.pk r.lesson.pk %}?back={{ request.get_full_path|urlencode }}"><span class="swatch" style="background:{{ r.lesson.subject.color }}"></span> <b>{{ r.lesson.subject.name }}</b></a></td>
-            <td>{{ r.classes }}{% if r.groups %} <span class="subtle">· {{ r.groups }}</span>{% endif %}</td>
-            <td>{{ r.teachers|default:"–" }}</td>
-            <td class="num nowrap"><b>{{ r.lesson.periods_per_week }}</b>{% if r.pattern %} <span class="subtle">({{ r.pattern }})</span>{% endif %}</td>
-            <td class="muted">{{ r.rooms|default:"Sınıf dersliği" }}</td>
-            <td class="num"><a class="btn btn-sm" href="{% url 'timetable:lesson_edit' school.pk r.lesson.pk %}?back={{ request.get_full_path|urlencode }}">Düzenle</a></td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}
-    <div class="empty">Bu filtreyle ders yok. Bir sınıfın derslerini hızlıca girmek için yukarıdan sınıfı seçip <b>ders tablosunu</b> açın.</div>
-  {% endif %}
-</div>
+  const matches = (r) => {
+    const text = norm(q.value.trim());
+    return (!text || norm(r.s + " " + r.k).includes(text)) &&
+      (!teacherSel.value || r.ti.includes(Number(teacherSel.value)));
+  };
+  function rowHtml(r) {
+    return '<tr data-id="' + r.id + '"><td class="ls-check"><input type="checkbox" data-pick="' + r.id + '"' + (selected.has(r.id) ? " checked" : "") + ' aria-label="Seç"></td>' +
+      '<td><a href="' + editUrl(r.id) + '"><span class="swatch" style="background:' + esc(r.c) + '"></span> <b>' + esc(r.s) + "</b></a>" + (r.k ? ' <span class="subtle small">' + esc(r.k) + "</span>" : "") + "</td>" +
+      "<td>" + esc(r.cl) + (r.g ? ' <span class="subtle">· ' + esc(r.g) + "</span>" : "") + "</td>" +
+      "<td>" + (esc(r.t) || '<span class="subtle">–</span>') + "</td>" +
+      '<td class="num nowrap"><b>' + r.h + "</b>" + (r.p ? ' <span class="subtle">(' + esc(r.p) + ")</span>" : "") + "</td>" +
+      '<td class="num">' + (r.m || '<span class="subtle">–</span>') + "</td>" +
+      '<td class="muted small">' + (esc(r.r) || "Sınıf dersliği") + "</td></tr>";
+  }
+  function render() {
+    const filtering = !!(q.value.trim() || teacherSel.value);
+    let shown = 0, groupsShown = 0;
+    const html = data.groups.map((g) => {
+      if (classSel.value && String(g.id) !== classSel.value) return "";
+      const rows = g.lessons.map((id) => byId.get(id)).filter(matches);
+      if (filtering && !rows.length) return "";
+      groupsShown++;
+      shown += rows.length;
+      const isOpen = filtering || classSel.value || open.has(g.id);
+      const hours = rows.reduce((n, r) => n + r.h, 0);
+      const pct = g.cap ? Math.min(100, Math.round(100 * g.hours / g.cap)) : 0;
+      const over = g.cap && g.hours > g.cap;
+      return '<section class="ls-group' + (isOpen ? " open" : "") + '" data-group="' + g.id + '">' +
+        '<header class="ls-head" data-toggle><span class="ls-caret">▸</span>' +
+        '<div class="ls-name"><b>' + esc(g.name) + "</b>" + (g.short ? ' <span class="subtle">' + esc(g.short) + "</span>" : "") + "</div>" +
+        '<span class="ls-meta">' + rows.length + " ders" + (filtering ? " (" + hours + " saat)" : "") + "</span>" +
+        (g.cap ? '<div class="ls-load' + (over ? " over" : "") + '" title="Haftalık ders saati / uygun saat"><div class="progress"><div style="width:' + pct + '%"></div></div><span>' + g.hours + " / " + g.cap + " saat</span></div>" : '<div class="ls-load"></div>') +
+        '<div class="ls-links">' + (g.table ? '<a class="btn btn-sm btn-ghost" href="' + g.table + '">Ders tablosu</a>' : "") + '<a class="btn btn-sm btn-ghost" href="' + g.new + '">+ Ders</a></div></header>' +
+        (isOpen ? '<div class="ls-body"><table class="table"><thead><tr><th class="ls-check"><input type="checkbox" data-pick-all aria-label="Gruptakilerin tümünü seç"></th><th>Ders</th><th>Sınıf / grup</th><th>Öğretmen</th><th class="num">Saat</th><th class="num">Günde en fazla</th><th>Derslik</th></tr></thead><tbody>' +
+          (rows.map(rowHtml).join("") || '<tr><td colspan="7" class="subtle">Bu sınıfın dersi yok.</td></tr>') + "</tbody></table></div>" : "") +
+        "</section>";
+    }).join("");
+    box.innerHTML = html || '<div class="panel panel-body subtle">Süzgece uyan ders yok.</div>';
+    count.textContent = (filtering || classSel.value) ? shown + " ders, " + groupsShown + " sınıf" : data.groups.length + " sınıf";
+  }
+  box.addEventListener("click", (e) => {
+    const head = e.target.closest("[data-toggle]");
+    if (!head || e.target.closest("a")) return;
+    const id = Number(head.parentElement.dataset.group);
+    if (open.has(id)) open.delete(id); else open.add(id);
+    saveOpen();
+    render();
+  });
+  box.addEventListener("change", (e) => {
+    if (e.target.matches("[data-pick]")) {
+      const id = Number(e.target.dataset.pick);
+      if (e.target.checked) selected.add(id); else selected.delete(id);
+    } else if (e.target.matches("[data-pick-all]")) {
+      e.target.closest("table").querySelectorAll("[data-pick]").forEach((c) => {
+        c.checked = e.target.checked;
+        const id = Number(c.dataset.pick);
+        if (c.checked) selected.add(id); else selected.delete(id);
+      });
+    }
+    syncBulk();
+  });
+  [q, classSel, teacherSel].forEach((el) => el.addEventListener("input", () => {
+    render();
+    const p = new URLSearchParams();
+    if (q.value.trim()) p.set("q", q.value.trim());
+    if (classSel.value) p.set("sinif", classSel.value);
+    if (teacherSel.value) p.set("ogretmen", teacherSel.value);
+    history.replaceState(null, "", location.pathname + (p.toString() ? "?" + p : ""));
+  }));
+  document.querySelector("[data-ls-open]").addEventListener("click", () => { data.groups.forEach((g) => open.add(g.id)); saveOpen(); render(); });
+  document.querySelector("[data-ls-close]").addEventListener("click", () => { open.clear(); saveOpen(); render(); });
+
+  // ---- toplu düzenleme çubuğu
+  const bulk = document.querySelector("[data-ls-bulk]");
+  const action = bulk.querySelector("[data-ls-action]");
+  function syncBulk() {
+    bulk.hidden = selected.size === 0;
+    bulk.querySelector("[data-ls-selected]").textContent = selected.size + " ders seçili";
+    bulk.querySelector("[data-ls-ids]").innerHTML = [...selected].map((id) => '<input type="hidden" name="ders" value="' + id + '">').join("");
+    bulk.querySelector("[data-ls-query]").value = location.search.slice(1);
+    bulk.querySelectorAll("[data-for]").forEach((el) => {
+      const on = el.dataset.for.split(" ").includes(action.value);
+      el.hidden = !on;
+      el.disabled = !on;  // gizli alanlar gönderilmez
+    });
+  }
+  action.addEventListener("change", syncBulk);
+  bulk.querySelector("[data-ls-clear]").addEventListener("click", () => { selected.clear(); render(); syncBulk(); });
+  bulk.addEventListener("submit", (e) => {
+    const label = action.options[action.selectedIndex].text.toLocaleLowerCase("tr");
+    const msg = action.value === "sil" ? selected.size + " ders silinsin mi? Programlardaki kartları da silinir."
+      : selected.size + " dersin " + label + " değiştirilsin mi?";
+    if (!confirm(msg)) e.preventDefault();
+  });
+  render();
+  syncBulk();
+})();
+</script>
 {% endblock %}

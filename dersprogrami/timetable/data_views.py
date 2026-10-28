@@ -749,41 +749,117 @@ def _lesson_rows(lessons):
     return rows
 
 
+BULK_MODES = {"replace": "yerine koy", "add": "ekle", "remove": "çıkar"}
+
+
 def lessons(request, pk):
+    """Dersler: sınıfa göre gruplu ve katlanır liste (satırları tarayıcı çizer), arama/süzgeç ve
+    seçili derslerde toplu düzenleme (öğretmen, derslik, haftalık saat, kart uzunluğu, günde en fazla, sil)."""
     school = _school(pk)
-    qs = (
-        Lesson.objects.filter(school=school)
-        .select_related("subject")
-        .prefetch_related("classes", "groups", "teachers", "classrooms")
-        .order_by("subject__name", "id")
-    )
-    class_id, teacher_id, query = request.GET.get("sinif"), request.GET.get("ogretmen"), request.GET.get("q", "").strip()
-    if class_id:
-        qs = qs.filter(classes__id=class_id)
-    if teacher_id:
-        qs = qs.filter(teachers__id=teacher_id)
-    if query:
-        qs = qs.filter(Q(subject__name__icontains=query) | Q(subject__short__icontains=query))
-    qs = qs.distinct()
+    if request.method == "POST":
+        message, level = _lesson_bulk(school, request.POST)
+        getattr(messages, level)(request, message)
+        return redirect(reverse("timetable:lessons", args=[school.pk]) + ("?" + request.POST.get("query", "") if request.POST.get("query") else ""))
+    # İlişkiler ara tablolardan kimlik olarak okunur (binlerce dersin her biri için nesne kurmadan).
+    qs = Lesson.objects.filter(school=school).select_related("subject").only(
+        "id", "periods_per_week", "card_length", "split", "max_per_day", "subject__name", "subject__short", "subject__color")
+    links = defaultdict(lambda: defaultdict(list))
+    for name, model_field in (("classes", "schoolclass_id"), ("teachers", "teacher_id"), ("classrooms", "classroom_id"), ("groups", "group_id")):
+        through = getattr(Lesson, name).through
+        for lesson_id, target in through.objects.filter(lesson__school=school).values_list("lesson_id", model_field):
+            links[name][lesson_id].append(target)
+    class_names = {c.pk: c.short or c.name for c in school.classes.all()}
+    teacher_names = {t.pk: _teacher_name(t) for t in school.teachers.all()}
+    room_names_ = {r.pk: str(r) for r in school.classrooms.all()}
+    group_names = dict(Group.objects.filter(division__school_class__school=school).values_list("pk", "name"))
     teacher_loads, class_loads = loads(school)
-    classes = list(school.classes.all())
     cells = school.days_per_week * school.periods.count()
+    rows, by_class, loose = [], defaultdict(list), []
+    for lesson in sorted(qs, key=lambda x: (natural_key(x.subject.name), x.pk)):
+        lengths = lesson.card_lengths()
+        classes = links["classes"].get(lesson.pk, [])
+        teachers = links["teachers"].get(lesson.pk, [])
+        rows.append({
+            "id": lesson.pk, "s": lesson.subject.name, "k": lesson.subject.short or "", "c": lesson.subject.color,
+            "cl": ", ".join(class_names[c] for c in classes if c in class_names), "ci": classes,
+            "g": ", ".join(sorted({group_names.get(g, "") for g in links["groups"].get(lesson.pk, [])})),
+            "t": ", ".join(teacher_names[t] for t in teachers if t in teacher_names), "ti": teachers,
+            "r": ", ".join(room_names_[r] for r in links["classrooms"].get(lesson.pk, []) if r in room_names_),
+            "h": lesson.periods_per_week, "p": "+".join(map(str, lengths)) if len(lengths) > 1 and lesson.card_length > 1 else "",
+            "m": lesson.max_per_day or "",
+        })
+        for c in classes:
+            by_class[c].append(lesson.pk)
+        if not classes:
+            loose.append(lesson.pk)
+    groups = [{
+        "id": c.pk, "name": c.name, "short": c.short if c.short != c.name else "",
+        "hours": class_loads.get(c.pk, (0, cells))[0], "cap": class_loads.get(c.pk, (0, cells))[1],
+        "lessons": by_class.get(c.pk, []),
+        "table": reverse("timetable:class_lessons", args=[school.pk, c.pk]),
+        "new": reverse("timetable:lesson_new", args=[school.pk]) + f"?sinif={c.pk}",
+    } for c in _sorted(ENTITIES["siniflar"], school.classes.all())]
+    if loose:
+        groups.append({"id": 0, "name": "Sınıfsız dersler", "short": "toplantı, hazırlık", "hours": sum(r["h"] for r in rows if not r["ci"]),
+                       "cap": 0, "lessons": loose, "table": "", "new": reverse("timetable:lesson_new", args=[school.pk])})
+    teachers = _sorted(ENTITIES["ogretmenler"], school.teachers.all())
     return render(
         request,
         "timetable/data/lessons.html",
         _nav(
-            school,
-            "data",
-            data_nav="dersler",
-            rows=_lesson_rows(qs),
-            classes=classes,
-            teachers=list(school.teachers.all()),
-            class_loads=[(c, class_loads.get(c.id, (0, cells))) for c in classes],
-            teacher_loads=teacher_loads,
-            filters={"sinif": class_id or "", "ogretmen": teacher_id or "", "q": query},
-            total=sum(lesson.periods_per_week for lesson in qs),
+            school, "data", data_nav="dersler",
+            payload={"rows": rows, "groups": groups, "edit": reverse("timetable:lesson_edit", args=[school.pk, 0])},
+            count=len(rows), total=sum(r["h"] for r in rows),
+            teachers=teachers, rooms=_sorted(ENTITIES["derslikler"], school.classrooms.all()),
+            classes=[g for g in groups if g["id"]], modes=BULK_MODES,
+            filters={"sinif": request.GET.get("sinif", ""), "ogretmen": request.GET.get("ogretmen", ""), "q": request.GET.get("q", "")},
         ),
     )
+
+
+def _lesson_bulk(school, post):
+    """Seçili derslere toplu değişiklik. Dönüş: (ileti, messages düzeyi)."""
+    ids = [int(x) for x in post.getlist("ders") if x.isdigit()]
+    lessons = list(Lesson.objects.filter(school=school, pk__in=ids))
+    if not lessons:
+        return "Önce ders seçin.", "error"
+    action, mode = post.get("islem"), post.get("mod") if post.get("mod") in BULK_MODES else "replace"
+    n = len(lessons)
+    with transaction.atomic():
+        if action in ("ogretmen", "derslik"):
+            model, attr = (Teacher, "teachers") if action == "ogretmen" else (Classroom, "classrooms")
+            chosen = list(model.objects.filter(school=school, pk__in=[int(x) for x in post.getlist("deger") if x.isdigit()]))
+            if not chosen and mode != "replace":
+                return "Eklenecek ya da çıkarılacak kaydı seçin.", "error"
+            for lesson in lessons:
+                getattr(lesson, attr).set(chosen) if mode == "replace" else (
+                    getattr(lesson, attr).add(*chosen) if mode == "add" else getattr(lesson, attr).remove(*chosen))
+            what = ", ".join(str(c) if action == "derslik" else _teacher_name(c) for c in chosen) or "boş"
+            return f"{n} derste {'öğretmen' if action == 'ogretmen' else 'derslik'} {BULK_MODES[mode]}: {what}.", "success"
+        if action in ("saat", "uzunluk", "gunde"):
+            raw = (post.get("sayi") or "").strip()
+            if action == "gunde" and raw == "":
+                value = None
+            elif raw.isdigit() and 1 <= int(raw) <= (40 if action == "saat" else 8):
+                value = int(raw)
+            else:
+                return "Geçerli bir sayı girin.", "error"
+            field = {"saat": "periods_per_week", "uzunluk": "card_length", "gunde": "max_per_day"}[action]
+            for lesson in lessons:
+                setattr(lesson, field, value)
+                if action in ("saat", "uzunluk"):
+                    lesson.split = ""  # dağılım eski saate göreydi
+            Lesson.objects.bulk_update(lessons, [field, "split"] if action in ("saat", "uzunluk") else [field])
+            from .problem_cache import invalidate
+
+            invalidate()  # bulk_update sinyal göndermez
+            label = {"saat": "haftalık saat", "uzunluk": "kart uzunluğu", "gunde": "günde en fazla kart"}[action]
+            return f"{n} derste {label}: {value if value is not None else 'sınırsız'}.", "success"
+        if action == "sil":
+            for lesson in lessons:
+                lesson.delete()
+            return f"{n} ders silindi (programlardaki kartlarıyla).", "success"
+    return "Bilinmeyen işlem.", "error"
 
 
 def lesson_edit(request, pk, lesson_id=None):

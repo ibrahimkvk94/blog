@@ -121,3 +121,48 @@ class GridDeltaTests(TestCase):
         teacher.max_days_per_week = 2
         teacher.save()  # yönetim paneli ya da kabuktan yapılmış gibi (veri sürümü artmadan)
         self.assertIsNot(problem_cache.school_problem(self.school), first)
+
+
+class LessonListTests(TestCase):
+    def setUp(self):
+        self.school = School.objects.create(name="MYO", days_per_week=5)
+        for i in range(8):
+            Period.objects.create(school=self.school, index=i, name=str(i + 1))
+        self.classes = [SchoolClass.objects.create(school=self.school, name=n) for n in ("10.KISIM", "2.KISIM")]
+        self.teachers = [Teacher.objects.create(school=self.school, first_name=n, last_name="X") for n in ("Ali", "Can")]
+        subject = self.school.subjects.create(name="Fizik", short="FİZ")
+        self.lessons = []
+        for cls in self.classes:
+            lesson = Lesson.objects.create(school=self.school, subject=subject, periods_per_week=4, card_length=2, split="2+2")
+            lesson.classes.add(cls)
+            lesson.teachers.add(self.teachers[0])
+            self.lessons.append(lesson)
+        self.client.force_login(User.objects.create_superuser("admin", "a@x.tr", "pw"))
+        self.url = reverse("timetable:lessons", args=[self.school.pk])
+
+    def test_grouped_payload(self):
+        payload = self.client.get(self.url).context["payload"]
+        self.assertEqual([g["name"] for g in payload["groups"]], ["2.KISIM", "10.KISIM"])  # doğal sıra
+        row = next(r for r in payload["rows"] if r["id"] == self.lessons[0].pk)
+        self.assertEqual((row["cl"], row["t"], row["h"], row["p"]), ("10.KISIM", "Ali X", 4, "2+2"))
+
+    def post(self, **data):
+        return self.client.post(self.url, {"ders": [x.pk for x in self.lessons], **data})
+
+    def test_bulk_teacher_room_hours_and_delete(self):
+        self.post(islem="ogretmen", mod="add", deger=self.teachers[1].pk)
+        self.assertEqual(sorted(self.lessons[0].teachers.values_list("first_name", flat=True)), ["Ali", "Can"])
+        self.post(islem="ogretmen", mod="replace", deger=self.teachers[1].pk)
+        self.assertEqual(list(self.lessons[1].teachers.values_list("first_name", flat=True)), ["Can"])
+        room = self.school.classrooms.create(name="Lab")
+        self.post(islem="derslik", mod="replace", deger=room.pk)
+        self.assertEqual(list(self.lessons[0].classrooms.all()), [room])
+        self.post(islem="saat", sayi="5")
+        self.lessons[0].refresh_from_db()
+        self.assertEqual((self.lessons[0].periods_per_week, self.lessons[0].split), (5, ""))  # eski dağılım temizlenir
+        self.post(islem="gunde", sayi="")
+        self.post(islem="saat", sayi="99")  # geçersiz: değişmez
+        self.lessons[0].refresh_from_db()
+        self.assertEqual(self.lessons[0].periods_per_week, 5)
+        self.post(islem="sil")
+        self.assertFalse(Lesson.objects.filter(school=self.school).exists())

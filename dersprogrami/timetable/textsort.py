@@ -2,6 +2,7 @@
 ("2.KISIM" "10.KISIM"dan önce)."""
 
 import re
+from functools import lru_cache
 
 TR_ALPHABET = "abcçdefgğhıijklmnoöprsştuüvyz"
 _ORDER = {ch: i for i, ch in enumerate(TR_ALPHABET)}
@@ -14,14 +15,15 @@ def tr_lower(text):
 
 def tr_key(text):
     """Yalnızca harf sırası (sayılar karakter olarak)."""
-    return [_ORDER.get(ch, 100 + ord(ch)) for ch in tr_lower(text)]
+    return tuple(_ORDER.get(ch, 100 + ord(ch)) for ch in tr_lower(text))
 
 
+@lru_cache(maxsize=8192)
 def natural_key(text):
     """Doğal sıralama anahtarı: metin parçaları Türkçe harf sırasıyla, sayı parçaları değeriyle karşılaştırılır."""
     key = []
     for i, part in enumerate(_PARTS.split(tr_lower(text).strip())):
         if not part:
             continue
-        key.append((0, int(part), []) if i % 2 else (1, 0, tr_key(part)))  # sayılar harflerden önce
-    return key
+        key.append((0, int(part), ()) if i % 2 else (1, 0, tr_key(part)))  # sayılar harflerden önce
+    return tuple(key)

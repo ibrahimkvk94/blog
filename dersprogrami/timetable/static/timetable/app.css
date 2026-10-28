@@ -770,3 +770,34 @@ html.focus-mode .tray-body { max-height: 19vh; }
 .pd-detail .chip { margin: 0 4px 4px 0; }
 .pd-actions { display: flex; flex-direction: column; gap: 6px; align-items: stretch; min-width: 150px; }
 a.q-card { color: inherit; } a.q-card:hover { border-color: var(--primary); }
+
+/* ---- Dersler (sınıfa göre gruplu) ---- */
+.ls-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.ls-tools .input { max-width: 280px; height: 34px; }
+.ls-tools .select { width: auto; max-width: 240px; height: 34px; }
+.ls-expand { margin-left: auto; display: flex; gap: 4px; }
+.ls-groups { display: flex; flex-direction: column; gap: 8px; padding-bottom: 70px; }
+.ls-group { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.ls-head { display: grid; grid-template-columns: 18px minmax(160px, 1fr) 110px 220px auto; align-items: center; gap: 12px; padding: 10px 14px; cursor: pointer; user-select: none; }
+.ls-head:hover { background: var(--surface-2); }
+.ls-caret { color: var(--text-3); transition: transform .15s; }
+.ls-group.open .ls-caret { transform: rotate(90deg); }
+.ls-group.open .ls-head { border-bottom: 1px solid var(--border); }
+.ls-name b { font-size: 14px; }
+.ls-meta { font-size: 12.5px; color: var(--text-2); }
+.ls-load { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); }
+.ls-load .progress { flex: 1; }
+.ls-load.over span { color: var(--danger-strong); font-weight: 600; }
+.ls-load.over .progress > div { background: var(--danger-strong); }
+.ls-links { display: flex; gap: 2px; }
+.ls-body .table { margin: 0; }
+.ls-check { width: 34px; }
+.ls-bulk { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 40; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 10px 14px; background: #1c2230; color: #fff; border-radius: 12px; box-shadow: var(--shadow-lg); max-width: calc(100vw - 40px); }
+.ls-bulk[hidden] { display: none; }
+.ls-bulk .btn-ghost { color: #cbd2e1; }
+.ls-bulk .select, .ls-bulk .input { background: #fff; }
+.ls-bulk .ls-pick { height: 30px; min-width: 200px; max-width: 280px; }
+.ls-bulk .ls-num { width: 80px; height: 30px; }
+.ls-bulk [hidden] { display: none; }
+@media (max-width: 900px) { .ls-head { grid-template-columns: 18px 1fr auto; } .ls-load, .ls-meta { display: none; } }
