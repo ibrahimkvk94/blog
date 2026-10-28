@@ -6,26 +6,56 @@
 {% block content %}
 {% include "timetable/data/subnav.html" %}
 {% if entity.help %}<p class="muted small" style="margin-top:0">{{ entity.help }}</p>{% endif %}
+{% if rows %}<div class="list-tools"><input class="input" type="search" placeholder="{{ entity.title }} içinde ara…" aria-label="Ara" data-list-search><span class="subtle small" data-list-count></span></div>{% endif %}
 <div class="panel">
   {% if rows %}
   <div class="table-wrap">
-    <table class="table">
+    <table class="table" data-list>
       <thead><tr>{% for h in headers %}<th>{{ h }}</th>{% endfor %}<th></th></tr></thead>
       <tbody>
         {% for row in rows %}
-          <tr>
-            {% for cell in row.cells %}<td>{% if forloop.first %}<a href="{% url 'timetable:data_edit' school.pk entity.slug row.obj.pk %}"><b>{{ cell }}</b></a>{% else %}{{ cell }}{% endif %}</td>{% endfor %}
+          {% url 'timetable:data_edit' school.pk entity.slug row.obj.pk as edit_url %}
+          <tr class="row-link" data-href="{{ edit_url }}">
+            {% for cell in row.cells %}<td>{% if forloop.first %}<a href="{{ edit_url }}"><b>{{ cell }}</b></a>{% else %}{{ cell }}{% endif %}</td>{% endfor %}
             <td class="num nowrap">
               {% if entity.slug == "siniflar" %}<a class="btn btn-sm" href="{% url 'timetable:class_lessons' school.pk row.obj.pk %}">Ders tablosu</a>{% endif %}
-              <a class="btn btn-sm" href="{% url 'timetable:data_edit' school.pk entity.slug row.obj.pk %}">Düzenle</a>
+              <a class="btn btn-sm" href="{{ edit_url }}">Düzenle</a>
             </td>
           </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
+  <div class="empty" data-list-none hidden>Aramaya uyan kayıt yok.</div>
   {% else %}
     <div class="empty">Henüz kayıt yok. <a href="{% url 'timetable:data_new' school.pk entity.slug %}">İlk {{ entity.singular|lower }} kaydını ekleyin.</a></div>
   {% endif %}
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const table = document.querySelector("[data-list]");
+  if (!table) return;
+  const rows = [...table.tBodies[0].rows];
+  const norm = (t) => t.toLocaleLowerCase("tr");
+  rows.forEach((r) => { r.dataset.q = norm(r.textContent); });
+  const search = document.querySelector("[data-list-search]");
+  const count = document.querySelector("[data-list-count]");
+  const none = document.querySelector("[data-list-none]");
+  search.addEventListener("input", () => {
+    const q = norm(search.value.trim());
+    let shown = 0;
+    rows.forEach((r) => { r.hidden = q && !r.dataset.q.includes(q); if (!r.hidden) shown++; });
+    count.textContent = q ? shown + " / " + rows.length : "";
+    none.hidden = shown > 0;
+  });
+  // Satırın boş yerine tıklamak kaydı açar (bağlantı ve düğmeler kendi işini yapar).
+  table.addEventListener("click", (e) => {
+    if (e.target.closest("a, button, input")) return;
+    const row = e.target.closest("tr[data-href]");
+    if (row) location.href = row.dataset.href;
+  });
+})();
+</script>
 {% endblock %}

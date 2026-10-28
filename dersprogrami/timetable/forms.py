@@ -170,6 +170,7 @@ class ClassroomForm(SchoolScopedForm):
     class Meta:
         model = Classroom
         fields = ["name", "short", "capacity", "max_lessons", "building"]
+        labels = {"building": "Bina"}
 
 
 class SchoolClassForm(SchoolScopedForm):

@@ -18,7 +18,9 @@ STALE_GRACE = timedelta(seconds=90)
 
 
 def check_school(school):
-    return feasibility.check(build_problem(school))
+    from .problem_cache import school_problem
+
+    return feasibility.check(school_problem(school))
 
 
 def start_generation(school, name, time_limit=None, mode=Timetable.STRICT, base=None, seed=0, only=None):

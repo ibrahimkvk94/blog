@@ -1,0 +1,64 @@
+{% extends "timetable/base.html" %}
+{% load assets %}
+{% comment %}
+Kayıt düzenleyici iskeleti: solda aranabilir kayıt listesi, sağda kayıt başlığı, sekmeler ve sabit kaydet
+çubuğu. Kaydetme sayfadan çıkmadan yapılır (editor.js); çocuk şablon form gövdesini editor_body'de verir.
+{% endcomment %}
+{% block content %}
+{% include "timetable/data/subnav.html" %}
+<div class="editor" data-editor data-form="{{ form_id }}">
+  <aside class="rec-nav" aria-label="Kayıtlar">
+    <div class="rec-nav-head">
+      <div><b>{% block nav_title %}{{ navigator.title }}{% endblock %}</b> <span class="rec-count">{{ navigator.items|length }}</span></div>
+      <a class="btn btn-sm" href="{{ new_url }}" title="Yeni kayıt">{% include "timetable/icon.html" with name="plus" %} Yeni</a>
+    </div>
+    <div class="rec-nav-search"><input class="input input-sm" type="search" placeholder="Ara…" aria-label="Kayıtlarda ara" data-nav-search></div>
+    <div class="rec-nav-list" data-nav-list>
+      {% for item in navigator.items %}
+        <a href="{{ item.url }}" class="rec-item{% if item.active %} active{% endif %}" data-nav-item{% if item.active %} aria-current="page"{% endif %}>
+          <span class="rec-item-label">{{ item.label }}</span>{% if item.sub %}<span class="rec-item-sub">{{ item.sub }}</span>{% endif %}
+        </a>
+      {% empty %}<div class="rec-empty">Henüz kayıt yok.</div>{% endfor %}
+      <div class="rec-empty" data-nav-none hidden>Aramaya uyan kayıt yok.</div>
+    </div>
+    <a class="rec-nav-foot" href="{{ list_url }}">{% include "timetable/icon.html" with name="list" %} Tablo görünümü</a>
+  </aside>
+
+  <section class="rec-main">
+    <header class="rec-head">
+      <div class="rec-avatar" aria-hidden="true">{% block avatar %}{% endblock %}</div>
+      <div class="rec-title">
+        <div class="rec-kind">{% block record_kind %}{% endblock %}</div>
+        <h2 data-rec-title>{% block record_title %}{% endblock %}</h2>
+        <div class="rec-sub" data-rec-sub>{{ record_sub }}</div>
+      </div>
+      <div class="rec-tools">
+        {% block head_actions %}{% endblock %}
+        {% if navigator.position %}<span class="rec-pos">{{ navigator.position }}</span>{% endif %}
+        <div class="btn-group">
+          <a class="btn btn-sm btn-icon{% if not navigator.prev %} is-disabled{% endif %}" href="{{ navigator.prev|default:'#' }}" data-nav-prev title="Önceki kayıt (Alt+↑)" aria-label="Önceki kayıt">‹</a>
+          <a class="btn btn-sm btn-icon{% if not navigator.next %} is-disabled{% endif %}" href="{{ navigator.next|default:'#' }}" data-nav-next title="Sonraki kayıt (Alt+↓)" aria-label="Sonraki kayıt">›</a>
+        </div>
+      </div>
+    </header>
+    {% if tabs|length > 1 %}
+      <nav class="rec-tabs" role="tablist">
+        {% for t in tabs %}<button type="button" role="tab" class="rec-tab{% if t.errors %} has-error{% endif %}" data-tab="{{ t.key }}">{{ t.title }}</button>{% endfor %}
+      </nav>
+    {% endif %}
+
+    {% block editor_body %}{% endblock %}
+
+    <div class="rec-bar">
+      <div class="rec-state" data-state><i></i><span>Kaydedildi</span></div>
+      <div class="rec-bar-actions">
+        {% block bar_extra %}{% endblock %}
+        <button type="button" class="btn btn-ghost" data-revert hidden>Geri al</button>
+        <button class="btn" form="{{ form_id }}" name="next" value="new">Kaydet ve yeni</button>
+        <button class="btn btn-primary" form="{{ form_id }}" data-save>{% include "timetable/icon.html" with name="check" %} Kaydet <kbd>Ctrl S</kbd></button>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{% asset 'timetable/data.js' %}"></script><script src="{% asset 'timetable/editor.js' %}"></script>{% endblock %}

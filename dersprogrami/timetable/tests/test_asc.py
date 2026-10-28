@@ -109,8 +109,8 @@ class RelationshipFormTests(TestCase):
             "condition": CardRelationship.RANGE_MAX_PER_DAY, "param": "2",
             "time_map": json.dumps(["1-4", "0-3", "0-3", "9-9", "x"]),
         })
-        self.assertRedirects(response, reverse("timetable:data_list", args=[self.school.pk, "kart-iliskileri"]))
         rel = CardRelationship.objects.get(school=self.school, name="Öğle arası")
+        self.assertRedirects(response, reverse("timetable:data_edit", args=[self.school.pk, "kart-iliskileri", rel.pk]))  # kayıtta kalınır
         self.assertEqual(rel.time_map, ["0-3", "1-4"])
         page = self.client.get(reverse("timetable:data_list", args=[self.school.pk, "kart-iliskileri"]))
         self.assertContains(page, "2 saat işaretli")

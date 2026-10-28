@@ -26,7 +26,7 @@
   async function api(url, options) {
     const res = await fetch(url, Object.assign({
       credentials: "same-origin",
-      headers: { "X-CSRFToken": csrf(), "Content-Type": "application/json" },
+      headers: { "X-CSRFToken": csrf(), "Content-Type": "application/json", "X-Grid-Kind": state.kind },
     }, options || {}));
     let data = {};
     try { data = await res.json(); } catch (e) { /* boş yanıt */ }
@@ -151,47 +151,7 @@
     }));
 
     const frag = document.createDocumentFragment();
-    d.rows.forEach((row) => {
-      const cards = (byRow.get(row.id) || []).slice().sort((a, b) => (a.day * P + a.period) - (b.day * P + b.period));
-      const laneEnds = [];
-      const lanes = cards.map((c) => {
-        const start = c.day * P + c.period;
-        let lane = laneEnds.findIndex((end) => end <= start);
-        if (lane === -1) { lane = laneEnds.length; laneEnds.push(0); }
-        laneEnds[lane] = start + c.length;
-        return lane;
-      });
-      const rowEl = el("div", "tt-row");
-      rowEl.dataset.row = row.id;
-      rowEl.dataset.search = (row.label + " " + (row.sub || "")).toLocaleLowerCase("tr");
-      rowEl.style.setProperty("--lanes", Math.max(1, laneEnds.length));
-      const label = el("div", "tt-label", '<span class="n">' + esc(row.label) + '</span><span class="s">' + esc(row.sub || "") + "</span>");
-      label.title = row.label + (row.sub ? "\n" + row.sub : "") + "\nSağ tık: işlemler";
-      label.dataset.row = row.id;
-      rowEl.appendChild(label);
-      for (let day = 0; day < D; day++) {
-        for (let p = 0; p < P; p++) {
-          const cell = el("div", "tt-cell" + (p === 0 ? " day-start" : ""));
-          cell.style.gridColumn = String(2 + day * P + p);
-          cell.dataset.day = day;
-          cell.dataset.period = p;
-          rowEl.appendChild(cell);
-        }
-      }
-      // Aynı anda başka kartla çakışmayan kart satır yüksekliğinin tamamını kaplar; yalnızca
-      // aynı saatteki grup dersleri şeritlere bölünür.
-      const span = (c) => [c.day * P + c.period, c.day * P + c.period + c.length];
-      cards.forEach((c, i) => {
-        const [s, e] = span(c);
-        const overlaps = cards.some((o, j) => j !== i && span(o)[0] < e && s < span(o)[1]);
-        const card = cardEl(c);
-        if (c.pv) { card.classList.add(c.pv); if (c.pv === "pv-ghost") { card.draggable = false; card.dataset.card = ""; } }
-        card.style.gridColumn = 2 + c.day * P + c.period + " / span " + c.length;
-        card.style.gridRow = overlaps ? String(lanes[i] + 1) : "1 / -1";
-        rowEl.appendChild(card);
-      });
-      frag.appendChild(rowEl);
-    });
+    d.rows.forEach((row) => frag.appendChild(buildRow(row, byRow.get(row.id) || [])));
     board.appendChild(frag);
     applyFilter();
     fitDensity();
@@ -200,6 +160,95 @@
     renderViolations();
     renderHistory();
     renderCompare();
+  }
+
+  // Tek satırın çizimi: tam çizimde ve kart işleminden sonra yalnızca etkilenen satırlarda kullanılır.
+  function buildRow(row, rowCards) {
+    const d = state.data;
+    const P = d.periods.length;
+    const D = d.days.length;
+    const cards = rowCards.slice().sort((a, b) => (a.day * P + a.period) - (b.day * P + b.period));
+    const laneEnds = [];
+    const lanes = cards.map((c) => {
+      const start = c.day * P + c.period;
+      let lane = laneEnds.findIndex((end) => end <= start);
+      if (lane === -1) { lane = laneEnds.length; laneEnds.push(0); }
+      laneEnds[lane] = start + c.length;
+      return lane;
+    });
+    const rowEl = el("div", "tt-row");
+    rowEl.dataset.row = row.id;
+    rowEl.dataset.search = (row.label + " " + (row.sub || "")).toLocaleLowerCase("tr");
+    rowEl.style.setProperty("--lanes", Math.max(1, laneEnds.length));
+    const label = el("div", "tt-label", '<span class="n">' + esc(row.label) + '</span><span class="s">' + esc(row.sub || "") + "</span>");
+    label.title = row.label + (row.sub ? "\n" + row.sub : "") + "\nSağ tık: işlemler";
+    label.dataset.row = row.id;
+    rowEl.appendChild(label);
+    for (let day = 0; day < D; day++) {
+      for (let p = 0; p < P; p++) {
+        const cell = el("div", "tt-cell" + (p === 0 ? " day-start" : ""));
+        cell.style.gridColumn = String(2 + day * P + p);
+        cell.dataset.day = day;
+        cell.dataset.period = p;
+        rowEl.appendChild(cell);
+      }
+    }
+    // Aynı anda başka kartla çakışmayan kart satır yüksekliğinin tamamını kaplar; yalnızca
+    // aynı saatteki grup dersleri şeritlere bölünür.
+    const span = (c) => [c.day * P + c.period, c.day * P + c.period + c.length];
+    cards.forEach((c, i) => {
+      const [s, e] = span(c);
+      const overlaps = cards.some((o, j) => j !== i && span(o)[0] < e && s < span(o)[1]);
+      const card = cardEl(c);
+      if (c.pv) { card.classList.add(c.pv); if (c.pv === "pv-ghost") { card.draggable = false; card.dataset.card = ""; } }
+      card.style.gridColumn = 2 + c.day * P + c.period + " / span " + c.length;
+      card.style.gridRow = overlaps ? String(lanes[i] + 1) : "1 / -1";
+      rowEl.appendChild(card);
+    });
+    return rowEl;
+  }
+
+  // Kart işleminin yanıtındaki değişiklikleri uygular (yalnızca değişen kartlar gelir); tüm tablo
+  // yeniden yüklenmez. Karşılaştırma ve önizlemede, ya da görünüm türü değiştiyse false döner.
+  function applyDelta(delta) {
+    const d = state.data;
+    if (!delta || !d || state.compare || state.preview || delta.kind !== state.kind) return false;
+    const P = d.periods.length;
+    const incoming = new Map(delta.cards.map((c) => [c.id, c]));
+    const affected = new Set();
+    const keep = (list) => list.filter((c) => {
+      if (!incoming.has(c.id)) return true;
+      c.rows.forEach((r) => affected.add(r));
+      return false;
+    });
+    d.cards = keep(d.cards);
+    d.unplaced = keep(d.unplaced);
+    delta.cards.forEach((c) => {
+      c.rows.forEach((r) => affected.add(r));
+      (c.day == null ? d.unplaced : d.cards).push(c);
+      state.cards.set(c.id, c);
+    });
+    d.stats = delta.stats;
+    d.violations = delta.violations;
+    if (delta.history) d.history = delta.history;
+    affected.forEach((id) => {
+      const row = d.rows.find((r) => r.id === id);
+      const old = board.querySelector('.tt-row[data-row="' + id + '"]');
+      if (!row || !old) return;
+      const placed = d.cards.filter((c) => c.rows.includes(id));
+      const cells = new Set();
+      placed.forEach((c) => { for (let i = 0; i < c.length; i++) cells.add(c.day * P + c.period + i); });
+      const pending = state.kind === "derslik" ? 0 : d.unplaced.filter((c) => c.rows.includes(id)).reduce((n, c) => n + c.length, 0);
+      row.sub = [row.base, cells.size + " saat" + (pending ? " · " + pending + " bekliyor" : "")].filter(Boolean).join(" · ");
+      const fresh = buildRow(row, placed);
+      fresh.className = old.className;  // süzgeç ve odak sınıfları korunur
+      old.replaceWith(fresh);
+    });
+    renderTray();
+    renderStats();
+    renderViolations();
+    renderHistory();
+    return true;
   }
 
   // "Haftayı sığdır" görünümünde sütun daraldıkça kart yazıları küçülür.
@@ -504,15 +553,26 @@
   $("#tt-scroll").addEventListener("scroll", placeDrawer, { passive: true });
 
   // ---- işlemler ---------------------------------------------------------------------------
+  // İşlemden sonra: yanıtta değişen kartlar varsa yalnızca onlar güncellenir, yoksa tablo yeniden yüklenir.
+  async function refresh(result) {
+    if (result && applyDelta(result.delta)) {
+      if (state.selected && state.cards.has(state.selected)) select(state.selected);
+      else clearSelection();
+      return;
+    }
+    await load();
+  }
+
   async function run(promise, keepSelection) {
+    let r = null;
     try {
-      const r = await promise;
+      r = await promise;
       if (r.message) toast(r.message);
     } catch (e) {
       toast(e.message, "error");
     }
     if (!keepSelection) state.selected = null;
-    await load();
+    await refresh(r);
   }
 
   const postMove = (id, day, period, mode) =>
@@ -538,8 +598,9 @@
 
   async function moveCard(id, day, period) {
     if (!cfg.canEdit) { toast("Programı düzenleme yetkiniz yok.", "error"); return; }
+    let r = null;
     try {
-      const r = await postMove(id, day, period, "ask");
+      r = await postMove(id, day, period, "ask");
       if (r.message) toast(r.message);
     } catch (e) {
       if (e.status === 409 && e.data && e.data.ask) {
@@ -550,7 +611,7 @@
       toast(e.message, "error");
     }
     state.selected = null;
-    await load();
+    await refresh(r);
   }
   const unplaceCard = (id) => run(api(urlFor(cfg.unplaceUrl, id), { method: "POST" }));
 

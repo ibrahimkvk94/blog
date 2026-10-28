@@ -1,5 +1,6 @@
 import datetime
 import json
+from functools import wraps
 from urllib.parse import urlencode
 
 from django.contrib import messages
@@ -16,7 +17,7 @@ from . import report_excel as report_excel_module
 from . import report_pdf as report_pdf_module
 from . import access, analysis, asc_xml, duty, editing, excel, jobs, refs, reports, substitutes, versions
 from .demo import create_demo_school
-from .grid import KINDS, card_payload, grid_data, room_names
+from .grid import KINDS, card_payload, grid_data, grid_delta, room_names
 from .models import Absence, Card, Duty, DutyPlace, LessonRef, ReportPreset, School, Teacher, Timetable, TimetableVersion
 from .services import check_school, refresh_stale, repair_timetable, request_stop, start_generation, verify_timetable
 
@@ -466,13 +467,40 @@ def api_grid(request, pk):
     return JsonResponse(data)
 
 
+def _with_delta(stack="history", by_card=True):
+    """Kart işlemi başarılıysa yanıta değişen kartların güncel hali eklenir (X-Grid-Kind başlığıyla istenirse).
+    Değişen kartlar, işlemin geçmişe yazdığı son adımdan (geri al için yinele yığınından) okunur."""
+    def decorate(view):
+        @wraps(view)
+        def wrapper(request, pk, *args, **kwargs):
+            response = view(request, pk, *args, **kwargs)
+            kind = request.headers.get("X-Grid-Kind")
+            if not kind or response.status_code != 200:
+                return response
+            timetable_id = Card.objects.filter(pk=pk).values_list("timetable_id", flat=True).first() if by_card else pk
+            timetable = Timetable.objects.select_related("school").filter(pk=timetable_id).first()
+            if timetable is None:
+                return response
+            steps = getattr(timetable, stack) or []
+            ids = {state[0] for state in steps[-1]["cards"]} if steps else set()
+            if by_card:
+                ids.add(pk)
+            data = json.loads(response.content)
+            data["delta"] = {**grid_delta(timetable, kind, ids), "history": editing.history_info(timetable)}
+            return JsonResponse(data)
+        return wrapper
+    return decorate
+
+
 @require_POST
+@_with_delta("redo_stack", by_card=False)
 def api_undo(request, pk):
     result = editing.undo(get_object_or_404(Timetable, pk=pk))
     return JsonResponse(result, status=200 if result["ok"] else 400)
 
 
 @require_POST
+@_with_delta("history", by_card=False)
 def api_redo(request, pk):
     result = editing.redo(get_object_or_404(Timetable, pk=pk))
     return JsonResponse(result, status=200 if result["ok"] else 400)
@@ -620,6 +648,7 @@ def api_card_options(request, pk):
 
 
 @require_POST
+@_with_delta()
 def api_card_move(request, pk):
     card = _card(pk)
     body = _json_body(request)
@@ -664,6 +693,7 @@ def api_card_info(request, pk):
 
 
 @require_POST
+@_with_delta()
 def api_card_room(request, pk):
     card = _card(pk)
     room = _json_body(request).get("room")
@@ -706,12 +736,14 @@ def api_cell_candidates(request, pk):
 
 
 @require_POST
+@_with_delta()
 def api_card_unplace(request, pk):
     result = editing.unplace_card(_card(pk))
     return JsonResponse(result, status=200 if result["ok"] else 400)
 
 
 @require_POST
+@_with_delta()
 def api_card_lock(request, pk):
     return JsonResponse(editing.toggle_lock(_card(pk)))
 

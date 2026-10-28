@@ -8,6 +8,7 @@ from collections import defaultdict
 
 from .grid import KINDS, card_payload, room_names
 from .models import Availability
+from .textsort import tr_key
 
 TYPES = {
     "bireysel": "Bireysel programlar (her sınıf/öğretmen/derslik ayrı)",
@@ -37,14 +38,7 @@ DEFAULTS = {
 }
 KUNYE = {"bolum": "Bölüm", "unvan": "Ünvan / Rütbe"}
 KUNYE_FIELDS = {"bolum": "department", "unvan": "title"}
-TR_ALPHABET = "abcçdefgğhıijklmnoöprsştuüvyz"
-_TR_ORDER = {ch: i for i, ch in enumerate(TR_ALPHABET)}
 
-
-def tr_key(text):
-    """Türkçe alfabe sırasıyla karşılaştırma anahtarı (Ç, Ğ, I/İ, Ö, Ş, Ü doğru yerde)."""
-    text = (text or "").replace("I", "ı").replace("İ", "i").lower()
-    return [_TR_ORDER.get(ch, 100 + ord(ch)) for ch in text]
 PARAM_KEYS = list(DEFAULTS) + ["icerik", "secim", "kunye"]
 
 

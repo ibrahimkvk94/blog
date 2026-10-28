@@ -12,3 +12,7 @@ class TimetableConfig(AppConfig):
 
         user_logged_in.connect(_on_login, dispatch_uid="timetable_login_audit")
         user_login_failed.connect(_on_login_failed, dispatch_uid="timetable_login_failed_audit")
+
+        from .problem_cache import connect_signals
+
+        connect_signals()  # veri değişince çözücü problemi önbelleği boşalır

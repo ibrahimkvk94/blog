@@ -164,8 +164,8 @@ class FeatureViewTests(TestCase):
         response = self.client.post(self.url("lesson_new"), {
             "subject": subject.pk, "teachers": [t.pk for t in teachers], "periods_per_week": "1", "card_length": "1",
         })
-        self.assertRedirects(response, self.url("lessons"))
         meeting = Lesson.objects.filter(school=self.school, classes__isnull=True).get()
+        self.assertRedirects(response, self.url("lesson_edit", meeting.pk))
         self.assertEqual(meeting.teachers.count(), 2)
 
         cls = self.school.classes.first()
@@ -176,8 +176,7 @@ class FeatureViewTests(TestCase):
         response = self.client.post(self.url("lesson_new"), {
             "subject": subject.pk, "classes": [cls.pk], "periods_per_week": "5", "card_length": "1", "split": "221",
         })
-        self.assertRedirects(response, self.url("lessons"))
-        self.assertEqual(Lesson.objects.filter(split="2+2+1").count(), 1)
+        self.assertRedirects(response, self.url("lesson_edit", Lesson.objects.get(split="2+2+1").pk))
 
         response = self.client.post(self.url("lesson_new"), {"subject": subject.pk, "periods_per_week": "1", "card_length": "1"})
         self.assertContains(response, "En az bir sınıf")
@@ -225,7 +224,7 @@ class FeatureViewTests(TestCase):
             "first_name": teacher.first_name, "last_name": teacher.last_name, "short": teacher.short,
             "target_periods": "18", "subjects": [subject.pk],
         })
-        self.assertRedirects(response, self.url("data_list", "ogretmenler"))
+        self.assertRedirects(response, self.url("data_edit", "ogretmenler", teacher.pk))
         teacher.refresh_from_db()
         self.assertEqual(teacher.target_periods, 18)
         self.assertEqual(list(teacher.subjects.all()), [subject])
@@ -235,7 +234,7 @@ class FeatureViewTests(TestCase):
 
         cls = self.school.classes.first()
         response = self.client.post(self.url("data_edit", "siniflar", cls.pk), {"name": cls.name, "class_teacher": teacher.pk})
-        self.assertRedirects(response, self.url("data_list", "siniflar"))
+        self.assertRedirects(response, self.url("data_edit", "siniflar", cls.pk))
         self.assertContains(self.client.get(self.url("data_list", "siniflar")), teacher.full_name)
 
     def test_excel_round_trip_of_new_columns(self):

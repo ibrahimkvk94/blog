@@ -26,7 +26,7 @@
         </select>
         {% if source %}<p class="subtle small" style="margin-bottom:0">“{{ source }}” müsaitliği yüklendi; “Aynısı olsun” ile seçilenlere kopyalayabilirsiniz.</p>{% endif %}
       </div>
-      {% include "timetable/data/availability.html" with availability_title="İşaretlenecek saatler" %}
+      <div class="panel">{% include "timetable/data/availability.html" with availability_title="İşaretlenecek saatler" %}</div>
       <div class="form-actions"><div><button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} Seçilenlere uygula</button></div></div>
     </div>
   </div>

@@ -46,8 +46,8 @@ class DataEntryTests(TestCase):
                 "availability": json.dumps({"0-0": "no", "0-1": "maybe", "9-9": "no", "1-2": "bad"}),
             },
         )
-        self.assertRedirects(response, self.url("data_list", "ogretmenler"))
         teacher = Teacher.objects.get(short="DYI")
+        self.assertRedirects(response, self.url("data_edit", "ogretmenler", teacher.pk))  # kaydedince kayıtta kalınır
         self.assertEqual(teacher.max_days_per_week, 3)
         states = dict(((a.day, a.period), a.state) for a in Availability.objects.filter(teacher=teacher))
         self.assertEqual(states, {(0, 0): "no", (0, 1): "maybe"})
@@ -101,7 +101,7 @@ class DataEntryTests(TestCase):
             self.url("lesson_new"),
             {"subject": subject.pk, "classes": [a.pk, b.pk], "teachers": [self.school.teachers.first().pk], "periods_per_week": "3", "card_length": "2"},
         )
-        self.assertRedirects(response, self.url("lessons"))
+        self.assertRedirects(response, self.url("lesson_edit", Lesson.objects.latest("pk").pk))
         self.assertEqual(Lesson.objects.count(), before + 1)
         lesson = Lesson.objects.latest("id")
         self.assertEqual(lesson.card_lengths(), [2, 1])

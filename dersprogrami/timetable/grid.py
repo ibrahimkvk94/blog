@@ -96,7 +96,8 @@ def grid_data(timetable, kind):
             label, sub = obj.short, f"{obj.name} · {sub}"
         else:
             label = str(obj)
-        rows.append({"id": obj.id, "label": label, "sub": sub})
+        base = obj.name if kind == "sinif" and obj.short else ""
+        rows.append({"id": obj.id, "label": label, "sub": sub, "base": base})
 
     violations, stats = verify_timetable(timetable)
     return {
@@ -109,6 +110,23 @@ def grid_data(timetable, kind):
         "rows": rows,
         "cards": placed,
         "unplaced": unplaced,
+        "stats": stats,
+        "violations": [v.as_dict() for v in violations],
+    }
+
+
+def grid_delta(timetable, kind, card_ids):
+    """Kart işleminden sonra ana görünümün güncellenmesi için yalnızca değişen kartlar, ihlaller ve sayaçlar
+    (tüm tabloyu yeniden göndermek yerine)."""
+    if kind not in KINDS:
+        kind = "sinif"
+    names = room_names(timetable.school)
+    cards = (timetable.cards.filter(pk__in=list(card_ids)).select_related("lesson__subject", "classroom")
+             .prefetch_related("lesson__classes", "lesson__teachers", "lesson__groups"))
+    violations, stats = verify_timetable(timetable)
+    return {
+        "kind": kind,
+        "cards": [card_payload(c, kind, names) for c in cards],
         "stats": stats,
         "violations": [v.as_dict() for v in violations],
     }
