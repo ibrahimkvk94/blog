@@ -15,7 +15,7 @@ from django.views.decorators.http import require_POST
 from . import substitutes
 from .refs import DAY_SHORT
 from .grid import KINDS, card_payload, room_names
-from .models import School
+from .models import School, day_time_notes
 
 KIND_TITLES = {"sinif": "Sınıflar", "ogretmen": "Öğretmenler", "derslik": "Derslikler"}
 
@@ -89,6 +89,7 @@ def timetable(request, token, kind, obj_id):
     return render(request, "timetable/public/timetable.html", {
         "school": school, "token": token, "kind": kind, "title": _label(obj, kind),
         "subtitle": obj.name if kind == "sinif" and obj.short else "", "days": days, "week": week, "by_day": by_day,
+        "time_notes": day_time_notes(periods, days),
         "today": today if today < len(days) else 0,
         "class_teacher": obj.class_teacher.full_name if kind == "sinif" and obj.class_teacher and school.publish_teachers else "",
     })
@@ -111,7 +112,7 @@ def substitution_board(request, token):
                 sub = slot["current"].substitute if slot["current"] and slot["current"].substitute_id else None
                 rows.append({
                     "period": slot["period"] + 1,
-                    "start": slot["period_obj"].start_time if slot["period_obj"] else None,
+                    "start": slot["period_obj"].times(date.weekday())[0] if slot["period_obj"] else None,
                     "classes": slot["classes"], "groups": slot["groups"],
                     "subject": slot["card"].lesson.subject.name,
                     "absent": item["absence"].teacher.full_name if school.publish_teachers else "",

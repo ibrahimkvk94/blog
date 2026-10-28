@@ -686,6 +686,47 @@ def school_create(request):
     return render(request, "timetable/data/settings.html", {"form": form, "formset": None, "creating": True})
 
 
+def _day_time_grid(school):
+    """Ayarlar ekranı: kayıtlı her ders saati için günlere göre saat kutuları (boş = varsayılan)."""
+    days = school.day_names
+    rows = []
+    for p in school.periods.all():
+        times = p.day_times or {}
+        rows.append({
+            "pk": p.pk, "index": p.index + 1,
+            "default": [f"{p.start_time:%H:%M}" if p.start_time else "", f"{p.end_time:%H:%M}" if p.end_time else ""],
+            "cells": [{"day": d, "start": (times.get(str(d)) or ["", ""])[0], "end": (times.get(str(d)) or ["", ""])[1]} for d in range(len(days))],
+        })
+    return {"days": days, "rows": rows}
+
+
+def _parse_day_times(school, post):
+    """Formdaki gün saatleri → {dönem pk: {gün: [başlangıç, bitiş]}}, hatalar {alan adı: [ileti]}.
+    Varsayılanla aynı ya da iki kutusu boş gün kaydedilmez."""
+    result, errors = {}, {}
+    days = school.day_names
+    for p in school.periods.all():
+        times = {}
+        for d in range(len(days)):
+            names = (f"gs-{p.pk}-{d}-start", f"gs-{p.pk}-{d}-end")
+            raw = [(post.get(n) or "").strip() for n in names]
+            if not any(raw):
+                continue
+            label = f"{days[d]} {p.index + 1}. saat"
+            try:
+                start, end = (datetime.time.fromisoformat(x) for x in raw)
+            except ValueError:
+                errors[names[0] if not raw[0] or ":" not in raw[0] else names[1]] = [f"{label}: başlangıç ve bitişi 08:20 biçiminde yazın."]
+                continue
+            if end <= start:
+                errors[names[1]] = [f"{label}: bitiş başlangıçtan sonra olmalı."]
+                continue
+            if (start, end) != (p.start_time, p.end_time):
+                times[str(d)] = [f"{start:%H:%M}", f"{end:%H:%M}"]
+        result[p.pk] = times
+    return result, errors
+
+
 def _school_sub(school):
     return f"{school.days_per_week} gün × {school.periods.count()} ders saati"
 
@@ -695,7 +736,14 @@ def school_settings(request, pk):
     form = forms.SchoolForm(request.POST or None, instance=school)
     formset = forms.PeriodFormSet(request.POST or None, queryset=school.periods.all(), prefix="periods")
     ajax = _wants_json(request)
-    if request.method == "POST" and form.is_valid() and formset.is_valid():
+    day_times, day_errors = _parse_day_times(school, request.POST) if request.method == "POST" else ({}, {})
+    if request.method == "POST" and day_errors:
+        if ajax:
+            return JsonResponse({"ok": False, "message": "Günlere göre saatlerde hata var.", "errors": day_errors,
+                                 "non_field": [m for msgs in day_errors.values() for m in msgs]}, status=400)
+        for msgs in day_errors.values():
+            messages.error(request, msgs[0])
+    if request.method == "POST" and not day_errors and form.is_valid() and formset.is_valid():
         kept = [f for f in formset.forms if f.has_changed() or f.instance.pk]
         kept = [f for f in kept if not (formset.can_delete and formset._should_delete_form(f))]
         structure_changed = bool(formset.deleted_forms) or any(not f.instance.pk for f in kept)
@@ -720,6 +768,8 @@ def school_settings(request, pk):
                     period.index = i
                     if not period.name:
                         period.name = f"{i + 1}. saat"
+                    if period.pk in day_times:
+                        period.day_times = day_times[period.pk]
                     period.save()
             message = "Program ayarları ve ders saatleri kaydedildi."
             if ajax:
@@ -752,7 +802,7 @@ def school_settings(request, pk):
         _nav(
             school, "data", data_nav="okul", form=form, formset=formset, creating=False, form_id="settings-form",
             tabs=_tabs(tab_specs, form, (("saatler", "Ders saatleri"), ("kapali", "Kapalı saatler"))),
-            record_sub=_school_sub(school), navigator={},
+            record_sub=_school_sub(school), navigator={}, day_grid=_day_time_grid(school),
             availability=_availability_grid(school, "school", school),
             availability_title="Okul geneli kapalı saatler",
             availability_help="Burada kapatılan saatlere hiçbir ders konmaz (ör. Cuma 6. saatten sonra ders yok, "

@@ -1,3 +1,4 @@
+{% load periods %}
 <!doctype html>
 <html lang="tr">
 <head>
@@ -46,6 +47,7 @@
   .block { break-inside: avoid; margin-bottom: 10px; }
   .block h2 { font-size: 1.25em; margin: 0 0 4px; display: flex; justify-content: space-between; }
   .free td { font-size: .9em; }
+  .time-notes { margin-top: 2mm; font-size: .85em; color: #5b6474; }
   .sign { margin-top: 6mm; text-align: right; padding-right: 20mm; break-inside: avoid; }
   .sign div { display: inline-block; min-width: 55mm; text-align: center; padding-top: 12mm; }
   .sign span { display: block; line-height: 1.35; }
@@ -77,6 +79,7 @@
               {% endfor %}
             </tbody>
           </table>
+          {% if time_notes and o.saat == "1" %}<div class="time-notes">Farklı saatli günler — {{ time_notes|join:" | " }}</div>{% endif %}
           {% if o.imza %}<div class="sign"><div>{% for line in o.imza %}<span>{{ line }}</span>{% endfor %}</div></div>{% endif %}
         </div>
       {% endfor %}
@@ -90,7 +93,7 @@
     <table class="overview">
       <thead>
         <tr>{% for h in lead_headers %}<th class="col kunye" rowspan="2">{{ h }}</th>{% endfor %}<th class="row" rowspan="2">{% if lead_headers %}Ad Soyad{% endif %}</th>{% for h in pre_headers %}<th class="col" rowspan="2">{{ h }}</th>{% endfor %}{% for d in sheet_days %}<th colspan="{{ periods|length }}" class="ds">{{ d }}</th>{% endfor %}{% for h in post_headers %}<th class="num ds" rowspan="2">{{ h }}</th>{% endfor %}</tr>
-        <tr>{% for d in sheet_days %}{% for p in periods %}<th class="{% if forloop.first %}ds{% endif %}">{{ p.index|add:1 }}{% if o.tur == "carsaf_gun" and p.start_time %}<br><span style="font-weight:400">{{ p.start_time|time:"H:i" }}</span>{% endif %}</th>{% endfor %}{% endfor %}</tr>
+        <tr>{% for d in sheet_days %}{% for p in periods %}<th class="{% if forloop.first %}ds{% endif %}">{{ p.index|add:1 }}{% if o.tur == "carsaf_gun" and p.start_time %}<br><span style="font-weight:400">{{ p|start_on:o.gun|time:"H:i" }}</span>{% endif %}</th>{% endfor %}{% endfor %}</tr>
       </thead>
       <tbody>
         {% for row in sheet_rows %}

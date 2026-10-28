@@ -8,6 +8,7 @@ Temel kavramlar (aSc TimeTables ile aynı mantık):
 - Availability: gün x saat ızgarasında uygun / yasak / koşullu (?) hücreler.
 """
 
+import datetime
 import re
 
 from django.core.exceptions import ValidationError
@@ -106,6 +107,8 @@ class Period(models.Model):
     long_break_after = models.BooleanField(
         "ardından uzun teneffüs", default=False, help_text="Blok (çift) dersler bu aranın üzerinden geçemez."
     )
+    # Günlere göre farklı saat: {"4": ["08:00", "08:35"]} (gün sırası → başlangıç, bitiş). Olmayan gün varsayılanı kullanır.
+    day_times = models.JSONField("günlere göre saatler", default=dict, blank=True)
 
     class Meta:
         ordering = ["school", "index"]
@@ -115,6 +118,30 @@ class Period(models.Model):
 
     def __str__(self):
         return self.name
+
+    def times(self, day=None):
+        """(başlangıç, bitiş) o gün için; güne özel saat yoksa varsayılan."""
+        override = (self.day_times or {}).get(str(day)) if day is not None else None
+        if override:
+            try:
+                return datetime.time.fromisoformat(override[0]), datetime.time.fromisoformat(override[1])
+            except (ValueError, IndexError, TypeError):
+                pass
+        return self.start_time, self.end_time
+
+    def span(self, day=None):
+        start, end = self.times(day)
+        return f"{start:%H:%M}–{end:%H:%M}" if start and end else ""
+
+
+def day_time_notes(periods, day_names):
+    """Varsayılandan farklı saatli günler için dipnot satırları: ["Cuma: 1. 08:00–08:35 · 2. …"]."""
+    notes = []
+    for day, name in enumerate(day_names):
+        parts = [f"{p.index + 1}. {p.span(day)}" for p in periods if str(day) in (p.day_times or {})]
+        if parts:
+            notes.append(f"{name}: " + " · ".join(parts))
+    return notes
 
 
 class Building(models.Model):

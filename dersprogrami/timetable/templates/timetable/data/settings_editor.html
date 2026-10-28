@@ -40,6 +40,35 @@
       </div>
     </section>
   </div>
+  <div class="rec-panel" data-tab-panel="saatler">
+    <section class="fsec fsec-wide">
+      <div class="fsec-head">
+        <div><h3>Günlere göre farklı saatler</h3><p>Bir günün zil saatleri farklıysa (ör. Cuma kısaltılmış dersler) o günün kutularını doldurun; boş kutular yukarıdaki varsayılan saati kullanır. Çözücü yalnızca ders sırasına bakar; bu saatler çıktılarda, ÜYBS aktarımında, vekâlet ve web yayınında gösterilir. Yeni eklenen saatler kaydedildikten sonra burada görünür.</p></div>
+      </div>
+      <div class="fsec-body table-wrap">
+        <table class="table day-times" data-day-times>
+          <thead>
+            <tr><th>Saat</th><th class="subtle">Varsayılan</th>{% for d in day_grid.days %}<th>{{ d }}
+              <div class="dt-tools"><button type="button" class="btn btn-sm btn-ghost" data-dt-fill="{{ forloop.counter0 }}" title="Varsayılan saatleri bu güne yaz, sonra değiştirin">Varsayılanı yaz</button><button type="button" class="btn btn-sm btn-ghost" data-dt-clear="{{ forloop.counter0 }}" title="Bu gün varsayılan saatleri kullansın">Temizle</button></div></th>{% endfor %}</tr>
+          </thead>
+          <tbody>
+            {% for r in day_grid.rows %}
+              <tr data-default-start="{{ r.default.0 }}" data-default-end="{{ r.default.1 }}">
+                <th>{{ r.index }}.</th>
+                <td class="subtle nowrap">{{ r.default.0 }}–{{ r.default.1 }}</td>
+                {% for c in r.cells %}
+                  <td><div class="form-row dt-cell{% if c.start %} on{% endif %}" data-day="{{ c.day }}">
+                    <input class="input input-sm" name="gs-{{ r.pk }}-{{ c.day }}-start" value="{{ c.start }}" placeholder="{{ r.default.0 }}" inputmode="numeric" maxlength="5" aria-label="{{ r.index }}. saat başlangıç">
+                    <input class="input input-sm" name="gs-{{ r.pk }}-{{ c.day }}-end" value="{{ c.end }}" placeholder="{{ r.default.1 }}" inputmode="numeric" maxlength="5" aria-label="{{ r.index }}. saat bitiş">
+                  </div></td>
+                {% endfor %}
+              </tr>
+            {% empty %}<tr><td colspan="9" class="subtle">Önce ders saati ekleyip kaydedin.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
   <div class="rec-panel" data-tab-panel="kapali">{% include "timetable/data/availability.html" %}</div>
 </form>
 {% if can.programlar %}
@@ -49,4 +78,27 @@
     <div class="dialog-row"><input class="input" name="confirm" placeholder="{{ school.name }}" required><button class="btn btn-danger">Sil</button></div>
   </form>
 {% endif %}
+{% endblock %}
+{% block scripts %}{{ block.super }}
+<script>
+(function () {
+  const table = document.querySelector("[data-day-times]");
+  if (!table) return;
+  const cells = (day) => [...table.querySelectorAll('.dt-cell[data-day="' + day + '"]')];
+  const mark = (cell) => cell.classList.toggle("on", [...cell.querySelectorAll("input")].some((i) => i.value.trim()));
+  table.addEventListener("input", (e) => { const c = e.target.closest(".dt-cell"); if (c) mark(c); });
+  table.addEventListener("click", (e) => {
+    const fill = e.target.closest("[data-dt-fill]"), clear = e.target.closest("[data-dt-clear]");
+    if (!fill && !clear) return;
+    cells((fill || clear).dataset.dtFill || (fill || clear).dataset.dtClear).forEach((c) => {
+      const row = c.closest("tr");
+      const [s, e2] = c.querySelectorAll("input");
+      s.value = fill ? row.dataset.defaultStart : "";
+      e2.value = fill ? row.dataset.defaultEnd : "";
+      mark(c);
+    });
+    table.dispatchEvent(new Event("input", { bubbles: true }));  // kaydedilmemiş değişiklik
+  });
+})();
+</script>
 {% endblock %}

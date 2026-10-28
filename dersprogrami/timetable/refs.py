@@ -242,9 +242,9 @@ def report_rows(timetable, week_start=None, school_class_ids=None, substitutions
                 "day": days[day] if day is not None else "yerleşmedi",
                 "date": date,
                 "period": period + 1 if period is not None else None,
-                "start": f"{p.start_time:%H:%M}" if p and p.start_time else "",
-                "end": f"{p.end_time:%H:%M}" if p and p.end_time else "",
-                "time": f"{p.start_time:%H:%M}–{p.end_time:%H:%M}" if p and p.start_time and p.end_time else "",
+                "start": f"{p.times(day)[0]:%H:%M}" if p and p.times(day)[0] else "",  # o güne özel saat varsa o
+                "end": f"{p.times(day)[1]:%H:%M}" if p and p.times(day)[1] else "",
+                "time": p.span(day) if p else "",
                 "ref": refs.get((lesson.id, cls.id if cls else None, ordinal), ""),
                 "room": rooms,
                 "sort": ((cls.sort_key if cls else "~"), day if day is not None else 99, period or 0),

@@ -1,4 +1,5 @@
 {% extends "timetable/base.html" %}
+{% load periods %}
 {% block title %}Vekâlet{% endblock %}
 {% block head %}<style>@media print { .sidebar, .topbar .actions, .no-print { display: none !important; } .shell { display: block; } .panel { box-shadow: none; break-inside: avoid; } }</style>{% endblock %}
 {% block crumbs %}<a href="{% url 'timetable:institution_detail' school.institution_id %}">{{ school.institution }}</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
@@ -46,7 +47,7 @@
           {% csrf_token %}<input type="hidden" name="action" value="save"><input type="hidden" name="absence" value="{{ item.absence.pk }}"><input type="hidden" name="tarih" value="{{ date|date:'Y-m-d' }}">
           {% for slot in item.slots %}
             <div class="sub-slot">
-              <div><div class="p">{{ slot.period|add:1 }}. saat</div><div class="subtle small">{{ slot.period_obj.start_time|time:"H:i" }}</div></div>
+              <div><div class="p">{{ slot.period|add:1 }}. saat</div><div class="subtle small">{{ slot.period_obj|start_on:weekday|time:"H:i" }}</div></div>
               <div><b>{{ slot.card.lesson.subject.name }}</b> · {{ slot.classes }}{% if slot.groups %} ({{ slot.groups }}){% endif %}<div class="subtle small">{{ slot.card.classroom|default:"Derslik yok" }}</div></div>
               <select class="select" name="slot-{{ slot.key }}">
                 <option value="">— Vekil seçilmedi —</option>

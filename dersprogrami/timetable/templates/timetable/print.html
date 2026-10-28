@@ -79,6 +79,7 @@
         {% endfor %}
       </tbody>
     </table>
+    {% if time_notes %}<div style="font-size:.85em;color:#5b6474;margin-top:4px">Farklı saatli günler — {{ time_notes|join:" | " }}</div>{% endif %}
     <footer><span>Ders Programı</span><span>{% now "d.m.Y" %}</span></footer>
   </section>
 {% else %}

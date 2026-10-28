@@ -133,8 +133,9 @@
       day.style.gridRow = "1";
       hr.appendChild(day);
       d.periods.forEach((p, j) => {
-        const cell = el("div", "tt-period" + (j === 0 ? " day-start" : ""), "<b>" + (p.index + 1) + "</b>" + esc(p.start || ""));
-        cell.title = d.days[i] + ", " + (p.index + 1) + ". saat" + (p.start ? " · " + p.start : "");
+        const start = (p.starts && p.starts[i]) || p.start || "";  // o güne özel saat
+        const cell = el("div", "tt-period" + (j === 0 ? " day-start" : "") + (start !== (p.start || "") ? " day-time" : ""), "<b>" + (p.index + 1) + "</b>" + esc(start));
+        cell.title = d.days[i] + ", " + (p.index + 1) + ". saat" + (start ? " · " + start : "");
         cell.dataset.day = i;
         cell.dataset.period = j;
         cell.style.gridColumn = String(2 + i * P + j);

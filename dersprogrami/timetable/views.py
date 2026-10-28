@@ -18,7 +18,7 @@ from . import report_pdf as report_pdf_module
 from . import access, analysis, asc_xml, duty, editing, excel, jobs, refs, reports, substitutes, versions
 from .demo import create_demo_school
 from .grid import KINDS, card_payload, grid_data, grid_delta, room_names
-from .models import Absence, Card, Duty, DutyPlace, LessonRef, ReportPreset, School, Teacher, Timetable, TimetableVersion
+from .models import Absence, Card, day_time_notes, Duty, DutyPlace, LessonRef, ReportPreset, School, Teacher, Timetable, TimetableVersion
 from .services import check_school, refresh_stale, repair_timetable, request_stop, start_generation, verify_timetable
 
 KIND_LABELS = {"sinif": "Sınıflar", "ogretmen": "Öğretmenler", "derslik": "Derslikler"}
@@ -308,6 +308,7 @@ def print_view(request, pk):
             "kind": kind,
             "kind_label": KIND_LABELS[kind],
             "days": school.day_names,
+            "time_notes": day_time_notes(periods, school.day_names),
             "periods": periods,
             "columns": columns,
             "options": options,
@@ -384,7 +385,7 @@ def substitutions(request, pk):
             timetable=timetable,
             plan=plan,
             teachers=school.teachers.all(),
-            weekday_ok=weekday_ok,
+            weekday_ok=weekday_ok, weekday=date.weekday(),
             day_name=school.day_names[date.weekday()] if weekday_ok else "",
         ),
     )

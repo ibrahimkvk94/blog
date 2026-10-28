@@ -819,3 +819,11 @@ a.q-card { color: inherit; } a.q-card:hover { border-color: var(--primary); }
 .step-no { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: 8px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 12px; font-weight: 700; vertical-align: 1px; }
 .tile .v.bad { color: var(--danger-strong); }
 .panel[hidden] { display: none; }
+.day-times th, .day-times td { vertical-align: middle; }
+.day-times thead th { font-size: 12.5px; }
+.dt-tools { display: flex; gap: 2px; margin-top: 2px; }
+.dt-tools .btn { height: 22px; padding: 0 6px; font-size: 11px; font-weight: 500; }
+.dt-cell { display: flex; gap: 4px; margin: 0; }
+.dt-cell .input { width: 62px; height: 30px; padding: 0 6px; font-size: 13px; }
+.dt-cell.on .input { border-color: var(--primary); background: var(--primary-soft); }
+.tt-period.day-time { color: var(--primary-2); }

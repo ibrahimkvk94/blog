@@ -1,4 +1,5 @@
 {% extends "timetable/public/base.html" %}
+{% load periods %}
 {% block title %}{{ title }} · {{ school }}{% endblock %}
 {% block heading %}{{ title }}{% endblock %}
 {% block nav %}<a href="{% url 'timetable:public_index' token %}">‹ Liste</a>{% endblock %}
@@ -29,7 +30,7 @@
       <div class="card" data-panel="{{ d.index }}"{% if d.index != today %} hidden{% endif %}>
         <h2>{{ d.name }}</h2>
         {% for s in d.slots %}
-          <div class="slot"><div class="t"><b>{{ s.period.index|add:1 }}.</b>{{ s.period.start_time|time:"H:i" }}</div>
+          <div class="slot"><div class="t"><b>{{ s.period.index|add:1 }}.</b>{{ s.period|start_on:d.index|time:"H:i" }}</div>
             <div>{% for c in s.cards %}<div class="c" style="background:{{ c.color }}"><b>{{ c.subject_name }}</b><span>{{ c.line2 }}{% if c.room and kind != "derslik" %} · {{ c.room }}{% endif %}</span></div>{% empty %}<span class="free">boş</span>{% endfor %}</div></div>
         {% endfor %}
       </div>
@@ -41,6 +42,7 @@
       <tbody>{% for row in week %}<tr><th class="p">{{ row.period.index|add:1 }}.<br><span class="muted">{{ row.period.start_time|time:"H:i" }}</span></th>
         {% for cell in row.cells %}<td>{% for c in cell %}<div class="c" style="background:{{ c.color }}"><b>{{ c.subject_name }}</b><span>{{ c.line2 }}{% if c.room and kind != "derslik" %} · {{ c.room }}{% endif %}</span></div>{% endfor %}</td>{% endfor %}</tr>{% endfor %}</tbody>
     </table>
+    {% if time_notes %}<p class="muted" style="font-size:.85em;margin:8px 0 0">Farklı saatli günler — {{ time_notes|join:" | " }}</p>{% endif %}
   </div>
   <script>
     document.querySelector(".tabs").addEventListener("click", (e) => {

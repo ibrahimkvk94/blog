@@ -104,7 +104,9 @@ def grid_data(timetable, kind):
         "kind": kind,
         "days": school.day_names,
         "periods": [
-            {"index": p.index, "name": p.name, "start": p.start_time.strftime("%H:%M") if p.start_time else ""}
+            {"index": p.index, "name": p.name, "start": p.start_time.strftime("%H:%M") if p.start_time else "",
+             # güne özel saatler (başlıkta o günün saati yazar)
+             "starts": [p.times(d)[0].strftime("%H:%M") if p.times(d)[0] else "" for d in range(school.days_per_week)]}
             for p in school.periods.all()
         ],
         "rows": rows,

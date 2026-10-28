@@ -88,6 +88,8 @@ def _individual(page, data, width, height, size, colored):
     o = data["o"]
     head = _header(page["title"], " · ".join(page["info"]))
     used = sum(f.wrap(width, height)[1] + f.getSpaceAfter() for f in head) + 2 * mm
+    notes = [Spacer(1, 1.5 * mm), _p("Farklı saatli günler — " + " | ".join(data["time_notes"]), INFO)] if data.get("time_notes") and o["saat"] == "1" else []
+    used += sum(f.wrap(width, height)[1] + f.getSpaceAfter() for f in notes)  # dipnot da aynı sayfaya sığsın
     room = height - used - 2
     first = 22 * mm
     columns = list(data["columns"])
@@ -120,7 +122,7 @@ def _individual(page, data, width, height, size, colored):
     t.setStyle(_base([("BACKGROUND", (0, 0), (-1, 0), HEAD), ("BACKGROUND", (0, 1), (0, -1), HEAD), *extra]))
     if h > room:  # en küçük yazıyla da taşıyorsa tabloyu orantılı küçült: her zaman tek sayfa
         t = KeepInFrame(width, room, [t], mode="shrink")
-    return head + [Spacer(1, 2 * mm), t]
+    return head + [Spacer(1, 2 * mm), t] + notes
 
 
 def _sheet(data, width, colored):

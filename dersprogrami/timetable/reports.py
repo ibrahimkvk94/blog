@@ -7,7 +7,7 @@ import datetime
 from collections import defaultdict
 
 from .grid import KINDS, card_payload, room_names
-from .models import Availability
+from .models import Availability, day_time_notes
 from .textsort import tr_key
 
 TYPES = {
@@ -142,6 +142,7 @@ def build(timetable, o):
     periods = list(school.periods.all())
     days = school.day_names
     data = {"o": o, "school": school, "timetable": timetable, "periods": periods, "days": days,
+            "time_notes": day_time_notes(periods, days),  # günlere göre farklı saatler (dipnot)
             "type_label": TYPES[o["tur"]], "kind_label": KIND_LABELS[o["varlik"]]}
     kind = o["varlik"]
     cards = []
