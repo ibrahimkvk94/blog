@@ -137,7 +137,7 @@ class InstitutionProgramTests(TestCase):
         membership = M.objects.create(user=limited, institution=self.institution, permissions=[])
         membership.programs.set([second])
         self.client.post(reverse("timetable:program_import", args=[self.institution.pk]),
-                         {"file": SimpleUploadedFile("asc.xml", SAMPLE), "target": second.pk})
+                         {"file": SimpleUploadedFile("asc.xml", SAMPLE), "target": second.pk, "mode": "replace"})
         self.assertFalse(School.objects.filter(pk=second.pk).exists())
         replaced = School.objects.get(name="2.YY")
         self.assertEqual(replaced.classes.count(), 2)
