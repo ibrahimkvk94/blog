@@ -242,16 +242,15 @@ def _sheet_rows(timetable, o, cards, periods, day_range):
         groups = []
         if per_lesson:
             by_lesson = {}
-            for c in sorted(mine, key=lambda c: (c["subject"], c["day"], c["period"])):
-                by_lesson.setdefault(c["subject"], []).append(c)  # aynı ders farklı kısımlarda: tek satır
+            for c in sorted(mine, key=lambda c: (c["subject"], c["subject_name"], c["day"], c["period"])):
+                # Aynı ders farklı kısımlarda tek satır; aynı kodlu ayrı ders (ör. "… (U)") ayrı satır.
+                by_lesson.setdefault(c["subject_id"], []).append(c)
             groups = list(by_lesson.values()) or [[]]
         else:
             groups = [mine]
         for i, group in enumerate(groups):
             subjects = list(dict.fromkeys(c["subject_name"] for c in group))
             codes = list(dict.fromkeys(c["subject"] for c in group))
-            if per_lesson and subjects:  # aynı kodun "(U)" gibi varyantları: en kısa ad
-                subjects = [min(subjects, key=len)]
             pre = []
             if o["sutun_ders"] == "1":
                 pre.append(", ".join(subjects))

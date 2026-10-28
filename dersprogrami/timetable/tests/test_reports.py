@@ -117,3 +117,19 @@ class ReportTests(TestCase):
         cases = {"70.KISIM": "70", "70. KISIM": "70", "Hazırlık 1": "H1", "9-A": "9"}
         for name, expected in cases.items():
             self.assertEqual(SchoolClass(name=name).number_label(), expected, name)
+
+    def test_same_code_variant_gets_own_row(self):
+        """Aynı kodlu "(U)" dersi ayrı satırda kalır (ek ders hesabı buna bakılarak yapılır)."""
+        from timetable import reports
+        from timetable.models import Subject
+
+        teacher = self.school.teachers.filter(lessons__isnull=False).distinct().first()
+        lessons = list(teacher.lessons.select_related("subject")[:2])
+        if len(lessons) < 2 or lessons[0].subject_id == lessons[1].subject_id:
+            self.skipTest("öğretmenin iki farklı dersi yok")
+        Subject.objects.filter(pk=lessons[0].subject_id).update(short="BİL211", name="Bilgisayar Programlama Dili")
+        Subject.objects.filter(pk=lessons[1].subject_id).update(short="BİL211", name="Bilgisayar Programlama Dili (U)")
+        o = reports.options({"tur": "carsaf", "varlik": "ogretmen", "satir": "ders", "sutun_ders": "1", "secim": [teacher.pk]})
+        names = [r["pre"][0] for r in reports.build(self.timetable, o)["sheet_rows"]]
+        self.assertIn("Bilgisayar Programlama Dili", names)
+        self.assertIn("Bilgisayar Programlama Dili (U)", names)
