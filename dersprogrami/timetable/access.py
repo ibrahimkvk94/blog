@@ -79,6 +79,7 @@ TIMETABLE_ROUTES = {
     "reports": (M.VIEW, M.VIEW),
     "report_render": (M.VIEW, M.VIEW),
     "report_excel": (M.VIEW, M.VIEW),
+    "report_pdf": (M.VIEW, M.VIEW),
     "uybs_export": (M.VIEW, M.VIEW),
     "uybs_archive": (M.DATA, M.DATA),
     "api_row_action": (M.PROGRAM, M.PROGRAM),

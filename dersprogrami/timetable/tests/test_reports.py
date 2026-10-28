@@ -39,6 +39,32 @@ class ReportTests(TestCase):
         self.assertContains(self.get("tur=bos_ogretmen"), "Boş öğretmenler")
         self.assertContains(self.get("tur=nobet"), "Bahçe")
 
+    def test_every_report_type_exports_to_pdf(self):
+        url = reverse("timetable:report_pdf", args=[self.timetable.pk])
+        queries = ["tur=bireysel&varlik=sinif", "tur=bireysel&varlik=ogretmen&gunler=satir&yon=dikey&boyut=buyuk",
+                   "tur=carsaf&varlik=ogretmen", "tur=carsaf_gun&varlik=sinif&gun=2", "tur=yuk", "tur=sinif_dersleri",
+                   "tur=bos_derslik", "tur=bos_ogretmen", "tur=nobet", "tur=uybs", "tur=bireysel&icerik_set=1&alt=Okul+M%C3%BCd%C3%BCr%C3%BC"]
+        for query in queries:
+            response = self.client.get(url + "?" + query)
+            self.assertEqual(response.status_code, 200, query)
+            self.assertEqual(response["Content-Type"], "application/pdf")
+            self.assertTrue(response.content.startswith(b"%PDF"), query)
+            self.assertIn(b"DejaVuSans", response.content)  # Türkçe karakterler için gömülü yazı tipi
+        self.assertIn("rapor-yuk-", self.client.get(url + "?tur=yuk")["Content-Disposition"])
+        empty = self.client.get(url + "?tur=bireysel&secim=999999")
+        self.assertTrue(empty.content.startswith(b"%PDF"))
+        page = self.client.get(reverse("timetable:reports", args=[self.timetable.pk]))
+        self.assertContains(page, "PDF indir")
+
+    def test_pdf_fits_one_page_per_entity(self):
+        from timetable import report_pdf, reports
+
+        o = reports.options({"tur": "bireysel", "varlik": "sinif"})
+        data = reports.build(self.timetable, o)
+        count = sum(len(g) for g in data["pages"])
+        pdf = report_pdf.build(data)
+        self.assertEqual(pdf.count(b"/Type /Page\n") + pdf.count(b"/Type /Page "), count)
+
     def test_selection_content_and_options(self):
         cls = SchoolClass.objects.get(school=self.school, name="9-B")
         page = self.get(f"tur=bireysel&varlik=sinif&secim={cls.pk}&ders_adi=kisa&icerik_set=1&yon=dikey&alt=Okul+M%C3%BCd%C3%BCr%C3%BC")

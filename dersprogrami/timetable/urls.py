@@ -72,6 +72,7 @@ urlpatterns = [
     path("program/<int:pk>/raporlar/", views.reports_page, name="reports"),
     path("program/<int:pk>/rapor/", views.report_render, name="report_render"),
     path("program/<int:pk>/rapor.xlsx", views.report_excel, name="report_excel"),
+    path("program/<int:pk>/rapor.pdf", views.report_pdf, name="report_pdf"),
     path("program/<int:pk>/uybs-aktarim.xlsx", uybs.export, name="uybs_export"),
     path("program/<int:pk>/uybs-arsiv/", uybs.archive, name="uybs_archive"),
     path("api/kart/<int:pk>/secenekler/", views.api_card_options, name="api_card_options"),

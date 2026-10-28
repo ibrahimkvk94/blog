@@ -13,6 +13,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
 from . import report_excel as report_excel_module
+from . import report_pdf as report_pdf_module
 from . import access, analysis, asc_xml, duty, editing, excel, jobs, refs, reports, substitutes, versions
 from .demo import create_demo_school
 from .grid import KINDS, card_payload, grid_data, room_names
@@ -564,6 +565,15 @@ def report_excel(request, pk):
     data = reports.build(timetable, o)
     response = HttpResponse(report_excel_module.build(data), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     response["Content-Disposition"] = f'attachment; filename="rapor-{o["tur"]}-{timetable.pk}.xlsx"'
+    return response
+
+
+def report_pdf(request, pk):
+    timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
+    o = reports.options(request.GET)
+    data = reports.build(timetable, o)
+    response = HttpResponse(report_pdf_module.build(data), content_type="application/pdf")
+    response["Content-Disposition"] = f'attachment; filename="rapor-{o["tur"]}-{timetable.pk}.pdf"'
     return response
 
 
