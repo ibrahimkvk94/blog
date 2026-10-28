@@ -36,6 +36,7 @@
             <a href="{% url 'timetable:timetable_detail' main_tt.pk %}" class="{% if nav == 'timetable' %}active{% endif %}">{% include "timetable/icon.html" with name="grid" %} Ana görünüm</a>
             <a href="{% url 'timetable:reports' main_tt.pk %}" class="{% if nav == 'reports' %}active{% endif %}">{% include "timetable/icon.html" with name="printer" %} Raporlar</a>
             <a href="{% url 'timetable:quality' main_tt.pk %}" class="{% if nav == 'quality' %}active{% endif %}">{% include "timetable/icon.html" with name="gauge" %} Kalite karnesi</a>
+            <a href="{% url 'timetable:room_usage' main_tt.pk %}" class="{% if nav == 'rooms' %}active{% endif %}">{% include "timetable/icon.html" with name="database" %} Derslik doluluğu</a>
             {% if can.program %}<a href="{% url 'timetable:solution_center' main_tt.pk %}" class="{% if nav == 'solution' %}active{% endif %}">{% include "timetable/icon.html" with name="wand" %} Çözüm merkezi</a>{% endif %}
           {% endif %}
         {% endwith %}

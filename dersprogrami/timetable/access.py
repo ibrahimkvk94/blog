@@ -83,6 +83,7 @@ TIMETABLE_ROUTES = {
     "solution_center": (M.PROGRAM, M.PROGRAM),
     "quality": (M.VIEW, M.PROGRAM),
     "pending": (M.VIEW, M.PROGRAM),
+    "room_usage": (M.VIEW, M.VIEW),
     "api_resolve_preview": (M.PROGRAM, M.PROGRAM),
     "report_render": (M.VIEW, M.VIEW),
     "report_excel": (M.VIEW, M.VIEW),

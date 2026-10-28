@@ -598,6 +598,17 @@ def quality_page(request, pk):
     ))
 
 
+def room_usage(request, pk):
+    """Derslik doluluğu: gün × saat ısı haritası (hücrede boş/dolu derslikler) ve derslik başına kullanım."""
+    from . import occupancy
+
+    timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
+    return render(request, "timetable/room_usage.html", _nav(
+        timetable.school, "rooms", timetable=timetable, data=occupancy.report(timetable),
+        grid_url=reverse("timetable:timetable_detail", args=[pk]),
+    ))
+
+
 def pending_page(request, pk):
     """Bekleyenler: yerleşmemiş kartların nedeni ve çözüm yolları."""
     from . import pending

@@ -76,6 +76,7 @@ urlpatterns = [
     path("program/<int:pk>/cozum-merkezi/", resolve.center_view, name="solution_center"),
     path("program/<int:pk>/kalite/", views.quality_page, name="quality"),
     path("program/<int:pk>/bekleyenler/", views.pending_page, name="pending"),
+    path("program/<int:pk>/derslik-dolulugu/", views.room_usage, name="room_usage"),
     path("api/program/<int:pk>/cozum-onizleme/<int:index>/", resolve.preview_api, name="api_resolve_preview"),
     path("program/<int:pk>/rapor/", views.report_render, name="report_render"),
     path("program/<int:pk>/rapor.xlsx", views.report_excel, name="report_excel"),
