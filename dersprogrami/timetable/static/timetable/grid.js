@@ -407,7 +407,30 @@
       "</div></div>";
     drawer.hidden = false;
     $("#tt-wrap").classList.add("with-drawer");
+    placeDrawer();
   }
+
+  // Bilgi kartı seçilen kartın satırını örtmesin: satırın altına, yer yoksa üstüne konur.
+  function placeDrawer() {
+    if (drawer.hidden) return;
+    const cardNode = state.selected != null && board.querySelector('.tt-card.selected[data-card="' + state.selected + '"]');
+    const row = cardNode && cardNode.closest(".tt-row");
+    const margin = 8, h = drawer.offsetHeight, vh = window.innerHeight;
+    let top;
+    if (row) {
+      const r = row.getBoundingClientRect();
+      top = r.bottom + margin;
+      if (top + h > vh - margin) top = r.top - h - margin;  // altta yer yok: satırın üstüne
+      if (top < margin) top = Math.min(vh - h - margin, r.bottom + margin);  // ikisi de sığmıyorsa altta kalsın
+    } else {
+      top = vh - h - margin - ($("#tray-panel")?.offsetHeight || 0);  // bekleyenlerdeki kart: panelin üstü
+    }
+    drawer.style.top = Math.max(margin, top) + "px";
+    drawer.style.bottom = "auto";
+  }
+  window.addEventListener("resize", placeDrawer);
+  window.addEventListener("scroll", placeDrawer, { passive: true });
+  $("#tt-scroll").addEventListener("scroll", placeDrawer, { passive: true });
 
   // ---- işlemler ---------------------------------------------------------------------------
   async function run(promise, keepSelection) {
