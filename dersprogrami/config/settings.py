@@ -93,8 +93,14 @@ def _database():
     return {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": os.environ.get("DJANGO_DB_PATH", BASE_DIR / "db.sqlite3"),
-        # Arka plan üretimi ile web istekleri aynı anda yazabilir; kilit beklemesi tanı.
-        "OPTIONS": {"timeout": 20},
+        # Ağdaki birçok kullanıcı ve arka plan üretimi aynı anda yazabilir:
+        # WAL kipinde okumalar yazmayı beklemez; IMMEDIATE işlemler yazma kilidini baştan alır
+        # (okumadan yazmaya geçerken "database is locked" hatası olmaz); kilit için 20 sn beklenir.
+        "OPTIONS": {
+            "timeout": 20,
+            "transaction_mode": "IMMEDIATE",
+            "init_command": "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA busy_timeout=20000;",
+        },
     }
 
 

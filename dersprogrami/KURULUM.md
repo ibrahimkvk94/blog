@@ -112,7 +112,7 @@ Tarayıcı birkaç saniye içinde kendiliğinden **http://127.0.0.1:8000/** adre
 | Parolamı unuttum | `dersprogrami` klasöründe terminal aç ve şunları yaz:<br>Windows: `.venv\Scripts\activate` ardından `python manage.py changepassword KULLANICI_ADI`<br>macOS/Linux: `. .venv/bin/activate` ardından `python manage.py changepassword KULLANICI_ADI` |
 | Yeni bir yönetici ekleme | Yukarıdaki gibi sanal ortamı etkinleştir ve `python manage.py createsuperuser` yaz. |
 
-**Yedekleme:** Tüm veriler `dersprogrami` klasöründeki **`db.sqlite3`** dosyasındadır. Bu dosyayı kopyalamak yedek almak için yeterlidir.
+**Yedekleme:** Tüm veriler `dersprogrami` klasöründeki **`db.sqlite3`** dosyasındadır (yanındaki `db.sqlite3-wal` ve `db.sqlite3-shm` de ona aittir). Dosya kopyalayarak yedek alacaksan önce programı kapat; açıkken yedek için Merkez paneli → Yedekler ekranını ya da `python manage.py yedekle` komutunu kullan.
 
 **Windows'ta terminal açmak:** klasörü Dosya Gezgini'nde aç, üstteki adres çubuğuna tıkla, `cmd` yaz ve Enter'a bas.
 

@@ -24,6 +24,8 @@ echo [1/4] Sunucu durduruluyor ve yedek aliniyor...
 schtasks /end /tn "Ders Programi" >nul 2>&1
 if exist "%PY%" "%PY%" manage.py yedekle
 if not exist yedekler mkdir yedekler
+REM WAL kipindeki bekleyen yazmalar ana dosyaya islenir; boylece tek dosya kopyasi eksiksiz olur.
+if exist db.sqlite3 "%PY%" -c "import sqlite3; c = sqlite3.connect('db.sqlite3'); c.execute('PRAGMA wal_checkpoint(TRUNCATE)'); c.close()"
 if exist db.sqlite3 copy /y db.sqlite3 "yedekler\db-guncelleme-oncesi.sqlite3" >nul
 
 echo [2/4] Yeni surum aciliyor...
@@ -37,7 +39,7 @@ if not exist "%GECICI%\DersProgrami\manage.py" (
 )
 
 echo [3/4] Dosyalar kopyalaniyor...
-robocopy "%GECICI%\DersProgrami" "%HEDEF%." /E /R:2 /W:2 /XF db.sqlite3 .env /XD yedekler /NFL /NDL /NJH /NJS /NP
+robocopy "%GECICI%\DersProgrami" "%HEDEF%." /E /R:2 /W:2 /XF db.sqlite3 db.sqlite3-wal db.sqlite3-shm .env /XD yedekler /NFL /NDL /NJH /NJS /NP
 if errorlevel 8 (
   echo Bazi dosyalar kopyalanamadi. Ders Programi penceresi acik kalmis olabilir; kapatip tekrar deneyin.
   goto :error
