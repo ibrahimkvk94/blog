@@ -777,6 +777,8 @@
     const items = [
       { head: card.subject + " (" + card.classes + ")" },
       { label: "Kaldır", hint: "bekleyenlere al", disabled: !placed || card.locked, action: () => unplaceCard(card.id) },
+      { label: "Çözüm merkezinde kaydır", hint: "en az değişiklikle", disabled: !placed || card.locked || !cfg.canEdit,
+        action: () => { location.href = cfg.solutionUrl + "?tur=shift&kart=" + card.id; } },
       { label: card.locked ? "Kilidi aç" : "Kartı kilitle", action: () => run(api(urlFor(cfg.lockUrl, card.id), { method: "POST" }), true) },
       { label: "Bilgi", hint: info.violations.length ? info.violations.length + " ihlal" : "ihlal yok", action: () => showInfo(card, info) },
     ];

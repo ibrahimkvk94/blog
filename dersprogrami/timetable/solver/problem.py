@@ -94,6 +94,14 @@ class Problem:
     # Kurulum sırasında saptanan sorunlar: (düzey, kod, mesaj) — veri denetimi raporlar.
     notes: list = field(default_factory=list)
     labels: dict[str, dict] = field(default_factory=dict)
+    # En az değişiklikle onarım (çözüm merkezi): kartın mevcut başlangıcı; oradan ayrılan her kart
+    # anchor_weight ceza ekler. max_moves en fazla kaç kartın yer değiştirebileceği; forbidden_move_sets
+    # daha önce önerilmiş "yer değiştiren kart kümeleri" (aynı öneri tekrar gelmesin).
+    anchors: dict = field(default_factory=dict)
+    anchor_weight: int = 200
+    room_anchors: dict = field(default_factory=dict)  # kart → mevcut derslikleri (gereksiz derslik değişimi cezalı)
+    max_moves: int | None = None
+    forbidden_move_sets: list = field(default_factory=list)
 
     @staticmethod
     def atom_class(atom_id):

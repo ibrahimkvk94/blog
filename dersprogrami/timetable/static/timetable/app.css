@@ -603,3 +603,14 @@ html.focus-mode .tray-body { max-height: 19vh; }
 .bulk-layout { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); gap: 16px; align-items: start; }
 .bulk-layout .tp-list { max-height: 60vh; }
 @media (max-width: 1000px) { .bulk-layout { grid-template-columns: 1fr; } }
+/* Çözüm merkezi */
+.sc-layout { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 18px; align-items: start; }
+.sc-form .label { margin-top: 10px; }
+.sc-hours { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.sc-impact { display: grid; gap: 8px; border-top: 1px solid var(--border); }
+.sc-impact .label { display: inline-block; margin: 0 8px 0 0; }
+.sc-impact .chip { margin: 2px 4px 2px 0; }
+.sc-apply { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-top: 4px; }
+.ok-text { color: var(--success, #15803d); }
+@media (max-width: 1000px) { .sc-layout { grid-template-columns: 1fr; } }
+.sc-form [hidden] { display: none !important; }

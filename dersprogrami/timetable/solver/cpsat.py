@@ -661,10 +661,35 @@ class _Builder:
             if terms:
                 self._penalize("maybe", W_MAYBE, sum(terms))
 
+    def anchor_rules(self):
+        """Çözüm merkezi: mevcut yerinden ayrılan her kart cezalı; en fazla max_moves kart oynar."""
+        if not self.problem.anchors:
+            return
+        moved = {}
+        for key, slot in self.problem.anchors.items():
+            var = self.x[key].get(tuple(slot))
+            moved[key] = 1 if var is None else 1 - var
+        variables = [v for v in moved.values() if not isinstance(v, int)]
+        constant = sum(v for v in moved.values() if isinstance(v, int))
+        if variables or constant:
+            self._penalize("moved", self.problem.anchor_weight, sum(variables) + constant)
+        if self.problem.max_moves is not None:
+            self.m.Add(sum(moved.values()) <= self.problem.max_moves)
+        for keys in self.problem.forbidden_move_sets:
+            terms = [moved[k] for k in keys if k in moved]
+            if terms:
+                self.m.Add(sum(terms) <= len(terms) - 1)
+        for key, rooms in self.problem.room_anchors.items():
+            for room in rooms:
+                var = self.y.get(key, {}).get(room)
+                if var is not None and not isinstance(var, int):
+                    self._penalize("moved_room", 20, 1 - var)
+
     def build(self):
         self.placement_vars()
         self.resource_conflicts()
         self.rooms()
+        self.anchor_rules()
         self.lesson_spread()
         self.teacher_rules()
         self.class_limits()

@@ -79,6 +79,7 @@ TIMETABLE_ROUTES = {
     "api_versions": (M.VIEW, M.PROGRAM),
     "statistics": (M.VIEW, M.VIEW),
     "reports": (M.VIEW, M.VIEW),
+    "solution_center": (M.PROGRAM, M.PROGRAM),
     "report_render": (M.VIEW, M.VIEW),
     "report_excel": (M.VIEW, M.VIEW),
     "report_pdf": (M.VIEW, M.VIEW),
@@ -184,7 +185,7 @@ def _deny(request, message):
 # Yalnızca kartların yerini değiştiren işlemler: çözücü problemi değişmez, önbellek korunur.
 PLACEMENT_ONLY = set(CARD_ROUTES) | {
     "api_row_action", "api_undo", "api_redo", "api_bulk", "api_cell_candidates", "api_versions", "publish",
-    "report_excel", "report_pdf", "uybs_export", "uybs_archive", "substitutions", "duties",
+    "report_excel", "report_pdf", "uybs_export", "uybs_archive", "substitutions", "duties", "solution_center",
 }
 
 
@@ -283,7 +284,7 @@ ACTION_LABELS = {
     "program_copy": "Program kopyaladı", "program_import": "aSc'den program aktardı", "program_delete": "Program sildi",
     "generate": "Üretim başlattı", "stop": "Üretimi durdurdu", "publish": "Programı yayınladı",
     "substitutions": "Vekâlet", "duties": "Nöbet çizelgesi", "lesson_refs": "ÜYBS referansları",
-    "uybs_settings": "ÜYBS ayarları", "relationship_import": "aSc kart ilişkisi aktarımı", "bulk_availability": "Toplu müsaitlik", "uybs_archive": "ÜYBS hafta arşivi", "students": "Öğrenciler",
+    "uybs_settings": "ÜYBS ayarları", "relationship_import": "aSc kart ilişkisi aktarımı", "bulk_availability": "Toplu müsaitlik", "solution_center": "Çözüm merkezi", "uybs_archive": "ÜYBS hafta arşivi", "students": "Öğrenciler",
     "school_settings": "Program ayarları/saatler", "lesson_new": "Ders ekledi", "lesson_edit": "Dersi düzenledi",
     "lesson_delete": "Ders sildi", "class_lessons": "Sınıf ders tablosu", "distribution_save": "Ders dağıtımı",
     "distribution_paste": "Ders dağıtımı (yapıştırma)", "copy_divisions": "Bölünme kopyaladı", "excel_import": "Excel'den veri aktardı",

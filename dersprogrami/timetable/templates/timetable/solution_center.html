@@ -1,0 +1,121 @@
+{% extends "timetable/base.html" %}
+{% block title %}Çözüm merkezi · {{ timetable.name }}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{% url 'timetable:timetable_detail' timetable.pk %}">{{ timetable.name }}</a>{% endblock %}
+{% block heading %}<h1>Çözüm merkezi</h1>{% endblock %}
+{% block content %}
+<p class="muted small" style="margin-top:0">Kalıcı program değişikliği için: ne olması gerektiğini söyleyin; sistem çakışmasız ve <b>en az dersi oynatan</b> çözümleri, etkilenenlerin raporuyla birlikte önersin. Uyguladığınız öneri yeni sürüm olarak kaydedilir ve ana görünümde “Geri al” ile geri alınabilir. Geçici durumlar için <a href="{% url 'timetable:substitutions' school.pk %}">Vekâlet</a> ekranını kullanın.</p>
+
+<div class="sc-layout">
+  <form method="post" class="panel sc-form" id="sc-form">{% csrf_token %}
+    <input type="hidden" name="action" value="solve">
+    <div class="panel-head"><h2>İstek</h2></div>
+    <div class="panel-body">
+      <div class="seg-radio column">
+        <label><input type="radio" name="tur" value="shift"{% if form.kind == "shift" %} checked{% endif %}> <span><b>Dersi kaydır</b> – bulunduğu saatten çıksın</span></label>
+        <label><input type="radio" name="tur" value="place"{% if form.kind == "place" %} checked{% endif %}> <span><b>Dersi şu saate al</b> – gerekirse diğerleri yer açsın</span></label>
+        <label><input type="radio" name="tur" value="teacher"{% if form.kind == "teacher" %} checked{% endif %}> <span><b>Öğretmen gelemiyor</b> – o saatlerdeki dersleri kaysın</span></label>
+        <label><input type="radio" name="tur" value="room"{% if form.kind == "room" %} checked{% endif %}> <span><b>Derslik kullanılamıyor</b></span></label>
+      </div>
+
+      <div data-sc="shift place teacher">
+        <label class="label" for="sc-t">Öğretmen</label>
+        <select class="select" name="ogretmen" id="sc-t" data-reload>
+          <option value="">— seçin —</option>
+          {% for t in teachers %}<option value="{{ t.pk }}"{% if form.teacher == t.pk %} selected{% endif %}>{{ t.full_name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div data-sc="shift place">
+        <label class="label" for="sc-c">Ders (öğretmenin programındaki yeri)</label>
+        <select class="select" name="kart" id="sc-c">
+          {% for c in teacher_cards %}<option value="{{ c.id }}"{% if form.card == c.id %} selected{% endif %}>{{ c.label }}{% if c.locked %} · kilitli{% endif %}</option>{% empty %}<option value="">Önce öğretmen seçin</option>{% endfor %}
+        </select>
+      </div>
+      <div data-sc="room">
+        <label class="label" for="sc-r">Derslik</label>
+        <select class="select" name="derslik" id="sc-r">
+          <option value="">— seçin —</option>
+          {% for r in rooms %}<option value="{{ r.pk }}"{% if form.room == r.pk %} selected{% endif %}>{{ r }}</option>{% endfor %}
+        </select>
+      </div>
+      <div data-sc="place teacher room" class="dialog-row">
+        <div style="flex:1"><label class="label" for="sc-d"><span data-sc="place">Hedef gün</span><span data-sc="teacher room">Gün</span></label>
+          <select class="select" name="gun" id="sc-d">{% for i, d in days %}<option value="{{ i }}"{% if form.day == i %} selected{% endif %}>{{ d }}</option>{% endfor %}</select></div>
+        <div style="flex:1" data-sc="place"><label class="label" for="sc-p">Başlangıç saati</label>
+          <select class="select" name="saat" id="sc-p">{% for i, p in periods %}<option value="{{ i }}"{% if form.period == i %} selected{% endif %}>{{ p }}</option>{% endfor %}</select></div>
+      </div>
+      <div data-sc="teacher room">
+        <label class="label">Kapanan saatler</label>
+        <div class="sc-hours">{% for i, p in periods %}<label class="check"><input type="checkbox" name="saatler" value="{{ i }}"{% if i in form.periods %} checked{% endif %}> <span>{{ i|add:1 }}</span></label>{% endfor %}
+          <button type="button" class="btn btn-sm btn-ghost" onclick="this.parentNode.querySelectorAll('input').forEach(c=>c.checked=true)">Tüm gün</button></div>
+      </div>
+      <div class="dialog-row" style="margin-top:6px">
+        <div style="width:140px"><label class="label" for="sc-m">En fazla değişiklik</label><input class="input" type="number" min="1" max="10" name="en_fazla" id="sc-m" value="{{ form.max_moves }}"></div>
+        <label class="check" data-sc="shift" style="align-self:end;margin-bottom:8px"><input type="checkbox" name="ayni_gun" value="1"{% if form.same_day %} checked{% endif %}> <span>Yalnızca aynı gün içinde</span></label>
+      </div>
+      <button class="btn btn-primary" style="margin-top:12px" id="sc-solve">{% include "timetable/icon.html" with name="wand" %} Çözüm öner</button>
+      <p class="subtle small" id="sc-wait" hidden>Çözümler hesaplanıyor (genellikle 5–20 sn)…</p>
+    </div>
+  </form>
+
+  <div class="stack">
+    {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+    {% if proposals %}
+      <p class="small" style="margin:0"><b>{{ label }}</b> için {{ proposals|length }} öneri (en az değişiklik önce):</p>
+      {% for p in proposals %}
+      <div class="panel sc-proposal">
+        <div class="panel-head">
+          <h2>Öneri {{ forloop.counter }} · {{ p.count }} ders yer değiştiriyor</h2>
+          <div>{% if p.new_violations %}<span class="pill warn">{{ p.new_violations|length }} yeni kural ihlali</span>{% else %}<span class="pill ok">yeni ihlal yok</span>{% endif %}</div>
+        </div>
+        <div class="panel-body flush table-wrap">
+          <table class="table">
+            <thead><tr><th>Ders</th><th>Sınıf</th><th>Öğretmen</th><th>Şu an</th><th></th><th>Yeni yeri</th><th>Derslik</th></tr></thead>
+            <tbody>{% for m in p.moves %}<tr{% if not m.time_moved %} class="subtle"{% endif %}>
+              <td><b>{{ m.subject }}</b> <span class="subtle small">{{ m.subject_name }}</span></td><td>{{ m.classes }}</td><td class="small">{{ m.teachers }}</td>
+              <td>{{ m.from }}</td><td>→</td><td><b>{{ m.to }}</b></td>
+              <td class="small">{% if m.room_from != m.room_to %}{{ m.room_from|default:"–" }} → <b>{{ m.room_to|default:"–" }}</b>{% else %}{{ m.room_to|default:"–" }}{% endif %}</td>
+            </tr>{% endfor %}</tbody>
+          </table>
+        </div>
+        <div class="panel-body sc-impact">
+          <div><span class="label">Etkilenen öğretmenler</span>{% for t in p.teachers %}<span class="chip">{{ t }}</span>{% endfor %}</div>
+          <div><span class="label">Etkilenen sınıflar</span>{% for c in p.classes %}<span class="chip">{{ c }}</span>{% endfor %}</div>
+          <div class="small">Öğretmen boşluğu: {{ p.teacher_gaps.0 }} → <b>{{ p.teacher_gaps.1 }}</b> · Sınıf boşluğu: {{ p.class_gaps.0 }} → <b>{{ p.class_gaps.1 }}</b>{% if p.fixed_violations %} · <span class="ok-text">{{ p.fixed_violations|length }} mevcut ihlal giderildi</span>{% endif %}</div>
+          {% if p.new_violations %}<details><summary class="small bad">Yeni ihlaller</summary><ul class="small">{% for v in p.new_violations %}<li>{{ v }}</li>{% endfor %}</ul></details>{% endif %}
+          {% if p.refs %}<details><summary class="small">ÜYBS: {{ p.refs|length }} referansın saati değişiyor</summary><ul class="small">{% for r in p.refs %}<li>{{ r }}</li>{% endfor %}</ul><p class="subtle small">Bu haftanın ÜYBS kaydı uygulamadan önce eski haliyle arşivlenir.</p></details>{% endif %}
+          {% if p.substitutions %}<div class="small bad">Taşınan derslerle ilgili {{ p.substitutions }} ileri tarihli vekâlet kaydı var; uyguladıktan sonra Vekâlet ekranında kontrol edin.</div>{% endif %}
+          <form method="post" class="sc-apply">{% csrf_token %}
+            <input type="hidden" name="action" value="apply"><input type="hidden" name="oneri" value="{{ forloop.counter0 }}">
+            {% if form.kind == "teacher" or form.kind == "room" %}<label class="check small"><input type="checkbox" name="musaitlik" value="1" checked> <span>Kapanan saatleri {% if form.kind == "teacher" %}öğretmenin{% else %}dersliğin{% endif %} müsaitliğine de işle (sonraki üretimlerde de geçerli)</span></label>{% endif %}
+            {% if can_notify %}<label class="check small"><input type="checkbox" name="bildir" value="1" checked> <span>Yeri değişen derslerin öğretmenlerine e-posta</span></label>{% endif %}
+            <button class="btn btn-primary btn-sm" onclick="return confirm('Bu öneri programa uygulansın mı? (Geri alınabilir)')">{% include "timetable/icon.html" with name="check" %} Bu öneriyi uygula</button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    {% elif not error %}
+      <div class="panel panel-body subtle">İsteği seçip <b>Çözüm öner</b> deyin. Ana görünümde bir karta sağ tıklayıp “Çözüm merkezinde kaydır” ile de buraya gelebilirsiniz.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const form = document.getElementById("sc-form");
+  const sync = () => {
+    const kind = form.querySelector("[name=tur]:checked").value;
+    form.querySelectorAll("[data-sc]").forEach((el) => { el.hidden = !el.dataset.sc.split(" ").includes(kind); });
+  };
+  form.addEventListener("change", (e) => {
+    sync();
+    if (e.target.matches("[data-reload]")) {  // öğretmen değişince dersleri listele
+      const q = new URLSearchParams({ tur: form.tur.value, ogretmen: e.target.value });
+      location.search = q.toString();
+    }
+  });
+  form.addEventListener("submit", () => { document.getElementById("sc-wait").hidden = false; document.getElementById("sc-solve").disabled = true; });
+  sync();
+})();
+</script>
+{% endblock %}
