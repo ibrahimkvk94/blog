@@ -35,8 +35,16 @@ DEFAULTS = {
     "sutun_ders": "0", "sutun_kod": "0", "sutun_saat": "0",
     "kunye_yer": "on",    # on: adın önünde · sutun: ayrı sütunlarda (çarşaf liste ve ders yükü)
 }
-KUNYE = {"bolum": "Bölüm", "rutbe": "Rütbe", "unvan": "Ünvan"}
-KUNYE_FIELDS = {"bolum": "department", "rutbe": "rank", "unvan": "title"}
+KUNYE = {"bolum": "Bölüm", "unvan": "Ünvan / Rütbe"}
+KUNYE_FIELDS = {"bolum": "department", "unvan": "title"}
+TR_ALPHABET = "abcçdefgğhıijklmnoöprsştuüvyz"
+_TR_ORDER = {ch: i for i, ch in enumerate(TR_ALPHABET)}
+
+
+def tr_key(text):
+    """Türkçe alfabe sırasıyla karşılaştırma anahtarı (Ç, Ğ, I/İ, Ö, Ş, Ü doğru yerde)."""
+    text = (text or "").replace("I", "ı").replace("İ", "i").lower()
+    return [_TR_ORDER.get(ch, 100 + ord(ch)) for ch in text]
 PARAM_KEYS = list(DEFAULTS) + ["icerik", "secim", "kunye"]
 
 
@@ -62,8 +70,8 @@ def options(params):
         for key in ("sutun_ders", "sutun_kod", "sutun_saat"):
             o[key] = get(key) or "0"
     o["secim"] = [int(x) for x in getlist("secim") if str(x).isdigit()]
-    kunye = getlist("kunye")
-    o["kunye"] = [k for k in kunye if k in KUNYE] if "icerik_set" in params or kunye else list(KUNYE)
+    kunye = ["unvan" if k == "rutbe" else k for k in getlist("kunye")]  # eski şablonlar: rütbe artık ünvanla tek alan
+    o["kunye"] = [k for k in dict.fromkeys(kunye) if k in KUNYE] if "icerik_set" in params or kunye else list(KUNYE)
     if o["kunye_yer"] not in ("on", "sutun"):
         o["kunye_yer"] = "on"
     o["imza"] = [line.strip() for line in (o["alt"] or "").replace("\r", "").split("\n") if line.strip()][:3]
@@ -247,8 +255,11 @@ def _sheet_rows(timetable, o, cards, periods, day_range):
     names = _class_names(timetable.school, o)
     per_lesson = kind == "ogretmen" and o["satir"] == "ders"
     kunye = _kunye_columns(o) if kind == "ogretmen" else []
+    entities = _entities(timetable.school, kind, o)
+    if kind == "ogretmen":  # önce bölüme göre, bölümü boş olanlar sonda; bölüm içinde ada göre
+        entities.sort(key=lambda t: (not t.department.strip(), tr_key(t.department.strip()), tr_key(t.first_name), tr_key(t.last_name)))
     rows = []
-    for obj in _entities(timetable.school, kind, o):
+    for obj in entities:
         mine = [c for c in cards if obj.id in c["rows"]]
         total = sum(c["length"] for c in mine)
         groups = []
@@ -263,7 +274,8 @@ def _sheet_rows(timetable, o, cards, periods, day_range):
         for i, group in enumerate(groups):
             subjects = list(dict.fromkeys(c["subject_name"] for c in group))
             codes = list(dict.fromkeys(c["subject"] for c in group))
-            pre = [getattr(obj, KUNYE_FIELDS[k]) for k in kunye]
+            lead = [getattr(obj, KUNYE_FIELDS[k]) for k in kunye]  # künye adın önündeki sütunlarda
+            pre = []
             if o["sutun_ders"] == "1":
                 pre.append(", ".join(subjects))
             if o["sutun_kod"] == "1":
@@ -273,11 +285,12 @@ def _sheet_rows(timetable, o, cards, periods, day_range):
                 if per_lesson:
                     post.append(sum(c["length"] for c in group))
                 post.append(total if i == 0 else "")
-            rows.append({"title": _title(obj, kind, o), "first": i == 0, "pre": pre, "post": post,
+            rows.append({"title": _title(obj, kind, o), "first": i == 0, "lead": lead, "pre": pre, "post": post,
                          "cells": _sheet_cells(group, kind, o, day_range, periods, names)})
-    pre_headers = [KUNYE[k] for k in kunye] + (["Ders adı"] if o["sutun_ders"] == "1" else []) + (["Ders kodu"] if o["sutun_kod"] == "1" else [])
+    pre_headers = (["Ders adı"] if o["sutun_ders"] == "1" else []) + (["Ders kodu"] if o["sutun_kod"] == "1" else [])
     post_headers = (["Ders saati"] if o["sutun_saat"] == "1" and per_lesson else []) + (["Toplam"] if o["sutun_saat"] == "1" else [])
-    return {"sheet_rows": rows, "pre_headers": pre_headers, "post_headers": post_headers}
+    return {"sheet_rows": rows, "lead_headers": [KUNYE[k] for k in kunye], "pre_headers": pre_headers,
+            "post_headers": post_headers}
 
 
 def _sheet(timetable, o, cards, periods, days):

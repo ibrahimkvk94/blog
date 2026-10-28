@@ -94,21 +94,21 @@ class ReportTests(TestCase):
         from timetable.models import Teacher
 
         teacher = Teacher.objects.filter(school=self.school, lessons__isnull=False).distinct().first()
-        Teacher.objects.filter(pk=teacher.pk).update(department="Mat.", rank="Yb.", title="Öğr.Gör.")
+        Teacher.objects.filter(pk=teacher.pk).update(department="Mat.", title="Öğr.Gör. Yb.")
         query = (f"tur=carsaf&varlik=ogretmen&secim={teacher.pk}&icerik_set=1&satir=ders&hucre=kisim&kisim_ad=no"
-                 "&sutun_ders=1&sutun_kod=1&sutun_saat=1&kunye=rutbe&alt=Ad+SOYAD%0AYb.%0AOkul+M%C3%BCd%C3%BCr%C3%BC%0Afazla")
+                 "&sutun_ders=1&sutun_kod=1&sutun_saat=1&kunye=unvan&alt=Ad+SOYAD%0AYb.%0AOkul+M%C3%BCd%C3%BCr%C3%BC%0Afazla")
         html = self.get(query).content.decode()
-        self.assertIn("Yb. " + teacher.full_name, html)
+        self.assertIn("Öğr.Gör. Yb. " + teacher.full_name, html)
         self.assertNotIn("Mat. ", html)
         self.assertIn("Ders kodu", html)
         self.assertIn("Toplam", html)
         self.assertNotIn("fazla", html)  # imza en fazla 3 satır
-        o = reports.options(dict(p.split("=", 1) for p in query.replace("%0A", "\n").replace("+", " ").split("&")) | {"secim": [teacher.pk], "kunye": ["rutbe"]})
+        o = reports.options(dict(p.split("=", 1) for p in query.replace("%0A", "\n").replace("+", " ").split("&")) | {"secim": [teacher.pk], "kunye": ["unvan"]})
         data = reports.build(self.timetable, o)
         rows = data["sheet_rows"]
         subjects = {l.subject_id for l in teacher.lessons.all()}
         self.assertEqual(len(rows), len(subjects), [(r["title"], r["pre"]) for r in rows])  # her ders ayrı satır, ad her satırda
-        self.assertTrue(all(r["title"].startswith("Yb.") for r in rows))
+        self.assertTrue(all(r["title"].startswith("Öğr.Gör. Yb.") for r in rows))
         self.assertEqual(sum(r["post"][0] for r in rows), rows[0]["post"][1])  # ders saatleri toplamı = toplam
         self.assertTrue(report_pdf.build(data).startswith(b"%PDF"))
         self.assertTrue(report_excel.build(data))
@@ -139,16 +139,31 @@ class ReportTests(TestCase):
         from timetable.models import Teacher
 
         teacher = Teacher.objects.filter(school=self.school, lessons__isnull=False).distinct().first()
-        Teacher.objects.filter(pk=teacher.pk).update(department="Mat.", rank="Yb.", title="Öğr.Gör.")
-        o = reports.options({"tur": "carsaf", "varlik": "ogretmen", "kunye_yer": "sutun", "kunye": ["rutbe", "unvan"],
+        Teacher.objects.filter(pk=teacher.pk).update(department="Mat.", title="Öğr.Gör. Yb.")
+        o = reports.options({"tur": "carsaf", "varlik": "ogretmen", "kunye_yer": "sutun", "kunye": ["bolum", "unvan"],
                              "sutun_ders": "1", "secim": [teacher.pk], "icerik_set": "1"})
         data = reports.build(self.timetable, o)
-        self.assertEqual(data["pre_headers"], ["Rütbe", "Ünvan", "Ders adı"])
+        self.assertEqual(data["lead_headers"], ["Bölüm", "Ünvan / Rütbe"])  # addan önce
+        self.assertEqual(data["pre_headers"], ["Ders adı"])
         row = data["sheet_rows"][0]
         self.assertEqual(row["title"], teacher.full_name)
-        self.assertEqual(row["pre"][:2], ["Yb.", "Öğr.Gör."])
+        self.assertEqual(row["lead"], ["Mat.", "Öğr.Gör. Yb."])
         self.assertTrue(report_pdf.build(data).startswith(b"%PDF"))
         self.assertTrue(report_excel.build(data))
         load = reports.build(self.timetable, {**o, "tur": "yuk"})
-        self.assertEqual(load["kunye_headers"], ["Rütbe", "Ünvan"])
+        self.assertEqual(load["kunye_headers"], ["Bölüm", "Ünvan / Rütbe"])
         self.assertTrue(report_excel.build(load) and report_pdf.build(load))
+
+    def test_teachers_sorted_by_department_then_name(self):
+        from timetable import reports
+        from timetable.models import Teacher
+
+        teachers = list(Teacher.objects.filter(school=self.school)[:3])
+        Teacher.objects.filter(pk=teachers[0].pk).update(department="")
+        Teacher.objects.filter(pk=teachers[1].pk).update(department="Mat.")
+        Teacher.objects.filter(pk=teachers[2].pk).update(department="Fiz.")
+        o = reports.options({"tur": "carsaf", "varlik": "ogretmen", "secim": [t.pk for t in teachers]})
+        order = [r["title"] for r in reports.build(self.timetable, o)["sheet_rows"] if r["first"]]
+        self.assertEqual(order[:2], ["Fiz. " + teachers[2].full_name, "Mat. " + teachers[1].full_name])
+        self.assertEqual(order[-1], teachers[0].full_name)  # bölümü boş olan sonda
+        self.assertEqual(sorted(["Şule", "Can", "Çağrı", "Zeki"], key=reports.tr_key), ["Can", "Çağrı", "Şule", "Zeki"])

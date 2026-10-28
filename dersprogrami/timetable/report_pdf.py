@@ -125,15 +125,16 @@ def _individual(page, data, width, height, size, colored):
 
 def _sheet(data, width, colored):
     """Çarşaf liste: sütunlar çok daralırsa günler sayfalara bölünür; başlık satırları tekrarlanır.
-    Ders adı/kodu sütunları addan sonra, saat sütunları en sonda (her sayfada) yer alır."""
+    Künye sütunları addan önce, ders adı/kodu addan sonra, saat sütunları en sonda (her sayfada)."""
     periods, days = data["periods"], list(data["sheet_days"])
-    pre_h, post_h = data.get("pre_headers", []), data.get("post_headers", [])
+    head_h, pre_h, post_h = data.get("lead_headers", []), data.get("pre_headers", []), data.get("post_headers", [])
     P = max(len(periods), 1)
     first = 24 * mm
+    head_w = [16 * mm] * len(head_h)
     pre_w = [24 * mm if h == "Ders adı" else 14 * mm for h in pre_h]
     post_w = [12 * mm] * len(post_h)
-    lead = 1 + len(pre_h)
-    fixed = first + sum(pre_w) + sum(post_w)
+    lead = len(head_h) + 1 + len(pre_h)
+    fixed = sum(head_w) + first + sum(pre_w) + sum(post_w)
     per = max(1, min(len(days), int((width - fixed) / (P * 6 * mm))))
     col = (width - fixed) / (P * per)
     fs = max(4.5, min(7, col / mm * 0.62))
@@ -150,9 +151,9 @@ def _sheet(data, width, colored):
     out = []
     for start in range(0, len(days), per):
         chunk = days[start:start + per]
-        top = [_p("", hstyle)] + [_p(h, hstyle) for h in pre_h]
+        top = [_p(h, hstyle) for h in head_h] + [_p("Ad Soyad" if head_h else "", hstyle)] + [_p(h, hstyle) for h in pre_h]
         nums = [""] * lead
-        style = [("BACKGROUND", (0, 0), (-1, 1), HEAD), ("BACKGROUND", (0, 2), (0, -1), HEAD)]
+        style = [("BACKGROUND", (0, 0), (-1, 1), HEAD), ("BACKGROUND", (0, 2), (len(head_h), -1), HEAD)]
         style += [("SPAN", (x, 0), (x, 1)) for x in range(lead)]
         for i, day in enumerate(chunk):
             top += [_p(day, hstyle)] + [""] * (P - 1)
@@ -164,7 +165,8 @@ def _sheet(data, width, colored):
         style += [("SPAN", (end + k, 0), (end + k, 1)) for k in range(len(post_h))]
         rows = [top, nums]
         for y, (r, by_day) in enumerate(split, start=2):
-            line = [_p(r["title"], tstyle)] + [_p(v, cstyle) for v in r.get("pre", [])]
+            line = ([_p(v, cstyle) for v in r.get("lead", [])] + [_p(r["title"], tstyle)]
+                    + [_p(v, cstyle) for v in r.get("pre", [])])
             for i, cells in enumerate(by_day[start:start + per]):
                 x = lead + i * P
                 for c in cells:
@@ -178,7 +180,7 @@ def _sheet(data, width, colored):
             line += [""] * (end - len(line))
             line += [_p(v, tstyle) for v in r.get("post", [])] + [""] * (len(post_h) - len(r.get("post", [])))
             rows.append(line)
-        t = Table(rows, colWidths=[first] + pre_w + [col] * (P * len(chunk)) + post_w, repeatRows=2)
+        t = Table(rows, colWidths=head_w + [first] + pre_w + [col] * (P * len(chunk)) + post_w, repeatRows=2)
         t.setStyle(_base(style))
         if out:
             out.append(PageBreak())
@@ -212,11 +214,11 @@ def build(data):
         rows = []
         for r in data["load_rows"]:
             for lesson in r["lessons"] or [{"subject": "–", "classes": "", "groups": "", "hours": 0, "split": ""}]:
-                rows.append([r["name"], *r["kunye"], lesson["subject"], lesson["classes"], lesson["groups"], lesson["hours"],
+                rows.append([*r["kunye"], r["name"], lesson["subject"], lesson["classes"], lesson["groups"], lesson["hours"],
                              lesson["split"], r["total"], r["target"] or "", r["diff"] if r["diff"] is not None else ""])
         story = _header(o["baslik"] or "Öğretmen ders yükü", subtitle) + _table(
-            ["Öğretmen", *data["kunye_headers"], "Ders", "Sınıf", "Grup", "Saat", "Dağılım", "Toplam", "Hedef", "Fark"], rows,
-            [26, *[14] * len(data["kunye_headers"]), 30, 20, 16, 7, 10, 8, 8, 7], width, size)
+            [*data["kunye_headers"], "Öğretmen", "Ders", "Sınıf", "Grup", "Saat", "Dağılım", "Toplam", "Hedef", "Fark"], rows,
+            [*[14] * len(data["kunye_headers"]), 26, 30, 20, 16, 7, 10, 8, 8, 7], width, size)
     elif kind == "sinif_dersleri":
         rows = [[r["title"], lesson["subject"], lesson["teachers"], lesson["groups"], lesson["hours"], lesson["split"]]
                 for r in data["class_rows"] for lesson in r["lessons"]]

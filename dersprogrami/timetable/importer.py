@@ -30,9 +30,11 @@ SHEETS = {
 OPTIONAL = {
     "Ders adları": ["Varsayılan derslikler"],
     "Sınıflar": ["Öğrenci sayısı", "Sınıf öğretmeni"],
-    "Öğretmenler": ["Haftalık ders yükü", "Branşlar", "Öğretmen dersliği", "Bölüm", "Rütbe", "Ünvan"],
+    "Öğretmenler": ["Haftalık ders yükü", "Branşlar", "Öğretmen dersliği", "Bölüm", "Ünvan / Rütbe"],
     "Dersler": ["Kart dağılımı", "Derslik sayısı"],
 }
+# Şablonda yer almayan ama okunmaya devam eden eski sütunlar (ünvan ve rütbe önceden ayrıydı).
+LEGACY = {"Öğretmenler": ["Ünvan", "Rütbe"]}
 
 NOTES = {
     "Sınıflar": "Bölünmeler: “Yabancı dil 2: Almanca, Fransızca; Beden: Kız, Erkek” biçiminde.",
@@ -93,6 +95,7 @@ def export_workbook(school):
                 t.first_name, t.last_name, t.short, t.max_periods_per_day, t.max_days_per_week, t.max_gaps_per_week,
                 t.target_periods, ", ".join(sub.short or sub.name for sub in t.subjects.all()),
                 str(t.home_classroom) if t.home_classroom else "",
+                t.department, t.title,
             ]
             for t in school.teachers.select_related("home_classroom").prefetch_related("subjects")
         ],
@@ -171,7 +174,7 @@ class _Importer:
         if missing:
             self.errors.append(f"{title}: eksik sütun başlığı: {', '.join(missing)}")
             return []
-        names = SHEETS[title] + [h for h in OPTIONAL.get(title, []) if _key(h) in headers]
+        names = SHEETS[title] + [h for h in OPTIONAL.get(title, []) + LEGACY.get(title, []) if _key(h) in headers]
         index = {_key(h): headers.index(_key(h)) for h in names}
         result = []
         for number, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
@@ -345,9 +348,12 @@ class _Importer:
                 teacher.target_periods = target
             if "Öğretmen dersliği" in v:
                 teacher.home_classroom = home
-            for column, attr, size in (("Bölüm", "department", 60), ("Rütbe", "rank", 40), ("Ünvan", "title", 60)):
-                if column in v:
-                    setattr(teacher, attr, str(v[column] or "").strip()[:size])
+            if "Bölüm" in v:
+                teacher.department = str(v["Bölüm"] or "").strip()[:60]
+            # Ünvan ve rütbe tek alandır: "Ünvan / Rütbe" sütunu ya da ayrı "Ünvan", "Rütbe" sütunları birleştirilir.
+            title_columns = [c for c in ("Ünvan / Rütbe", "Ünvan", "Rütbe") if c in v]
+            if title_columns:
+                teacher.title = " ".join(filter(None, (str(v[c] or "").strip() for c in title_columns)))[:100]
             teacher.save()
             if "Branşlar" in v:
                 teacher.subjects.set(subjects)

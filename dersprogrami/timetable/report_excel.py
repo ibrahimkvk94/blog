@@ -110,11 +110,16 @@ def build(data):
         ws = _sheet(wb, data["kind_label"])
         periods = data["periods"]
         P = len(periods)
-        pre_h, post_h = data["pre_headers"], data["post_headers"]
-        lead = 1 + len(pre_h)
+        head_h, pre_h, post_h = data["lead_headers"], data["pre_headers"], data["post_headers"]
+        name_col = len(head_h) + 1  # künye sütunları addan önce, ders adı/kodu addan sonra
+        lead = name_col + len(pre_h)
         end = lead + 1 + P * len(data["sheet_days"])
         row = _header(ws, o["baslik"] or data["kind_label"], subtitle, end - 1 + len(post_h))
-        for i, h in enumerate(pre_h, start=2):
+        for i, h in enumerate([*head_h, "Ad Soyad" if head_h else ""], start=1):
+            ws.merge_cells(start_row=row, start_column=i, end_row=row + 1, end_column=i)
+            c = ws.cell(row=row, column=i, value=h or None)
+            c.font, c.fill, c.alignment = BOLD, HEAD, CENTER
+        for i, h in enumerate(pre_h, start=name_col + 1):
             ws.merge_cells(start_row=row, start_column=i, end_row=row + 1, end_column=i)
             c = ws.cell(row=row, column=i, value=h)
             c.font, c.fill, c.alignment = BOLD, HEAD, CENTER
@@ -133,8 +138,10 @@ def build(data):
         row += 1
         for r in data["sheet_rows"]:
             row += 1
-            ws.cell(row=row, column=1, value=r["title"]).font = BOLD
-            for i, v in enumerate(r["pre"], start=2):
+            for i, v in enumerate(r["lead"], start=1):
+                ws.cell(row=row, column=i, value=v).alignment = WRAP
+            ws.cell(row=row, column=name_col, value=r["title"]).font = BOLD
+            for i, v in enumerate(r["pre"], start=name_col + 1):
                 ws.cell(row=row, column=i, value=v).alignment = WRAP
             col = lead + 1
             for cell_data in r["cells"]:
@@ -150,8 +157,10 @@ def build(data):
                 ws.cell(row=row, column=end + k, value=v).font = BOLD
             ws.row_dimensions[row].height = 30
         _sign(ws, row, o["imza"], end - 1)
-        ws.column_dimensions["A"].width = 24
-        for i, h in enumerate(pre_h, start=2):
+        for i in range(1, name_col):
+            ws.column_dimensions[get_column_letter(i)].width = 14
+        ws.column_dimensions[get_column_letter(name_col)].width = 24
+        for i, h in enumerate(pre_h, start=name_col + 1):
             ws.column_dimensions[get_column_letter(i)].width = 28 if h == "Ders adı" else 12
         for c in range(lead + 1, end):
             ws.column_dimensions[get_column_letter(c)].width = 9
@@ -162,10 +171,10 @@ def build(data):
         rows = []
         for r in data["load_rows"]:
             for lesson in r["lessons"] or [{"subject": "–", "classes": "", "groups": "", "hours": 0, "split": ""}]:
-                rows.append([r["name"], *r["kunye"], lesson["subject"], lesson["classes"], lesson["groups"], lesson["hours"],
+                rows.append([*r["kunye"], r["name"], lesson["subject"], lesson["classes"], lesson["groups"], lesson["hours"],
                              lesson["split"], r["total"], r["target"] or "", r["diff"] if r["diff"] is not None else ""])
-        _table(ws, row, ["Öğretmen", *data["kunye_headers"], "Ders", "Sınıf", "Grup", "Saat", "Dağılım", "Toplam", "Hedef", "Fark"], rows,
-               [26, *[14] * len(data["kunye_headers"]), 30, 20, 16, 7, 10, 8, 8, 7])
+        _table(ws, row, [*data["kunye_headers"], "Öğretmen", "Ders", "Sınıf", "Grup", "Saat", "Dağılım", "Toplam", "Hedef", "Fark"], rows,
+               [*[14] * len(data["kunye_headers"]), 26, 30, 20, 16, 7, 10, 8, 8, 7])
     elif kind == "sinif_dersleri":
         ws = _sheet(wb, "Sınıf dersleri")
         row = _header(ws, o["baslik"] or "Sınıf ders listesi", subtitle)

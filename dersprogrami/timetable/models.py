@@ -206,8 +206,7 @@ class Teacher(models.Model):
         "haftada en fazla nöbet", null=True, blank=True, help_text="Boş = okulun genel ayarı"
     )
     department = models.CharField("bölüm", max_length=60, blank=True, help_text="Raporlarda adın önüne yazılabilir (ör. ELN).")
-    rank = models.CharField("rütbe", max_length=40, blank=True, help_text="Ör. Ütğm., Bnb.")
-    title = models.CharField("ünvan", max_length=60, blank=True, help_text="Ör. Öğr.Gör., Dr.")
+    title = models.CharField("ünvan / rütbe", max_length=100, blank=True, help_text="Ör. Öğr.Gör. Ütğm., Dr., Bnb.")
     tc_no = models.CharField("TC kimlik no", max_length=11, blank=True, help_text="ÜYBS aktarımında öğretim elemanı sütununa yazılır.")
     email = models.EmailField("e-posta", blank=True, help_text="Program değişikliği ve vekâlet bildirimleri için.")
 
@@ -223,10 +222,10 @@ class Teacher(models.Model):
     def full_name(self):
         return f"{self.first_name} {self.last_name}".strip()
 
-    def label(self, parts=("bolum", "rutbe", "unvan")):
-        """Raporlarda: seçilen künye bilgileri + ad soyad (ör. "ELN Ütğm. Öğr.Gör. Ali Kaya")."""
-        values = {"bolum": self.department, "rutbe": self.rank, "unvan": self.title}
-        return " ".join(filter(None, [values[p] for p in ("bolum", "rutbe", "unvan") if p in parts] + [self.full_name]))
+    def label(self, parts=("bolum", "unvan")):
+        """Raporlarda: seçilen künye bilgileri + ad soyad (ör. "ELN Öğr.Gör. Ütğm. Ali Kaya")."""
+        values = {"bolum": self.department, "unvan": self.title}
+        return " ".join(filter(None, [values[p] for p in ("bolum", "unvan") if p in parts] + [self.full_name]))
 
 
 class SchoolClass(models.Model):

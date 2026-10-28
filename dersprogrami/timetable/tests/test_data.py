@@ -203,6 +203,8 @@ class ExcelAndLessonAvailabilityTests(TestCase):
         from timetable import importer
         from timetable.services import check_school
 
+        first = self.school.teachers.first()
+        type(first).objects.filter(pk=first.pk).update(department="ELN", title="Öğr.Gör. Ütğm.")
         data = importer.export_workbook(self.school)
         target = School.objects.create(name="Boş okul")
         from timetable.data_views import default_periods
@@ -211,6 +213,8 @@ class ExcelAndLessonAvailabilityTests(TestCase):
         result = importer.import_workbook(target, data)
         self.assertEqual(result["Dersler"]["eklenen"], self.school.lessons.count())
         self.assertEqual(target.teachers.count(), self.school.teachers.count())
+        copied = target.teachers.get(first_name=first.first_name, last_name=first.last_name)
+        self.assertEqual((copied.department, copied.title), ("ELN", "Öğr.Gör. Ütğm."))  # künye aktarımda korunur
         self.assertEqual(target.classrooms.count(), self.school.classrooms.count())
         self.assertEqual(Group.objects.filter(division__school_class__school=target).count(), 8)
         joint = Lesson.objects.filter(school=target, groups__isnull=False).distinct()
