@@ -909,3 +909,14 @@ a.q-card { color: inherit; } a.q-card:hover { border-color: var(--primary); }
 .rq-chev svg { width: 16px; height: 16px; margin-right: 6px; vertical-align: -2px; transform: rotate(-90deg); transition: transform .15s; }
 .rq-accounts[open] .rq-chev svg { transform: none; }
 .subnav .nav-badge { margin-left: 4px; display: inline-block; }
+
+/* ---- Okul geneli iyileştirme ---- */
+.im-bar { height: 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); overflow: hidden; }
+.im-bar > div { height: 100%; background: linear-gradient(90deg, var(--primary), #818cf8); transition: width .6s; }
+.im-limits { display: flex; gap: 10px; flex-wrap: wrap; margin: 6px 0 4px; }
+.im-limit { position: relative; cursor: pointer; }
+.im-limit input { position: absolute; opacity: 0; }
+.im-limit span { display: flex; flex-direction: column; min-width: 130px; padding: 10px 14px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); }
+.im-limit small { color: var(--text-3); font-size: 12px; }
+.im-limit input:checked + span { border-color: var(--primary); background: var(--primary-soft); box-shadow: 0 0 0 1px var(--primary); }
+.im-limit input:focus-visible + span { box-shadow: 0 0 0 3px rgba(79,70,229,.25); }

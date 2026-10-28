@@ -253,7 +253,7 @@ class Center:
 
     # --- programı iyileştirme ---------------------------------------------------------------
 
-    def improve(self, teacher_ids=(), class_ids=(), max_moves=12, time_limit=25):
+    def improve(self, teacher_ids=(), class_ids=(), max_moves=12, time_limit=25, weights=(IMPROVE_GAP, IMPROVE_DAY), everyone=False):
         """Seçilen öğretmen/sınıfların boşluklarını ve öğretmenlerin okula geldiği gün sayısını en az
         ders oynatarak azaltan tek öneri. Yerleşmemiş kartlar bu işin konusu değildir."""
         full, placements = self.full, self.placements
@@ -265,11 +265,12 @@ class Center:
         keep = set(placements)
         free = (_neighbours(full, placements, targets) | _conflicting(full, placements)) & keep
         req = Request("improve", max_moves=max_moves)
-        weights = {t: (IMPROVE_GAP, IMPROVE_DAY) for t in teacher_ids}
+        # everyone: diğer öğretmenlerin boşluk/günü de aynı ağırlıkla sayılır (okul geneli iyileştirme)
+        teacher_weights = {t: tuple(weights) for t in (self.school.teachers.values_list("id", flat=True) if everyone else teacher_ids)}
 
         def tune(sub):
             sub.anchor_weight = IMPROVE_MOVE
-            sub.teacher_weights = weights
+            sub.teacher_weights = teacher_weights
 
         baseline_v, baseline_stats = validate(full, placements)
         result = self._solve(req, {}, keep, free, [], time_limit, tune=tune)
@@ -280,6 +281,7 @@ class Center:
         if proposal["new_violations_hard"]:
             return None
         proposal["quality"] = self._quality_change(placements, after, teacher_ids, class_ids)
+        self.last_after = after  # okul geneli iyileştirme sonraki adıma buradan devam eder
         return proposal
 
     def _quality_change(self, before, after, teacher_ids, class_ids):

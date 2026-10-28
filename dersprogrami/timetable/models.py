@@ -586,6 +586,40 @@ class Card(models.Model):
         return self.is_placed and self.day == day and self.period <= period < self.period + self.length
 
 
+class ImproveJob(models.Model):
+    """Bütün okulu arka planda iyileştirme işi (school_improve.py). Sonuç programa uygulanmaz; öneri
+    olarak saklanır ve çözüm merkezinde incelenip uygulanır."""
+
+    QUEUED = "queued"
+    RUNNING = "running"
+    DONE = "done"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    STATUS_CHOICES = [(QUEUED, "Sırada"), (RUNNING, "Çalışıyor"), (DONE, "Bitti"), (FAILED, "Başarısız"), (CANCELLED, "İptal edildi")]
+
+    timetable = models.ForeignKey(Timetable, on_delete=models.CASCADE, related_name="improve_jobs")
+    created_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=QUEUED)
+    time_limit = models.PositiveIntegerField(default=1200, help_text="saniye")
+    created_at = models.DateTimeField(auto_now_add=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    heartbeat = models.DateTimeField(null=True, blank=True)
+    stop_requested = models.BooleanField(default=False)
+    progress = models.JSONField(default=dict, blank=True)
+    result = models.JSONField(null=True, blank=True)
+    error = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "okul geneli iyileştirme"
+        verbose_name_plural = "okul geneli iyileştirmeler"
+
+    @property
+    def active(self):
+        return self.status in (self.QUEUED, self.RUNNING)
+
+
 class TimetableVersion(models.Model):
     """Programın kayıtlı bir hali (aSc "Versiyonlar"): kart konumlarının anlık görüntüsü."""
 

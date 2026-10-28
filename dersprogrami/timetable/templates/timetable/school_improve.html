@@ -1,0 +1,89 @@
+{% extends "timetable/base.html" %}
+{% block title %}Okul geneli iyileştirme · {{ timetable.name }}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{% url 'timetable:timetable_detail' timetable.pk %}">{{ timetable.name }}</a> / <a href="{% url 'timetable:solution_center' timetable.pk %}">Çözüm merkezi</a>{% endblock %}
+{% block heading %}<h1>Okul geneli iyileştirme</h1>{% if active %}<span class="pill running">{{ active.get_status_display }}</span>{% endif %}{% endblock %}
+{% block content %}
+<p class="muted small" style="margin-top:0">Arka planda bütün öğretmenleri (sonra sınıfları) en çok boşluğu ve gereğinden fazla okula geldiği günü olandan başlayarak ele alır; her adımda çakışmasız ve <b>az ders oynatan</b> iyileştirmeleri biriktirir. Okul toplamına bakılır: bir öğretmenin okula fazladan geldiği gün, bir boş saatten daha ağır sayılır. Program bu sırada <b>değişmez</b>: sonuç tek öneri olarak burada bekler, çözüm merkezinde ana görünümde önizleyip uygularsınız (geri alınabilir). Sayfadan ayrılabilirsiniz.</p>
+
+{% if active %}
+<section class="panel" id="im-live" data-url="?durum=1" data-job="{{ active.pk }}">
+  <div class="panel-head"><h2 data-im-phase>{{ active.progress.phase|default:"Sırada bekliyor" }}</h2><span class="subtle small" data-im-current>{{ active.progress.current }}</span></div>
+  <div class="panel-body">
+    <div class="im-bar"><div data-im-bar style="width:0%"></div></div>
+    <div class="subtle small" data-im-time style="margin-top:6px">{% if active.status == "queued" %}{% if worker %}Çalışan süreç işi sıradan alacak.{% else %}Başlıyor…{% endif %}{% endif %}</div>
+    <div class="q-summary" style="margin-top:14px">
+      <div class="q-card"><span>Öğretmen boşluğu</span><b data-im="teacher_gaps">–</b><small>başta → şimdi</small></div>
+      <div class="q-card"><span>Öğretmen okula geliş günü</span><b data-im="teacher_days">–</b><small>toplam gün</small></div>
+      <div class="q-card"><span>Sınıf boşluğu</span><b data-im="class_gaps">–</b><small>başta → şimdi</small></div>
+      <div class="q-card"><span>Kabul edilen adım</span><b data-im="accepted">0</b><small><span data-im="step">0</span> adım denendi</small></div>
+      <div class="q-card"><span>Yeri değişen ders</span><b data-im="moves">0</b><small>öneride</small></div>
+    </div>
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="stop">
+      <button class="btn" data-im-stop{% if active.stop_requested %} disabled{% endif %}>{% include "timetable/icon.html" with name="stop" %} {% if active.stop_requested %}Durduruluyor…{% else %}Durdur ve sonucu al{% endif %}</button></form>
+  </div>
+</section>
+{% else %}
+<form method="post" class="panel">
+  {% csrf_token %}<input type="hidden" name="action" value="start">
+  <div class="panel-head"><h2>Yeni iyileştirme</h2></div>
+  <div class="panel-body">
+    <div class="label">Süre</div>
+    <div class="im-limits">{% for m in limits %}<label class="im-limit"><input type="radio" name="dakika" value="{{ m }}"{% if m == 20 %} checked{% endif %}><span><b>{{ m }} dk</b><small>{% if m == 10 %}hızlı tarama{% elif m == 20 %}önerilen{% else %}en kapsamlı{% endif %}</small></span></label>{% endfor %}</div>
+    <p class="subtle small">Süre dolmadan iyileşecek bir şey kalmazsa erken biter. Kilitli kartlara ve yerleşmemiş kartlara dokunulmaz.</p>
+    <button class="btn btn-primary">{% include "timetable/icon.html" with name="play" %} Başlat</button>
+  </div>
+</form>
+{% endif %}
+
+{% if latest %}
+<section class="panel" style="margin-top:16px">
+  <div class="panel-head"><h2>Son sonuç</h2><span class="subtle small">{{ latest.finished_at|default:latest.created_at|date:"j F Y H:i" }}{% if latest.created_by %} · {{ latest.created_by.username }}{% endif %} · {{ latest.time_limit|floatformat:0 }} sn sınır</span></div>
+  <div class="panel-body">
+    {% if latest.status == "failed" %}<div class="alert alert-error">{{ latest.error|default:"İş tamamlanamadı." }}</div>
+    {% elif latest.status == "cancelled" %}<p class="muted" style="margin:0">Başlamadan iptal edildi.</p>
+    {% elif not latest.result %}<p style="margin:0"><b>İyileştirme bulunamadı.</b> <span class="muted">Program bu kurallarla zaten iyi durumda ya da daha uzun süre gerekiyor.</span></p>
+    {% else %}{% with r=latest.result t=latest.result.totals %}
+      <div class="q-summary">
+        <div class="q-card"><span>Öğretmen boşluğu</span><b>{{ t.before.teacher_gaps }} → <span class="{% if t.after.teacher_gaps < t.before.teacher_gaps %}t-iyi{% elif t.after.teacher_gaps > t.before.teacher_gaps %}t-kotu{% endif %}">{{ t.after.teacher_gaps }}</span></b><small>toplam boş saat</small></div>
+        <div class="q-card"><span>Öğretmen okula geliş günü</span><b>{{ t.before.teacher_days }} → <span class="{% if t.after.teacher_days < t.before.teacher_days %}t-iyi{% elif t.after.teacher_days > t.before.teacher_days %}t-kotu{% endif %}">{{ t.after.teacher_days }}</span></b><small>toplam gün</small></div>
+        <div class="q-card"><span>Sınıf boşluğu</span><b>{{ t.before.class_gaps }} → <span class="{% if t.after.class_gaps < t.before.class_gaps %}t-iyi{% elif t.after.class_gaps > t.before.class_gaps %}t-kotu{% endif %}">{{ t.after.class_gaps }}</span></b><small>toplam boş saat</small></div>
+        <div class="q-card"><span>Yeri değişen ders</span><b>{{ r.count }}</b><small>{{ r.teachers|length }} öğretmen, {{ r.classes|length }} sınıf etkileniyor</small></div>
+      </div>
+      {% if r.new_violations %}<p class="small bad">{{ r.new_violations|length }} yeni yumuşak kural uyarısı var; çözüm merkezinde ayrıntısını görün.</p>{% endif %}
+      <form method="post" style="display:flex;gap:8px;flex-wrap:wrap">{% csrf_token %}<input type="hidden" name="is" value="{{ latest.pk }}">
+        <button class="btn btn-primary" name="action" value="review">{% include "timetable/icon.html" with name="wand" %} Çözüm merkezinde incele ve uygula</button>
+        <button class="btn" name="action" value="discard" onclick="return confirm('Bu sonuç silinsin mi?')">Sonucu sil</button>
+      </form>
+      <p class="subtle small" style="margin-bottom:0">Sonuç hesaplandıktan sonra programda elle değişiklik yapıldıysa uygulama reddedilir; o durumda yeniden çalıştırın.</p>
+    {% endwith %}{% endif %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const live = document.getElementById("im-live");
+  if (!live) return;
+  const fmt = (s) => Math.floor(s / 60) + " dk " + String(s % 60).padStart(2, "0") + " sn";
+  const set = (k, v) => { const el = live.querySelector('[data-im="' + k + '"]'); if (el) el.textContent = v; };
+  const tick = async () => {
+    let data;
+    try { data = await (await fetch(live.dataset.url, { headers: { "X-Requested-With": "fetch" } })).json(); } catch (e) { return setTimeout(tick, 5000); }
+    const job = data.job;
+    if (!job || String(job.id) !== live.dataset.job || !["queued", "running"].includes(job.status)) { location.reload(); return; }
+    const p = job.progress || {};
+    if (p.phase) live.querySelector("[data-im-phase]").textContent = p.phase;
+    live.querySelector("[data-im-current]").textContent = p.current ? "Şu an: " + p.current : "";
+    if (p.limit) {
+      live.querySelector("[data-im-bar]").style.width = Math.min(100, 100 * p.elapsed / p.limit) + "%";
+      live.querySelector("[data-im-time]").textContent = fmt(p.elapsed) + " / " + fmt(p.limit) + " (iyileşecek bir şey kalmazsa erken biter)";
+    }
+    if (p.before && p.now) ["teacher_gaps", "teacher_days", "class_gaps"].forEach((k) => set(k, p.before[k] + " → " + p.now[k]));
+    set("accepted", p.accepted || 0); set("step", p.step || 0); set("moves", p.moves || 0);
+    setTimeout(tick, 3000);
+  };
+  tick();
+})();
+</script>
+{% endblock %}

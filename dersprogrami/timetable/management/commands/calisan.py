@@ -1,4 +1,4 @@
-"""Üretim kuyruğunu işleyen çalışan süreç (TIMETABLE_JOB_BACKEND=worker).
+"""Üretim ve okul geneli iyileştirme kuyruğunu işleyen çalışan süreç (TIMETABLE_JOB_BACKEND=worker).
 
     python manage.py calisan            # sürekli çalışır, sıradaki üretimleri tek tek işler
     python manage.py calisan --paralel 2
@@ -10,7 +10,7 @@ import time
 from django.core.management.base import BaseCommand
 from django.db import close_old_connections, connection
 
-from timetable import jobs
+from timetable import jobs, school_improve
 
 
 class Command(BaseCommand):
@@ -29,20 +29,26 @@ class Command(BaseCommand):
             running = [t for t in running if t.is_alive()]
             if slots.acquire(blocking=False):
                 timetable = jobs.claim_next()
-                if timetable is None:
+                improve = None if timetable is not None else school_improve.claim_next()
+                if timetable is None and improve is None:
                     slots.release()
                     if options["bir_kez"] and not running:
                         return
                     time.sleep(1)
                     continue
-                self.stdout.write(f"Üretim başladı: #{timetable.pk} {timetable.name}")
+                if timetable is not None:
+                    self.stdout.write(f"Üretim başladı: #{timetable.pk} {timetable.name}")
+                    task, label = (lambda t=timetable: jobs.run_claimed(t)), f"Üretim #{timetable.pk}"
+                else:
+                    self.stdout.write(f"Okul geneli iyileştirme başladı: #{improve.pk}")
+                    task, label = (lambda j=improve: school_improve.run(j.pk)), f"İyileştirme #{improve.pk}"
 
-                def work(t=timetable):
+                def work(task=task, label=label):
                     try:
                         close_old_connections()
-                        jobs.run_claimed(t)
+                        task()
                     except Exception as exc:  # bir işteki hata çalışanı durdurmasın
-                        self.stderr.write(f"Üretim #{t.pk} hata: {exc}")
+                        self.stderr.write(f"{label} hata: {exc}")
                     finally:
                         connection.close()
                         slots.release()

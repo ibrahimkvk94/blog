@@ -2,6 +2,7 @@
 {% block title %}Çözüm merkezi · {{ timetable.name }}{% endblock %}
 {% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{% url 'timetable:timetable_detail' timetable.pk %}">{{ timetable.name }}</a>{% endblock %}
 {% block heading %}<h1>Çözüm merkezi</h1>{% endblock %}
+{% block actions %}<a class="btn" href="{% url 'timetable:school_improve' timetable.pk %}">{% include "timetable/icon.html" with name="wand" %} Okul geneli iyileştirme</a>{% endblock %}
 {% block content %}
 <p class="muted small" style="margin-top:0">Kalıcı program değişikliği için: ne olması gerektiğini söyleyin; sistem çakışmasız ve <b>en az dersi oynatan</b> çözümleri, etkilenenlerin raporuyla birlikte önersin. Uyguladığınız öneri yeni sürüm olarak kaydedilir ve ana görünümde “Geri al” ile geri alınabilir. Geçici durumlar için <a href="{% url 'timetable:substitutions' school.pk %}">Vekâlet</a> ekranını kullanın.</p>
 
