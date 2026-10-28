@@ -40,8 +40,7 @@ jobs:
           & $py manage.py collectstatic --noinput | Out-Null; if ($LASTEXITCODE) { exit 1 }
           & $py manage.py seed_demo; if ($LASTEXITCODE) { exit 1 }
           # OR-Tools'un gömülü Python'da çalıştığını gerçek bir üretimle doğrula
-          $school = & $py manage.py shell -c "from timetable.models import School; print(School.objects.first().pk)"
-          & $py manage.py generate_timetable $school --time-limit 20; if ($LASTEXITCODE) { exit 1 }
+          & $py manage.py generate_timetable 1 --time-limit 20; if ($LASTEXITCODE) { exit 1 }  # boş veritabanında örnek okul id=1
           $server = Start-Process -FilePath $py -ArgumentList "manage.py", "sunucu" -PassThru -RedirectStandardOutput sunucu.log -RedirectStandardError sunucu.err
           $ok = $false
           foreach ($i in 1..30) {
