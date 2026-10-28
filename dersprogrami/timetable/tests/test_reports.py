@@ -133,3 +133,22 @@ class ReportTests(TestCase):
         names = [r["pre"][0] for r in reports.build(self.timetable, o)["sheet_rows"]]
         self.assertIn("Bilgisayar Programlama Dili", names)
         self.assertIn("Bilgisayar Programlama Dili (U)", names)
+
+    def test_kunye_in_separate_columns(self):
+        from timetable import report_excel, report_pdf, reports
+        from timetable.models import Teacher
+
+        teacher = Teacher.objects.filter(school=self.school, lessons__isnull=False).distinct().first()
+        Teacher.objects.filter(pk=teacher.pk).update(department="Mat.", rank="Yb.", title="Öğr.Gör.")
+        o = reports.options({"tur": "carsaf", "varlik": "ogretmen", "kunye_yer": "sutun", "kunye": ["rutbe", "unvan"],
+                             "sutun_ders": "1", "secim": [teacher.pk], "icerik_set": "1"})
+        data = reports.build(self.timetable, o)
+        self.assertEqual(data["pre_headers"], ["Rütbe", "Ünvan", "Ders adı"])
+        row = data["sheet_rows"][0]
+        self.assertEqual(row["title"], teacher.full_name)
+        self.assertEqual(row["pre"][:2], ["Yb.", "Öğr.Gör."])
+        self.assertTrue(report_pdf.build(data).startswith(b"%PDF"))
+        self.assertTrue(report_excel.build(data))
+        load = reports.build(self.timetable, {**o, "tur": "yuk"})
+        self.assertEqual(load["kunye_headers"], ["Rütbe", "Ünvan"])
+        self.assertTrue(report_excel.build(load) and report_pdf.build(load))

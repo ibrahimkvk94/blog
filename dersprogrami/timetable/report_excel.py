@@ -162,10 +162,10 @@ def build(data):
         rows = []
         for r in data["load_rows"]:
             for lesson in r["lessons"] or [{"subject": "–", "classes": "", "groups": "", "hours": 0, "split": ""}]:
-                rows.append([r["title"], lesson["subject"], lesson["classes"], lesson["groups"], lesson["hours"],
+                rows.append([r["name"], *r["kunye"], lesson["subject"], lesson["classes"], lesson["groups"], lesson["hours"],
                              lesson["split"], r["total"], r["target"] or "", r["diff"] if r["diff"] is not None else ""])
-        _table(ws, row, ["Öğretmen", "Ders", "Sınıf", "Grup", "Saat", "Dağılım", "Toplam", "Hedef", "Fark"], rows,
-               [26, 30, 20, 16, 7, 10, 8, 8, 7])
+        _table(ws, row, ["Öğretmen", *data["kunye_headers"], "Ders", "Sınıf", "Grup", "Saat", "Dağılım", "Toplam", "Hedef", "Fark"], rows,
+               [26, *[14] * len(data["kunye_headers"]), 30, 20, 16, 7, 10, 8, 8, 7])
     elif kind == "sinif_dersleri":
         ws = _sheet(wb, "Sınıf dersleri")
         row = _header(ws, o["baslik"] or "Sınıf ders listesi", subtitle)

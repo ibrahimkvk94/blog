@@ -95,7 +95,11 @@
         </div>
 
         <div data-show="bireysel carsaf carsaf_gun yuk">
-          <label class="label">Öğretmen adının önünde</label>
+          <label class="label">Öğretmen künyesi (bölüm, rütbe, ünvan)</label>
+          <div class="seg-radio" data-show="carsaf carsaf_gun yuk">
+            <label><input type="radio" name="kunye_yer" value="on"{% if o.kunye_yer == "on" %} checked{% endif %}> Adın önünde</label>
+            <label><input type="radio" name="kunye_yer" value="sutun"{% if o.kunye_yer == "sutun" %} checked{% endif %}> Ayrı sütunlarda</label>
+          </div>
           <div class="report-checks inline">{% for key, label in kunye.items %}<label><input type="checkbox" name="kunye" value="{{ key }}"{% if key in o.kunye %} checked{% endif %}> {{ label }}</label>{% endfor %}</div>
         </div>
 

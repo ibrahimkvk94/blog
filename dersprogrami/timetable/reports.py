@@ -33,8 +33,10 @@ DEFAULTS = {
     "kisim_ad": "kisa",   # kisa: kısa ad · no: yalnızca numara (70.KISIM → 70, Hazırlık 1 → H1)
     "blok": "1",          # 1: blok ders tek hücre · 0: her saat ayrı hücre
     "sutun_ders": "0", "sutun_kod": "0", "sutun_saat": "0",
+    "kunye_yer": "on",    # on: adın önünde · sutun: ayrı sütunlarda (çarşaf liste ve ders yükü)
 }
 KUNYE = {"bolum": "Bölüm", "rutbe": "Rütbe", "unvan": "Ünvan"}
+KUNYE_FIELDS = {"bolum": "department", "rutbe": "rank", "unvan": "title"}
 PARAM_KEYS = list(DEFAULTS) + ["icerik", "secim", "kunye"]
 
 
@@ -62,6 +64,8 @@ def options(params):
     o["secim"] = [int(x) for x in getlist("secim") if str(x).isdigit()]
     kunye = getlist("kunye")
     o["kunye"] = [k for k in kunye if k in KUNYE] if "icerik_set" in params or kunye else list(KUNYE)
+    if o["kunye_yer"] not in ("on", "sutun"):
+        o["kunye_yer"] = "on"
     o["imza"] = [line.strip() for line in (o["alt"] or "").replace("\r", "").split("\n") if line.strip()][:3]
     o["sayfa"] = o["sayfa"] if o["sayfa"] in ("1", "2", "4") else "1"
     try:
@@ -116,7 +120,14 @@ def _entities(school, kind, o):
     return objects
 
 
+def _kunye_columns(o):
+    """Künye ayrı sütunlarda gösterilecekse seçili alanlar (sıralı), değilse boş."""
+    return [k for k in KUNYE if k in o["kunye"]] if o.get("kunye_yer") == "sutun" else []
+
+
 def _title(obj, kind, o=None):
+    if kind == "ogretmen" and o is not None and _kunye_columns(o):
+        return obj.full_name  # künye ayrı sütunlarda
     if kind == "ogretmen":
         return obj.label(o["kunye"]) if o is not None else obj.full_name
     if kind == "sinif":
@@ -235,6 +246,7 @@ def _sheet_rows(timetable, o, cards, periods, day_range):
     kind = o["varlik"]
     names = _class_names(timetable.school, o)
     per_lesson = kind == "ogretmen" and o["satir"] == "ders"
+    kunye = _kunye_columns(o) if kind == "ogretmen" else []
     rows = []
     for obj in _entities(timetable.school, kind, o):
         mine = [c for c in cards if obj.id in c["rows"]]
@@ -251,7 +263,7 @@ def _sheet_rows(timetable, o, cards, periods, day_range):
         for i, group in enumerate(groups):
             subjects = list(dict.fromkeys(c["subject_name"] for c in group))
             codes = list(dict.fromkeys(c["subject"] for c in group))
-            pre = []
+            pre = [getattr(obj, KUNYE_FIELDS[k]) for k in kunye]
             if o["sutun_ders"] == "1":
                 pre.append(", ".join(subjects))
             if o["sutun_kod"] == "1":
@@ -263,7 +275,7 @@ def _sheet_rows(timetable, o, cards, periods, day_range):
                 post.append(total if i == 0 else "")
             rows.append({"title": _title(obj, kind, o), "first": i == 0, "pre": pre, "post": post,
                          "cells": _sheet_cells(group, kind, o, day_range, periods, names)})
-    pre_headers = (["Ders adı"] if o["sutun_ders"] == "1" else []) + (["Ders kodu"] if o["sutun_kod"] == "1" else [])
+    pre_headers = [KUNYE[k] for k in kunye] + (["Ders adı"] if o["sutun_ders"] == "1" else []) + (["Ders kodu"] if o["sutun_kod"] == "1" else [])
     post_headers = (["Ders saati"] if o["sutun_saat"] == "1" and per_lesson else []) + (["Toplam"] if o["sutun_saat"] == "1" else [])
     return {"sheet_rows": rows, "pre_headers": pre_headers, "post_headers": post_headers}
 
@@ -291,7 +303,8 @@ def _loads(timetable, o, cards, periods, days):
         lessons = sorted(by_teacher.get(t.id, []), key=lambda x: x.subject.name)
         total = sum(x.periods_per_week for x in lessons)
         rows.append({
-            "teacher": t, "title": t.label(o["kunye"]), "total": total, "target": t.target_periods,
+            "teacher": t, "title": t.label(o["kunye"]), "name": _title(t, "ogretmen", o),
+            "kunye": [getattr(t, KUNYE_FIELDS[k]) for k in _kunye_columns(o)], "total": total, "target": t.target_periods,
             "diff": (total - t.target_periods) if t.target_periods else None,
             "lessons": [{
                 "subject": x.subject.name, "classes": ", ".join(c.short or c.name for c in x.classes.all()) or "–",
@@ -299,7 +312,7 @@ def _loads(timetable, o, cards, periods, days):
                 "split": "+".join(str(n) for n in x.card_lengths()),
             } for x in lessons],
         })
-    return {"load_rows": rows}
+    return {"load_rows": rows, "kunye_headers": [KUNYE[k] for k in _kunye_columns(o)]}
 
 
 def _class_lessons(timetable, o, cards, periods, days):
