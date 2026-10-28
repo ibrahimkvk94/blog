@@ -2,6 +2,7 @@
 sorumlusunun onay sayfası."""
 
 from django.contrib import messages
+from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.models import User
 from django.db.models import Q
 from django.http import Http404
@@ -99,3 +100,44 @@ def teacher_requests(request, pk):
     return render(request, "timetable/data/teacher_requests.html", _nav(
         school, "data", data_nav="istekler", pending=pending, history=history, users=users, accounts=accounts,
         linked=sum(1 for t in teachers if t.user_id), timetable=timetable))
+
+
+def my_timetable(request):
+    """Öğretmen: kendi haftalık programı, yaklaşan izin/vekâletler ve telefon takvimi bağlantısı."""
+    from . import teacher_calendar as tc
+
+    teachers = list(tr.linked_teachers(request.user))
+    if not teachers:
+        return render(request, "timetable/my_timetable.html", {"nav": "my_timetable", "teachers": []})
+    selected = request.GET.get("ogretmen") or request.POST.get("ogretmen")
+    teacher = next((t for t in teachers if str(t.pk) == selected), teachers[0])
+    if request.method == "POST":
+        renew = request.POST.get("action") == "renew"
+        tc.ensure_token(teacher, renew=renew)
+        messages.success(request, "Takvim bağlantısı yenilendi; eski bağlantı artık çalışmaz." if renew else "Takvim bağlantısı oluşturuldu.")
+        return redirect(f"{request.path}?ogretmen={teacher.pk}")
+    timetable = tc.timetable_for(teacher.school)
+    ics_url = ""
+    if teacher.calendar_token:
+        ics_url = request.build_absolute_uri(reverse("timetable:teacher_ics", args=[teacher.calendar_token]))
+    return render(request, "timetable/my_timetable.html", {
+        "nav": "my_timetable", "teachers": teachers, "teacher": teacher, "timetable": timetable,
+        "grid": tc.week_grid(teacher, timetable), "upcoming": tc.upcoming(teacher),
+        "ics_url": ics_url, "webcal_url": ics_url.replace("https://", "webcal://").replace("http://", "webcal://"),
+    })
+
+
+@login_not_required
+def teacher_ics(request, token):
+    """Telefon takvimi aboneliği (giriş gerektirmez; gizli anahtarla)."""
+    from django.http import HttpResponse
+
+    from . import teacher_calendar as tc
+    from .models import Teacher
+
+    teacher = Teacher.objects.filter(calendar_token=token).select_related("school").first() if len(token) >= 20 else None
+    if teacher is None:
+        raise Http404
+    response = HttpResponse(tc.ics(teacher), content_type="text/calendar; charset=utf-8")
+    response["Content-Disposition"] = 'inline; filename="ders-programi.ics"'
+    return response

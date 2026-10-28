@@ -241,6 +241,8 @@ class Teacher(models.Model):
         verbose_name="kullanıcı hesabı",
         help_text="Bu hesapla giren öğretmen “İsteklerim” sayfasından gelemeyeceği saatleri bildirir.",
     )
+    # Telefon takvimi aboneliği için gizli anahtar (giriş gerektirmeyen .ics bağlantısı); boşsa kapalı.
+    calendar_token = models.CharField(max_length=40, blank=True, db_index=True, editable=False)
 
     class Meta:
         ordering = ["last_name", "first_name"]

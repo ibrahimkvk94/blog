@@ -67,11 +67,12 @@
         <a href="{% url 'timetable:school_list' %}" class="{% if not nav or nav == 'institution' %}active{% endif %}">{% include "timetable/icon.html" with name="home" %} Kurumlarım</a>
         {% if institution %}<a href="{% url 'timetable:institution_users' institution.pk %}" class="{% if nav == 'users' %}active{% endif %}">{% include "timetable/icon.html" with name="users" %} Kurum kullanıcıları</a>{% endif %}
         {% if user.is_superuser %}<a href="{% url 'timetable:central' %}" class="{% if nav == 'central' %}active{% endif %}">{% include "timetable/icon.html" with name="users" %} Merkez paneli</a>{% endif %}
-        {% if has_teacher_profile %}<a href="{% url 'timetable:my_requests' %}" class="{% if nav == 'my_requests' %}active{% endif %}">{% include "timetable/icon.html" with name="calendar" %} İsteklerim</a>{% endif %}
+        {% if has_teacher_profile %}<a href="{% url 'timetable:my_timetable' %}" class="{% if nav == 'my_timetable' %}active{% endif %}">{% include "timetable/icon.html" with name="grid" %} Programım</a>
+        <a href="{% url 'timetable:my_requests' %}" class="{% if nav == 'my_requests' %}active{% endif %}">{% include "timetable/icon.html" with name="calendar" %} İsteklerim</a>{% endif %}
         <a href="{% url 'timetable:account' %}" class="{% if nav == 'account' %}active{% endif %}">{% include "timetable/icon.html" with name="users" %} Hesabım</a>
       </nav>
     {% endif %}
-    <div class="sidebar-foot"><a href="{% url 'timetable:account' %}" style="color:inherit">{% firstof user.get_full_name user.username %}</a>{% if has_teacher_profile and school %} · <a href="{% url 'timetable:my_requests' %}" style="color:inherit">İsteklerim</a>{% endif %}{% if user.is_superuser %} · <a href="{% url 'timetable:central' %}" style="color:inherit">Merkez</a>{% endif %} · <a href="{% url 'timetable:logout' %}" style="color:inherit" onclick="event.preventDefault();document.getElementById('logout-form').submit()">Çıkış</a>
+    <div class="sidebar-foot"><a href="{% url 'timetable:account' %}" style="color:inherit">{% firstof user.get_full_name user.username %}</a>{% if has_teacher_profile and school %} · <a href="{% url 'timetable:my_timetable' %}" style="color:inherit">Programım</a>{% endif %}{% if user.is_superuser %} · <a href="{% url 'timetable:central' %}" style="color:inherit">Merkez</a>{% endif %} · <a href="{% url 'timetable:logout' %}" style="color:inherit" onclick="event.preventDefault();document.getElementById('logout-form').submit()">Çıkış</a>
       <form id="logout-form" method="post" action="{% url 'timetable:logout' %}" hidden>{% csrf_token %}</form></div>
   </aside>
   <div class="main">
