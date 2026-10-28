@@ -235,6 +235,141 @@ def _save_availability(school, field, obj, raw):
     Availability.objects.bulk_create(rows)
 
 
+# --- müsaitliği birden çok kayda uygulama ---------------------------------------------------------
+
+AVAILABILITY_KINDS = {
+    "sinif": ("school_class", SchoolClass, "Sınıflar", "sınıf"),
+    "ogretmen": ("teacher", Teacher, "Öğretmenler", "öğretmen"),
+    "derslik": ("classroom", Classroom, "Derslikler", "derslik"),
+    "ders-adi": ("subject", Subject, "Ders adları", "ders adı"),
+}
+MODES = {
+    "replace": "Aynısı olsun (seçilenlerin müsaitliği bu ızgarayla değişir)",
+    "close": "İşaretlileri ekle (yalnızca işaretli hücreler kapanır/koşullu olur, diğerleri korunur)",
+    "open": "İşaretlileri aç (işaretli hücrelerdeki kapatmalar kaldırılır)",
+}
+
+
+def _parse_states(school, raw):
+    try:
+        states = json.loads(raw or "{}")
+    except json.JSONDecodeError:
+        return {}
+    out, periods = {}, school.periods.count()
+    for key, state in states.items():
+        try:
+            day, period = (int(x) for x in key.split("-"))
+        except ValueError:
+            continue
+        if state in (Availability.NO, Availability.MAYBE) and day < school.days_per_week and period < periods:
+            out[(day, period)] = state
+    return out
+
+
+def apply_availability(school, field, objs, states, mode="replace"):
+    """Aynı ızgarayı birden çok kayda uygular. Dönüş: değişen kayıt sayısı."""
+    for obj in objs:
+        qs = Availability.objects.filter(**{field: obj})
+        if mode == "replace":
+            qs.delete()
+        elif states:
+            qs.filter(_cells_q(states)).delete()
+        if mode != "open":
+            Availability.objects.bulk_create(
+                Availability(school=school, day=d, period=p, state=st, **{field: obj}) for (d, p), st in states.items()
+            )
+    return len(objs)
+
+
+def _cells_q(states):
+    from django.db.models import Q
+
+    q = Q(pk__in=[])
+    for d, p in states:
+        q |= Q(day=d, period=p)
+    return q
+
+
+def _copy_targets(school, field, obj):
+    """Izgara altındaki "diğerlerine de uygula" listesi: aynı türdeki diğer kayıtlar, gruplarıyla."""
+    kind = next((k for k, v in AVAILABILITY_KINDS.items() if v[0] == field), None)
+    if kind is None:
+        return None
+    model = AVAILABILITY_KINDS[kind][1]
+    items = []
+    for o in model.objects.filter(school=school).exclude(pk=getattr(obj, "pk", None)):
+        items.append({"id": o.pk, "name": _target_name(o), "group": _target_group(o)})
+    return {"kind": kind, "label": AVAILABILITY_KINDS[kind][3], "items": items,
+            "groups": sorted({i["group"] for i in items if i["group"]})}
+
+
+def _target_name(o):
+    if isinstance(o, Teacher):
+        return o.full_name
+    if isinstance(o, SchoolClass):
+        return o.short or o.name
+    return str(o)
+
+
+def _target_group(o):
+    """Hızlı seçim kümesi: sınıfta kısa adın harf kısmı (1SVN → SVN), derslikte bina, ders adında kod öneki."""
+    import re
+
+    if isinstance(o, SchoolClass):
+        m = re.search(r"[^\d\W]+", o.short or "", re.UNICODE)
+        return m[0] if m else (str(o.grade) if o.grade else "")
+    if isinstance(o, Classroom):
+        return str(o.building) if o.building_id else ""
+    if isinstance(o, Subject):
+        return (o.short or "")[:3]
+    return ""
+
+
+def _apply_copies(request, school, field, raw):
+    ids = [int(x) for x in request.POST.getlist("copy_to") if x.isdigit()]
+    if not ids:
+        return 0
+    kind = next(k for k, v in AVAILABILITY_KINDS.items() if v[0] == field)
+    objs = list(AVAILABILITY_KINDS[kind][1].objects.filter(school=school, pk__in=ids))
+    mode = request.POST.get("copy_mode") if request.POST.get("copy_mode") in MODES else "replace"
+    return apply_availability(school, field, objs, _parse_states(school, raw), mode)
+
+
+def bulk_availability(request, pk):
+    """Toplu müsaitlik: seçilen sınıflar/öğretmenler/dersliklerde aynı saatleri birlikte kapat ya da aç."""
+    school = _school(pk)
+    kind = request.GET.get("tur") or request.POST.get("tur") or "sinif"
+    if kind not in AVAILABILITY_KINDS:
+        kind = "sinif"
+    field, model, title, singular = AVAILABILITY_KINDS[kind]
+    if request.method == "POST":
+        ids = [int(x) for x in request.POST.getlist("copy_to") if x.isdigit()]
+        objs = list(model.objects.filter(school=school, pk__in=ids))
+        mode = request.POST.get("copy_mode") if request.POST.get("copy_mode") in MODES else "close"
+        states = _parse_states(school, request.POST.get("availability"))
+        if not objs:
+            messages.error(request, f"Önce en az bir {singular} seçin.")
+        elif mode != "replace" and not states:
+            messages.error(request, "Izgarada en az bir hücre işaretleyin.")
+        else:
+            with transaction.atomic():
+                n = apply_availability(school, field, objs, states, mode)
+            verb = {"replace": "müsaitliği değiştirildi", "close": "işaretli saatleri kapatıldı", "open": "işaretli saatleri açıldı"}[mode]
+            messages.success(request, f"{n} {singular} için {verb}.")
+        return redirect(f"{reverse('timetable:bulk_availability', args=[school.pk])}?tur={kind}")
+    source = None
+    source_id = request.GET.get("kaynak")
+    if source_id and source_id.isdigit():
+        source = model.objects.filter(school=school, pk=source_id).first()
+    grid = _availability_grid(school, field, source)
+    targets = _copy_targets(school, field, None)
+    return render(request, "timetable/data/bulk_availability.html", _nav(
+        school, "data", data_nav="toplu-musaitlik", kind=kind, kinds={k: v[2] for k, v in AVAILABILITY_KINDS.items()},
+        availability=grid, targets=targets, source=source, modes=MODES, singular=singular,
+        sources=targets["items"],
+    ))
+
+
 def _division_rows(cls):
     if cls is None:
         return []
@@ -287,11 +422,13 @@ def entity_edit(request, pk, slug, obj_id=None):
     if request.method == "POST" and form.is_valid():
         with transaction.atomic():
             obj = form.save()
+            copied = 0
             if entity.availability:
                 _save_availability(school, entity.availability, obj, request.POST.get("availability"))
+                copied = _apply_copies(request, school, entity.availability, request.POST.get("availability"))
             if entity.model is SchoolClass:
                 _save_divisions(obj, request.POST.get("divisions"))
-        messages.success(request, f"{entity.singular} kaydedildi: {obj}")
+        messages.success(request, f"{entity.singular} kaydedildi: {obj}" + (f" · müsaitlik {copied} kayda daha uygulandı." if copied else ""))
         if request.POST.get("next") == "new":
             return redirect("timetable:data_new", pk=school.pk, slug=slug)
         return redirect("timetable:data_list", pk=school.pk, slug=slug)
@@ -311,6 +448,8 @@ def entity_edit(request, pk, slug, obj_id=None):
             form=form,
             impact=impact,
             availability=_availability_grid(school, entity.availability, obj) if entity.availability else None,
+            copy_targets=_copy_targets(school, entity.availability, obj) if entity.availability else None,
+            copy_modes=MODES,
             divisions=_division_rows(obj) if entity.model is SchoolClass else None,
             other_classes=school.classes.exclude(pk=obj.pk) if obj is not None and entity.model is SchoolClass else None,
         ),

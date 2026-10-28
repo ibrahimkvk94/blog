@@ -31,6 +31,7 @@ SCHOOL_ROUTES = {
     "lesson_refs": (M.VIEW, M.DATA),
     "uybs_settings": (M.VIEW, M.DATA),
     "relationship_import": (M.DATA, M.DATA),
+    "bulk_availability": (M.DATA, M.DATA),
     "students": (M.VIEW, M.DATA),
     "student_timetable": (M.VIEW, M.VIEW),
     "publish_settings": (M.PUBLISH, M.PUBLISH),
@@ -180,6 +181,24 @@ def _deny(request, message):
     return render(request, "timetable/forbidden.html", {"message": message}, status=403)
 
 
+# Yalnızca kartların yerini değiştiren işlemler: çözücü problemi değişmez, önbellek korunur.
+PLACEMENT_ONLY = set(CARD_ROUTES) | {
+    "api_row_action", "api_undo", "api_redo", "api_bulk", "api_cell_candidates", "api_versions", "publish",
+    "report_excel", "report_pdf", "uybs_export", "uybs_archive", "substitutions", "duties",
+}
+
+
+def _bump_data_version(request):
+    """Programın verisini değiştirmiş olabilecek her başarılı POST'ta veri sürümünü artır."""
+    match = request.resolver_match
+    school_id = getattr(request, "current_school_id", None)
+    if match is None or school_id is None or match.url_name in PLACEMENT_ONLY:
+        return
+    from .problem_cache import bump
+
+    bump(school_id)
+
+
 class SchoolAccessMiddleware:
     def __init__(self, get_response):
         self.get_response = get_response
@@ -191,6 +210,7 @@ class SchoolAccessMiddleware:
                 audit(request, response)
             except Exception:  # günlük yazılamasa da işlem bozulmasın
                 pass
+            _bump_data_version(request)
         return response
 
     def process_view(self, request, view_func, view_args, view_kwargs):
@@ -263,7 +283,7 @@ ACTION_LABELS = {
     "program_copy": "Program kopyaladı", "program_import": "aSc'den program aktardı", "program_delete": "Program sildi",
     "generate": "Üretim başlattı", "stop": "Üretimi durdurdu", "publish": "Programı yayınladı",
     "substitutions": "Vekâlet", "duties": "Nöbet çizelgesi", "lesson_refs": "ÜYBS referansları",
-    "uybs_settings": "ÜYBS ayarları", "relationship_import": "aSc kart ilişkisi aktarımı", "uybs_archive": "ÜYBS hafta arşivi", "students": "Öğrenciler",
+    "uybs_settings": "ÜYBS ayarları", "relationship_import": "aSc kart ilişkisi aktarımı", "bulk_availability": "Toplu müsaitlik", "uybs_archive": "ÜYBS hafta arşivi", "students": "Öğrenciler",
     "school_settings": "Program ayarları/saatler", "lesson_new": "Ders ekledi", "lesson_edit": "Dersi düzenledi",
     "lesson_delete": "Ders sildi", "class_lessons": "Sınıf ders tablosu", "distribution_save": "Ders dağıtımı",
     "distribution_paste": "Ders dağıtımı (yapıştırma)", "copy_divisions": "Bölünme kopyaladı", "excel_import": "Excel'den veri aktardı",

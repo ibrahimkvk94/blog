@@ -586,3 +586,20 @@ pre.code { background: #141a2a; color: #e2e8f0; padding: 10px 14px; border-radiu
 textarea.input { height: auto; min-height: 120px; padding-top: 8px; resize: vertical; font-family: inherit; }
 .condition-search { margin-bottom: 6px; }
 html.focus-mode .tray-body { max-height: 19vh; }
+/* Ekran dışındaki satırlar çizilmez/yerleşim hesabına girmez: büyük programlarda (80+ satır) yeniden çizim hızlanır. */
+.tt-board .tt-row { content-visibility: auto; contain-intrinsic-size: auto 40px; }
+
+/* Kayıt seçici (toplu müsaitlik, "diğerlerine de uygula") */
+.target-picker { display: grid; gap: 8px; }
+.tp-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tp-tools .input, .tp-tools .select { width: auto; min-width: 140px; }
+.tp-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 4px 10px; max-height: 300px; overflow-y: auto; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
+.tp-item { display: flex; align-items: center; gap: 6px; font-size: 13px; padding: 2px 4px; border-radius: 6px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tp-item:has(input:checked) { background: var(--primary-soft); }
+.tp-item[hidden] { display: none; }
+.tp-modes { display: grid; gap: 2px; }
+.copy-avail { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px; }
+.copy-avail summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.bulk-layout { display: grid; grid-template-columns: minmax(280px, 380px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.bulk-layout .tp-list { max-height: 60vh; }
+@media (max-width: 1000px) { .bulk-layout { grid-template-columns: 1fr; } }

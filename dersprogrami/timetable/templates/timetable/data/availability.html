@@ -10,5 +10,12 @@
     <div class="legend" style="margin-top:10px">
       <span><i class="lg-ok"></i>Uygun</span><span><i class="lg-no"></i>Yasak (bu saatte ders konmaz)</span><span><i class="lg-maybe"></i>Koşullu (mümkünse kaçınılır)</span>
     </div>
+    {% if copy_targets and copy_targets.items %}
+      <details class="copy-avail">
+        <summary>Bu ızgarayı başka {{ copy_targets.label }}lara da uygula <span class="pill" data-copy-summary hidden></span></summary>
+        <p class="subtle small">Seçtikleriniz <b>Kaydet</b>'e basınca bu ızgarayla güncellenir.</p>
+        {% include "timetable/data/target_picker.html" with picker=copy_targets modes=copy_modes default_mode="replace" %}
+      </details>
+    {% endif %}
   </div>
 </div>

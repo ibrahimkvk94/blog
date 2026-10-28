@@ -316,3 +316,34 @@
   select.addEventListener("change", update);
   update();
 })();
+
+/* Kayıt seçici: arama, küme seçimi, tümü/hiçbiri ve seçili sayısı. */
+(function () {
+  "use strict";
+  document.querySelectorAll("[data-target-picker]").forEach((box) => {
+    const items = [...box.querySelectorAll(".tp-item")];
+    items.forEach((i) => { i.dataset.name = i.textContent.trim().toLocaleLowerCase("tr"); });
+    const count = box.querySelector("[data-tp-count]");
+    const summary = box.closest("details")?.querySelector("[data-copy-summary]");
+    const update = () => {
+      const n = items.filter((i) => i.querySelector("input").checked).length;
+      count.textContent = n + " seçili";
+      if (summary) { summary.hidden = !n; summary.textContent = n + " seçili"; }
+    };
+    const visible = () => items.filter((i) => !i.hidden);
+    box.querySelector("[data-tp-search]").addEventListener("input", (e) => {
+      const q = e.target.value.trim().toLocaleLowerCase("tr");
+      items.forEach((i) => { i.hidden = q && !i.dataset.name.includes(q); });
+    });
+    const group = box.querySelector("[data-tp-group]");
+    if (group) group.addEventListener("change", () => {
+      items.forEach((i) => { if (i.dataset.group === group.value) i.querySelector("input").checked = true; });
+      group.value = "";
+      update();
+    });
+    box.querySelector("[data-tp-all]").addEventListener("click", () => { visible().forEach((i) => { i.querySelector("input").checked = true; }); update(); });
+    box.querySelector("[data-tp-none]").addEventListener("click", () => { items.forEach((i) => { i.querySelector("input").checked = false; }); update(); });
+    box.addEventListener("change", update);
+    update();
+  });
+})();

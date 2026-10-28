@@ -69,6 +69,9 @@ class School(models.Model):
         verbose_name="yayındaki program",
         help_text="Vekâlet işlemlerinde esas alınan program.",
     )
+    # Programın verisi (ders, öğretmen, müsaitlik, ilişki…) her değiştiğinde artar; çözücü problemi
+    # önbelleği bununla geçersiz kılınır (bkz. problem_cache.py).
+    data_version = models.PositiveIntegerField(default=0, editable=False)
     # ÜYBS aktarım şablonu ayarları: sabit sütunlar, ders kodu öneki eşlemesi, ref sütunu (bkz. uybs.py).
     uybs_settings = models.JSONField("ÜYBS ayarları", default=dict, blank=True)
 

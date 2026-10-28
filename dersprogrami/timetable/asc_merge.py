@@ -152,6 +152,9 @@ def merge_into(school, data):
     timetable = merger.cards(temp_timetable)
     merger.cleanup()
     temp.delete()
+    from .problem_cache import bump
+
+    bump(school.pk)  # ana görünümdeki problem önbelleği yenilensin
     return timetable, merger.summary
 
 

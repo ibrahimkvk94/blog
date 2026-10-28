@@ -8,5 +8,6 @@
   <a href="{% url 'timetable:lessons' school.pk %}" class="{% if data_nav == 'dersler' %}active{% endif %}">Dersler</a>
   <a href="{% url 'timetable:distribution' school.pk %}" class="{% if data_nav == 'dagitim' %}active{% endif %}">Ders dağıtımı</a>
   <a href="{% url 'timetable:data_list' school.pk 'kart-iliskileri' %}" class="{% if data_nav == 'kart-iliskileri' %}active{% endif %}">Kart ilişkileri</a>
+  <a href="{% url 'timetable:bulk_availability' school.pk %}" class="{% if data_nav == 'toplu-musaitlik' %}active{% endif %}">Toplu müsaitlik</a>
   <a href="{% url 'timetable:excel_import' school.pk %}" class="{% if data_nav == 'excel' %}active{% endif %}">Excel aktarımı</a>
 </nav>

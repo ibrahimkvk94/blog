@@ -9,7 +9,7 @@ from collections import defaultdict
 from django.db import transaction
 
 from .models import Card, Timetable
-from .solver.builder import build_problem
+from .problem_cache import problem_for
 
 FREE = "free"
 WARN = "warn"
@@ -20,7 +20,7 @@ BLOCKED = "blocked"
 class Board:
     def __init__(self, timetable):
         self.timetable = timetable
-        self.problem = build_problem(timetable.school, timetable=timetable)
+        self.problem = problem_for(timetable)
         self.db_cards = {c.id: c for c in timetable.cards.all()}
         self.by_id = {pc.card_id: pc for pc in self.problem.cards}
         self.index = defaultdict(list)  # (tür, kaynak, gün, saat) -> kart kimlikleri

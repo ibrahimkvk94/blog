@@ -1,0 +1,35 @@
+{% extends "timetable/base.html" %}
+{% load assets %}
+{% block title %}Toplu müsaitlik{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / Veri{% endblock %}
+{% block heading %}<h1>Toplu müsaitlik</h1>{% endblock %}
+{% block content %}
+{% include "timetable/data/subnav.html" %}
+<div class="segmented" style="margin-bottom:12px">
+  {% for key, label in kinds.items %}<a class="{% if key == kind %}active{% endif %}" href="?tur={{ key }}">{{ label }}</a>{% endfor %}
+</div>
+<p class="muted small" style="margin-top:0">Soldan {{ singular }} seçin, ızgarada saatleri işaretleyin ve nasıl uygulanacağını seçin. Ör. tüm SVN kısımlarında Cuma 7–8. saatleri kapatmak için “Tüm SVN” kümesini seçip o hücreleri <b>yasak</b> yapın, “İşaretlileri ekle” ile uygulayın.</p>
+<form method="post" id="entity-form">{% csrf_token %}<input type="hidden" name="tur" value="{{ kind }}">
+  <div class="bulk-layout">
+    <div class="panel">
+      <div class="panel-head"><h2>Uygulanacak {{ singular }}lar</h2></div>
+      <div class="panel-body">
+        {% include "timetable/data/target_picker.html" with picker=targets default_mode="close" %}
+      </div>
+    </div>
+    <div class="stack">
+      <div class="panel panel-body bulk-source">
+        <label class="label" for="ba-src">Izgarayı bir {{ singular }}dan yükle (isteğe bağlı)</label>
+        <select class="select" id="ba-src" onchange="location.search='?tur={{ kind }}'+(this.value?'&kaynak='+this.value:'')">
+          <option value="">— boş ızgara —</option>
+          {% for s in sources %}<option value="{{ s.id }}"{% if source and source.pk == s.id %} selected{% endif %}>{{ s.name }}</option>{% endfor %}
+        </select>
+        {% if source %}<p class="subtle small" style="margin-bottom:0">“{{ source }}” müsaitliği yüklendi; “Aynısı olsun” ile seçilenlere kopyalayabilirsiniz.</p>{% endif %}
+      </div>
+      {% include "timetable/data/availability.html" with availability_title="İşaretlenecek saatler" %}
+      <div class="form-actions"><div><button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} Seçilenlere uygula</button></div></div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}<script src="{% asset 'timetable/data.js' %}"></script>{% endblock %}

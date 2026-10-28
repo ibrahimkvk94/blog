@@ -189,7 +189,9 @@ def placements_of(problem, timetable):
 
 def verify_timetable(timetable):
     """Kaydedilmiş (elle düzenlenmiş olabilir) bir programı doğrular."""
-    problem = build_problem(timetable.school, timetable=timetable)
+    from .problem_cache import problem_for
+
+    problem = problem_for(timetable)
     return validate(problem, placements_of(problem, timetable))
 
 
