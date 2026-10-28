@@ -69,6 +69,7 @@ urlpatterns = [
     path("program/<int:pk>/raporlar/", views.reports_page, name="reports"),
     path("program/<int:pk>/rapor/", views.report_render, name="report_render"),
     path("program/<int:pk>/rapor.xlsx", views.report_excel, name="report_excel"),
+    path("program/<int:pk>/rapor.pdf", views.report_pdf, name="report_pdf"),
     path("api/kart/<int:pk>/secenekler/", views.api_card_options, name="api_card_options"),
     path("api/kart/<int:pk>/tasi/", views.api_card_move, name="api_card_move"),
     path("api/kart/<int:pk>/cikar/", views.api_card_unplace, name="api_card_unplace"),

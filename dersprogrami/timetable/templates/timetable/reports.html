@@ -4,6 +4,7 @@
 {% block heading %}<h1>Raporlar</h1>{% endblock %}
 {% block actions %}
   <a class="btn" id="excel-report" href="{% url 'timetable:report_excel' timetable.pk %}?{{ query }}">{% include "timetable/icon.html" with name="download" %} Excel</a>
+  <a class="btn" id="pdf-report" href="{% url 'timetable:report_pdf' timetable.pk %}?{{ query }}">{% include "timetable/icon.html" with name="download" %} PDF indir</a>
   <a class="btn" id="open-report" target="_blank" href="{% url 'timetable:report_render' timetable.pk %}?{{ query }}">Yeni sekmede aç</a>
   <button class="btn btn-primary" type="button" id="print-report">{% include "timetable/icon.html" with name="printer" %} Yazdır / PDF</button>
 {% endblock %}
@@ -107,6 +108,7 @@
       frame.src = base + "?" + q + "&gomulu=1";
       open.href = base + "?" + q;
       document.getElementById("excel-report").href = "{% url 'timetable:report_excel' timetable.pk %}?" + q;
+      document.getElementById("pdf-report").href = "{% url 'timetable:report_pdf' timetable.pk %}?" + q;
       history.replaceState(null, "", "?" + q);
     }, 250);
   };

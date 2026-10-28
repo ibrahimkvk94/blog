@@ -76,6 +76,7 @@ TIMETABLE_ROUTES = {
     "reports": (M.VIEW, M.VIEW),
     "report_render": (M.VIEW, M.VIEW),
     "report_excel": (M.VIEW, M.VIEW),
+    "report_pdf": (M.VIEW, M.VIEW),
     "api_row_action": (M.PROGRAM, M.PROGRAM),
     "api_cell_candidates": (M.VIEW, M.VIEW),
 }
