@@ -90,6 +90,7 @@ CASES = [
     ("ab_a_first", 1, True, False, False, (1,)),
     ("ab_b_after", 1, True, False, False, (1,)),
     ("ab_not_followed", 1, True, False, False, (1,)),
+    ("only_in_map", 1, False, False, True, (1, 2)),
     ("no_start_at", 1, False, False, True, (1, 2)),
     ("no_end_at", 1, False, False, True, (1, 2)),
     ("first_or_last", 1, False, False, False, (1, 2)),

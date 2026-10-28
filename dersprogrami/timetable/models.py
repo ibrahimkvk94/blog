@@ -588,6 +588,7 @@ class CardRelationship(models.Model):
     AB_B_AFTER = "ab_b_after"
     AB_NOT_FOLLOWED = "ab_not_followed"
     # Başlama ve bitiş
+    ONLY_IN_MAP = "only_in_map"
     NO_START_AT = "no_start_at"
     NO_END_AT = "no_end_at"
     FIRST_OR_LAST = "first_or_last"
@@ -686,6 +687,7 @@ class CardRelationship(models.Model):
             (AB_NOT_FOLLOWED, "A'nın hemen ardından B gelmesin (sıralı) · aSc #22"),
         ]),
         ("Başlama ve bitiş", [
+            (ONLY_IN_MAP, "Kartlar yalnızca işaretli saatlerde olsun · aSc #60"),
             (NO_START_AT, "İşaretli saatlerde ders başlamasın · aSc #32"),
             (NO_END_AT, "İşaretli saatlerde ders bitmesin · aSc #33"),
             (FIRST_OR_LAST, "Dersler ilk saatte başlasın ya da son saatte bitsin"),
@@ -743,11 +745,11 @@ class CardRelationship(models.Model):
     USES_MAP = {
         MAX_DAYS, RANGE_MAX_PER_DAY, RANGE_MAX_DAYS, MAP_MAX_WEEK, MAP_MIN_WEEK, MAP_MIN_IF_ANY, MAX_PER_POSITION,
         MIN_PER_POSITION, AB_NOT_SAME_DAY, AB_NOT_DAY_AFTER, ROOM_MAX_WEEK, ROOM_MIN_WEEK, MIN_PER_DAY,
-        NO_START_AT, NO_END_AT, RESERVE, MAX_SUBJECTS_WEEK,
+        NO_START_AT, NO_END_AT, RESERVE, MAX_SUBJECTS_WEEK, ONLY_IN_MAP,
     }
     NEEDS_MAP = {
         RANGE_MAX_PER_DAY, RANGE_MAX_DAYS, MAP_MAX_WEEK, MAP_MIN_WEEK, MAP_MIN_IF_ANY, MIN_PER_POSITION, NO_START_AT,
-        NO_END_AT, RESERVE,
+        NO_END_AT, RESERVE, ONLY_IN_MAP,
     }
 
     ALL = "all"

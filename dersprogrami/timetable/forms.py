@@ -352,6 +352,7 @@ class RelationshipForm(SchoolScopedForm):
         CardRelationship.AB_B_AFTER: "A'nın olduğu günlerde A'dan sonra en az bir B dersi olur.",
         CardRelationship.AB_NOT_FOLLOWED: "A'nın hemen ardından B gelmez (ters sıra serbest). Ör. Beden Eğitimi'nin hemen ardından Matematik olmasın.",
         # Başlama ve bitiş
+        CardRelationship.ONLY_IN_MAP: "Seçilen kartlar yalnızca haritada işaretli saatlere yerleşir (her saati işaretli hücrede olmalı). Ör. atölye dersleri yalnızca öğleden sonra.",
         CardRelationship.NO_START_AT: "Seçilen kartlar haritada işaretli saatlerde başlamaz. Ör. blok dersler öğle arasından hemen önce başlamasın.",
         CardRelationship.NO_END_AT: "Seçilen kartlar haritada işaretli saatlerde bitmez.",
         CardRelationship.FIRST_OR_LAST: "Her kart ya günün ilk saatinde başlar ya da son saatinde biter. Ör. dışarıdan gelen öğretmenin dersleri.",

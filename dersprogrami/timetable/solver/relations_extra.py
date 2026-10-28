@@ -16,7 +16,7 @@ AB_RULES = {
     "ab_after", "ab_before", "ab_not_mixed", "ab_week_before", "ab_day_before", "ab_max_consecutive", "ab_fill_gaps",
     "ab_a_first", "ab_b_after", "ab_not_followed",
 }
-EDGE_RULES = {"no_start_at", "no_end_at", "first_or_last", "reserve"}
+EDGE_RULES = {"only_in_map", "no_start_at", "no_end_at", "first_or_last", "reserve"}
 COUNT_RULES = {
     "max_subjects_week", "max_subjects_day", "max_teachers_day", "max_rooms_day", "max_room_changes",
     "max_building_changes", "max_buildings_week", "max_rooms_position",
@@ -157,6 +157,9 @@ def encode(b, rel, g, keys, keys_b, ctx):
                     terms.append(x)
                 elif cond == "first_or_last" and p != 0 and p + length != P:
                     terms.append(x)
+        ctx.limit(terms, 0, f"{g}")
+    elif cond == "only_in_map":
+        terms = [v for k in keys for cell, vs in b.occ[k].items() if not ctx.in_map(cell) for v in vs]
         ctx.limit(terms, 0, f"{g}")
     elif cond == "reserve":
         terms = [v for k in keys_b for cell, vs in b.occ[k].items() if ctx.in_map(cell) for v in vs]
@@ -370,6 +373,11 @@ def check(problem, placements, rel, keys, keys_b, add):
                 cond == "first_or_last" and pl.period != 0 and end != P - 1)
             if bad:
                 add(f"{day(pl.day)}, {pl.period + 1}. saatte başlayan kart kurala uymuyor.")
+    elif cond == "only_in_map":
+        for k in keys:
+            pl = placements.get(k)
+            if pl is not None and rel.cells is not None and not set(cards[k].cells(pl.day, pl.period)) <= rel.cells:
+                add(f"{day(pl.day)}, {pl.period + 1}. saatteki kart işaretli saatlerin dışında.")
     elif cond == "reserve":
         used = cells(keys_b, rel.cells)
         for d, ps in used.items():

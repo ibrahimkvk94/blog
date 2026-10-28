@@ -1,7 +1,7 @@
 from django.contrib.auth import views as auth_views
 from django.urls import path
 
-from . import accounts, data_views, institutions, public, students, uybs, views
+from . import accounts, asc_relations, data_views, institutions, public, students, uybs, views
 
 app_name = "timetable"
 
@@ -50,6 +50,7 @@ urlpatterns = [
     path("okul/<int:pk>/veri/siniflar/<int:class_id>/bolunme-kopyala/", data_views.copy_divisions, name="copy_divisions"),
     path("okul/<int:pk>/veri/excel/", data_views.excel_import, name="excel_import"),
     path("okul/<int:pk>/veri/excel/indir/", data_views.excel_export, name="excel_export"),
+    path("okul/<int:pk>/veri/kart-iliskileri/asc-aktar/", asc_relations.import_view, name="relationship_import"),
     path("okul/<int:pk>/veri/<slug:slug>/", data_views.entity_list, name="data_list"),
     path("okul/<int:pk>/veri/<slug:slug>/yeni/", data_views.entity_edit, name="data_new"),
     path("okul/<int:pk>/veri/<slug:slug>/<int:obj_id>/", data_views.entity_edit, name="data_edit"),
