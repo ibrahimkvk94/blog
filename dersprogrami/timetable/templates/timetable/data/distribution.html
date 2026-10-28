@@ -1,4 +1,5 @@
 {% extends "timetable/base.html" %}
+{% load assets %}
 {% load static %}
 {% block title %}Ders dağıtımı{% endblock %}
 {% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / Veri{% endblock %}
@@ -57,4 +58,4 @@
 </div>
 {{ data|json_script:"dist-data" }}
 {% endblock %}
-{% block scripts %}<script src="{% static 'timetable/distribution.js' %}"></script>{% endblock %}
+{% block scripts %}<script src="{% asset 'timetable/distribution.js' %}"></script>{% endblock %}

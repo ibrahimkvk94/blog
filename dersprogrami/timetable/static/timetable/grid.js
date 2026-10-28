@@ -498,6 +498,12 @@
     store("tt-tray", open ? "1" : "0");
   };
   trayToggle.addEventListener("click", () => setTrayOpen($("#tray-panel").classList.contains("collapsed")));
+  // Tam ekranda tablo, alttaki panelin yüksekliği kadar kısalır; panel hep ekranda kalır.
+  if (window.ResizeObserver) {
+    new ResizeObserver(() => {
+      document.documentElement.style.setProperty("--tray-h", $("#tray-panel").offsetHeight + "px");
+    }).observe($("#tray-panel"));
+  }
   setTrayOpen(store("tt-tray") !== "0");
   $("#tray").addEventListener("click", (e) => {
     const cardNode = e.target.closest(".tt-card");

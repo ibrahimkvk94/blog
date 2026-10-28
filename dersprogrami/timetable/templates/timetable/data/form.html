@@ -1,4 +1,5 @@
 {% extends "timetable/base.html" %}
+{% load assets %}
 {% load static %}
 {% block title %}{% if obj %}{% firstof obj.full_name obj %}{% else %}Yeni {{ entity.singular|lower }}{% endif %}{% endblock %}
 {% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{% url 'timetable:data_list' school.pk entity.slug %}">{{ entity.title }}</a>{% endblock %}
@@ -64,4 +65,4 @@
   </form>
 {% endif %}
 {% endblock %}
-{% block scripts %}<script src="{% static 'timetable/data.js' %}"></script>{% endblock %}
+{% block scripts %}<script src="{% asset 'timetable/data.js' %}"></script>{% endblock %}

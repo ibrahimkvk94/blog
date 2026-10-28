@@ -429,7 +429,7 @@ html.focus-mode .sidebar, html.focus-mode .topbar { display: none; }
 html.focus-mode .shell { grid-template-columns: minmax(0, 1fr); }
 html.focus-mode .content { padding: 10px 12px 12px; }
 html.focus-mode .tt-toolbar { margin-bottom: 8px; }
-html.focus-mode .tt-scroll { max-height: calc(100vh - 110px); }
+html.focus-mode .tt-scroll { max-height: calc(100vh - 120px - var(--tray-h, 0px)); }
 
 .duty-table th:first-child { width: 190px; }
 .duty-table td { vertical-align: top; min-width: 140px; }
@@ -585,3 +585,4 @@ pre.code { background: #141a2a; color: #e2e8f0; padding: 10px 14px; border-radiu
 .sg-card span { color: #3b4352; font-size: 11.5px; }
 textarea.input { height: auto; min-height: 120px; padding-top: 8px; resize: vertical; font-family: inherit; }
 .condition-search { margin-bottom: 6px; }
+html.focus-mode .tray-body { max-height: 19vh; }

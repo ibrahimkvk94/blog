@@ -1,4 +1,5 @@
 {% extends "timetable/base.html" %}
+{% load assets %}
 {% load static %}
 {% block title %}{{ cls }} ders tablosu{% endblock %}
 {% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{% url 'timetable:lessons' school.pk %}">Dersler</a>{% endblock %}
@@ -76,4 +77,4 @@
   {{ copy_source|json_script:"copy-source" }}
 </form>
 {% endblock %}
-{% block scripts %}<script src="{% static 'timetable/data.js' %}"></script>{% endblock %}
+{% block scripts %}<script src="{% asset 'timetable/data.js' %}"></script>{% endblock %}

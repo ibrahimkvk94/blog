@@ -1,4 +1,5 @@
 {% extends "timetable/base.html" %}
+{% load assets %}
 {% block title %}Nöbet çizelgesi{% endblock %}
 {% block crumbs %}<a href="{% url 'timetable:institution_detail' school.institution_id %}">{{ school.institution }}</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
 {% block heading %}<h1>Nöbet çizelgesi</h1>{% endblock %}
@@ -108,4 +109,4 @@
   </div>
 </div>
 {% endblock %}
-{% block scripts %}{% load static %}<script src="{% static 'timetable/data.js' %}"></script>{% endblock %}
+{% block scripts %}{% load static %}<script src="{% asset 'timetable/data.js' %}"></script>{% endblock %}

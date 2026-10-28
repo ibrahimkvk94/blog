@@ -1,4 +1,5 @@
 {% extends "timetable/base.html" %}
+{% load assets %}
 {% load static %}
 {% block title %}{% if creating %}Yeni okul{% else %}Program ayarları ve ders saatleri{% endif %}{% endblock %}
 {% block crumbs %}{% if creating %}<a href="{% url 'timetable:school_list' %}">Kurumlarım</a>{% else %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / Veri{% endif %}{% endblock %}
@@ -54,4 +55,4 @@
   </form>
 {% endif %}
 {% endblock %}
-{% block scripts %}<script src="{% static 'timetable/data.js' %}"></script>{% endblock %}
+{% block scripts %}<script src="{% asset 'timetable/data.js' %}"></script>{% endblock %}
