@@ -39,6 +39,9 @@ cd /d "%~dp0"
   echo [4/4] Sunucu baslatiliyor. Asagida yazan Tailscale adresini baglanacak kisilere verin.
   start "" cmd /c "timeout /t 4 >nul & start http://127.0.0.1:8000/"
   python manage.py sunucu --port 8000
+  echo.
+  echo Sunucu durdu. Yukaridaki mesaji okuyun; pencereyi kapatmak icin bir tusa basin.
+  pause >nul
   exit /b
 )
 

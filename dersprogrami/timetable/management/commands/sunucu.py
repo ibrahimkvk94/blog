@@ -90,16 +90,11 @@ def disable_quick_edit():
 
 
 def port_in_use(port):
-    """Kapı başka bir programda (ör. açık kalmış calistir.bat) kullanılıyor mu?"""
-    for host in ("127.0.0.1", "0.0.0.0"):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            try:
-                if os.name == "nt":
-                    s.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
-                s.bind((host, port))
-            except OSError:
-                return True
-    return False
+    """Kapıda dinleyen bir program (ör. açık kalmış calistir.bat) var mı? Bağlanmayı dener: kapanmış
+    bağlantıların bekleme durumu (Windows'ta birkaç dakika sürer) yanlışlıkla "dolu" sayılmaz."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(1)
+        return s.connect_ex(("127.0.0.1", port)) == 0
 
 
 def request_log(application, out):
