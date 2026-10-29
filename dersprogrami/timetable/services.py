@@ -138,6 +138,10 @@ def run_generation(timetable_id, base_id=None, seed=0):
         if not solution.ok:
             _finish(timetable, Timetable.FAILED, report)
             return
+    elif relaxed and (solution.relaxed_rules or solution.unplaced):
+        # Gevşek mod: yüksek cezanın kaynağı aynı raporla gösterilir (hangi kesin kural ne kadar esnedi, ne sığmadı).
+        report["diagnosis"] = diagnosis(timetable.school, problem, "relaxed", solution)
+        report["changes"] = input_diff.since_last_success(timetable, inputs)
 
     _retry_locked(lambda: _save_result(timetable, problem, solution, report))
 

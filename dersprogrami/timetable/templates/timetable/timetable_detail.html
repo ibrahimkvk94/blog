@@ -98,6 +98,16 @@
     </div>
   </div>
 {% else %}
+  {% if not timetable.report.strict_failed and timetable.report.diagnosis %}
+    <details class="panel diag-banner">
+      <summary><span class="diag-icon">{% include "timetable/icon.html" with name="alert" %}</span>
+        <span><b>Bu taslakta kesin kurallar esnetildi</b>{% if timetable.report.diagnosis.unplaced_hours %} ve {{ timetable.report.diagnosis.unplaced_hours }} ders saati sığmadı{% endif %}. Cezanın kaynağını ve son başarılı üretimden bu yana değişenleri görmek için açın.</span></summary>
+      <div class="panel-body">
+        {% include "timetable/diagnosis.html" with d=timetable.report.diagnosis %}
+        {% include "timetable/changes_since.html" with ch=timetable.report.changes %}
+      </div>
+    </details>
+  {% endif %}
   {% with sf=timetable.report.strict_failed %}{% if sf %}
     <details class="panel diag-banner" open>
       <summary><span class="diag-icon">{% include "timetable/icon.html" with name="alert" %}</span>

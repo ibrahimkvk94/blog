@@ -72,3 +72,10 @@ class DiagnosisTests(TestCase):
         page = self.client.get(reverse("timetable:timetable_detail", args=[bad.pk]))
         self.assertContains(page, "Son başarılı üretimden bu yana neler değişti?")
         self.assertContains(page, "+ Birlikte")
+
+    def test_relaxed_mode_explains_its_penalty(self):
+        tt = start_generation(self.school, "esnek", time_limit=10, mode=Timetable.RELAXED)
+        tt.refresh_from_db()
+        self.assertIn("Birlikte", tt.report["diagnosis"]["main"][0]["label"])
+        self.client.force_login(User.objects.create_superuser("admin3", "c@x.tr", "pw"))
+        self.assertContains(self.client.get(reverse("timetable:timetable_detail", args=[tt.pk])), "Bu taslakta kesin kurallar esnetildi")
