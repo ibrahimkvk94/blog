@@ -92,15 +92,8 @@ def school_detail(request, pk):
         {"label": "Zaman ızgarası", "value": f"{school.days_per_week} × {school.periods.count()}", "hint": "gün × saat", "url": reverse("timetable:school_settings", args=[school.pk])},
     ]
     main = school.active_timetable or next((t for t in timetables if t.has_grid), None)
-    if main is not None and main.has_grid:
-        waiting = main.cards.filter(day__isnull=True).count()
-        _, stats = verify_timetable(main)  # problem önbellekten: hızlı
-        tiles += [
-            {"label": "Bekleyen kart", "value": waiting, "hint": "neden yerleşmiyor →" if waiting else "tümü yerleşmiş",
-             "url": reverse("timetable:pending", args=[main.pk]), "bad": waiting > 0},
-            {"label": "Öğretmen boşluğu", "value": stats.get("teacher_gaps", 0), "hint": "kalite karnesi →",
-             "url": reverse("timetable:quality", args=[main.pk])},
-        ]
+    errors = sum(1 for i in issues if i.level == "error")
+    board = _dashboard(request, school, main, timetables, errors)
     return render(
         request,
         "timetable/school_detail.html",
@@ -108,11 +101,85 @@ def school_detail(request, pk):
             school,
             "dashboard",
             issues=issues,
-            errors=sum(1 for i in issues if i.level == "error"),
+            errors=errors,
             timetables=timetables,
             tiles=tiles,
+            main=main,
+            board=board,
         ),
     )
+
+
+def _dashboard(request, school, main, timetables, errors):
+    """Kontrol paneli: programın durumu, bugün, onay bekleyenler ve sıradaki işler."""
+    from . import school_improve, substitutes
+    from .models import AvailabilityRequest, Duty, ImproveJob, LeaveRequest
+
+    perms = getattr(request, "school_perms", set())
+    today = timezone.localdate()
+    board = {"status": None, "today": [], "next": [], "today_label": today}
+    if main is not None and main.has_grid:
+        violations, stats = verify_timetable(main)  # problem önbellekten: hızlı
+        hard = sum(1 for v in violations if v.level == "hard" and v.code != "unplaced")
+        soft = sum(1 for v in violations if v.level != "hard")
+        waiting = main.cards.filter(day__isnull=True).count()
+        last = main.versions.order_by("-number").first()
+        board["status"] = {
+            "published": school.active_timetable_id == main.pk, "hard": hard, "soft": soft, "waiting": waiting,
+            "cards": main.cards.count(), "teacher_gaps": stats.get("teacher_gaps", 0), "class_gaps": stats.get("class_gaps", 0),
+            "edited": last.created_at if last else main.finished_at or main.created_at,
+        }
+    # Bugün
+    if main is not None and main.has_grid and today.weekday() < school.days_per_week:
+        plan = substitutes.day_plan(school, main, today)
+        slots = sum(len(p["slots"]) for p in plan)
+        open_slots = sum(1 for p in plan for s in p["slots"] if not (s["current"] and s["current"].substitute_id))
+        board["today"].append({"label": "Bugün izinli", "value": len(plan), "hint": f"{open_slots} / {slots} saat vekil bekliyor" if slots else "vekâlet gerekmiyor",
+                               "url": reverse("timetable:substitutions", args=[school.pk]), "bad": open_slots > 0, "icon": "swap"})
+        duty = Duty.objects.filter(place__school=school, day=today.weekday()).count()
+        board["today"].append({"label": "Bugün nöbetçi", "value": duty, "hint": "öğretmen", "icon": "clipboard",
+                               "url": reverse("timetable:duties", args=[school.pk])})
+    elif today.weekday() >= school.days_per_week:
+        board["today"].append({"label": "Bugün", "value": "—", "hint": "okul günü değil", "icon": "swap",
+                               "url": reverse("timetable:substitutions", args=[school.pk])})
+    pending = AvailabilityRequest.objects.filter(school=school, status=AvailabilityRequest.PENDING).count()
+    leaves = LeaveRequest.objects.filter(school=school, status=LeaveRequest.PENDING).count()
+    if "veri" in perms:
+        board["today"].append({"label": "Onay bekleyen", "value": pending + leaves, "hint": f"{leaves} izin, {pending} müsaitlik isteği",
+                               "url": reverse("timetable:teacher_requests", args=[school.pk]), "bad": bool(pending + leaves), "icon": "inbox"})
+    job = ImproveJob.objects.filter(timetable__school=school).select_related("timetable").first()
+    if job is not None and "program" in perms:
+        job_text = {"queued": "sırada", "running": f"çalışıyor · {job.progress.get('elapsed', 0) // 60} dk",
+                    "done": "öneri hazır" if job.result else "iyileştirme bulunamadı", "failed": "başarısız", "cancelled": "iptal"}[job.status]
+        board["today"].append({"label": "Okul geneli iyileştirme", "value": "●" if job.active else ("✓" if job.result else "–"),
+                               "hint": job_text, "url": reverse("timetable:school_improve", args=[job.timetable_id]), "icon": "sparkles"})
+    # Sıradaki işler (önem sırasıyla)
+    nxt = board["next"]
+    if errors:
+        nxt.append(("error", f"Veri denetiminde {errors} hata var; üretim başlamaz.", "#veri-denetimi", "Hataları gör"))
+    if main is None:
+        nxt.append(("info", "Henüz program yok: verileri tamamlayıp ilk programı üretin.", "#uret", "Program üret"))
+    status = board["status"]
+    if status:
+        if status["waiting"]:
+            nxt.append(("warn", f"{status['waiting']} kart yerleşmedi.", reverse("timetable:pending", args=[main.pk]), "Neden yerleşmiyor?"))
+        if status["hard"]:
+            nxt.append(("error", f"Programda {status['hard']} kesin kural ihlali var.", reverse("timetable:solution_center", args=[main.pk]), "Çözüm merkezi"))
+        if not status["published"] and "yayin" in perms:
+            nxt.append(("info", "Bu program henüz yayında değil.", reverse("timetable:timetable_detail", args=[main.pk]), "Aç ve yayınla"))
+    if "veri" in perms and pending + leaves:
+        nxt.append(("warn", f"{pending + leaves} öğretmen isteği onay bekliyor.", reverse("timetable:teacher_requests", args=[school.pk]), "İncele"))
+    for item in board["today"]:
+        if item["label"] == "Bugün izinli" and item["bad"]:
+            nxt.append(("warn", f"Bugün {item['hint']}.", item["url"], "Vekil ata"))
+    if job is not None and job.status == ImproveJob.DONE and job.result and "program" in perms:
+        nxt.append(("info", "Okul geneli iyileştirme önerisi hazır.", reverse("timetable:school_improve", args=[job.timetable_id]), "İncele"))
+    if status and not status["hard"] and not status["waiting"] and status["teacher_gaps"] and "program" in perms:
+        nxt.append(("tip", f"Öğretmenlerin toplam {status['teacher_gaps']} boş saati var; iyileştirme deneyebilirsiniz.",
+                    reverse("timetable:school_improve", args=[main.pk]), "Bütün okulu iyileştir"))
+    icons = {"error": "alert", "warn": "alert", "info": "arrow-right", "tip": "sparkles"}
+    board["next"] = [{"level": lvl, "text": text, "url": url, "action": action, "icon": icons[lvl]} for lvl, text, url, action in nxt]
+    return board
 
 
 @require_POST
