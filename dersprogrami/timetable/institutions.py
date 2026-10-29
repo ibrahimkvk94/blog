@@ -2,11 +2,11 @@
 
 from django.contrib import messages
 from django.db import transaction
-from django.db.models import Count
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from . import access, asc_xml
+from .counts import with_program_counts
 from .data_views import default_periods
 from .models import DutyPlace, Institution, Period, ReportPreset, School
 
@@ -15,10 +15,7 @@ MAX_UPLOAD = 20 * 1024 * 1024
 
 def _programs(request, institution):
     visible = access.visible_schools(request.user).filter(institution=institution)
-    return visible.annotate(
-        n_classes=Count("classes", distinct=True), n_teachers=Count("teachers", distinct=True),
-        n_timetables=Count("timetables", distinct=True),
-    ).select_related("active_timetable").order_by("name")
+    return with_program_counts(visible).select_related("active_timetable").order_by("name")
 
 
 def institution_detail(request, pk):

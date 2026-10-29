@@ -82,3 +82,15 @@ class LargeSchoolTests(TestCase):
         ]
         failed = [url for url in urls if self.client.get(url).status_code != 200]
         self.assertEqual(failed, [])
+
+    def test_program_list_counts_without_cross_join(self):
+        # Sınıf × öğretmen × sürüm çarpımıyla saymak gerçek veride "Kurumlarım" sayfasını (girişten sonraki
+        # ilk sayfa) kilitliyordu; sayılar alt sorguyla alınır.
+        Timetable.objects.bulk_create(Timetable(school=self.school, name=f"Sürüm {i}", status=Timetable.OK) for i in range(10))
+        User.objects.create_superuser("liste", "l@x.tr", "pw")
+        self.client.login(username="liste", password="pw")
+        page = self.client.get(reverse("timetable:school_list"))
+        self.assertEqual(page.status_code, 200)
+        self.assertContains(page, "60 sınıf")
+        self.assertContains(page, "120 öğretmen")
+        self.assertContains(page, "11 sürüm")

@@ -4,7 +4,6 @@ from functools import wraps
 from urllib.parse import urlencode
 
 from django.contrib import messages
-from django.db.models import Count
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -16,6 +15,7 @@ from django.views.decorators.http import require_POST
 from . import report_excel as report_excel_module
 from . import report_pdf as report_pdf_module
 from . import access, analysis, asc_xml, duty, editing, excel, jobs, printing, refs, reports, substitutes, versions
+from .counts import with_program_counts
 from .demo import create_demo_school
 from .grid import KINDS, card_payload, grid_data, grid_delta, room_names
 from .models import Absence, Card, day_time_notes, Duty, DutyPlace, LessonRef, ReportPreset, School, Teacher, Timetable, TimetableVersion
@@ -34,11 +34,7 @@ def _nav(school, nav, **extra):
 
 def school_list(request):
     """Kurumlarım: her kurumun görünür programları."""
-    schools = access.visible_schools(request.user).annotate(
-        n_classes=Count("classes", distinct=True),
-        n_teachers=Count("teachers", distinct=True),
-        n_timetables=Count("timetables", distinct=True),
-    ).select_related("institution", "active_timetable").order_by("name")
+    schools = with_program_counts(access.visible_schools(request.user)).select_related("institution", "active_timetable").order_by("name")
     groups = {}
     for school in schools:
         groups.setdefault(school.institution, []).append(school)

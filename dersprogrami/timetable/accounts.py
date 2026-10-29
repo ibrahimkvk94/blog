@@ -14,6 +14,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from .access import grantable, institution_permissions
+from .counts import related_count
 from .data_views import default_periods
 from .models import Institution, Membership, School
 from .views import _nav
@@ -144,7 +145,7 @@ def institution_users(request, pk):
 def central(request):
     """Merkez paneli: tüm kurumlar, kurum ekleme ve kurum yöneticisi atama."""
     schools = Institution.objects.annotate(
-        n_users=Count("memberships", distinct=True), n_programs=Count("programs", distinct=True),
+        n_users=related_count(Membership, "institution"), n_programs=related_count(School, "institution"),
     ).order_by("name")
     users = User.objects.annotate(n_schools=Count("memberships")).order_by("-is_superuser", "username")
     form = NewUserForm(choices=_perm_choices(set(M.ALL)), initial={"permissions": M.ALL})
