@@ -57,6 +57,7 @@ urlpatterns = [
     path("okul/<int:pk>/veri/derslik-atama/", data_views.room_wizard, name="room_wizard"),
     path("okul/<int:pk>/veri/ogretmen-istekleri/", request_views.teacher_requests, name="teacher_requests"),
     path("okul/<int:pk>/veri/ogretmen-atama/", data_views.teacher_assign, name="teacher_assign"),
+    path("okul/<int:pk>/hizli-ara/", views.quick_search, name="quick_search"),
     path("okul/<int:pk>/veri/iliski-sihirbazi/", data_views.relation_wizard, name="relation_wizard"),
     path("okul/<int:pk>/veri/iliski-denetimi/", data_views.relation_audit, name="relation_audit"),
     path("okul/<int:pk>/veri/kart-iliskileri/asc-aktar/", asc_relations.import_view, name="relationship_import"),

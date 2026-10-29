@@ -1,16 +1,1 @@
-<nav class="subnav" aria-label="Veri bölümleri">
-  <a href="{% url 'timetable:school_settings' school.pk %}" class="{% if data_nav == 'okul' %}active{% endif %}">Program ve saatler</a>
-  <a href="{% url 'timetable:data_list' school.pk 'ders-adlari' %}" class="{% if data_nav == 'ders-adlari' %}active{% endif %}">Ders adları</a>
-  <a href="{% url 'timetable:data_list' school.pk 'siniflar' %}" class="{% if data_nav == 'siniflar' %}active{% endif %}">Sınıflar</a>
-  <a href="{% url 'timetable:data_list' school.pk 'ogretmenler' %}" class="{% if data_nav == 'ogretmenler' %}active{% endif %}">Öğretmenler</a>
-  <a href="{% url 'timetable:teacher_requests' school.pk %}" class="{% if data_nav == 'istekler' %}active{% endif %}">Öğretmen istekleri{% if pending_requests %} <span class="nav-badge">{{ pending_requests }}</span>{% endif %}</a>
-  <a href="{% url 'timetable:data_list' school.pk 'derslikler' %}" class="{% if data_nav == 'derslikler' %}active{% endif %}">Derslikler</a>
-  <a href="{% url 'timetable:data_list' school.pk 'binalar' %}" class="{% if data_nav == 'binalar' %}active{% endif %}">Binalar</a>
-  <a href="{% url 'timetable:lessons' school.pk %}" class="{% if data_nav == 'dersler' %}active{% endif %}">Dersler</a>
-  <a href="{% url 'timetable:teacher_assign' school.pk %}" class="{% if data_nav == 'ogretmen-atama' %}active{% endif %}">Öğretmen atama</a>
-  <a href="{% url 'timetable:distribution' school.pk %}" class="{% if data_nav == 'dagitim' %}active{% endif %}">Ders dağıtımı</a>
-  <a href="{% url 'timetable:data_list' school.pk 'kart-iliskileri' %}" class="{% if data_nav == 'kart-iliskileri' %}active{% endif %}">Kart ilişkileri</a>
-  <a href="{% url 'timetable:room_wizard' school.pk %}" class="{% if data_nav == 'derslik-atama' %}active{% endif %}">Derslik atama</a>
-  <a href="{% url 'timetable:bulk_availability' school.pk %}" class="{% if data_nav == 'toplu-musaitlik' %}active{% endif %}">Toplu müsaitlik</a>
-  <a href="{% url 'timetable:excel_import' school.pk %}" class="{% if data_nav == 'excel' %}active{% endif %}">Excel aktarımı</a>
-</nav>
+{% load navigation %}{% section_tabs %}

@@ -905,3 +905,38 @@ def change_report(request, pk):
     return render(request, "timetable/change_report.html", _nav(
         school, "timetable", timetable=timetable, sources=cr.sources(timetable), source=key, source_label=label,
         data=data, can_mail=notify.enabled(), print_mode=request.GET.get("yazdir") == "1"))
+
+
+def quick_search(request, pk):
+    """Hızlı git (Ctrl+K): öğretmen, sınıf, ders adı, derslik ve dersler arasında arama."""
+    from .textsort import tr_lower
+
+    school = get_object_or_404(School, pk=pk)
+    q = tr_lower((request.GET.get("q") or "").strip())
+    if len(q) < 2:
+        return JsonResponse({"results": []})
+    can_edit = "veri" in getattr(request, "school_perms", set())
+    out = []
+
+    def add(kind, icon, label, sub, url, text):
+        if q in tr_lower(text):
+            out.append({"kind": kind, "icon": icon, "label": label, "sub": sub, "url": url})
+
+    for t in school.teachers.all():
+        add("Öğretmen", "user", t.full_name, " · ".join(filter(None, [t.department, t.title])),
+            reverse("timetable:data_edit", args=[school.pk, "ogretmenler", t.pk]), f"{t.full_name} {t.short} {t.department}")
+    for c in school.classes.all():
+        add("Sınıf", "layers", c.name, c.short if c.short != c.name else "",
+            reverse("timetable:data_edit", args=[school.pk, "siniflar", c.pk]), f"{c.name} {c.short}")
+    for s in school.subjects.all():
+        add("Ders adı", "book", s.name, s.short, reverse("timetable:data_edit", args=[school.pk, "ders-adlari", s.pk]), f"{s.name} {s.short}")
+    for r in school.classrooms.all():
+        add("Derslik", "building", r.name, "", reverse("timetable:data_edit", args=[school.pk, "derslikler", r.pk]), f"{r.name} {r.short}")
+    if not can_edit:  # düzenleme yetkisi yoksa kayıt sayfaları açılmaz
+        out = []
+    counts, results = {}, []
+    for item in out:  # her türden en fazla 6
+        counts[item["kind"]] = counts.get(item["kind"], 0) + 1
+        if counts[item["kind"]] <= 6:
+            results.append(item)
+    return JsonResponse({"results": results[:24]})

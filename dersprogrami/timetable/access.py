@@ -24,6 +24,7 @@ M = Membership
 # URL adı → (pk türü, GET için yetki, POST için yetki)
 SCHOOL_ROUTES = {
     "school_detail": (M.VIEW, M.VIEW),
+    "quick_search": (M.VIEW, M.VIEW),
     "generate": (M.PROGRAM, M.PROGRAM),
     "substitutions": (M.VIEW, M.SUBSTITUTE),
     "duties": (M.VIEW, M.DUTY),
