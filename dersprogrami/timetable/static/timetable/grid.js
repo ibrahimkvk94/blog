@@ -104,6 +104,8 @@
         ? "Katı modda program bulunamadı; nedenini bulmak için kurallar esnetilerek en yakın taslak aranıyor…" + (p.solutions ? " (" + p.solutions + " taslak)" : "")
         : p.phase === "explain"
         ? "Bu kurallarla program mümkün değil; hangi kuralların çeliştiği aranıyor…"
+        : p.phase === "repair"
+        ? "Doğrudan arama tıkandı; önce her dersin yerleştiği yaklaşık bir program kuruluyor, sonra kurallara uyacak şekilde onarılıyor…"
         : p.phase === "feasible"
         ? "Geçerli bir program bulundu (" + p.elapsed + " sn); şimdi boşluklar ve tercihler iyileştiriliyor…"
         : p.solutions

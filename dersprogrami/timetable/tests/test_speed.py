@@ -37,6 +37,21 @@ class SpeedTests(TestCase):
         self.assertTrue(solution.ok, solution.status)
         self.assertFalse(solution.unplaced)
 
+    def test_repair_search_finds_valid_timetable(self):
+        # Doğrudan arama tıkanınca kullanılan yol: esnek taslak + katı modelde onarım. Özdeş kartların sırası
+        # taslakta farklı olsa da (simetri kırma) taslak katı modele aktarılabilmeli.
+        import time
+
+        problem = build_problem(self.school)
+        builder = cpsat._Builder(problem, cpsat.STRICT)
+        model = builder.build()
+        self.assertTrue(builder.chains)
+        solver, callback, info = cpsat._repair_search(problem, builder, model, 40, time.monotonic(), 8, 0, None, None)
+        self.assertTrue(callback.found, info)
+        self.assertEqual(info["violations"], 0)
+        placed = sum(1 for slots in builder.x.values() if any(solver.Value(v) for v in slots.values()))
+        self.assertEqual(placed, len(problem.cards))
+
     def test_partial_regeneration_keeps_other_cards(self):
         base = generate_timetable(self.school, "taban", time_limit=20)
         cls = self.school.classes.get(name="9-A")
