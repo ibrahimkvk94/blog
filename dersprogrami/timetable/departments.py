@@ -147,6 +147,8 @@ def portal(request, pk):
         req, message = tr.submit(teacher, request.user, tr.parse_cells(request.POST, teacher), reason)
         (messages.success if req else messages.info)(request, message.replace("İsteğiniz", f"{teacher.full_name} için istek"))
         return redirect(f"{url}?sekme=mazeret&ogretmen={teacher.pk}")
+    if request.method == "POST" and request.POST.get("action") == "new_teacher":
+        return _new_teacher(request, department, sub)
     if request.method == "POST":
         action = request.POST.get("action")
         if action == "withdraw" and sub and sub.status == DS.PENDING:
@@ -187,11 +189,67 @@ def portal(request, pk):
     loads = sorted(({"t": names[t], "inside": inside.get(t, 0), "outside": outside.get(t, 0),
                      "total": inside.get(t, 0) + outside.get(t, 0), "target": names[t].target_periods}
                     for t in involved if t in names), key=lambda x: natural_key(x["t"].full_name))
-    options = ([{"id": t.id, "name": t.full_name, "group": "Bölüm"} for t in all_teachers if t.id in dept_teacher_ids]
-               + [{"id": t.id, "name": t.full_name, "group": "Diğer öğretmenler"} for t in all_teachers if t.id not in dept_teacher_ids])
-    context.update(rows=rows, loads=loads, options=options, editable=not (sub and sub.status == DS.PENDING),
+    context.update(new_teachers=list(sub.new_teachers.all()) if sub else [])
+    options = teacher_options(department, all_teachers)
+    group_of = {o["id"]: o["group"] for o in options}
+    for item in loads:
+        item["group"] = "" if group_of.get(item["t"].id, "").startswith("Bu bölüm") else group_of.get(item["t"].id, "")
+    context.update(options=options)
+    context.update(rows=rows, loads=loads, editable=not (sub and sub.status == DS.PENDING),
                    problems=sum(1 for r in rows if r["state"] != "ok"))
     return render(request, "timetable/department_portal.html", context)
+
+
+def teacher_options(department, teachers):
+    """Seçim listesi: önce bu bölümün öğretmenleri, sonra diğer bölümler kendi adlarıyla, en sonda bölümsüzler.
+    Her öğretmenin şu anki haftalık ders yükü (tüm dersler) de verilir."""
+    groups = defaultdict(list)
+    for dept in department.school.departments.prefetch_related("teachers"):
+        for t in dept.teachers.all():
+            groups[t.id].append(dept)
+    load = defaultdict(int)
+    hours = dict(Lesson.objects.filter(school=department.school).values_list("id", "periods_per_week"))
+    for lesson_id, teacher_id in Lesson.teachers.through.objects.filter(lesson__school=department.school).values_list("lesson_id", "teacher_id"):
+        load[teacher_id] += hours.get(lesson_id, 0)
+    own, others, none = [], [], []
+    for t in teachers:
+        depts = groups.get(t.id, [])
+        item = {"id": t.id, "name": t.full_name, "load": load[t.id], "target": t.target_periods}
+        if any(d.pk == department.pk for d in depts):
+            own.append({**item, "group": f"Bu bölüm · {department.name}"})
+        elif depts:
+            others.append({**item, "group": f"{depts[0].name} bölümü"})
+        else:
+            none.append({**item, "group": "Bölümü tanımsız"})
+    others.sort(key=lambda o: (natural_key(o["group"]), natural_key(o["name"])))
+    return own + others + none
+
+
+def _new_teacher(request, department, sub):
+    """Bölüm sorumlusu listede olmayan öğretmeni tanımlar: okula ve bölüme eklenir, öneride ayrıca gösterilir."""
+    from django.http import JsonResponse
+
+    if sub is not None and sub.status == DS.PENDING:
+        return JsonResponse({"ok": False, "message": "Öneri onay bekliyor; önce geri çekin."}, status=400)
+    parts = (request.POST.get("name") or "").split()
+    if len(parts) < 2:
+        return JsonResponse({"ok": False, "message": "Ad ve soyadı birlikte yazın."}, status=400)
+    first, last = " ".join(parts[:-1])[:100], parts[-1][:100]
+    school = department.school
+    teacher = Teacher.objects.filter(school=school, first_name__iexact=first, last_name__iexact=last).first()
+    created = teacher is None
+    if created:
+        teacher = Teacher.objects.create(school=school, first_name=first, last_name=last,
+                                         short=(request.POST.get("short") or "").strip()[:60],
+                                         email=(request.POST.get("email") or "").strip()[:254] if "@" in (request.POST.get("email") or "") else "")
+        if sub is None:
+            sub = DS.objects.create(department=department, updated_by=request.user)
+        sub.new_teachers.add(teacher)
+    department.teachers.add(teacher)
+    return JsonResponse({"ok": True, "id": teacher.id, "name": teacher.full_name, "created": created, "load": 0,
+                         "group": f"Bu bölüm · {department.name}",
+                         "message": f"{teacher.full_name} tanımlandı ve bölüme eklendi." if created
+                         else f"{teacher.full_name} zaten kayıtlı; bölüme eklendi."})
 
 
 def apply(submission, user, distribute=True, reply=""):
@@ -285,7 +343,7 @@ def admin(request, pk):
         if sub and sub.status == DS.PENDING:
             rows = subject_rows(selected, sub.quotas)
             names = {t.id: t.full_name for t in school.teachers.all()}
-            review = {"sub": sub, "rows": [{**r, "lines": _diff_lines(r, names)} for r in rows if r["changed"] or r["state"] != "ok"]}
+            review = {"sub": sub, "new_teachers": list(sub.new_teachers.all()), "rows": [{**r, "lines": _diff_lines(r, names)} for r in rows if r["changed"] or r["state"] != "ok"]}
     status = {d.pk: current(d) for d in departments}
     rows = [{"d": d, "sub": status[d.pk], "heads": [u.get_full_name() or u.username for u in d.users.all()]} for d in departments]
     head_ids = {t.id for d in ([selected] if selected else []) for u in d.users.all() for t in u.teacher_profiles.all()}

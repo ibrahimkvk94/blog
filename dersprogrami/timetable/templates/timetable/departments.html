@@ -40,6 +40,7 @@
         <div class="panel-head"><h2>{{ selected.name }} önerisi</h2><span class="subtle small">{{ review.sub.submitted_at|date:"d.m.Y H:i" }}{% if review.sub.updated_by %} · {{ review.sub.updated_by.get_full_name|default:review.sub.updated_by.username }}{% endif %}</span></div>
         <div class="panel-body">
           {% if review.sub.message %}<p>“{{ review.sub.message }}”</p>{% endif %}
+          {% if review.new_teachers %}<div class="alert alert-warning">Bölümün tanımladığı yeni öğretmenler: {% for t in review.new_teachers %}<a href="{% url 'timetable:data_edit' school.pk 'ogretmenler' t.pk %}"><b>{{ t.full_name }}</b></a>{% if not forloop.last %}, {% endif %}{% endfor %} — bilgilerini ve müsaitliğini kontrol edin.</div>{% endif %}
           {% if review.rows %}
           <table class="table dept-diff">
             <thead><tr><th>Ders</th><th>Kısım</th><th>Öğretmen: şu an → öneri</th></tr></thead>

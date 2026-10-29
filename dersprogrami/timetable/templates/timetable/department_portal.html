@@ -69,7 +69,8 @@
                   <span class="dp-hours"></span>{% if editable %}<button type="button" class="btn btn-sm btn-ghost" data-dp-remove aria-label="Satırı sil">✕</button>{% endif %}</div>
               {% endfor %}
             </div>
-            {% if editable %}<button type="button" class="btn btn-sm" data-dp-add="{{ r.subject.pk }}">{% include "timetable/icon.html" with name="plus" %} Öğretmen ekle</button>{% endif %}
+            {% if editable %}<div class="dp-add-row"><button type="button" class="btn btn-sm" data-dp-add="{{ r.subject.pk }}">{% include "timetable/icon.html" with name="plus" %} Öğretmen ekle</button>
+              <button type="button" class="btn btn-sm btn-ghost" data-dp-pick="{{ r.subject.pk }}" data-dp-title="{{ r.subject.short|default:r.subject.name }}">{% include "timetable/icon.html" with name="search" %} Başka bölümden / yeni öğretmen</button></div>{% endif %}
           </div>
         </section>
       {% empty %}
@@ -82,7 +83,7 @@
         <div class="panel-body flush">
           <table class="table dp-loads">
             <thead><tr><th>Öğretmen</th><th class="num" title="Bu bölümden">Bölüm</th><th class="num" title="Başka bölümlerin derslerinden">Diğer</th><th class="num">Toplam</th></tr></thead>
-            <tbody>{% for l in loads %}<tr data-dp-load="{{ l.t.pk }}" data-outside="{{ l.outside }}" data-target="{{ l.target|default:'' }}"><td>{{ l.t.full_name }}</td><td class="num" data-in>{{ l.inside }}</td><td class="num">{{ l.outside }}</td><td class="num"><b data-total>{{ l.total }}</b>{% if l.target %}<span class="subtle small">/{{ l.target }}</span>{% endif %}</td></tr>{% endfor %}</tbody>
+            <tbody>{% for l in loads %}<tr data-dp-load="{{ l.t.pk }}" data-outside="{{ l.outside }}" data-target="{{ l.target|default:'' }}"><td>{{ l.t.full_name }}{% if l.group %}<div class="subtle small">{{ l.group }}</div>{% endif %}</td><td class="num" data-in>{{ l.inside }}</td><td class="num">{{ l.outside }}</td><td class="num"><b data-total>{{ l.total }}</b>{% if l.target %}<span class="subtle small">/{{ l.target }}</span>{% endif %}</td></tr>{% endfor %}</tbody>
           </table>
         </div>
       </section>
@@ -101,7 +102,23 @@
       </section>
     </aside>
   </form>
+  {% if new_teachers %}<p class="subtle small">Bu öneride tanımladığınız yeni öğretmenler: {% for t in new_teachers %}<b>{{ t.full_name }}</b>{% if not forloop.last %}, {% endif %}{% endfor %}</p>{% endif %}
   {{ options|json_script:"dp-teachers" }}
+  <dialog class="dp-picker" id="dp-picker">
+    <form method="dialog" class="dp-picker-head"><h2>Öğretmen seç · <span data-dp-picker-title></span></h2><button class="btn btn-sm btn-ghost" aria-label="Kapat">✕</button></form>
+    <input class="input" type="search" placeholder="Ad ya da bölüm ara…" data-dp-search autocomplete="off">
+    <div class="dp-picker-list" data-dp-list></div>
+    <details class="dp-new">
+      <summary>Listede yok mu? Yeni öğretmen tanımla</summary>
+      <div class="dp-new-form">
+        <input class="input input-sm" data-dp-new-name placeholder="Ad Soyad (ör. Ayşe Nur DEMİR)">
+        <input class="input input-sm" data-dp-new-short placeholder="Kısa ad (isteğe bağlı)">
+        <input class="input input-sm" type="email" data-dp-new-email placeholder="E-posta (isteğe bağlı)">
+        <button type="button" class="btn btn-sm btn-primary" data-dp-new-save>Tanımla ve ekle</button>
+      </div>
+      <p class="subtle small">Yeni öğretmen okula ve bölümünüze eklenir; program sorumlusu önerinizde ayrıca görür.</p>
+    </details>
+  </dialog>
 {% endif %}
 {% endblock %}
 {% block scripts %}

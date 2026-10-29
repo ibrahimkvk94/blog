@@ -568,6 +568,8 @@ class DepartmentSubmission(models.Model):
     department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name="submissions")
     status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=DRAFT)
     quotas = models.JSONField(default=dict)
+    # Bölüm sorumlusunun bu öneri sırasında tanımladığı yeni öğretmenler (onayda program sorumlusuna gösterilir).
+    new_teachers = models.ManyToManyField(Teacher, blank=True, related_name="+", verbose_name="bölümün eklediği öğretmenler")
     message = models.TextField("bölümün notu", blank=True)
     reply = models.TextField("yanıt", blank=True)
     updated_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, related_name="+")
