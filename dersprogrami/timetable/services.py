@@ -1,5 +1,6 @@
 """Uygulama katmanı: denetim, üretim ve doğrulama işlemlerini veritabanına bağlar."""
 
+import time
 from collections import defaultdict
 from datetime import timedelta
 
@@ -24,7 +25,7 @@ def check_school(school):
     return feasibility.check(school_problem(school))
 
 
-def start_generation(school, name, time_limit=None, mode=Timetable.STRICT, base=None, seed=0, only=None):
+def start_generation(school, name, time_limit=None, mode=Timetable.STRICT, base=None, seed=0, only=None, from_scratch=False):
     """Yeni bir program sürümü oluşturur ve üretimi arka planda başlatır.
 
     only: {"classes": [...], "teachers": [...]} — yalnızca bunların kartları yeniden yerleşir, diğerleri
@@ -36,7 +37,8 @@ def start_generation(school, name, time_limit=None, mode=Timetable.STRICT, base=
         mode=mode,
         time_limit=time_limit or settings.TIMETABLE_SOLVER_TIME_LIMIT,
         started_at=timezone.now(),
-        report={"base": base.pk if base else None, **({"only": only} if only and any(only.values()) else {})},
+        report={"base": base.pk if base else None, **({"only": only} if only and any(only.values()) else {}),
+                **({"from_scratch": True} if from_scratch else {})},
     )
     jobs.start(timetable.pk, run_generation, base.pk if base else None, seed)
     return timetable
@@ -85,7 +87,14 @@ def run_generation(timetable_id, base_id=None, seed=0):
     except Exception:  # yedek alınamadı diye üretim durmasın
         pass
     try:
-        problem = build_problem(timetable.school, base=base)
+        hint = None
+        if base is None and not report.get("only") and not report.get("from_scratch"):
+            # Başlangıç sürümü seçilmediyse son başarılı program ipucu olur (kilitlenmez): "dün yerleşiyordu, bugün küçük
+            # bir değişiklik var" durumunda çözücü sıfırdan aramak yerine o yerleşimi onarır.
+            hint = input_diff.last_success(timetable)
+            if hint is not None:
+                report["hint_from"] = {"id": hint.pk, "name": hint.name}
+        problem = build_problem(timetable.school, base=base or hint, lock_base=hint is None)
         if base is not None and report.get("only"):
             report["frozen"] = freeze_except(problem, report["only"])
         inputs = input_diff.fingerprint(problem)
@@ -96,14 +105,19 @@ def run_generation(timetable_id, base_id=None, seed=0):
             _finish(timetable, Timetable.FAILED, report)
             return
 
-        solution = cpsat.solve(
-            problem,
-            time_limit=timetable.time_limit,
-            seed=seed,
-            mode=timetable.mode,
-            on_progress=lambda progress: jobs.set_progress(timetable_id, progress),
-            stop_handle=jobs.handle_for(timetable_id),
-        )
+        on_progress = lambda progress: jobs.set_progress(timetable_id, progress)  # noqa: E731
+        if relaxed:
+            # Gevşek mod: önce her kart yerleşmek zorunda, yalnızca kurallar esner (çok daha iyi taslak); kartlar o
+            # şekilde sığmıyorsa kalan sürede sığmayan kartların beklemesine izin verilir.
+            started = time.monotonic()
+            solution = cpsat.solve(problem, time_limit=max(10, timetable.time_limit * 0.6), seed=seed, mode=timetable.mode,
+                                   place_all=True, on_progress=on_progress, stop_handle=jobs.handle_for(timetable_id))
+            if not solution.ok and not jobs.handle_for(timetable_id).stopped:
+                solution = cpsat.solve(problem, time_limit=max(10, timetable.time_limit - (time.monotonic() - started)), seed=seed,
+                                       mode=timetable.mode, on_progress=on_progress, stop_handle=jobs.handle_for(timetable_id))
+        else:
+            solution = cpsat.solve(problem, time_limit=timetable.time_limit, seed=seed, mode=timetable.mode,
+                                   on_progress=on_progress, stop_handle=jobs.handle_for(timetable_id))
     except Exception as exc:  # beklenmeyen hatada iş "üretiliyor" durumunda asılı kalmasın
         report["error"] = str(exc)
         _finish(timetable, Timetable.FAILED, report)

@@ -94,3 +94,14 @@ class DiagnosisTests(TestCase):
         self.client.force_login(User.objects.create_superuser("admin4", "d@x.tr", "pw"))
         page = self.client.get(reverse("timetable:backup_compare", args=[self.school.pk]) + f"?program={good.pk}")
         self.assertContains(page, "Artık yasak olan saate düşen dersler")
+
+    def test_last_success_is_used_as_hint_unless_from_scratch(self):
+        self.rel.active = False
+        self.rel.save()
+        first = start_generation(self.school, "ilk", time_limit=10)
+        second = start_generation(self.school, "ikinci", time_limit=10)
+        second.refresh_from_db()
+        self.assertEqual(second.report["hint_from"]["id"], first.pk)
+        third = start_generation(self.school, "sıfır", time_limit=10, from_scratch=True)
+        third.refresh_from_db()
+        self.assertNotIn("hint_from", third.report)

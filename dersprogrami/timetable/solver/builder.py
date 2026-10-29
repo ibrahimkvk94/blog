@@ -100,12 +100,12 @@ def _match_base_cards(sources, base):
     return matched
 
 
-def build_problem(school, timetable=None, base=None):
+def build_problem(school, timetable=None, base=None, lock_base=True):
     """Okul verisinden Problem üretir.
 
     timetable: kartlar bu programın kart satırlarından birebir alınır (doğrulama için).
     base: kartlar güncel derslerden türetilir; temel sürümdeki aynı ders ve uzunluktaki kartların
-        kilidi (sabit yer) ve konumu (ipucu) yeni kartlara aktarılır.
+        kilidi (sabit yer) ve konumu (ipucu) yeni kartlara aktarılır. lock_base=False: yalnızca ipucu (kilit aktarılmaz).
     İkisi de verilmezse kartlar derslerin haftalık saatlerinden türetilir.
     """
     days = school.days_per_week
@@ -293,7 +293,7 @@ def build_problem(school, timetable=None, base=None):
             card.card_id = db_card.id
             if db_card.is_placed:
                 card.hint = (db_card.day, db_card.period, db_card.classroom_id)
-                if db_card.locked:
+                if db_card.locked and (lock_base or timetable is not None):
                     card.fixed = (db_card.day, db_card.period)
                     card.fixed_room = db_card.classroom_id
                     card.fixed_rooms = tuple(db_card.room_ids)

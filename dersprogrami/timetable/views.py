@@ -200,7 +200,8 @@ def _dashboard(request, school, main, timetables, errors):
 def generate(request, pk):
     school = get_object_or_404(School, pk=pk)
     base = None
-    if request.POST.get("base"):
+    from_scratch = request.POST.get("base") == "sifir"
+    if request.POST.get("base", "").isdigit():
         base = get_object_or_404(Timetable, pk=request.POST["base"], school=school)
     try:
         time_limit = max(5, min(1800, int(request.POST.get("time_limit") or 60)))
@@ -214,7 +215,7 @@ def generate(request, pk):
         "classes": [int(x) for x in request.POST.getlist("only_classes") if x.isdigit()],
         "teachers": [int(x) for x in request.POST.getlist("only_teachers") if x.isdigit()],
     } if base else None
-    timetable = start_generation(school, name, time_limit=time_limit, mode=mode, base=base, only=only)
+    timetable = start_generation(school, name, time_limit=time_limit, mode=mode, base=base, only=only, from_scratch=from_scratch)
     return redirect("timetable:timetable_detail", pk=timetable.pk)
 
 
