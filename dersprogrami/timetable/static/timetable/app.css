@@ -1278,3 +1278,76 @@ a.q-card.on { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary)
 .empty-state p { margin: 0; color: var(--text-2); max-width: 440px; font-size: 13px; }
 .empty-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; justify-content: center; }
 td.empty, td.subtle[colspan] { text-align: center; padding: 22px 12px; color: var(--text-3); }
+
+/* ---- Koyu tema: [data-theme=dark] (kullanıcı seçimi) ya da sistem tercihi ([data-theme=auto]) ---- */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0e1220; --surface: #161b2a; --surface-2: #1c2233; --border: #283044; --border-strong: #38415a;
+  --text: #e6e9f0; --text-2: #a9b1c3; --text-3: #7a8399;
+  --primary: #818cf8; --primary-2: #a5b4fc; --primary-soft: rgba(129, 140, 248, .15);
+  --success: #4ade80; --success-soft: rgba(74, 222, 128, .12);
+  --warning: #fbbf24; --warning-soft: rgba(251, 191, 36, .12);
+  --danger: #fb923c; --danger-strong: #f87171; --danger-soft: rgba(248, 113, 113, .13);
+  --sidebar: #0a0d17; --sidebar-text: #aab3c5;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 1px 3px rgba(0, 0, 0, .3);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, .5);
+}
+:root[data-theme="dark"] .pill.ok { border-color: rgba(74, 222, 128, .3); }
+:root[data-theme="dark"] .pill.partial, :root[data-theme="dark"] .pill.warn { border-color: rgba(251, 191, 36, .3); }
+:root[data-theme="dark"] .pill.failed, :root[data-theme="dark"] .pill.error { border-color: rgba(248, 113, 113, .35); }
+:root[data-theme="dark"] .pill.running { border-color: rgba(129, 140, 248, .35); }
+:root[data-theme="dark"] .pill.active-tt { background: rgba(56, 189, 248, .14); color: #7dd3fc; border-color: rgba(56, 189, 248, .3); }
+:root[data-theme="dark"] .btn-danger { border-color: rgba(248, 113, 113, .4); }
+:root[data-theme="dark"] .btn-primary, :root[data-theme="dark"] .btn-primary:hover { color: #0e1220; }
+:root[data-theme="dark"] .table tr:hover td { background: var(--surface-2); }
+:root[data-theme="dark"] .segmented { background: #0e1220; }
+:root[data-theme="dark"] .progress { background: #252c3e; }
+:root[data-theme="dark"] .tt-row:nth-child(even) .tt-cell { background: rgba(255, 255, 255, .015); }
+:root[data-theme="dark"] .tt-board.stripes .tt-cell.day-alt,
+:root[data-theme="dark"] .tt-board.stripes .tt-day.day-alt,
+:root[data-theme="dark"] .tt-board.stripes .tt-period.day-alt { background: rgba(255, 255, 255, .035); }
+:root[data-theme="dark"] .tt-board.stripes .tt-row:nth-child(even) .tt-cell.day-alt { background: rgba(255, 255, 255, .05); }
+:root[data-theme="dark"] .tt-card { color: #1c2230; }
+:root[data-theme="dark"] .tt-card.dark { color: #fff; }
+:root[data-theme="dark"] .tt-cell.opt-free { background: rgba(34, 197, 94, .28) !important; }
+:root[data-theme="dark"] .tt-cell.opt-warn { background: rgba(245, 158, 11, .28) !important; }
+:root[data-theme="dark"] .tt-cell.opt-conflict { background: rgba(239, 68, 68, .3) !important; }
+:root[data-theme="dark"] .tt-cell.opt-blocked { background: repeating-linear-gradient(135deg, rgba(239, 68, 68, .18) 0 5px, transparent 5px 9px) !important; }
+:root[data-theme="dark"] .legend .lg-free { background: rgba(34, 197, 94, .4); }
+:root[data-theme="dark"] .legend .lg-warn { background: rgba(245, 158, 11, .4); }
+:root[data-theme="dark"] .legend .lg-conflict { background: rgba(239, 68, 68, .4); }
+:root[data-theme="dark"] .av-cell, :root[data-theme="dark"] .legend .lg-ok { background: rgba(34, 197, 94, .16); color: var(--text); }
+:root[data-theme="dark"] .rel-map .av-cell.map-on { background: rgba(34, 197, 94, .3); border-color: rgba(74, 222, 128, .5); }
+:root[data-theme="dark"] .quick-table tr.has-hours,
+:root[data-theme="dark"] .dist-table tbody tr:hover > *,
+:root[data-theme="dark"] .dist-table tbody tr:hover > .rowhead { background: var(--surface-2); }
+:root[data-theme="dark"] .conflict { background: var(--danger-soft); border-color: rgba(248, 113, 113, .3); }
+:root[data-theme="dark"] .versions-list tr.on td { background: rgba(132, 204, 22, .14); }
+:root[data-theme="dark"] .report-preview iframe { background: #0e1220; }
+:root[data-theme="dark"] .pool-note { background: var(--warning-soft); border-color: rgba(251, 191, 36, .3); }
+:root[data-theme="dark"] .pd-badge.pd-free { background: var(--success-soft); }
+:root[data-theme="dark"] .pd-badge.pd-conflict { background: var(--warning-soft); }
+:root[data-theme="dark"] .pd-badge.pd-availability { background: var(--danger-soft); }
+:root[data-theme="dark"] .ls-bulk .select, :root[data-theme="dark"] .ls-bulk .input { background: var(--surface); }
+:root[data-theme="dark"] .lv1 { background: rgba(34, 197, 94, .18); }
+:root[data-theme="dark"] .lv3 { background: rgba(245, 158, 11, .28); }
+:root[data-theme="dark"] .lv4 { background: rgba(249, 115, 22, .35); }
+:root[data-theme="dark"] .lv5 { background: rgba(239, 68, 68, .4); }
+:root[data-theme="dark"] .rel-kind.u { background: rgba(245, 158, 11, .16); color: #fbbf24; }
+:root[data-theme="dark"] .rel-kind.t { background: rgba(59, 130, 246, .16); color: #93c5fd; }
+:root[data-theme="dark"] .hs.bad { border-color: rgba(248, 113, 113, .35); }
+:root[data-theme="dark"] .hs.warn { border-color: rgba(251, 191, 36, .3); }
+:root[data-theme="dark"] .today-icon.bad { border-color: rgba(248, 113, 113, .35); }
+:root[data-theme="dark"] .empty-tc { border-color: rgba(251, 191, 36, .4); }
+:root[data-theme="dark"] .tt-board.comparing .tt-card { opacity: .22; }
+:root[data-theme="dark"] .paper { box-shadow: none; }
+:root[data-theme="dark"] .rec-bar { background: rgba(22, 27, 42, .96); box-shadow: 0 -6px 18px rgba(0, 0, 0, .3); }
+:root[data-theme="dark"] .q-score { background: linear-gradient(135deg, rgba(129, 140, 248, .18), var(--surface)); border-color: rgba(129, 140, 248, .35); }
+:root[data-theme="dark"] .rec-avatar { background: var(--primary-soft); }
+
+/* Tema düğmesi */
+.theme-toggle { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-2); cursor: pointer; }
+.theme-toggle:hover { color: var(--text); border-color: var(--border-strong); }
+.theme-toggle svg { width: 17px; height: 17px; }
+.theme-toggle .i-sun, :root[data-theme="dark"] .theme-toggle .i-moon { display: none; }
+:root[data-theme="dark"] .theme-toggle .i-sun { display: block; }

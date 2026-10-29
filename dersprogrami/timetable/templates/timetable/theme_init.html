@@ -1,0 +1,9 @@
+<script>
+  // Tema: kullanıcı seçimi (açık/koyu) ya da sistem tercihi; sayfa çizilmeden uygulanır.
+  (function () {
+    var pref = null;
+    try { pref = localStorage.getItem("theme"); } catch (e) {}
+    var dark = pref ? pref === "dark" : window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+  })();
+</script>

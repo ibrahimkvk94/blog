@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Ders Programı{% endblock %} · Ders Programı</title>
   <link href="{% asset 'timetable/app.css' %}" rel="stylesheet">
+  {% include "timetable/theme_init.html" %}
   <script>try { if (localStorage.getItem("nav-collapsed") === "1") document.documentElement.classList.add("nav-collapsed"); } catch (e) {}</script>
   {% block head %}{% endblock %}
 </head>
@@ -52,6 +53,7 @@
         <div class="title-row">{% block heading %}{% endblock %}</div>
       </div>
       <div class="actions">{% block actions %}{% endblock %}</div>
+      <button type="button" class="theme-toggle" id="theme-toggle" title="Açık / koyu tema" aria-label="Açık / koyu tema"><span class="i-moon">{% include "timetable/icon.html" with name="moon" %}</span><span class="i-sun">{% include "timetable/icon.html" with name="sun" %}</span></button>
       <button type="button" class="btn btn-ghost pal-open" data-palette-open title="Hızlı git (Ctrl+K)">{% include "timetable/icon.html" with name="search" %}<span>Ara</span><kbd>Ctrl K</kbd></button>
     </header>
     <main class="content">
@@ -72,6 +74,11 @@
 <script type="application/json" id="palette-icons">{% palette_icons_json %}</script>
 <script src="{% asset 'timetable/palette.js' %}" defer></script>
 <script>
+  document.getElementById("theme-toggle").addEventListener("click", function () {
+    var next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem("theme", next); } catch (e) {}
+  });
   document.getElementById("nav-toggle").addEventListener("click", function () {
     var on = document.documentElement.classList.toggle("nav-collapsed");
     try { localStorage.setItem("nav-collapsed", on ? "1" : "0"); } catch (e) {}
