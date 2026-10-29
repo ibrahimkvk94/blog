@@ -3,7 +3,8 @@ bir sürümüne göre değişen dersleri, öğretmen başına "eski yer → yeni
 öğretmenlere e-postayla gönderilir.
 
 Kartlar sürümler arasında farklı kimlik taşıyabilir: ders bazında eşleştirilir (aynı yer → değişmemiş; aynı saat,
-farklı derslik → derslik değişti; kalanlar sırayla eşleşir; artanlar yerleşti / çıkarıldı).
+farklı derslik → derslik değişti; kalanlar sırayla eşleşir; artanlar yerleşti / çıkarıldı). Sürümler derslerin öğretmen
+atamalarını da sakladığından öğretmeni değişen dersler (ör. öğretmen havuzu) hem eski hem yeni öğretmene bildirilir.
 """
 
 from collections import defaultdict
@@ -11,7 +12,7 @@ from collections import defaultdict
 from .models import Timetable
 from .refs import DAY_SHORT
 from .textsort import natural_key
-from .versions import current_state
+from .versions import current_state, current_teachers, teacher_diff
 
 
 def sources(timetable):
@@ -36,12 +37,21 @@ def default_source(timetable):
     return ""
 
 
+class Slots(defaultdict):
+    """{ders: [yer]}; teachers: o andaki öğretmen atamaları (bilinmiyorsa boş)."""
+
+    def __init__(self, teachers=None):
+        super().__init__(list)
+        self.teachers = teachers or {}
+
+
 def _slot(day, period, length, rooms):
     return (day, period, length, tuple(sorted(r for r in rooms if r)))
 
 
 def _slots_of_timetable(tt):
-    slots = defaultdict(list)
+    last = tt.versions.order_by("-number").first()
+    slots = Slots(last.teachers if last else None)
     for card in tt.cards.all():
         slots[card.lesson_id].append(_slot(card.day, card.period, card.length, card.room_ids))
     return slots
@@ -49,7 +59,7 @@ def _slots_of_timetable(tt):
 
 def _slots_of_version(timetable, version):
     cards = {c.id: c for c in timetable.cards.all()}
-    slots = defaultdict(list)
+    slots = Slots(version.teachers)
     for card_id, day, period, room, extra, _locked in version.cards:
         card = cards.get(card_id)
         if card is not None:
@@ -99,6 +109,13 @@ def compare(timetable, before):
                 continue
             kind = "moved" if new_placed and old_placed else "placed" if new_placed else "removed"
             rows.append({"lesson_id": lesson_id, "before": old if old_placed else None, "after": new if new_placed else None, "kind": kind})
+    old_teachers = getattr(before, "teachers", None)
+    now = current_teachers(timetable) if old_teachers else {}
+    for key in teacher_diff(old_teachers, now):
+        lesson_id = int(key)
+        placed = sorted((s for s in after.get(lesson_id, []) if s[0] is not None), key=lambda s: (s[0], s[1]))
+        rows.append({"lesson_id": lesson_id, "kind": "teacher", "before": None, "after": placed[0] if placed else None,
+                     "old_teachers": old_teachers[key], "new_teachers": now[key]})
     return rows
 
 
@@ -127,19 +144,33 @@ def describe(timetable, rows):
             text += " · " + ", ".join(rooms.get(r, "?") for r in room_ids)
         return text
 
+    from .models import Teacher
+
+    involved = {t for r in rows if r["kind"] == "teacher" for t in r["old_teachers"] + r["new_teachers"]}
+    people = {t.id: t for t in Teacher.objects.filter(pk__in=involved)}
+
+    def who(ids):
+        return ", ".join(people[t].full_name for t in ids if t in people) or "öğretmensiz"
+
     by_teacher = defaultdict(list)
     names = {}
     for r in rows:
         lesson = lessons.get(r["lesson_id"])
         if lesson is None:
             continue
+        slot = r["after"] or r["before"]
         item = {
             "subject": lesson.subject.short or lesson.subject.name, "subject_name": lesson.subject.name,
             "classes": ", ".join(sorted((c.short or c.name for c in lesson.classes.all()), key=natural_key)),
             "before": where(r["before"]), "after": where(r["after"]), "kind": r["kind"],
-            "sort": (r["after"] or r["before"])[:2],
+            "sort": slot[:2] if slot else (None, None),
         }
-        teachers = list(lesson.teachers.all()) or [None]
+        if r["kind"] == "teacher":
+            item["before"] = "Öğretmen: " + who(r["old_teachers"])
+            item["after"] = "Öğretmen: " + who(r["new_teachers"]) + (f" · {where(r['after'])}" if r["after"] else "")
+            teachers = [people[t] for t in dict.fromkeys(r["old_teachers"] + r["new_teachers"]) if t in people] or [None]
+        else:
+            teachers = list(lesson.teachers.all()) or [None]
         for t in teachers:
             key = t.id if t else 0
             names[key] = t

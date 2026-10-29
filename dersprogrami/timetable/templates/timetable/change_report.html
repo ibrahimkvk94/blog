@@ -57,7 +57,7 @@
           <tbody>{% for i in g.items %}
             <tr class="cr-{{ i.kind }}"><td><b>{{ i.subject }}</b><div class="subtle small">{{ i.subject_name }}</div></td><td>{{ i.classes }}</td>
               <td>{% if i.kind == "placed" %}<span class="subtle">yerleşmemişti</span>{% else %}{{ i.before }}{% endif %}</td><td>→</td>
-              <td><b>{% if i.kind == "removed" %}programdan çıkarıldı{% else %}{{ i.after }}{% endif %}</b>{% if i.kind == "room" %} <span class="pill">derslik</span>{% endif %}</td></tr>
+              <td><b>{% if i.kind == "removed" %}programdan çıkarıldı{% else %}{{ i.after }}{% endif %}</b>{% if i.kind == "room" %} <span class="pill">derslik</span>{% elif i.kind == "teacher" %} <span class="pill warn">öğretmen</span>{% endif %}</td></tr>
           {% endfor %}</tbody>
         </table>
       </div>

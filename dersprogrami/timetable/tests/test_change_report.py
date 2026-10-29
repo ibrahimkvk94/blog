@@ -71,3 +71,33 @@ class ChangeReportTests(TestCase):
         self.assertIn("Pazartesiden itibaren", mail.outbox[0].body)
         # Aynı programla fark yok
         self.assertContains(self.client.get(self.url + f"?kaynak=tt-{self.tt.pk}"), "Fark yok")
+
+
+class TeacherChangeTests(TestCase):
+    """Sürümler öğretmen atamalarını saklar; değişiklik bildirimi öğretmen değişimini gösterir, geri yükleme geri alır."""
+
+    def setUp(self):
+        self.school = School.objects.create(name="MYO", days_per_week=5)
+        Period.objects.create(school=self.school, index=0, name="1", start_time=datetime.time(8), end_time=datetime.time(8, 40))
+        self.ali = Teacher.objects.create(school=self.school, first_name="Ali", last_name="Kaya")
+        self.can = Teacher.objects.create(school=self.school, first_name="Can", last_name="Er")
+        self.lesson = Lesson.objects.create(school=self.school, subject=Subject.objects.create(school=self.school, name="Fizik"), periods_per_week=1)
+        self.lesson.classes.add(SchoolClass.objects.create(school=self.school, name="1A"))
+        self.lesson.teachers.add(self.ali)
+        self.tt = Timetable.objects.create(school=self.school, name="Yeni", status=Timetable.OK)
+        Card.objects.create(timetable=self.tt, lesson=self.lesson, length=1, day=0, period=0)
+        self.version = versions.save_version(self.tt, note="önce")
+
+    def test_teacher_change_reported_and_restored(self):
+        self.assertEqual(self.version.teachers, {str(self.lesson.pk): [self.ali.pk]})
+        self.lesson.teachers.set([self.can])
+        self.assertIsNotNone(versions.save_version(self.tt, auto=True))  # yalnızca öğretmen değişti: yine kaydedilir
+        label, before = cr.resolve_source(self.tt, f"v-{self.version.pk}")
+        data = cr.describe(self.tt, cr.compare(self.tt, before))
+        self.assertEqual(sorted(g["name"] for g in data["groups"]), ["Ali Kaya", "Can Er"])
+        item = data["groups"][0]["items"][0]
+        self.assertEqual((item["kind"], item["before"]), ("teacher", "Öğretmen: Ali Kaya"))
+        self.assertTrue(item["after"].startswith("Öğretmen: Can Er · Pzt 1. saat"))
+        result = versions.restore(self.tt, self.version)
+        self.assertIn("1 dersin öğretmeni geri alındı", result["message"])
+        self.assertEqual(list(self.lesson.teachers.all()), [self.ali])

@@ -1,6 +1,7 @@
 """Program versiyonları (aSc "Versiyonlar"): elle ve otomatik kayıt, önizleme ve geri yükleme.
 
-Her versiyon kartların konumlarının (gün, saat, derslik, kilit) anlık görüntüsüdür. Program
+Her versiyon kartların konumlarının (gün, saat, derslik, kilit) ve derslerin öğretmen atamalarının anlık
+görüntüsüdür (öğretmen havuzu üretimde atamaları değiştirebilir). Program
 açılırken ve düzenleme sürerken belirli aralıklarla otomatik versiyon alınır; hatalı bir işlemden
 sonra istenen versiyona dönülebilir (dönmeden önce mevcut hal de kaydedilir).
 """
@@ -10,7 +11,7 @@ from datetime import timedelta
 from django.db import transaction
 from django.utils import timezone
 
-from .models import Card, TimetableVersion
+from .models import Card, Lesson, TimetableVersion
 
 AUTO_INTERVAL = timedelta(minutes=10)
 
@@ -21,6 +22,23 @@ def _state(card):
 
 def current_state(timetable):
     return [_state(c) for c in timetable.cards.order_by("id")]
+
+
+def current_teachers(timetable):
+    """Programdaki kartların dersleri için {ders kimliği (metin): [öğretmen, ...]} (JSON anahtarı metindir)."""
+    lessons = timetable.cards.values("lesson_id")  # alt sorgu: uzun kimlik listesi SQLite sınırını aşmasın
+    result = {str(l): [] for l in lessons.values_list("lesson_id", flat=True)}
+    rows = Lesson.teachers.through.objects.filter(lesson_id__in=lessons).order_by("teacher_id").values_list("lesson_id", "teacher_id")
+    for lesson_id, teacher_id in rows:
+        result[str(lesson_id)].append(teacher_id)
+    return result
+
+
+def teacher_diff(a, b):
+    """Öğretmen ataması farklı dersler (eski sürüm bilgisi yoksa boş)."""
+    if not a or not b:
+        return set()
+    return {k for k in a.keys() & b.keys() if sorted(a[k]) != sorted(b[k])}
 
 
 def diff_count(a, b):
@@ -37,15 +55,16 @@ def latest(timetable):
 def save_version(timetable, user=None, note="", auto=False, state=None):
     """Versiyon kaydeder. Otomatik kayıt, son versiyondan beri değişiklik yoksa atlanır."""
     state = state if state is not None else current_state(timetable)
+    teachers = current_teachers(timetable)
     last = latest(timetable)
-    changes = diff_count(last.cards, state) if last else len(state)
+    changes = diff_count(last.cards, state) + len(teacher_diff(last.teachers, teachers)) if last else len(state)
     if auto and last is not None and changes == 0:
         return None
     with transaction.atomic():
         number = (last.number + 1) if last else 1
         return TimetableVersion.objects.create(
             timetable=timetable, number=number, user=user if user and user.is_authenticated else None,
-            note=note[:200], auto=auto, changes=changes, cards=state,
+            note=note[:200], auto=auto, changes=changes, cards=state, teachers=teachers,
         )
 
 
@@ -69,7 +88,26 @@ def restore(timetable, version, user=None):
     for card in changed:
         _, card.day, card.period, card.classroom_id, card.extra_rooms, card.locked = target[card.id]
     Card.objects.bulk_update(changed, ["day", "period", "classroom", "extra_rooms", "locked"])
-    return {"ok": True, "message": f"#{version.number} versiyonuna dönüldü ({len(changed)} kart değişti)."}
+    teachers = _restore_teachers(timetable, version)
+    message = f"#{version.number} versiyonuna dönüldü ({len(changed)} kart değişti"
+    message += f", {teachers} dersin öğretmeni geri alındı)." if teachers else ")."
+    return {"ok": True, "message": message}
+
+
+def _restore_teachers(timetable, version):
+    """Sürümdeki öğretmen atamalarını geri yükler (silinmiş öğretmenler atlanır). Dönüş: değişen ders sayısı."""
+    from .models import Teacher
+    from .problem_cache import bump
+
+    changed = teacher_diff(current_teachers(timetable), version.teachers)
+    if not changed:
+        return 0
+    valid = set(Teacher.objects.filter(school=timetable.school).values_list("id", flat=True))
+    with transaction.atomic():
+        for lesson in Lesson.objects.filter(pk__in=[int(k) for k in changed]):
+            lesson.teachers.set([t for t in version.teachers[str(lesson.pk)] if t in valid])
+    bump(timetable.school_id)
+    return len(changed)
 
 
 def listing(timetable, include_auto=True):

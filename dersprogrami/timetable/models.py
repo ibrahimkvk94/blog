@@ -696,8 +696,10 @@ class TimetableVersion(models.Model):
     user = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, verbose_name="hazırlayan")
     note = models.CharField("not", max_length=200, blank=True)
     auto = models.BooleanField("otomatik kayıt", default=False)
-    changes = models.PositiveIntegerField("değişen kart", default=0)
+    changes = models.PositiveIntegerField("değişen kart / öğretmen ataması", default=0)
     cards = models.JSONField(default=list)  # [[kart, gün, saat, derslik, ek derslikler, kilit], ...]
+    # Kayıt anındaki ders–öğretmen atamaları {ders: [öğretmen, ...]}; eski sürümlerde boş (bilinmiyor).
+    teachers = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ["-number"]
