@@ -48,6 +48,8 @@ def school_list(request):
         {"institution": inst, "programs": progs, "perms": access.institution_permissions(request.user, inst)}
         for inst, progs in sorted(groups.items(), key=lambda kv: kv[0].name)
     ]
+    if not institutions and request.user.teacher_profiles.exists():
+        return redirect("timetable:my_timetable")  # yalnızca öğretmen hesabı: kendi programı
     return render(request, "timetable/school_list.html", {"institutions": institutions})
 
 

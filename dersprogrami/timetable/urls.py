@@ -1,7 +1,7 @@
 from django.contrib.auth import views as auth_views
 from django.urls import path
 
-from . import accounts, asc_relations, data_views, printing, request_views, setup_wizard, resolve, institutions, public, school_improve, students, uybs, views
+from . import accounts, asc_relations, data_views, printing, request_views, setup_wizard, teacher_accounts, resolve, institutions, public, school_improve, students, uybs, views
 
 app_name = "timetable"
 
@@ -10,6 +10,10 @@ urlpatterns = [
     path("giris/", auth_views.LoginView.as_view(template_name="timetable/login.html", redirect_authenticated_user=True), name="login"),
     path("cikis/", auth_views.LogoutView.as_view(), name="logout"),
     path("hesabim/", accounts.account, name="account"),
+    path("parola-belirle/<uidb64>/<token>/", teacher_accounts.password_set, name="password_set"),
+    path("parola-belirle/tamam/", teacher_accounts.password_set_done, name="password_set_done"),
+    path("parolami-unuttum/", teacher_accounts.password_forgot, name="password_forgot"),
+    path("parolami-unuttum/gonderildi/", teacher_accounts.password_forgot_done, name="password_forgot_done"),
     path("isteklerim/", request_views.my_requests, name="my_requests"),
     path("programim/", request_views.my_timetable, name="my_timetable"),
     path("takvim/<str:token>.ics", request_views.teacher_ics, name="teacher_ics"),
@@ -34,6 +38,7 @@ urlpatterns = [
     path("okul/<int:pk>/uybs/", views.lesson_refs, name="lesson_refs"),
     path("okul/<int:pk>/uybs/ayarlar/", uybs.settings_page, name="uybs_settings"),
     path("okul/<int:pk>/basili-cikti/", printing.settings_page, name="print_settings"),
+    path("okul/<int:pk>/ogretmen-hesaplari/", teacher_accounts.page, name="teacher_accounts"),
     path("okul/<int:pk>/kurulum/", setup_wizard.wizard, name="setup_wizard_start"),
     path("okul/<int:pk>/kurulum/<slug:step>/", setup_wizard.wizard, name="setup_wizard"),
     path("okul/<int:pk>/ogrenciler/", students.students_page, name="students"),

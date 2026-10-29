@@ -1445,3 +1445,11 @@ td.empty, td.subtle[colspan] { text-align: center; padding: 22px 12px; color: va
 .sw-issues { border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 12px; }
 .sw-generate { max-width: 720px; display: flex; flex-direction: column; gap: 8px; }
 @media (max-width: 1000px) { .sw-layout, .sw-paste { grid-template-columns: minmax(0, 1fr); } .sw-steps { position: static; } }
+
+/* ---- Öğretmen hesapları ---- */
+.ta-tools, .ta-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.pw-slips { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.pw-slip { border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); padding: 12px 14px; background: var(--surface); break-inside: avoid; }
+.pw-slip dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 8px 0 0; font-size: 13px; }
+.pw-slip dt { color: var(--text-3); }
+.pw-slip dd { margin: 0; word-break: break-all; }

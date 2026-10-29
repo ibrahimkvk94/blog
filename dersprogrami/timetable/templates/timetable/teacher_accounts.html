@@ -1,0 +1,63 @@
+{% extends "timetable/base.html" %}
+{% block title %}Öğretmen hesapları{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:institution_detail' school.institution_id %}">{{ school.institution }}</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
+{% block heading %}<h1>Öğretmen hesapları</h1>{% endblock %}
+{% block content %}
+<p class="page-lead">Öğretmenler kendi hesaplarıyla haftalık programlarını görür, gelemeyecekleri saatleri ve izinlerini bildirir, programı telefon takvimine ekler. Bu hesaplar kurum yetkisi taşımaz; yalnızca öğretmenin kendi sayfalarını açar.</p>
+<div class="q-summary">
+  <div class="q-card"><span>Hesabı yok</span><b>{{ counts.none }}</b><small>öğretmen</small></div>
+  <div class="q-card"><span>Davet bekliyor</span><b>{{ counts.waiting }}</b><small>henüz giriş yapmadı</small></div>
+  <div class="q-card"><span>Kullanıyor</span><b>{{ counts.active }}</b><small>en az bir kez girdi</small></div>
+  <div class="q-card"><span>E-postası girilmiş</span><b>{{ with_email }}</b><small><a href="{% url 'timetable:uybs_settings' school.pk %}">toplu e-posta girişi</a></small></div>
+</div>
+{% if not mail_ready %}<div class="alert alert-warning">E-posta sunucusu ayarlı değil: davet gönderilemez. “Geçici parola üret” ile parolaları yazdırıp öğretmenlere elden verebilirsiniz.</div>{% endif %}
+<form method="post" class="panel" id="ta-form">{% csrf_token %}
+  <div class="panel-head">
+    <div class="ta-tools">
+      <input class="input input-sm" type="search" placeholder="Öğretmen ara…" data-ta-search style="max-width:240px">
+      <select class="select select-sm" data-ta-filter><option value="">Tümü</option><option value="none">Hesabı yok</option><option value="waiting">Davet bekliyor</option><option value="active">Kullanıyor</option></select>
+    </div>
+    <div class="ta-actions">
+      <span class="subtle small"><b data-ta-count>0</b> seçili</span>
+      <button class="btn btn-sm btn-primary" name="action" value="otomatik" title="E-postası olana davet, olmayana geçici parola">{% include "timetable/icon.html" with name="user-plus" %} Hesap aç / davet et</button>
+      <button class="btn btn-sm" name="action" value="parola" onclick="return confirm('Seçili öğretmenlerin parolası yenisiyle değiştirilecek. Devam edilsin mi?')">Geçici parola üret</button>
+      <button class="btn btn-sm btn-ghost" name="action" value="ayir" onclick="return confirm('Seçili öğretmenlerin hesap bağlantısı kaldırılsın mı?')">Bağlantıyı kaldır</button>
+    </div>
+  </div>
+  <div class="panel-body flush table-wrap">
+    <table class="table">
+      <thead><tr><th style="width:28px"><input type="checkbox" data-ta-all aria-label="Tümünü seç"></th><th>Öğretmen</th><th>E-posta</th><th>Kullanıcı adı</th><th>Durum</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+          <tr data-status="{{ r.status }}" data-text="{{ r.t.full_name|lower }} {{ r.t.short|lower }} {{ r.t.email|lower }}">
+            <td><input type="checkbox" name="teacher" value="{{ r.t.pk }}" aria-label="{{ r.t.full_name }}"></td>
+            <td><b>{{ r.t.full_name }}</b>{% if r.t.short %} <span class="subtle small">{{ r.t.short }}</span>{% endif %}</td>
+            <td>{% if r.t.email %}{{ r.t.email }}{% else %}<span class="subtle">—</span>{% endif %}</td>
+            <td>{% if r.t.user %}<code>{{ r.t.user.username }}</code>{% else %}<span class="subtle">—</span>{% endif %}</td>
+            <td>{% if r.status == "active" %}<span class="pill ok">Kullanıyor</span> <span class="subtle small">{{ r.t.user.last_login|date:"d.m.Y" }}</span>{% elif r.status == "waiting" %}<span class="pill warn">Davet bekliyor</span>{% else %}<span class="pill">Hesabı yok</span>{% endif %}</td>
+          </tr>
+        {% empty %}<tr><td colspan="5" class="subtle">Henüz öğretmen yok.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const form = document.getElementById("ta-form");
+  const rows = [...form.querySelectorAll("tbody tr[data-status]")];
+  const search = form.querySelector("[data-ta-search]"), filter = form.querySelector("[data-ta-filter]");
+  const count = () => { form.querySelector("[data-ta-count]").textContent = form.querySelectorAll("tbody input:checked").length; };
+  const apply = () => {
+    const q = search.value.trim().toLocaleLowerCase("tr");
+    rows.forEach((r) => { r.hidden = (q && !r.dataset.text.includes(q)) || (filter.value && r.dataset.status !== filter.value); });
+  };
+  search.addEventListener("input", apply); filter.addEventListener("change", apply);
+  form.querySelector("[data-ta-all]").addEventListener("change", (e) => {
+    rows.forEach((r) => { if (!r.hidden) r.querySelector("input").checked = e.target.checked; }); count();
+  });
+  form.addEventListener("change", count);
+})();
+</script>
+{% endblock %}

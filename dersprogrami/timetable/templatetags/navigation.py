@@ -66,6 +66,7 @@ NAV_GROUPS = [
     ("yonetim", "Yönetim", [
         ("Basılı çıktı", "printer", _school("print_settings"), {"baski"}, "veri", True),
         ("Web yayını", "globe", _school("publish_settings"), {"publish"}, "yayin", True),
+        ("Öğretmen hesapları", "user-plus", _school("teacher_accounts"), {"ogretmen-hesaplari"}, "kullanici", True),
         ("Kullanıcılar", "users", lambda s, tt: reverse("timetable:institution_users", args=[s.institution_id]), {"users"}, "kullanici", True),
     ]),
 ]
