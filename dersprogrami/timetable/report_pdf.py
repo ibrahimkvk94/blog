@@ -66,6 +66,18 @@ def _base(extra=()):
     ])
 
 
+def _chunks(names, limit):
+    """Adları toplam uzunluğu yaklaşık limit karakteri aşmayan parçalara böler (tablo satırı sayfaya sığsın)."""
+    parts, current, size = [], [], 0
+    for name in names:
+        if current and size + len(name) > limit:
+            parts.append(current)
+            current, size = [], 0
+        current.append(name)
+        size += len(name) + 2
+    return parts + [current] if current else parts
+
+
 def _header(title, subtitle=""):
     out = [_p(title, TITLE)]
     if subtitle:
@@ -227,10 +239,18 @@ def build(data):
         story = _header(o["baslik"] or "Sınıf ders listesi", subtitle) + _table(
             ["Kısım", "Ders", "Öğretmen", "Grup", "Saat", "Dağılım"], rows, [12, 32, 30, 16, 7, 10], width, size)
     elif kind in ("bos_derslik", "bos_ogretmen"):
-        headers = ["Gün"] + [f"{p.index + 1}." for p in data["periods"]]
-        rows = [[r["day"]] + [", ".join(names) for names in r["cells"]] for r in data["free_rows"]]
+        # Gün × saat matrisi PDF'te satır satır (gün, saat, boşlar): kalabalık okulda tek hücre sayfadan uzun olabilir,
+        # tablo ise ancak satır aralarından bölünür.
+        rows = []
+        for r in data["free_rows"]:
+            for i, (p, names) in enumerate(zip(data["periods"], r["cells"])):
+                parts = _chunks(names, 1800) or [[]]
+                for j, part in enumerate(parts):
+                    text = ", ".join(part) or "—"
+                    rows.append([r["day"] if i == j == 0 else "", f"{p.index + 1}. saat" if j == 0 else "",
+                                 f"{len(names)}: {text}" if j == 0 and names else text])
         story = _header(o["baslik"] or data["free_label"], data.get("free_note", subtitle)) + _table(
-            headers, rows, [12] + [22] * len(data["periods"]), width, min(size, 7.5))
+            ["Gün", "Saat", "Boş"], rows, [10, 7, 83], width, min(size, 7.5))
     elif kind == "nobet":
         duty = data["duty"]
         rows = [[r["place"].name] + [", ".join(d.teacher.full_name for d in c["duties"]) for c in r["cells"]] for r in duty["rows"]]

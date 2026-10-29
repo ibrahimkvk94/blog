@@ -56,6 +56,17 @@ class ReportTests(TestCase):
         page = self.client.get(reverse("timetable:reports", args=[self.timetable.pk]))
         self.assertContains(page, "PDF indir")
 
+    def test_free_lists_pdf_with_crowded_school(self):
+        """Kalabalık okulda tek bir saatin boş öğretmen listesi sayfadan uzun olabilir; PDF yine üretilmeli."""
+        from timetable.models import Teacher
+
+        Teacher.objects.bulk_create(Teacher(school=self.school, first_name=f"Öğretim Görevlisi Uzunadlı {i}", last_name="SOYADUZUN")
+                                    for i in range(400))
+        url = reverse("timetable:report_pdf", args=[self.timetable.pk])
+        response = self.client.get(url + "?tur=bos_ogretmen")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.content.startswith(b"%PDF"))
+
     def test_pdf_fits_one_page_per_entity(self):
         from timetable import report_pdf, reports
 
