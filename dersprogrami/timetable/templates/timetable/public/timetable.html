@@ -6,19 +6,21 @@
 {% block style %}
   .c { border-radius: 8px; padding: 6px 8px; margin-bottom: 3px; }
   .c b { display: block; }
-  .c span { color: #3b4352; font-size: 13px; }
-  .tabs { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 10px; }
-  .tabs button { flex: 1; min-width: 64px; padding: 10px 6px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font: 600 14px inherit; }
-  .tabs button.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .c span { color: var(--lesson-sub); font-size: 13px; }
+  .tabs { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 10px; position: sticky; top: 58px; z-index: 4; background: var(--bg); padding: 4px 0; }
+  .tabs button { flex: 1; min-width: 64px; padding: 10px 6px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); font: 600 14px inherit; }
+  .tabs button.on { background: var(--brand); color: var(--on-brand); border-color: var(--brand); }
   .slot { display: grid; grid-template-columns: 64px 1fr; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
   .slot:last-child { border-bottom: 0; }
   .slot .t { color: var(--muted); font-size: 13px; }
   .slot .t b { color: var(--text); font-size: 15px; display: block; }
-  .free { color: #9aa1ad; }
+  .free { color: var(--muted); opacity: .7; }
+  .slot.now { background: var(--brand-soft); border-radius: 10px; padding-left: 6px; box-shadow: inset 3px 0 0 var(--brand); }
+  .slot.now .t b::after { content: " şimdi"; font-size: 11px; color: var(--brand); text-transform: uppercase; letter-spacing: .04em; }
   .week { display: none; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   th, td { border: 1px solid var(--line); padding: 4px; vertical-align: top; font-size: 13px; }
-  th { background: #f1f2f6; }
+  th { background: var(--head); }
   th.p { width: 80px; text-align: left; }
   @media (min-width: 900px) { .week { display: block; } .daily { display: none; } }
 {% endblock %}
@@ -30,7 +32,7 @@
       <div class="card" data-panel="{{ d.index }}"{% if d.index != today %} hidden{% endif %}>
         <h2>{{ d.name }}</h2>
         {% for s in d.slots %}
-          <div class="slot"><div class="t"><b>{{ s.period.index|add:1 }}.</b>{{ s.period|start_on:d.index|time:"H:i" }}</div>
+          <div class="slot" data-start="{{ s.period|start_on:d.index|time:'H:i' }}" data-end="{{ s.period|end_on:d.index|time:'H:i' }}"><div class="t"><b>{{ s.period.index|add:1 }}.</b>{{ s.period|start_on:d.index|time:"H:i" }}</div>
             <div>{% for c in s.cards %}<div class="c" style="background:{{ c.color }}"><b>{{ c.subject_name }}</b><span>{{ c.line2 }}{% if c.room and kind != "derslik" %} · {{ c.room }}{% endif %}</span></div>{% empty %}<span class="free">boş</span>{% endfor %}</div></div>
         {% endfor %}
       </div>
@@ -45,6 +47,20 @@
     {% if time_notes %}<p class="muted" style="font-size:.85em;margin:8px 0 0">Farklı saatli günler — {{ time_notes|join:" | " }}</p>{% endif %}
   </div>
   <script>
+    // Bugünün sekmesinde şu anki ders saati vurgulanır.
+    (function mark() {
+      const now = new Date(), hm = now.toTimeString().slice(0, 5);
+      const panel = document.querySelector('[data-panel="{{ today }}"]');
+      if (panel && (now.getDay() + 6) % 7 === {{ today }}) {
+        panel.querySelectorAll(".slot").forEach((s) => s.classList.toggle("now", !!s.dataset.start && s.dataset.start <= hm && hm < s.dataset.end));
+      }
+      setTimeout(mark, 60000);
+    })();
+    try {
+      const key = "yayin-son-{{ token }}", item = { url: location.pathname, title: {{ title_json|safe }} };
+      const list = JSON.parse(localStorage.getItem(key) || "[]").filter((r) => r.url !== item.url);
+      localStorage.setItem(key, JSON.stringify([item].concat(list).slice(0, 4)));
+    } catch (e) {}
     document.querySelector(".tabs").addEventListener("click", (e) => {
       const b = e.target.closest("button[data-day]");
       if (!b) return;

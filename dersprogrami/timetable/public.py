@@ -2,6 +2,7 @@
 ve koridor ekranı için günlük vekâlet listesi. Yalnızca yayındaki sürüm gösterilir."""
 
 import datetime
+import json
 import secrets
 
 from django.contrib import messages
@@ -88,6 +89,7 @@ def timetable(request, token, kind, obj_id):
     ]
     return render(request, "timetable/public/timetable.html", {
         "school": school, "token": token, "kind": kind, "title": _label(obj, kind),
+        "title_json": json.dumps(_label(obj, kind), ensure_ascii=False).replace("</", "<\\/"),
         "subtitle": obj.name if kind == "sinif" and obj.short else "", "days": days, "week": week, "by_day": by_day,
         "time_notes": day_time_notes(periods, days),
         "today": today if today < len(days) else 0,

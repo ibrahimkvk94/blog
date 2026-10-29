@@ -4,11 +4,19 @@
 {% block nav %}<span id="clock" style="font-size:22px;font-weight:700"></span>{% endblock %}
 {% block style %}
   body { font-size: 20px; }
-  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 12px; overflow: hidden; }
   th, td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: left; }
-  th { background: #eef0ff; font-size: 16px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  th { background: var(--brand-soft); font-size: 16px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
   td.p { font-weight: 800; font-size: 26px; width: 90px; }
-  .none { color: #b91c1c; font-weight: 700; }
+  .none { color: var(--danger); font-weight: 700; }
+  @media (max-width: 700px) {
+    body { font-size: 16px; }
+    thead { display: none; }
+    table, tbody, tr, td { display: block; width: 100%; }
+    tr { padding: 10px 14px; border-bottom: 1px solid var(--line); }
+    td { border: 0; padding: 2px 0; }
+    td.p { font-size: 20px; width: auto; }
+  }
   .empty { padding: 40px; text-align: center; color: var(--muted); }
 {% endblock %}
 {% block content %}

@@ -15,3 +15,9 @@ def start_on(period, day):
 def span_on(period, day):
     """{{ period|span_on:gun }} → "08:00–08:40"."""
     return period.span(day) if period else ""
+
+
+@register.filter
+def end_on(period, day):
+    """{{ period|end_on:gun }} → o günün bitiş saati (time) ya da None."""
+    return period.times(day)[1] if period else None

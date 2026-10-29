@@ -4,19 +4,27 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ school }}{% endblock %}</title>
+  <meta name="theme-color" content="#141a2a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <style>
-    :root { --bg: #f4f5f8; --card: #fff; --text: #1c2230; --muted: #5b6474; --line: #e1e4ea; --brand: #4f46e5; }
+    :root { --bg: #f4f5f8; --card: #fff; --card-2: #fafbff; --head: #f1f2f6; --text: #1c2230; --muted: #5b6474; --line: #e1e4ea;
+      --brand: #4f46e5; --brand-soft: #eef0ff; --on-brand: #fff; --lesson-text: #1c2230; --lesson-sub: #3b4352; --danger: #b91c1c; color-scheme: light; }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #0e1220; --card: #161b2a; --card-2: #1c2233; --head: #1c2233; --text: #e6e9f0; --muted: #a9b1c3; --line: #283044;
+        --brand: #818cf8; --brand-soft: rgba(129, 140, 248, .15); --danger: #f87171; --on-brand: #0e1220; color-scheme: dark; }
+    }
     * { box-sizing: border-box; }
     body { margin: 0; font: 15px/1.45 "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
     a { color: var(--brand); text-decoration: none; }
-    .top { background: #141a2a; color: #fff; padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-    .top a { color: #c7d2fe; }
+    .top { background: #141a2a; color: #fff; padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 5; }
+    .top a { color: #c7d2fe; white-space: nowrap; }
     .top h1 { font-size: 17px; margin: 0; }
     .top small { color: #a5adbf; display: block; }
     main { max-width: 1200px; margin: 0 auto; padding: 16px; }
     .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
     h2 { font-size: 16px; margin: 0 0 10px; }
     .muted { color: var(--muted); }
+    .c { color: var(--lesson-text); }
     {% block style %}{% endblock %}
   </style>
 </head>
