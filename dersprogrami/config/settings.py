@@ -4,6 +4,7 @@ Gizli değerler ortam değişkenlerinden okunur; geliştirme için güvenli vars
 """
 
 import os
+import sys
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
@@ -149,6 +150,8 @@ TIMETABLE_JOB_BACKEND = os.environ.get("TIMETABLE_JOB_BACKEND", "thread")
 # Yedekler (merkez paneli → Yedekler ya da `python manage.py yedekle`)
 BACKUP_DIR = Path(os.environ.get("BACKUP_DIR", BASE_DIR / "yedekler"))
 BACKUP_KEEP = int(os.environ.get("BACKUP_KEEP", "30"))
+# Üretimden önce (12 saatte bir) otomatik yedek; testlerde kapalı (proje klasörüne dosya yazılmasın).
+AUTO_BACKUP = os.environ.get("AUTO_BACKUP", "1") == "1" and "test" not in sys.argv[1:2]
 
 # E-posta (program değişikliği ve vekâlet bildirimleri). EMAIL_HOST verilmezse bildirim gönderilmez.
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "")

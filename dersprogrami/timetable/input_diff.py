@@ -85,6 +85,41 @@ def compare(old, new, limit=12):
     return result
 
 
+CHECK_TITLES = {
+    "blocked_cell": "Artık yasak olan saate düşen dersler (müsaitlik / kapalı saat değişmiş)",
+    "teacher_clash": "Aynı anda iki derse düşen öğretmenler (öğretmen ataması değişmiş)",
+    "atom_clash": "Aynı anda iki derse düşen sınıflar / gruplar",
+    "room_clash": "Aynı anda iki derse düşen derslikler",
+    "students_clash": "Seçmeli derslerde öğrenci çakışması",
+    "unplaced": "O programda karşılığı olmayan (yeni eklenen ya da bölünen) dersler",
+    "relationship": "Artık sağlanmayan kart ilişkileri",
+    "bad_room": "İzin verilmeyen derslik", "room_blocked": "Kapalı saatte kullanılan derslik",
+    "teacher_consecutive": "Öğretmen art arda ders sınırı", "teacher_min": "Öğretmenin günlük en az ders sınırı",
+    "teacher_day_gaps": "Öğretmen günlük boşluk sınırı", "teacher_week_gaps": "Öğretmen haftalık boşluk sınırı",
+    "class_max": "Sınıf günlük en fazla ders", "class_min": "Sınıf günlük en az ders",
+}
+
+
+def recheck(previous):
+    """Son başarılı programın yerleşimini BUGÜNKÜ verilerle denetler: o gün geçerli olan yerleşimin bugün takıldığı
+    kurallar, arada değişen veriyi gösterir (yedek olmasa da çalışır)."""
+    from .services import verify_timetable
+
+    try:
+        violations, _ = verify_timetable(previous)
+    except Exception as exc:  # eski program bugünkü veriyle kurulamadı
+        return {"error": str(exc)[:300]}
+    groups = {}
+    for v in violations:
+        if v.level != "hard":
+            continue
+        g = groups.setdefault(v.code, {"code": v.code, "title": CHECK_TITLES.get(v.code, v.code), "count": 0, "examples": []})
+        g["count"] += 1
+        if len(g["examples"]) < 8:
+            g["examples"].append(v.message)
+    return {"groups": sorted(groups.values(), key=lambda g: -g["count"]), "total": sum(g["count"] for g in groups.values())}
+
+
 def last_success(timetable):
     """Aynı programın, bu üretimden önceki son başarılı (tamamen yerleşmiş) üretimi; katı mod öncelikli."""
     qs = Timetable.objects.filter(school_id=timetable.school_id, status__in=[Timetable.OK, Timetable.PARTIAL],
@@ -109,4 +144,5 @@ def since_last_success(timetable, inputs):
                      "mode": previous.mode, "objective": previous.objective},
         "diff": compare(previous.inputs, inputs) if previous.inputs else None,
         "operations": operations[-60:], "operation_count": len(operations),
+        "recheck": recheck(previous),
     }

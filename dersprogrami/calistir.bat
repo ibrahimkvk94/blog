@@ -17,6 +17,7 @@ cd /d "%~dp0"
   echo [2/3] Paketler ve veritabani guncelleniyor...
   python -m pip install -q -r requirements.txt
   python manage.py migrate --noinput >nul
+  python manage.py yedekle >nul 2>&1
   echo [3/3] Ders Programi calisiyor: http://127.0.0.1:8000/
   echo Kapatmak icin bu pencerede Ctrl+C'ye basin ya da pencereyi kapatin.
   start "" cmd /c "timeout /t 3 >nul & start http://127.0.0.1:8000/"

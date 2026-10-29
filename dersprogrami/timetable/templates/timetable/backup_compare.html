@@ -5,6 +5,17 @@
 {% block head %}{% if waiting %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
 {% block content %}
 <p class="page-lead">“Dün yerleşiyordu, bugün yerleşmiyor” durumunda: program çalışırken alınan otomatik yedeklerden birini seçin. Yedekteki veri ayrı bir kopyaya yüklenir ve çözücünün o gün gördüğü veriyle bugün gördüğü karşılaştırılır: kurallar, öğretmen sınırları ve uygun saatleri, dersler ve kartları, öğretmen havuzları, ızgara. Asıl veritabanınıza dokunulmaz.</p>
+<section class="panel" style="margin-bottom:18px">
+  <div class="panel-head"><h2>Yedek yoksa: başarılı bir programı bugünkü verilerle denetle</h2></div>
+  <div class="panel-body">
+    <p class="subtle small" style="margin-top:0">Dün (ya da önce) başarıyla üretilmiş bir programı seçin. O gün tüm kesin kuralları sağlayan yerleşim, bugünkü verilerle denetlenir; takıldığı kurallar arada neyin değiştiğini gösterir.</p>
+    <form method="get" class="dialog-row" style="align-items:center">
+      <select class="select" name="program" style="max-width:420px">{% for t in successes %}<option value="{{ t.pk }}"{% if chosen.pk == t.pk %} selected{% endif %}>{{ t.name }} · {{ t.finished_at|date:"d.m.Y H:i" }} · {{ t.get_mode_display }}{% if t.objective is not None %} · ceza {{ t.objective }}{% endif %}</option>{% empty %}<option value="">Başarılı program yok</option>{% endfor %}</select>
+      <button class="btn btn-primary"{% if not successes %} disabled{% endif %}>Bugünkü verilerle denetle</button>
+    </form>
+    {% if chosen %}<div style="margin-top:12px">{% include "timetable/recheck.html" with rc=recheck name=chosen.name %}</div>{% endif %}
+  </div>
+</section>
 <div class="grid-2">
   <section class="panel">
     <div class="panel-head"><h2>Yedekler</h2></div>
@@ -13,7 +24,7 @@
         {% for b in backups %}
           <tr{% if b.name == selected %} class="on"{% endif %}><td><b>{{ b.created|date:"d.m.Y H:i" }}</b><div class="subtle small">{{ b.name }}</div></td>
             <td class="num"><form method="post">{% csrf_token %}<input type="hidden" name="yedek" value="{{ b.name }}"><button class="btn btn-sm{% if b.name == selected %} btn-primary{% endif %}">Bugünkü veriyle karşılaştır</button></form></td></tr>
-        {% empty %}<tr><td class="subtle">Yedek yok. Yedekler program çalışırken günde bir alınır.</td></tr>{% endfor %}
+        {% empty %}<tr><td class="subtle">Henüz yedek yok. Bundan sonra program her açılışta ve üretimden önce (12 saatte bir) yedek alır; bir sonraki seferde dünkü veriyle karşılaştırabilirsiniz.</td></tr>{% endfor %}
       </tbody></table>
     </div>
   </section>

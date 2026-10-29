@@ -78,6 +78,13 @@ def run_generation(timetable_id, base_id=None, seed=0):
     relaxed = timetable.mode == Timetable.RELAXED
     report = dict(timetable.report)
     try:
+        from . import backup
+
+        if getattr(settings, "AUTO_BACKUP", False):
+            backup.ensure_recent(12)  # "dün yerleşiyordu" durumunda karşılaştırılacak bir önceki hal hep bulunsun
+    except Exception:  # yedek alınamadı diye üretim durmasın
+        pass
+    try:
         problem = build_problem(timetable.school, base=base)
         if base is not None and report.get("only"):
             report["frozen"] = freeze_except(problem, report["only"])

@@ -79,3 +79,18 @@ class DiagnosisTests(TestCase):
         self.assertIn("Birlikte", tt.report["diagnosis"]["main"][0]["label"])
         self.client.force_login(User.objects.create_superuser("admin3", "c@x.tr", "pw"))
         self.assertContains(self.client.get(reverse("timetable:timetable_detail", args=[tt.pk])), "Bu taslakta kesin kurallar esnetildi")
+
+    def test_recheck_previous_success_with_today_data(self):
+        from timetable import input_diff
+        from timetable.models import Availability
+
+        self.rel.active = False
+        self.rel.save()
+        good = start_generation(self.school, "dün", time_limit=10)
+        card = good.cards.filter(lesson__subject__name="Fizik").first()
+        Availability.objects.create(school=self.school, teacher=self.teacher, day=card.day, period=card.period, state=Availability.NO)
+        result = input_diff.recheck(good)
+        self.assertEqual([g["code"] for g in result["groups"]], ["blocked_cell"])
+        self.client.force_login(User.objects.create_superuser("admin4", "d@x.tr", "pw"))
+        page = self.client.get(reverse("timetable:backup_compare", args=[self.school.pk]) + f"?program={good.pk}")
+        self.assertContains(page, "Artık yasak olan saate düşen dersler")

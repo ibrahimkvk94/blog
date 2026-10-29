@@ -1040,7 +1040,12 @@ def backup_compare(request, pk):
             backup.compare_start(path, school)
             messages.info(request, "Karşılaştırma başladı; yedek ayrı bir kopyaya yükleniyor (bir-iki dakika sürebilir).")
         return redirect(reverse("timetable:backup_compare", args=[school.pk]) + (f"?yedek={name}" if name else ""))
+    from . import input_diff
+
     result = backup.compare_result(name, school.pk) if backup.path_of(name) else None
+    successes = list(school.timetables.filter(status__in=[Timetable.OK, Timetable.PARTIAL]).order_by("-finished_at")[:20])
+    chosen = next((t for t in successes if str(t.pk) == request.GET.get("program")), None)
     return render(request, "timetable/backup_compare.html", _nav(
         school, "dashboard", backups=backup.listing(), selected=name if backup.path_of(name) else "",
-        result=result, waiting=bool(name and backup.path_of(name) and result is None)))
+        result=result, waiting=bool(name and backup.path_of(name) and result is None),
+        successes=successes, chosen=chosen, recheck=input_diff.recheck(chosen) if chosen else None))

@@ -24,6 +24,7 @@ main() {
   echo "[2/3] Paketler ve veritabanı güncelleniyor..."
   python -m pip install -q -r requirements.txt
   python manage.py migrate --noinput >/dev/null
+  python manage.py yedekle >/dev/null 2>&1 || true
   echo "[3/3] Ders Programı çalışıyor: http://127.0.0.1:8000/  (kapatmak için Ctrl+C)"
   ( sleep 3; (command -v open >/dev/null && open http://127.0.0.1:8000/) || (command -v xdg-open >/dev/null && xdg-open http://127.0.0.1:8000/) ) >/dev/null 2>&1 &
   python manage.py runserver 127.0.0.1:8000
