@@ -6,16 +6,25 @@
 {% block content %}
 {% include "timetable/data/subnav.html" %}
 {% if entity.help %}<p class="page-lead">{{ entity.help }}</p>{% endif %}
-{% if rows %}<div class="list-tools"><input class="input" type="search" placeholder="{{ entity.title }} içinde ara…" aria-label="Ara" data-list-search><span class="subtle small" data-list-count></span></div>{% endif %}
+{% if rows %}<div class="list-tools"><input class="input" type="search" placeholder="{{ entity.title }} içinde ara…" aria-label="Ara" data-list-search>
+  {% if entity.slug == "kart-iliskileri" %}<select class="select select-sm" data-list-state aria-label="Durum"><option value="">Tümü</option><option value="1">Yalnız etkin</option><option value="0">Yalnız kapalı</option></select>{% endif %}
+  <span class="subtle small" data-list-count></span></div>{% endif %}
+{% if entity.slug == "kart-iliskileri" and rows %}<form method="post" id="bulk-form">{% csrf_token %}
+  <div class="bulk-bar"><span class="subtle small" data-bulk-count>Seçili ilişki yok</span>
+    <button class="btn btn-sm" name="action" value="ac" data-bulk-btn disabled>{% include "timetable/icon.html" with name="check" %} Seçilenleri aç</button>
+    <button class="btn btn-sm" name="action" value="kapat" data-bulk-btn disabled>Seçilenleri kapat</button>
+    <button type="button" class="btn btn-sm btn-ghost" data-bulk-clear>Seçimi temizle</button></div>
+</form>{% endif %}
 <div class="panel">
   {% if rows %}
   <div class="table-wrap">
     <table class="table" data-list>
-      <thead><tr>{% for h in headers %}<th>{{ h }}</th>{% endfor %}<th></th></tr></thead>
+      <thead><tr>{% if entity.slug == "kart-iliskileri" %}<th style="width:28px"><input type="checkbox" data-bulk-all aria-label="Görünenlerin hepsini seç"></th>{% endif %}{% for h in headers %}<th>{{ h }}</th>{% endfor %}<th></th></tr></thead>
       <tbody>
         {% for row in rows %}
           {% url 'timetable:data_edit' school.pk entity.slug row.obj.pk as edit_url %}
-          <tr class="row-link" data-href="{{ edit_url }}">
+          <tr class="row-link" data-href="{{ edit_url }}"{% if entity.slug == "kart-iliskileri" %} data-active="{{ row.obj.active|yesno:'1,0' }}"{% endif %}>
+            {% if entity.slug == "kart-iliskileri" %}<td><input type="checkbox" name="sec" value="{{ row.obj.pk }}" form="bulk-form" data-bulk aria-label="Seç"></td>{% endif %}
             {% for cell in row.cells %}<td>{% if forloop.first %}<a href="{{ edit_url }}"><b>{{ cell }}</b></a>{% else %}{{ cell }}{% endif %}</td>{% endfor %}
             <td class="num nowrap">
               {% if entity.slug == "siniflar" %}<a class="btn btn-sm" href="{% url 'timetable:class_lessons' school.pk row.obj.pk %}">Ders tablosu</a>{% endif %}
@@ -44,18 +53,54 @@
   const norm = (t) => t.toLocaleLowerCase("tr");
   rows.forEach((r) => { r.dataset.q = norm(r.textContent); });
   const search = document.querySelector("[data-list-search]");
+  const state = document.querySelector("[data-list-state]");
   const count = document.querySelector("[data-list-count]");
   const none = document.querySelector("[data-list-none]");
-  search.addEventListener("input", () => {
+  const filter = () => {
     const q = norm(search.value.trim());
+    const st = state ? state.value : "";
     let shown = 0;
-    rows.forEach((r) => { r.hidden = q && !r.dataset.q.includes(q); if (!r.hidden) shown++; });
-    count.textContent = q ? shown + " / " + rows.length : "";
+    rows.forEach((r) => {
+      r.hidden = (q && !r.dataset.q.includes(q)) || (st && r.dataset.active !== st);
+      if (!r.hidden) shown++;
+    });
+    count.textContent = q || st ? shown + " / " + rows.length : "";
     none.hidden = shown > 0;
-  });
+    syncAll();
+  };
+  // Toplu seçim (kart ilişkileri): başlıktaki kutu yalnızca görünen satırları seçer.
+  const all = document.querySelector("[data-bulk-all]");
+  const boxes = [...table.querySelectorAll("[data-bulk]")];
+  const bulkCount = document.querySelector("[data-bulk-count]");
+  function syncAll() {
+    if (!all) return;
+    const visible = boxes.filter((b) => !b.closest("tr").hidden);
+    const on = visible.filter((b) => b.checked).length;
+    all.checked = visible.length > 0 && on === visible.length;
+    all.indeterminate = on > 0 && on < visible.length;
+    const total = boxes.filter((b) => b.checked).length;
+    bulkCount.textContent = total ? total + " ilişki seçili" : "Seçili ilişki yok";
+    document.querySelectorAll("[data-bulk-btn]").forEach((b) => { b.disabled = !total; });
+  }
+  if (all) {
+    all.addEventListener("change", () => {
+      boxes.forEach((b) => { if (!b.closest("tr").hidden) b.checked = all.checked; });
+      syncAll();
+    });
+    boxes.forEach((b) => b.addEventListener("change", syncAll));
+    document.querySelector("[data-bulk-clear]").addEventListener("click", () => { boxes.forEach((b) => { b.checked = false; }); syncAll(); });
+    // Gizlenen (aramaya uymayan) seçili satırlar da gönderilir; sayaç bunu gösterir.
+    syncAll();
+  }
+  search.addEventListener("input", filter);
+  if (state) state.addEventListener("change", filter);
   // Satırın boş yerine tıklamak kaydı açar (bağlantı ve düğmeler kendi işini yapar).
   table.addEventListener("click", (e) => {
     if (e.target.closest("a, button, input")) return;
+    if (e.target.closest("td") && e.target.closest("td").querySelector("[data-bulk]")) {
+      const box = e.target.closest("td").querySelector("[data-bulk]");
+      box.checked = !box.checked; syncAll(); return;
+    }
     const row = e.target.closest("tr[data-href]");
     if (row) location.href = row.dataset.href;
   });

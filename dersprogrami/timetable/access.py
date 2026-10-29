@@ -323,7 +323,7 @@ ACTION_LABELS = {
     "school_settings": "Program ayarları/saatler", "lesson_new": "Ders ekledi", "lesson_edit": "Dersi düzenledi",
     "lesson_delete": "Ders sildi", "class_lessons": "Sınıf ders tablosu", "distribution_save": "Ders dağıtımı",
     "distribution_paste": "Ders dağıtımı (yapıştırma)", "copy_divisions": "Bölünme kopyaladı", "excel_import": "Excel'den veri aktardı",
-    "data_new": "Kayıt ekledi", "data_edit": "Kaydı düzenledi", "data_delete": "Kayıt sildi",
+    "data_list": "Kayıtları toplu düzenledi", "data_new": "Kayıt ekledi", "data_edit": "Kaydı düzenledi", "data_delete": "Kayıt sildi",
     "api_repair": "Bekleyenleri yerleştirdi", "api_undo": "Geri aldı", "api_redo": "Yineledi", "api_bulk": "Toplu işlem",
     "api_versions": "Versiyon kaydetti", "api_version": "Versiyon işlemi", "api_row_action": "Satır işlemi",
     "api_card_move": "Kart taşıdı", "api_card_unplace": "Kartı kaldırdı", "api_card_lock": "Kart kilidi",

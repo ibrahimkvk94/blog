@@ -52,3 +52,34 @@ class RelationshipEditorTests(TestCase):
         self.assertEqual(rel.note, "teori + uygulama")
         page = self.client.get(reverse("timetable:data_edit", args=[self.school.pk, "kart-iliskileri", rel.pk]))
         self.assertContains(page, f'name="lessons" value="{self.lessons[0].pk}"')
+
+
+class RelationshipBulkToggleTests(TestCase):
+    def setUp(self):
+        self.school = School.objects.create(name="MYO")
+        self.other = School.objects.create(name="Başka")
+        self.rels = [CardRelationship.objects.create(school=self.school, name=f"İlişki {i}", condition=CardRelationship.CONSECUTIVE)
+                     for i in range(3)]
+        self.foreign = CardRelationship.objects.create(school=self.other, name="Yabancı", condition=CardRelationship.CONSECUTIVE)
+        self.client.force_login(User.objects.create_superuser("admin", "a@x.tr", "pw"))
+        self.url = reverse("timetable:data_list", args=[self.school.pk, "kart-iliskileri"])
+
+    def test_list_has_bulk_controls(self):
+        page = self.client.get(self.url)
+        self.assertContains(page, "data-bulk-all")
+        self.assertContains(page, 'name="sec"', count=3)
+
+    def test_close_and_open_selected(self):
+        ids = [self.rels[0].pk, self.rels[1].pk, self.foreign.pk]
+        response = self.client.post(self.url, {"action": "kapat", "sec": ids}, follow=True)
+        self.assertContains(response, "2 ilişki kapatıldı")
+        states = dict(CardRelationship.objects.values_list("name", "active"))
+        self.assertEqual(states, {"İlişki 0": False, "İlişki 1": False, "İlişki 2": True, "Yabancı": True})
+        response = self.client.post(self.url, {"action": "ac", "sec": [r.pk for r in self.rels]}, follow=True)
+        self.assertContains(response, "2 ilişki açıldı")
+        self.assertContains(response, "1 ilişki zaten açıktı")
+        self.assertTrue(all(CardRelationship.objects.filter(school=self.school).values_list("active", flat=True)))
+
+    def test_nothing_selected(self):
+        response = self.client.post(self.url, {"action": "kapat"}, follow=True)
+        self.assertContains(response, "Önce en az bir ilişki seçin")

@@ -307,8 +307,27 @@ def _form_errors(form):
     }, status=400)
 
 
+def _bulk_relationships(request, school):
+    """Kart ilişkilerini toplu açar / kapatır."""
+    ids = [int(i) for i in request.POST.getlist("sec") if i.isdigit()]
+    active = request.POST.get("action") == "ac"
+    if not ids:
+        messages.error(request, "Önce en az bir ilişki seçin.")
+        return
+    chosen = CardRelationship.objects.filter(school=school, pk__in=ids)
+    changing = list(chosen.exclude(active=active).order_by("name").values_list("name", flat=True))
+    chosen.update(active=active)
+    same = chosen.count() - len(changing)
+    names = ", ".join(changing[:10]) + (f" … (+{len(changing) - 10})" if len(changing) > 10 else "")
+    messages.success(request, f"{len(changing)} ilişki {'açıldı' if active else 'kapatıldı'}" + (f": {names}." if names else ".")
+                     + (f" {same} ilişki zaten {'açıktı' if active else 'kapalıydı'}." if same else ""))
+
+
 def entity_list(request, pk, slug):
     school, entity = _school(pk), _entity(slug)
+    if request.method == "POST" and entity.model is CardRelationship and request.POST.get("action") in ("ac", "kapat"):
+        _bulk_relationships(request, school)
+        return redirect(request.get_full_path())
     qs = entity.model.objects.filter(school=school).order_by(*entity.order).prefetch_related(*entity.prefetch)
     if entity.model is Subject:
         qs = qs.annotate(n_lessons=Count("lesson"))

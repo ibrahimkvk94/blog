@@ -722,6 +722,8 @@ html.focus-mode .tray-body { max-height: 19vh; }
 /* ---- Kayıt tabloları ---- */
 .list-tools { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .list-tools .input { max-width: 320px; height: 34px; }
+.bulk-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; position: sticky; top: 0; z-index: 2; padding: 8px 10px; background: var(--surface, var(--bg)); border: 1px solid var(--border); border-radius: 10px; }
+.bulk-bar [data-bulk-count] { margin-right: auto; }
 .table tr.row-link { cursor: pointer; }
 .table tr.row-link:hover td { background: var(--surface-2); }
 .table tr[hidden] { display: none; }
