@@ -85,6 +85,7 @@ urlpatterns = [
     path("program/<int:pk>/bekleyenler/", views.pending_page, name="pending"),
     path("program/<int:pk>/derslik-dolulugu/", views.room_usage, name="room_usage"),
     path("program/<int:pk>/okul-iyilestir/", school_improve.improve_view, name="school_improve"),
+    path("program/<int:pk>/degisiklikler/", views.change_report, name="change_report"),
     path("api/program/<int:pk>/cozum-onizleme/<int:index>/", resolve.preview_api, name="api_resolve_preview"),
     path("program/<int:pk>/rapor/", views.report_render, name="report_render"),
     path("program/<int:pk>/rapor.xlsx", views.report_excel, name="report_excel"),

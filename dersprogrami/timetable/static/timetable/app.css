@@ -1137,3 +1137,23 @@ a.q-card.on { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary)
 .ra-viol > summary { cursor: pointer; list-style: none; display: inline-block; }
 .ra-viol > summary::-webkit-details-marker { display: none; }
 .ra-viol ul { margin: 6px 0 0; padding-left: 16px; color: var(--danger-strong); max-width: 420px; }
+
+/* ---- Değişiklikler ve bildirim ---- */
+.cr-source-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.cr-source-row select { max-width: 420px; }
+.cr-source-row .subtle { flex: 1; min-width: 260px; }
+.cr-recipients { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 16px; max-height: 220px; overflow-y: auto; }
+.cr-list { display: flex; flex-direction: column; gap: 12px; }
+.cr-teacher[hidden] { display: none; }
+.cr-table td { vertical-align: top; }
+.cr-removed td:last-child b { color: var(--danger-strong); }
+.cr-placed td:last-child b { color: var(--success); }
+@media print {
+  .sidebar, .topbar, .no-print, .messages, nav.subnav { display: none !important; }
+  .main, .content { margin: 0 !important; padding: 0 !important; }
+  body { background: #fff; }
+  .cr-teacher { break-after: page; page-break-after: always; border: 0; box-shadow: none; }
+  .cr-teacher:last-child { break-after: auto; page-break-after: auto; }
+  .cr-teacher .panel-head h2 { font-size: 18pt; }
+  .cr-table { font-size: 10.5pt; }
+}

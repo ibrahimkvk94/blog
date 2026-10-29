@@ -880,3 +880,28 @@ def lesson_refs(request, pk):
         timetable=timetable, timetables=[t for t in school.timetables.all() if t.has_grid],
         total=total, filled=filled,
     ))
+
+
+def change_report(request, pk):
+    """Sürüm karşılaştırma ve değişiklik bildirimi (change_report.py)."""
+    from . import change_report as cr, notify
+
+    timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
+    school = timetable.school
+    key = request.POST.get("kaynak") or request.GET.get("kaynak") or cr.default_source(timetable)
+    label, before = cr.resolve_source(timetable, key)
+    data = cr.describe(timetable, cr.compare(timetable, before)) if before is not None else None
+    if request.method == "POST" and data is not None:
+        ids = {int(x) for x in request.POST.getlist("ogretmen") if x.isdigit()}
+        link = ""
+        if school.publish_enabled and school.publish_token:
+            link = request.build_absolute_uri(reverse("timetable:public_index", args=[school.publish_token]))
+        sent, errors = cr.emails(school, data["groups"], ids, (request.POST.get("not") or "").strip()[:1000], link)
+        if sent:
+            messages.success(request, f"{sent} öğretmene değişiklik listesi gönderildi.")
+        for error in errors[:5]:
+            messages.warning(request, error)
+        return redirect(reverse("timetable:change_report", args=[timetable.pk]) + f"?kaynak={key}")
+    return render(request, "timetable/change_report.html", _nav(
+        school, "timetable", timetable=timetable, sources=cr.sources(timetable), source=key, source_label=label,
+        data=data, can_mail=notify.enabled(), print_mode=request.GET.get("yazdir") == "1"))

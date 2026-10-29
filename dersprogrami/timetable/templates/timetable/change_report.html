@@ -1,0 +1,78 @@
+{% extends "timetable/base.html" %}
+{% block title %}Değişiklikler · {{ timetable.name }}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{% url 'timetable:timetable_detail' timetable.pk %}">{{ timetable.name }}</a>{% endblock %}
+{% block heading %}<h1>Değişiklikler ve bildirim</h1>{% endblock %}
+{% block actions %}{% if data and data.changes %}<button type="button" class="btn" onclick="window.print()">{% include "timetable/icon.html" with name="printer" %} Yazdır / PDF</button>{% endif %}{% endblock %}
+{% block content %}
+<form method="get" class="panel panel-body cr-source no-print">
+  <label class="label" for="cr-src">Neye göre karşılaştırılsın?</label>
+  <div class="cr-source-row">
+    <select class="select" id="cr-src" name="kaynak" onchange="this.form.submit()">
+      {% if not source %}<option value="">— seçin —</option>{% endif %}
+      {% for s in sources %}<option value="{{ s.key }}"{% if s.key == source %} selected{% endif %}>{{ s.label }}</option>{% endfor %}
+    </select>
+    <span class="subtle small">“{{ timetable.name }}” programının seçilen programa ya da kayıtlı sürüme göre farkı. Yayındaki programla karşılaştırma, yayınlarsanız öğretmenler için ne değişeceğini gösterir; bir sürümle karşılaştırma ise o sürümden bu yana yapılan değişiklikleri (ör. çözüm merkezi önerisi, okul geneli iyileştirme) listeler.</span>
+  </div>
+</form>
+
+{% if data is None %}
+  <div class="panel panel-body">Karşılaştırılacak program ya da sürüm yok. Programın <b>Versiyonlar</b> panelinden sürüm kaydedin ya da başka bir program üretin.</div>
+{% elif not data.changes %}
+  <div class="panel panel-body"><b>Fark yok.</b> <span class="muted">“{{ timetable.name }}”, {{ source_label }} ile aynı.</span></div>
+{% else %}
+<div class="q-summary no-print">
+  <div class="q-card"><span>Değişen ders</span><b>{{ data.lessons }}</b><small>{{ data.changes }} kart</small></div>
+  <div class="q-card"><span>Etkilenen öğretmen</span><b>{{ data.teachers }}</b><small>{{ source_label }} → {{ timetable.name }}</small></div>
+</div>
+
+<form method="post" class="panel no-print" id="cr-mail" style="margin-bottom:16px">
+  {% csrf_token %}<input type="hidden" name="kaynak" value="{{ source }}">
+  <div class="panel-head"><h2>Öğretmenlere bildir</h2>{% if not can_mail %}<span class="pill">e-posta sunucusu ayarlı değil</span>{% endif %}</div>
+  <div class="panel-body">
+    {% if can_mail %}
+      <p class="small subtle" style="margin-top:0">Her öğretmene yalnızca kendi değişiklikleri gider. E-postası olmayan öğretmenler için listeyi yazdırın.</p>
+      <div class="cr-recipients">
+        {% for g in data.groups %}{% if g.teacher %}
+          <label class="check small"><input type="checkbox" name="ogretmen" value="{{ g.teacher.pk }}"{% if g.email %} checked{% else %} disabled{% endif %}> <span>{{ g.name }} <span class="subtle">({{ g.items|length }}{% if not g.email %} · e-posta yok{% endif %})</span></span></label>
+        {% endif %}{% endfor %}
+      </div>
+      <input class="input" name="not" placeholder="Ek not (ör. Değişiklikler 3 Kasım Pazartesi'den itibaren geçerlidir.)" style="margin-top:10px">
+      <button class="btn btn-primary" style="margin-top:10px">{% include "timetable/icon.html" with name="check" %} Seçili öğretmenlere gönder</button>
+    {% else %}
+      <p class="small" style="margin:0">E-posta ayarlanmadığı için liste yazdırılarak dağıtılabilir: <b>Yazdır / PDF</b> her öğretmeni ayrı sayfaya basar.</p>
+    {% endif %}
+  </div>
+</form>
+
+<div class="no-print" style="margin-bottom:10px"><input class="input input-sm" type="search" placeholder="Öğretmen ya da ders ara…" data-cr-search style="max-width:300px"></div>
+<div class="cr-list">
+  {% for g in data.groups %}
+    <section class="panel cr-teacher" data-text="{{ g.name|lower }} {% for i in g.items %}{{ i.subject|lower }} {{ i.classes|lower }} {% endfor %}">
+      <div class="panel-head"><h2>{{ g.name }}</h2><span class="subtle small">{{ g.items|length }} değişiklik · {{ school }} · {{ timetable.name }}</span></div>
+      <div class="panel-body flush table-wrap">
+        <table class="table cr-table">
+          <thead><tr><th>Ders</th><th>Sınıf</th><th>Eski yeri</th><th></th><th>Yeni yeri</th></tr></thead>
+          <tbody>{% for i in g.items %}
+            <tr class="cr-{{ i.kind }}"><td><b>{{ i.subject }}</b><div class="subtle small">{{ i.subject_name }}</div></td><td>{{ i.classes }}</td>
+              <td>{% if i.kind == "placed" %}<span class="subtle">yerleşmemişti</span>{% else %}{{ i.before }}{% endif %}</td><td>→</td>
+              <td><b>{% if i.kind == "removed" %}programdan çıkarıldı{% else %}{{ i.after }}{% endif %}</b>{% if i.kind == "room" %} <span class="pill">derslik</span>{% endif %}</td></tr>
+          {% endfor %}</tbody>
+        </table>
+      </div>
+    </section>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const search = document.querySelector("[data-cr-search]");
+  if (!search) return;
+  search.addEventListener("input", () => {
+    const q = search.value.trim().toLocaleLowerCase("tr");
+    document.querySelectorAll(".cr-teacher").forEach((s) => { s.hidden = q && !s.dataset.text.includes(q); });
+  });
+})();
+</script>
+{% endblock %}
