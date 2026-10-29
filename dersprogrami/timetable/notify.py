@@ -102,25 +102,46 @@ def publish_notices(school, old, new, link=""):
     return sent, no_mail, errors
 
 
-def substitution_notices(absence, substitutions):
-    """Yeni atanan vekillere ders bilgisi. substitutions: Substitution nesneleri. Dönüş: (gönderilen, hatalar)."""
+def substitution_notices(absence, substitutions, released=()):
+    """Vekâlet değişiklikleri: yeni vekile görev, görevden alınan önceki vekile iptal, etkilenen sınıfların sınıf
+    öğretmenine özet. substitutions: değişen Substitution nesneleri; released: [(önceki vekil Teacher, Substitution)].
+    Dönüş: (gönderilen, hatalar)."""
     school = absence.school
-    by_teacher = defaultdict(list)
+    date = f"{absence.date:%d.%m.%Y}"
+    periods = {p.index: p for p in school.periods.all()}
+    weekday = absence.date.weekday()
+
+    def line(sub):
+        card = sub.card
+        period = periods.get(sub.period)
+        when = f"{sub.period + 1}. saat" + (f" ({period.span(weekday)})" if period and period.span(weekday) else "")
+        classes = ", ".join(c.short or c.name for c in card.lesson.classes.all())
+        return f"{when} · {card.lesson.subject.name} · {classes}" + (f" · {card.classroom}" if card.classroom_id else "")
+
+    def mail(teacher, subject, intro, lines):
+        body = f"Sayın {teacher.full_name},\n\n{intro}\n\n" + "\n".join(f"• {x}" for x in sorted(lines)) + "\n"
+        return EmailMessage(f"{subject} {date} – {school}", body, to=[teacher.email])
+
+    assigned, cancelled, classes = defaultdict(list), defaultdict(list), defaultdict(list)
     for sub in substitutions:
         if sub.substitute_id and sub.substitute.email:
-            card = sub.card
-            classes = ", ".join(c.short or c.name for c in card.lesson.classes.all())
-            by_teacher[sub.substitute].append(f"{sub.period + 1}. saat · {card.lesson.subject.name} · {classes}"
-                                              + (f" · {card.classroom}" if card.classroom_id else ""))
-    messages = [
-        EmailMessage(
-            f"Vekâlet görevi {absence.date:%d.%m.%Y} – {school}",
-            f"Sayın {teacher.full_name},\n\n{absence.date:%d.%m.%Y} günü {absence.teacher.full_name} yerine şu derslere "
-            f"girmeniz rica olunur:\n\n" + "\n".join(f"• {line}" for line in sorted(lines)) + "\n",
-            to=[teacher.email],
-        )
-        for teacher, lines in by_teacher.items()
-    ]
+            assigned[sub.substitute].append(line(sub))
+        for cls in sub.card.lesson.classes.all():
+            teacher = cls.class_teacher
+            if teacher and teacher.email and teacher.id not in (absence.teacher_id, sub.substitute_id):
+                who = sub.substitute.full_name if sub.substitute_id else "vekil yok, ders boş geçecek"
+                classes[teacher].append(f"{line(sub)} → {who}")
+    for teacher, sub in released:
+        if teacher is not None and teacher.email and teacher.id != sub.substitute_id:
+            cancelled[teacher].append(line(sub))
+    messages = (
+        [mail(t, "Vekâlet görevi", f"{date} günü {absence.teacher.full_name} yerine şu derslere girmeniz rica olunur:", lines)
+         for t, lines in assigned.items()]
+        + [mail(t, "Vekâlet görevi iptal", f"{date} günü şu derslerdeki vekâlet göreviniz kaldırıldı:", lines)
+           for t, lines in cancelled.items()]
+        + [mail(t, "Sınıfınızda vekâlet", f"{date} günü {absence.teacher.full_name} okulda olmayacak; sınıfınızdaki dersler:", lines)
+           for t, lines in classes.items()]
+    )
     if not messages or not enabled():
         return 0, []
     return _send(messages)

@@ -434,12 +434,14 @@ def substitutions(request, pk):
 
                 changed = [
                     sub for sub in absence.substitutions.select_related("substitute", "card__lesson__subject", "card__classroom")
-                    .prefetch_related("card__lesson__classes")
-                    if sub.substitute_id and before.get(sub.id) != sub.substitute_id
+                    .prefetch_related("card__lesson__classes__class_teacher")
+                    if before.get(sub.id) != sub.substitute_id  # yeni atanan, değişen ya da kaldırılan
                 ]
-                sent, errors = notify.substitution_notices(absence, changed)
+                previous = Teacher.objects.in_bulk([before[sub.id] for sub in changed if before.get(sub.id)])
+                released = [(previous.get(before.get(sub.id)), sub) for sub in changed if before.get(sub.id)]
+                sent, errors = notify.substitution_notices(absence, changed, released)
                 if sent:
-                    messages.info(request, f"{sent} vekil öğretmene e-posta gönderildi.")
+                    messages.info(request, f"{sent} öğretmene e-posta gönderildi (vekil, görevi kaldırılan ve sınıf öğretmenleri).")
                 for e in errors[:5]:
                     messages.warning(request, e)
         return redirect(f"{reverse('timetable:substitutions', args=[school.pk])}?tarih={date.isoformat()}")
