@@ -78,6 +78,8 @@ class Solution:
     penalties: dict[str, int] = field(default_factory=dict)
     stats: dict = field(default_factory=dict)
     teacher_choice: dict[int, int] = field(default_factory=dict)  # havuzdaki ders -> seçilen öğretmen
+    # Gevşek modda esnetilen sert kurallar: [{"rule": anahtar, "label": ad, "amount": aşım}], en çok aşılan önce
+    relaxed_rules: list = field(default_factory=list)
 
     @property
     def ok(self):
@@ -85,9 +87,11 @@ class Solution:
 
 
 class _Builder:
-    def __init__(self, problem, mode=STRICT, explain=False, active=None):
+    def __init__(self, problem, mode=STRICT, explain=False, active=None, place_all=False):
         self.problem = problem
         self.relaxed = mode == RELAXED
+        # Tanı için: gevşek modda kurallar esner ama her kart yine yerleşmek zorundadır.
+        self.place_all = place_all
         # Açıklama modu: amaç yoktur; sert kurallar adlandırılır ve yalnızca `active` kümesindekiler
         # eklenir (None = hepsi). Böylece kuralların her alt kümesi ayrı bir modelle denenebilir.
         self.explain = explain
@@ -98,6 +102,7 @@ class _Builder:
         self.occ = {}  # key -> {(d, s): [var, ...]}
         self.y = {}  # key -> {room: var | 1}
         self.penalties = []  # (kategori, ağırlık, ifade)
+        self.relaxed_slacks = []  # gevşek modda sert kuralın aşımı: (kural anahtarı, ad, ifade)
         self.room_usage = {}  # derslik -> {(kart, hücre): 0/1 ifadesi}
         self._busy_cache = {}
         self.z = {}  # havuzdaki ders -> {öğretmen: var}
@@ -134,6 +139,7 @@ class _Builder:
         self.m.Add(sum(variables) + constant <= limit + slack)
         if hard:
             self._penalize("relaxed", W_RELAXED, slack)
+            self.relaxed_slacks.append((rule, label, slack))
         else:
             self._penalize(category, weight, slack)
 
@@ -155,6 +161,7 @@ class _Builder:
         self.m.Add(expr + slack >= n * condition)
         if hard:
             self._penalize("relaxed", W_RELAXED, slack)
+            self.relaxed_slacks.append((rule, label, slack))
         else:
             self._penalize(category, weight, slack)
 
@@ -179,6 +186,7 @@ class _Builder:
             self.m.Add(v == 0)
         elif hard:
             self._penalize("relaxed", W_RELAXED, v)
+            self.relaxed_slacks.append((rule, label, v))
         else:
             self._penalize("relationship", weight, v)
 
@@ -267,7 +275,7 @@ class _Builder:
                     label = f"{self.problem.label('lesson', card.lesson_id)}: kilitli kart ({d + 1}. gün, {p + 1}. saat)"
                     if self._enforced(("locked", card.key), label):
                         self.m.Add(xs[card.fixed] == 1)
-            if self.relaxed and card.fixed is None:
+            if self.relaxed and card.fixed is None and not self.place_all:
                 self.m.AddAtMostOne(xs.values())
                 self._penalize("unplaced", W_UNPLACED, 1 - sum(xs.values()))
             else:
@@ -844,8 +852,9 @@ def solve(
     should_stop=None,
     stop_handle=None,
     two_phase=None,
+    place_all=False,
 ):
-    builder = _Builder(problem, mode)
+    builder = _Builder(problem, mode, place_all=place_all)
     model = builder.build()
     started = time.monotonic()
     phase1 = first = callback1 = None
@@ -913,6 +922,16 @@ def solve(
             if value:
                 totals[category] = totals.get(category, 0) + weight * value
         solution.penalties = totals
+    if builder.relaxed_slacks:
+        totals, labels = {}, {}
+        for rule, label, expr in builder.relaxed_slacks:
+            value = expr if isinstance(expr, int) else solver.Value(expr)
+            if value:
+                key = rule if rule is not None else label
+                totals[key] = totals.get(key, 0) + value
+                labels.setdefault(key, label or str(rule))
+        solution.relaxed_rules = [{"rule": k, "label": labels[k], "amount": n}
+                                  for k, n in sorted(totals.items(), key=lambda kv: -kv[1])]
     for lesson_id, zs in builder.z.items():
         solution.teacher_choice[lesson_id] = next(t for t, var in zs.items() if solver.Value(var))
     for card in problem.cards:

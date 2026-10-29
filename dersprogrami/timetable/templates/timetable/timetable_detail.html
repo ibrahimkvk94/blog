@@ -69,6 +69,7 @@
     <div class="panel-head"><h2>Program üretilemedi</h2></div>
     <div class="panel-body">
       {% if timetable.report.error %}<div class="alert alert-error">{{ timetable.report.error }}</div>{% endif %}
+      {% if timetable.report.diagnosis %}{% include "timetable/diagnosis.html" with d=timetable.report.diagnosis %}{% endif %}
       {% with c=timetable.report.conflict %}{% if c %}
         <div class="conflict">
           {% if c.status == "core" %}
@@ -96,6 +97,19 @@
     </div>
   </div>
 {% else %}
+  {% with sf=timetable.report.strict_failed %}{% if sf %}
+    <details class="panel diag-banner" open>
+      <summary><span class="diag-icon">{% include "timetable/icon.html" with name="alert" %}</span>
+        <span><b>Katı modda program bulunamadı</b> ({% if sf.status == "infeasible" %}bu kurallarla imkânsız{% else %}süre içinde bulunamadı{% endif %}). Aşağıdaki kurallar esnetilerek <b>en yakın taslak</b> üretildi; düzeltip yeniden üretin.</span></summary>
+      <div class="panel-body">
+        {% with c=timetable.report.conflict %}{% if c.status == "core" %}
+          <div class="alert alert-error"><b>Birlikte sağlanamayan kurallar{% if c.minimal %} (herhangi birini gevşetmek yeter){% endif %}:</b>
+            {% for rule in c.rules %}{% if rule.url %}<a href="{{ rule.url }}">{{ rule.label }}</a>{% else %}{{ rule.label }}{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</div>
+        {% endif %}{% endwith %}
+        {% include "timetable/diagnosis.html" with d=timetable.report.diagnosis %}
+      </div>
+    </details>
+  {% endif %}{% endwith %}
   {% with pools=timetable.report.pools %}{% if pools.pools %}
     <div class="pool-note">{% include "timetable/icon.html" with name="users" %}
       <span><b>Öğretmen havuzu</b> bu üretimde kısımları dağıttı{% if pools.changed %} · <b>{{ pools.changed }}</b> kısmın öğretmeni değişti{% endif %}:

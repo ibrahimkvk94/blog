@@ -1,0 +1,35 @@
+{# Katı mod tanısı: esnetilen kurallar, sığmayan kartlar ve öneriler. d = report.diagnosis #}
+<div class="diag">
+  {% if not d.found %}
+    <p class="muted">Kurallar esnetilse bile tanı süresinde bir taslak bulunamadı. Bu genellikle müsaitliklerin ya da sabit kartların çok dar olduğunu gösterir: gevşek modda daha uzun süreyle üretmeyi deneyin.</p>
+  {% else %}
+    <div class="diag-summary">
+      <div><b>{{ d.rule_count }}</b><span>esnetilen kural</span></div>
+      <div><b>{{ d.relaxed_total }}</b><span>toplam aşım</span></div>
+      <div><b>{{ d.unplaced_hours }}</b><span>sığmayan ders saati</span></div>
+    </div>
+    {% if d.main %}
+      <h3>Asıl neden</h3>
+      <ul class="diag-main">
+        {% for r in d.main %}<li><div><b>{% if r.url %}<a href="{{ r.url }}">{{ r.label }}</a>{% else %}{{ r.label }}{% endif %}</b>
+          <span class="subtle small">{{ r.amount }} saat/kez aşıldı{% if r.count > 1 %} · {{ r.count }} yerde{% endif %}{% if r.examples %} (ör. {{ r.examples|join:", " }}){% endif %}</span></div>
+          <span class="diag-hint">Bu kuralı gevşetin (sınırı artırın, önemini “yüksek”e düşürün) ya da pasif yapın; program büyük olasılıkla bulunur.</span></li>{% endfor %}
+      </ul>
+    {% endif %}
+    {% if d.secondary %}
+      <details class="diag-more"{% if not d.main %} open{% endif %}><summary>{% if d.main %}Taslakta ayrıca esnetilenler{% else %}Esnetilen kurallar{% endif %} ({{ d.secondary|length }})</summary>
+        <p class="subtle small">Bunların çoğu tanı süresinde düzeltilemeyen küçük aşımlardır; asıl neden giderilince genellikle kendiliğinden kalkar.</p>
+        <ol class="diag-list">{% for r in d.secondary %}<li><span>{% if r.url %}<a href="{{ r.url }}">{{ r.label }}</a>{% else %}{{ r.label }}{% endif %}{% if r.count > 1 %} <span class="subtle small">({{ r.count }} yerde)</span>{% endif %}</span><b>{{ r.amount }}</b></li>{% endfor %}</ol>
+      </details>
+    {% endif %}
+    {% if d.unplaced %}
+      <h3>Hiçbir yere sığmayan dersler</h3>
+      <p class="subtle small" style="margin-top:0">Bu dersler için öğretmenin, sınıfın ya da dersliğin uygun saati kalmıyor. Müsaitlikleri açmak, dersi bölmek (kart dağılımı) ya da başka öğretmene vermek gerekir.</p>
+      <ul class="diag-chips">{% for u in d.unplaced %}<li>{{ u.label }} <b>{{ u.hours }} saat</b></li>{% endfor %}</ul>
+      {% if d.teachers %}<p class="small">En çok etkilenen öğretmenler: {% for t in d.teachers %}<b>{{ t.label }}</b> ({{ t.hours }} saat){% if not forloop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+    {% endif %}
+    {% if not d.main and not d.secondary and not d.unplaced %}
+      <p class="muted">Taslakta hiçbir kural esnetilmedi: kurallar birlikte sağlanabiliyor, katı modda süre yetmedi. Süreyi artırın ya da bu taslağı başlangıç sürümü seçerek yeniden üretin.</p>
+    {% endif %}
+  {% endif %}
+</div>

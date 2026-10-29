@@ -100,7 +100,9 @@
       $("#run-elapsed").textContent = Math.round(s.elapsed) + " sn";
       $("#run-solutions").textContent = p.solutions || 0;
       $("#run-objective").textContent = p.objective != null ? p.objective.toLocaleString("tr-TR") : "–";
-      $("#run-text").textContent = p.phase === "explain"
+      $("#run-text").textContent = p.phase === "diagnose"
+        ? "Katı modda program bulunamadı; nedenini bulmak için kurallar esnetilerek en yakın taslak aranıyor…" + (p.solutions ? " (" + p.solutions + " taslak)" : "")
+        : p.phase === "explain"
         ? "Bu kurallarla program mümkün değil; hangi kuralların çeliştiği aranıyor…"
         : p.phase === "feasible"
         ? "Geçerli bir program bulundu (" + p.elapsed + " sn); şimdi boşluklar ve tercihler iyileştiriliyor…"

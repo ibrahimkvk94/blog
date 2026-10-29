@@ -1,5 +1,6 @@
 """Uygulama katmanı: denetim, üretim ve doğrulama işlemlerini veritabanına bağlar."""
 
+from collections import defaultdict
 from datetime import timedelta
 
 from django.conf import settings
@@ -103,16 +104,58 @@ def run_generation(timetable_id, base_id=None, seed=0):
     report["penalties"] = solution.penalties
     if not solution.ok:
         if solution.status == "unknown":
-            report["error"] = "Süre sınırı içinde çözüm bulunamadı. Süreyi artırın ya da gevşek modu deneyin."
+            report["error"] = "Süre sınırı içinde tüm kuralları sağlayan bir program bulunamadı."
         elif solution.status == "infeasible":
             report["error"] = "Bu verilerle tüm kuralları sağlayan bir program yok."
             jobs.set_progress(timetable_id, {"phase": "explain"})
             report["conflict"] = explain_conflict(
                 timetable.school, problem, time_limit=min(180, max(60, timetable.time_limit)), known_infeasible=True
             )
-        _finish(timetable, Timetable.FAILED, report)
-        return
+        stopped = solution.stats.get("stopped") or jobs.handle_for(timetable_id).stopped
+        if solution.status in ("unknown", "infeasible") and not relaxed and not stopped:
+            # Tanı: kurallar ağır cezalı esnetilerek en yakın taslak aranır; hangi kuralların ne kadar
+            # esnetildiği ve hangi kartların sığmadığı "neden" raporu olur, taslak da açılabilir program olarak kalır.
+            # Önce her kart yerleşmek zorunda, yalnızca kurallar esner ("hangi kural esnemeli?" sorusunun cevabı);
+            # kartlar o şekilde de sığmıyorsa tam gevşek mod (sığmayan kartlar da bekler).
+            jobs.set_progress(timetable_id, {"phase": "diagnose"})
+            budget = min(240, max(60, timetable.time_limit // 3))
+            progress = lambda p: jobs.set_progress(timetable_id, {**p, "phase": "diagnose"})  # noqa: E731
+            draft = cpsat.solve(problem, time_limit=budget, seed=seed, mode=Timetable.RELAXED, place_all=True,
+                                stop_handle=jobs.handle_for(timetable_id), on_progress=progress)
+            if not draft.ok and not jobs.handle_for(timetable_id).stopped:
+                draft = cpsat.solve(problem, time_limit=budget, seed=seed, mode=Timetable.RELAXED,
+                                    stop_handle=jobs.handle_for(timetable_id), on_progress=progress)
+            report["diagnosis"] = diagnosis(timetable.school, problem, solution.status, draft)
+            if draft.ok:
+                report["strict_failed"] = {"status": solution.status, "error": report.pop("error")}
+                report["solver"] = {"status": draft.status, **draft.stats, "strict": report["solver"]}
+                report["penalties"] = draft.penalties
+                Timetable.objects.filter(pk=timetable.pk).update(mode=Timetable.RELAXED)
+                solution = draft
+        if not solution.ok:
+            _finish(timetable, Timetable.FAILED, report)
+            return
 
+    _retry_locked(lambda: _save_result(timetable, problem, solution, report))
+
+
+def _retry_locked(func, attempts=8):
+    """SQLite'ta aynı anda biten iki üretimin kaydı çakışırsa ("database is/table is locked") iş asılı kalmasın:
+    kısa aralıklarla yeniden dener (işlem atomik olduğundan yarım kayıt kalmaz)."""
+    import time
+
+    from django.db import OperationalError
+
+    for attempt in range(attempts):
+        try:
+            return func()
+        except OperationalError as exc:
+            if "locked" not in str(exc) or attempt == attempts - 1:
+                raise
+            time.sleep(0.25 * (attempt + 1))
+
+
+def _save_result(timetable, problem, solution, report):
     with transaction.atomic():
         cards = []
         for card in problem.cards:
@@ -295,6 +338,41 @@ def _rule_url(school, problem, key):
             return reverse("timetable:lesson_edit", args=[school.pk, entity_id])
         return reverse("timetable:data_edit", args=[school.pk, ENTITY_PAGES[entity_kind], entity_id])
     return ""
+
+
+def diagnosis(school, problem, strict_status, draft):
+    """Katı modda bulunamayan programın nedeni: gevşek taslakta esnetilen kurallar (ne kadar) ve sığmayan kartlar."""
+    # Aynı kuralın sınıf/ders kopyaları ("aSc 3: Art arda … – BİL121 (57SVN)", "… (58SVN)") tek satırda toplanır.
+    groups = {}
+    for r in draft.relaxed_rules if draft.ok else []:
+        name = r["label"].split(" – ")[0]
+        g = groups.setdefault(name, {"label": name, "amount": 0, "count": 0, "examples": [],
+                                     "url": _rule_url(school, problem, r["rule"]) if isinstance(r["rule"], tuple) else ""})
+        g["amount"] += r["amount"]
+        g["count"] += 1
+        if " – " in r["label"] and len(g["examples"]) < 4:
+            g["examples"].append(r["label"].split(" – ", 1)[1])
+    rules = sorted(groups.values(), key=lambda g: -g["amount"])
+    total = sum(g["amount"] for g in rules)
+    for g in rules:
+        # Toplam aşımın en az beşte birini tek başına oluşturan kural asıl nedendir; gerisi ikincil.
+        g["main"] = total > 0 and g["amount"] * 5 >= total
+    unplaced = defaultdict(int)
+    who = defaultdict(int)
+    by_key = {c.key: c for c in problem.cards}
+    for key in draft.unplaced if draft.ok else []:
+        card = by_key[key]
+        unplaced[problem.label("lesson", card.lesson_id)] += card.length
+        for t in card.teachers:
+            who[problem.label("teacher", t)] += card.length
+    return {
+        "strict_status": strict_status, "found": draft.ok, "rules": rules[:60], "rule_count": len(rules),
+        "relaxed_total": total, "main": [g for g in rules if g["main"]][:6],
+        "secondary": [g for g in rules if not g["main"]][:60],
+        "unplaced": [{"label": k, "hours": n} for k, n in sorted(unplaced.items(), key=lambda kv: -kv[1])][:30],
+        "unplaced_hours": sum(unplaced.values()),
+        "teachers": [{"label": k, "hours": n} for k, n in sorted(who.items(), key=lambda kv: -kv[1])][:10],
+    }
 
 
 def explain_conflict(school, problem, time_limit=60, known_infeasible=False):

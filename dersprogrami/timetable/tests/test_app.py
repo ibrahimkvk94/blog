@@ -95,7 +95,11 @@ class DemoSchoolTests(TestCase):
         teacher.max_periods_per_day = 2
         teacher.save()
         timetable = generate_timetable(self.school, "açıklama", time_limit=20)
-        self.assertEqual(timetable.status, Timetable.FAILED)
+        # Katı modda imkânsız: neden açıklanır ve kurallar esnetilerek en yakın taslak kaydedilir.
+        timetable.refresh_from_db()
+        self.assertEqual(timetable.report["strict_failed"]["status"], "infeasible")
+        self.assertEqual(timetable.mode, Timetable.RELAXED)
+        self.assertIn("Elif Şahin: günde en fazla 2 ders", [g["label"] for g in timetable.report["diagnosis"]["main"]])
         conflict = timetable.report["conflict"]
         self.assertEqual(conflict["status"], "core")
         labels = sorted(rule["label"] for rule in conflict["rules"])
@@ -103,7 +107,9 @@ class DemoSchoolTests(TestCase):
         self.assertTrue(all(rule["url"].endswith(f"/ogretmenler/{teacher.pk}/") for rule in conflict["rules"]))
         user = User.objects.create_superuser("aciklama", password="parola-123456")
         self.client.force_login(user)
-        self.assertContains(self.client.get(reverse("timetable:timetable_detail", args=[timetable.pk])), "Neden çözülemiyor?")
+        page = self.client.get(reverse("timetable:timetable_detail", args=[timetable.pk]))
+        self.assertContains(page, "Birlikte sağlanamayan kurallar")
+        self.assertContains(page, "Asıl neden")
 
     def test_teacher_days_conflict_is_reported_before_solving(self):
         teacher = self.school.teachers.get(short="AYI")

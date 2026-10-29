@@ -55,7 +55,7 @@ code { font-size: 12.5px; background: var(--surface-2); padding: 1px 5px; border
 .sidebar-foot { margin-top: auto; font-size: 12px; color: #6b7590; padding: 0 8px; }
 .main { min-width: 0; display: flex; flex-direction: column; }
 .topbar { display: flex; align-items: center; gap: 16px; padding: 18px 28px 14px; flex-wrap: wrap; }
-.topbar-title { flex: 1; min-width: 0; }
+.topbar-title { flex: 1; min-width: min(340px, 100%); }
 .nav-toggle { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-2); cursor: pointer; }
 .nav-toggle:hover { color: var(--text); border-color: var(--border-strong); }
 .nav-toggle svg { width: 18px; height: 18px; }
@@ -1489,3 +1489,24 @@ td.empty, td.subtle[colspan] { text-align: center; padding: 22px 12px; color: va
 .dp-new summary { cursor: pointer; font-weight: 600; font-size: 13px; color: var(--primary); }
 .dp-new-form { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
 .dp-new-form [data-dp-new-name] { grid-column: 1 / -1; }
+
+/* ---- Katı mod tanısı ---- */
+.diag-banner { margin-bottom: 14px; border-left: 4px solid var(--warning); }
+.diag-banner > summary { display: flex; gap: 10px; align-items: flex-start; padding: 12px 16px; cursor: pointer; list-style: none; }
+.diag-banner > summary::-webkit-details-marker { display: none; }
+.diag-icon { color: var(--warning); flex: none; } .diag-icon svg { width: 18px; height: 18px; }
+.diag h3 { font-size: 14px; margin: 16px 0 8px; }
+.diag-summary { display: flex; gap: 10px; flex-wrap: wrap; }
+.diag-summary > div { display: flex; flex-direction: column; padding: 8px 14px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border); min-width: 120px; }
+.diag-summary b { font-size: 20px; } .diag-summary span { font-size: 12px; color: var(--text-2); }
+.diag-list { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; }
+.diag-list li span { display: inline; }
+.diag-list li b { margin-left: 8px; color: var(--danger-strong); font-size: 12.5px; white-space: nowrap; }
+.diag-chips { list-style: none; padding: 0; margin: 0 0 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+.diag-chips li { padding: 4px 10px; border-radius: 999px; background: var(--danger-soft); font-size: 12.5px; }
+.diag-main { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.diag-main li { padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); border-left: 4px solid var(--danger-strong); background: var(--surface); }
+.diag-main li > div { display: flex; flex-direction: column; gap: 2px; }
+.diag-hint { display: block; margin-top: 6px; font-size: 12.5px; color: var(--text-2); }
+.diag-more { margin-top: 12px; }
+.diag-more summary { cursor: pointer; font-weight: 600; font-size: 13px; }
