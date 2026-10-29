@@ -52,31 +52,6 @@
     if (toggle) toggle.parentElement.classList.toggle("open");
   });
 
-  // ---- üretim sürüyor ekranı ----------------------------------------------------------------
-  if (cfg.running) {
-    const poll = async () => {
-      let s;
-      try { s = await api(cfg.statusUrl); } catch (e) { setTimeout(poll, 3000); return; }
-      if (s.status !== "running") { location.reload(); return; }
-      const p = s.progress || {};
-      const pct = Math.min(100, Math.round((s.elapsed / Math.max(1, s.time_limit)) * 100));
-      $("#run-bar").style.width = pct + "%";
-      $("#run-elapsed").textContent = Math.round(s.elapsed) + " sn";
-      $("#run-solutions").textContent = p.solutions || 0;
-      $("#run-objective").textContent = p.objective != null ? p.objective.toLocaleString("tr-TR") : "–";
-      $("#run-text").textContent = p.phase === "explain"
-        ? "Bu kurallarla program mümkün değil; hangi kuralların çeliştiği aranıyor…"
-        : p.phase === "feasible"
-        ? "Geçerli bir program bulundu (" + p.elapsed + " sn); şimdi boşluklar ve tercihler iyileştiriliyor…"
-        : p.solutions
-        ? "Geçerli bir program bulundu; ceza puanı düşürülüyor. İstediğiniz an durdurup en iyisini alabilirsiniz."
-        : "İlk geçerli program aranıyor…";
-      setTimeout(poll, 1500);
-    };
-    poll();
-    return;
-  }
-  if (!cfg.hasGrid) return;
 
   // Bugünün gün sırası (Pazartesi = 0).
   function todayIndex() {
@@ -104,6 +79,40 @@
     preview: null,  // çözüm merkezi önizlemesi: {index, total, moves, ...}
     view: Object.assign({ title: "code", line: "auto", color: "subject", stripes: true }, readJSON(store("tt-view"))),
   };
+
+  // ---- üretim sürüyor ekranı -------------------------------------------------------------
+  // state'ten sonra olmalı: api() her isteğe state.kind ekler (önce çağrılırsa sorgu hiç gitmez).
+  if (cfg.running) {
+    let failures = 0;
+    const poll = async () => {
+      let s;
+      try { s = await api(cfg.statusUrl); } catch (e) {
+        failures += 1;
+        if (failures >= 3) $("#run-text").textContent = "Üretim durumu alınamıyor (" + e.message + "); yeniden deneniyor…";
+        setTimeout(poll, 3000);
+        return;
+      }
+      failures = 0;
+      if (s.status !== "running") { location.reload(); return; }
+      const p = s.progress || {};
+      const pct = Math.min(100, Math.round((s.elapsed / Math.max(1, s.time_limit)) * 100));
+      $("#run-bar").style.width = pct + "%";
+      $("#run-elapsed").textContent = Math.round(s.elapsed) + " sn";
+      $("#run-solutions").textContent = p.solutions || 0;
+      $("#run-objective").textContent = p.objective != null ? p.objective.toLocaleString("tr-TR") : "–";
+      $("#run-text").textContent = p.phase === "explain"
+        ? "Bu kurallarla program mümkün değil; hangi kuralların çeliştiği aranıyor…"
+        : p.phase === "feasible"
+        ? "Geçerli bir program bulundu (" + p.elapsed + " sn); şimdi boşluklar ve tercihler iyileştiriliyor…"
+        : p.solutions
+        ? "Geçerli bir program bulundu; ceza puanı düşürülüyor. İstediğiniz an durdurup en iyisini alabilirsiniz."
+        : "İlk geçerli program aranıyor…";
+      setTimeout(poll, 1500);
+    };
+    poll();
+    return;
+  }
+  if (!cfg.hasGrid) return;
 
   async function load() {
     try {
