@@ -740,8 +740,8 @@ def school_create(request):
         with transaction.atomic():
             school = form.save()
             default_periods(school)
-        messages.success(request, "Okul oluşturuldu. Ders saatlerini kontrol edip ders adlarını girerek başlayın.")
-        return redirect("timetable:school_settings", pk=school.pk)
+        messages.success(request, "Okul oluşturuldu. Kurulum sihirbazı verileri adım adım ister.")
+        return redirect("timetable:setup_wizard_start", pk=school.pk)
     return render(request, "timetable/data/settings.html", {"form": form, "formset": None, "creating": True})
 
 

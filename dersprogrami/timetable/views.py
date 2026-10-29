@@ -157,7 +157,10 @@ def _dashboard(request, school, main, timetables, errors):
     nxt = board["next"]
     if errors:
         nxt.append(("error", f"Veri denetiminde {errors} hata var; üretim başlamaz.", "#veri-denetimi", "Hataları gör"))
-    if main is None:
+    if main is None and "veri" in perms and not school.lessons.exists():
+        nxt.append(("info", "Program boş: kurulum sihirbazı günleri, saatleri, sınıfları, öğretmenleri ve dersleri sırayla ister.",
+                    reverse("timetable:setup_wizard_start", args=[school.pk]), "Kurulum sihirbazı"))
+    elif main is None:
         nxt.append(("info", "Henüz program yok: verileri tamamlayıp ilk programı üretin.", "#uret", "Program üret"))
     status = board["status"]
     if status:

@@ -41,6 +41,7 @@ NAV_GROUPS = [
         ("Öğretmen istekleri", "inbox", _school("teacher_requests"), {"istekler"}, "veri", True),
     ]),
     ("veri", "Veri girişi", [
+        ("Kurulum sihirbazı", "sparkles", _school("setup_wizard_start"), {"kurulum"}, "veri", True),
         ("Ayarlar ve saatler", "settings", _school("school_settings"), {"okul"}, "veri", True),
         ("Sınıflar", "layers", _data("siniflar"), {"siniflar"}, "veri", True),
         ("Öğretmenler", "user", _data("ogretmenler"), {"ogretmenler"}, "veri", True),
@@ -119,7 +120,7 @@ def nav_pages_json(context):
 
 PALETTE_ICONS = ("layout", "grid", "wand", "gauge", "door", "printer", "swap", "clipboard", "inbox", "settings", "layers", "user",
                  "book", "building", "list", "user-plus", "columns", "link", "map-pin", "calendar-x", "upload", "file-text", "cap",
-                 "globe", "users")
+                 "globe", "users", "sparkles")
 
 
 @register.simple_tag

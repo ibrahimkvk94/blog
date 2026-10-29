@@ -54,8 +54,8 @@ def program_new(request, pk):
             )
         else:
             default_periods(school)
-    messages.success(request, f"“{school}” programı oluşturuldu. Verileri girin ya da aSc'den aktarın.")
-    return redirect("timetable:school_settings", pk=school.pk)
+    messages.success(request, f"“{school}” programı oluşturuldu. Kurulum sihirbazı verileri adım adım ister.")
+    return redirect("timetable:setup_wizard_start", pk=school.pk)
 
 
 @require_POST

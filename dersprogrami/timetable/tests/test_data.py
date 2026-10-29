@@ -165,7 +165,7 @@ class DataEntryTests(TestCase):
     def test_create_school_gets_default_periods(self):
         response = self.client.post(reverse("timetable:school_create"), {"name": "Yeni Lise", "days_per_week": "5", "weeks_count": "1", "terms_count": "1"})
         school = School.objects.get(name="Yeni Lise")
-        self.assertRedirects(response, reverse("timetable:school_settings", args=[school.pk]))
+        self.assertRedirects(response, reverse("timetable:setup_wizard_start", args=[school.pk]))
         self.assertEqual(school.periods.count(), 8)
 
     def test_delete_class_removes_its_own_lessons_only(self):
