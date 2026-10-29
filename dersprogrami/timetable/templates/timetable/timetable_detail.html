@@ -70,6 +70,7 @@
     <div class="panel-body">
       {% if timetable.report.error %}<div class="alert alert-error">{{ timetable.report.error }}</div>{% endif %}
       {% if timetable.report.diagnosis %}{% include "timetable/diagnosis.html" with d=timetable.report.diagnosis %}{% endif %}
+      {% include "timetable/changes_since.html" with ch=timetable.report.changes %}
       {% with c=timetable.report.conflict %}{% if c %}
         <div class="conflict">
           {% if c.status == "core" %}
@@ -107,6 +108,7 @@
             {% for rule in c.rules %}{% if rule.url %}<a href="{{ rule.url }}">{{ rule.label }}</a>{% else %}{{ rule.label }}{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</div>
         {% endif %}{% endwith %}
         {% include "timetable/diagnosis.html" with d=timetable.report.diagnosis %}
+        {% include "timetable/changes_since.html" with ch=timetable.report.changes %}
       </div>
     </details>
   {% endif %}{% endwith %}

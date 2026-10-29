@@ -25,6 +25,7 @@ class DiagnosisTests(TestCase):
             lesson.classes.add(SchoolClass.objects.create(school=self.school, name=cls))
             lesson.teachers.add(self.teacher)
             lessons.append(lesson)
+        self.lessons = lessons
         self.rel = CardRelationship.objects.create(school=self.school, name="Birlikte", condition=CardRelationship.SAME_TIME,
                                                    importance=CardRelationship.STRICT)
         self.rel.lessons.set(lessons)
@@ -44,3 +45,30 @@ class DiagnosisTests(TestCase):
         self.assertContains(page, "Katı modda program bulunamadı")
         self.assertContains(page, "Asıl neden")
         self.assertContains(page, "Birlikte")
+
+    def test_failure_lists_what_changed_since_last_success(self):
+        from timetable.models import AuditLog
+
+        self.rel.active = False
+        self.rel.save()
+        good = start_generation(self.school, "dün", time_limit=10)
+        good.refresh_from_db()
+        self.assertEqual(good.status, Timetable.OK)
+        self.assertIn("rules", good.inputs)
+        AuditLog.objects.create(school=self.school, username="ayse", action="Kart ilişkisi kaydetti", detail="Birlikte", path="/okul/x/veri/kart-iliskileri/1/")
+        self.rel.active = True
+        self.rel.save()
+        self.teacher.max_periods_per_day = 2
+        self.teacher.save()
+        bad = start_generation(self.school, "bugün", time_limit=10)
+        bad.refresh_from_db()
+        ch = bad.report["changes"]
+        self.assertEqual(ch["previous"]["id"], good.pk)
+        kinds = {g["kind"]: g for g in ch["diff"]}
+        self.assertEqual([name for name, _ in kinds["rules"]["added"]], ["Birlikte"])
+        self.assertEqual(kinds["teachers"]["added"][0][0], "Ali Kaya")
+        self.assertEqual([o["action"] for o in ch["operations"]], ["Kart ilişkisi kaydetti"])
+        self.client.force_login(User.objects.create_superuser("admin2", "b@x.tr", "pw"))
+        page = self.client.get(reverse("timetable:timetable_detail", args=[bad.pk]))
+        self.assertContains(page, "Son başarılı üretimden bu yana neler değişti?")
+        self.assertContains(page, "+ Birlikte")

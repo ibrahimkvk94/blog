@@ -646,6 +646,8 @@ class Timetable(models.Model):
     cancel_requested = models.BooleanField(default=False)
     objective = models.IntegerField("ceza puanı", null=True, blank=True)
     report = models.JSONField("rapor", default=dict, blank=True)
+    # Üretimde çözücünün gördüğü verinin özeti (input_diff.fingerprint): başarısız üretimde neyin değiştiğini bulmak için.
+    inputs = models.JSONField("girdi özeti", default=dict, blank=True)
     # İş kuyruğu (TIMETABLE_JOB_BACKEND="worker"): "queued" → "running"; çalışan süreç nabız yazar.
     job_state = models.CharField(max_length=10, blank=True, db_index=True)
     heartbeat = models.DateTimeField(null=True, blank=True)

@@ -8,7 +8,7 @@ from django.db import transaction
 from django.urls import reverse
 from django.utils import timezone
 
-from . import editing, jobs, versions
+from . import editing, input_diff, jobs, versions
 from .models import Card, Timetable
 from .solver import cpsat, feasibility
 from .solver.builder import build_problem
@@ -81,6 +81,8 @@ def run_generation(timetable_id, base_id=None, seed=0):
         problem = build_problem(timetable.school, base=base)
         if base is not None and report.get("only"):
             report["frozen"] = freeze_except(problem, report["only"])
+        inputs = input_diff.fingerprint(problem)
+        Timetable.objects.filter(pk=timetable.pk).update(inputs=inputs)
         issues = feasibility.check(problem)
         report["issues"] = [i.as_dict() for i in issues]
         if feasibility.has_errors(issues, relaxed=relaxed):
@@ -111,6 +113,7 @@ def run_generation(timetable_id, base_id=None, seed=0):
             report["conflict"] = explain_conflict(
                 timetable.school, problem, time_limit=min(180, max(60, timetable.time_limit)), known_infeasible=True
             )
+        report["changes"] = input_diff.since_last_success(timetable, inputs)  # "dün bulunuyordu; arada ne değişti?"
         stopped = solution.stats.get("stopped") or jobs.handle_for(timetable_id).stopped
         if solution.status in ("unknown", "infeasible") and not relaxed and not stopped:
             # Tanı: kurallar ağır cezalı esnetilerek en yakın taslak aranır; hangi kuralların ne kadar

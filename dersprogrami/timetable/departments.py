@@ -134,6 +134,8 @@ def portal(request, pk):
     if not can_edit(request.user, department):
         raise Http404
     school = department.school
+    request.current_school_id = school.pk  # işlem günlüğü bu programa yazsın
+    request.current_program_name = school.name
     tab = request.GET.get("sekme") or request.POST.get("sekme") or "dagilim"
     sub = current(department)
     all_teachers = sorted(school.teachers.all(), key=lambda t: natural_key(t.full_name))
