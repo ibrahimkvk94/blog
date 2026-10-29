@@ -4,7 +4,7 @@
 {% block heading %}<h1>{{ student.full_name }}</h1><span class="pill">{{ student.school_class.short|default:student.school_class.name|default:"sınıfsız" }}{% if student.number %} · {{ student.number }}{% endif %}</span>{% endblock %}
 {% block actions %}<button class="btn" type="button" onclick="print()">{% include "timetable/icon.html" with name="printer" %} Yazdır</button>{% endblock %}
 {% block content %}
-<p class="muted small" style="margin-top:0">{% if timetable %}“{{ timetable.name }}” sürümüne göre.{% else %}Henüz yerleşmiş program yok.{% endif %} Gruplar: {% for g in student.groups.all %}{{ g.name }}{% if not forloop.last %}, {% endif %}{% empty %}–{% endfor %} · Seçtikleri: {% for c in student.choices.all %}{{ c.short|default:c.name }}{% if not forloop.last %}, {% endif %}{% empty %}–{% endfor %}</p>
+<p class="page-lead">{% if timetable %}“{{ timetable.name }}” sürümüne göre.{% else %}Henüz yerleşmiş program yok.{% endif %} Gruplar: {% for g in student.groups.all %}{{ g.name }}{% if not forloop.last %}, {% endif %}{% empty %}–{% endfor %} · Seçtikleri: {% for c in student.choices.all %}{{ c.short|default:c.name }}{% if not forloop.last %}, {% endif %}{% empty %}–{% endfor %}</p>
 <div class="panel">
   <div class="panel-body flush table-wrap">
     <table class="table student-grid">

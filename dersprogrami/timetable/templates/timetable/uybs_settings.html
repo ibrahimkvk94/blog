@@ -7,7 +7,7 @@
   {% with tt=school.active_timetable|default:latest_timetable %}{% if tt %}<a class="btn btn-primary" href="{% url 'timetable:reports' tt.pk %}?tur=uybs">{% include "timetable/icon.html" with name="printer" %} Haftalık aktarım</a>{% endif %}{% endwith %}
 {% endblock %}
 {% block content %}
-<p class="muted small" style="margin-top:0">ÜYBS aktarım dosyası (<b>UYBS_Ders_Aktarim</b>) bu ayarlarla üretilir. Her satır bir kısımdaki bir ders saatidir: kısım no, ders kodu, gün (Pazartesi 0 … Cuma 4), başlangıç–bitiş, sabit sütunlar, ders kodu önekinin ÜYBS karşılığı ve öğretim elemanlarının TC'leri. Raporlar → <b>ÜYBS aktarım listesi</b> ekranından haftayı seçip <b>ÜYBS şablonunda indir</b> deyin.</p>
+<p class="page-lead">ÜYBS aktarım dosyası (<b>UYBS_Ders_Aktarim</b>) bu ayarlarla üretilir. Her satır bir kısımdaki bir ders saatidir: kısım no, ders kodu, gün (Pazartesi 0 … Cuma 4), başlangıç–bitiş, sabit sütunlar, ders kodu önekinin ÜYBS karşılığı ve öğretim elemanlarının TC'leri. Raporlar → <b>ÜYBS aktarım listesi</b> ekranından haftayı seçip <b>ÜYBS şablonunda indir</b> deyin.</p>
 
 <div class="uybs-layout">
   <form method="post" class="panel">{% csrf_token %}<input type="hidden" name="action" value="template">

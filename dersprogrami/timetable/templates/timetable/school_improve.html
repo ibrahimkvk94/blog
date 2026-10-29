@@ -3,7 +3,7 @@
 {% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{% url 'timetable:timetable_detail' timetable.pk %}">{{ timetable.name }}</a> / <a href="{% url 'timetable:solution_center' timetable.pk %}">Çözüm merkezi</a>{% endblock %}
 {% block heading %}<h1>Okul geneli iyileştirme</h1>{% if active %}<span class="pill running">{{ active.get_status_display }}</span>{% endif %}{% endblock %}
 {% block content %}
-<p class="muted small" style="margin-top:0">Arka planda bütün öğretmenleri (sonra sınıfları) en çok boşluğu olandan başlayarak ele alır; her adımda çakışmasız ve <b>az ders oynatan</b> iyileştirmeleri biriktirir. Hedef boş saatlerdir; öğretmenlerin okula geldiği gün sayısı artabilir (tam mesai). Program bu sırada <b>değişmez</b>: sonuç tek öneri olarak burada bekler, çözüm merkezinde ana görünümde önizleyip uygularsınız (geri alınabilir). Sayfadan ayrılabilirsiniz.</p>
+<p class="page-lead">Arka planda bütün öğretmenleri (sonra sınıfları) en çok boşluğu olandan başlayarak ele alır; her adımda çakışmasız ve <b>az ders oynatan</b> iyileştirmeleri biriktirir. Hedef boş saatlerdir; öğretmenlerin okula geldiği gün sayısı artabilir (tam mesai). Program bu sırada <b>değişmez</b>: sonuç tek öneri olarak burada bekler, çözüm merkezinde ana görünümde önizleyip uygularsınız (geri alınabilir). Sayfadan ayrılabilirsiniz.</p>
 
 {% if active %}
 <section class="panel" id="im-live" data-url="?durum=1" data-job="{{ active.pk }}">

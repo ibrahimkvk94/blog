@@ -14,7 +14,7 @@
 {% if not timetable %}
   <div class="alert alert-warning">Henüz üretilmiş program yok. Nöbetler yine dağıtılabilir, ancak öğretmenlerin derse geldiği günler bilinmediği için gün tercihi yapılamaz.</div>
 {% else %}
-  <p class="muted small" style="margin-top:0">Dağıtım “{{ timetable.name }}” programına göre yapılır: öğretmen derse geldiği, tercihen dersi çok olan güne yazılır; nöbetler eşit dağıtılır, tamamen kapalı günlere ve muaf öğretmenlere nöbet verilmez.</p>
+  <p class="page-lead">Dağıtım “{{ timetable.name }}” programına göre yapılır: öğretmen derse geldiği, tercihen dersi çok olan güne yazılır; nöbetler eşit dağıtılır, tamamen kapalı günlere ve muaf öğretmenlere nöbet verilmez.</p>
 {% endif %}
 {% if warnings %}
   <div class="alert alert-warning"><b>Dikkat:</b><ul style="margin:6px 0 0 18px;padding:0">{% for w in warnings %}<li>{{ w }}</li>{% endfor %}</ul></div>

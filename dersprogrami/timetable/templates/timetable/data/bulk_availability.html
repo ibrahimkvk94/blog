@@ -8,7 +8,7 @@
 <div class="segmented" style="margin-bottom:12px">
   {% for key, label in kinds.items %}<a class="{% if key == kind %}active{% endif %}" href="?tur={{ key }}">{{ label }}</a>{% endfor %}
 </div>
-<p class="muted small" style="margin-top:0">Soldan {{ singular }} seçin, ızgarada saatleri işaretleyin ve nasıl uygulanacağını seçin. Ör. tüm SVN kısımlarında Cuma 7–8. saatleri kapatmak için “Tüm SVN” kümesini seçip o hücreleri <b>yasak</b> yapın, “İşaretlileri ekle” ile uygulayın.</p>
+<p class="page-lead">Soldan {{ singular }} seçin, ızgarada saatleri işaretleyin ve nasıl uygulanacağını seçin. Ör. tüm SVN kısımlarında Cuma 7–8. saatleri kapatmak için “Tüm SVN” kümesini seçip o hücreleri <b>yasak</b> yapın, “İşaretlileri ekle” ile uygulayın.</p>
 <form method="post" id="entity-form">{% csrf_token %}<input type="hidden" name="tur" value="{{ kind }}">
   <div class="bulk-layout">
     <div class="panel">

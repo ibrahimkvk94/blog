@@ -108,6 +108,11 @@ class Entity:
     nav_label: object = None
     nav_sub: object = None
 
+    @property
+    def icon(self):
+        return {"siniflar": "layers", "ogretmenler": "user", "ders-adlari": "book", "derslikler": "building",
+                "binalar": "building", "kart-iliskileri": "link"}.get(self.slug, "list")
+
 
 def _divisions_cell(cls):
     divisions = list(cls.divisions.all())

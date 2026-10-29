@@ -5,7 +5,7 @@
 {% block actions %}{% if entity.slug == "kart-iliskileri" %}<a class="btn" href="{% url 'timetable:relation_audit' school.pk %}">{% include "timetable/icon.html" with name="gauge" %} Denetim</a> <a class="btn" href="{% url 'timetable:relation_wizard' school.pk %}">{% include "timetable/icon.html" with name="wand" %} Teori + uygulama sihirbazı</a> <a class="btn" href="{% url 'timetable:relationship_import' school.pk %}">{% include "timetable/icon.html" with name="download" %} aSc'den yapıştır</a> {% endif %}<a class="btn btn-primary" href="{% url 'timetable:data_new' school.pk entity.slug %}">{% include "timetable/icon.html" with name="plus" %} Yeni {{ entity.singular|lower }}</a>{% endblock %}
 {% block content %}
 {% include "timetable/data/subnav.html" %}
-{% if entity.help %}<p class="muted small" style="margin-top:0">{{ entity.help }}</p>{% endif %}
+{% if entity.help %}<p class="page-lead">{{ entity.help }}</p>{% endif %}
 {% if rows %}<div class="list-tools"><input class="input" type="search" placeholder="{{ entity.title }} içinde ara…" aria-label="Ara" data-list-search><span class="subtle small" data-list-count></span></div>{% endif %}
 <div class="panel">
   {% if rows %}
@@ -28,7 +28,10 @@
   </div>
   <div class="empty" data-list-none hidden>Aramaya uyan kayıt yok.</div>
   {% else %}
-    <div class="empty">Henüz kayıt yok. <a href="{% url 'timetable:data_new' school.pk entity.slug %}">İlk {{ entity.singular|lower }} kaydını ekleyin.</a></div>
+    {% url 'timetable:data_new' school.pk entity.slug as new_url %}{% url 'timetable:excel_import' school.pk as import_url %}
+    {% with s=entity.singular|lower %}{% with action="İlk "|add:s|add:" kaydını ekle" title="Henüz "|add:s|add:" yok" %}
+      {% include "timetable/empty.html" with icon=entity.icon title=title text="Elle ekleyebilir ya da Excel / aSc dosyasından toplu aktarabilirsiniz." url=new_url action=action url2=import_url action2="Excel'den aktar" %}
+    {% endwith %}{% endwith %}
   {% endif %}
 </div>
 {% endblock %}

@@ -7,7 +7,7 @@
   <a class="btn" href="{% url 'timetable:institution_users' institution.pk %}">{% include "timetable/icon.html" with name="users" %} Kullanıcılar</a>{% endif %}
 {% endblock %}
 {% block content %}
-<p class="muted small" style="margin-top:0">Kurumdaki her program (ör. 1. yarıyıl, 2. yarıyıl, gece öğretimi) kendi saatleri, sınıfları, öğretmenleri, dersleri, sürümleri ve yayını olan bağımsız bir ders programıdır; hepsi aynı anda açık ve yayında olabilir. Aynı öğretmen ve derslikleri paylaşan programları programın ayarlarında “birlikte çalışan programlar” olarak bağlayın: biri diğerinin dolu saatlerine ders koymaz.</p>
+<p class="page-lead">Kurumdaki her program (ör. 1. yarıyıl, 2. yarıyıl, gece öğretimi) kendi saatleri, sınıfları, öğretmenleri, dersleri, sürümleri ve yayını olan bağımsız bir ders programıdır; hepsi aynı anda açık ve yayında olabilir. Aynı öğretmen ve derslikleri paylaşan programları programın ayarlarında “birlikte çalışan programlar” olarak bağlayın: biri diğerinin dolu saatlerine ders koymaz.</p>
 <div class="grid-2">
   <div class="panel">
     <div class="panel-head"><h2>Programlar</h2></div>
@@ -33,7 +33,7 @@
       <div class="panel-head"><h2>aSc TimeTables'tan içe aktar</h2></div>
       <form class="panel-body" method="post" enctype="multipart/form-data" action="{% url 'timetable:program_import' institution.pk %}" id="asc-import">
         {% csrf_token %}
-        <p class="muted small" style="margin-top:0">aSc'de <i>Dosya → Dışa aktar → aSc TimeTables XML</i> ile alınan dosyayı yükleyin (aSc 2012 ve sonrası). Saatler, ders adları, öğretmenler, derslikler, sınıflar ve gruplar, dersler ve yerleşmiş kartlar bu kurumun içine aktarılır.</p>
+        <p class="page-lead">aSc'de <i>Dosya → Dışa aktar → aSc TimeTables XML</i> ile alınan dosyayı yükleyin (aSc 2012 ve sonrası). Saatler, ders adları, öğretmenler, derslikler, sınıflar ve gruplar, dersler ve yerleşmiş kartlar bu kurumun içine aktarılır.</p>
         <label class="label" for="asc-file">XML dosyası</label>
         <input class="input" id="asc-file" type="file" name="file" accept=".xml" required>
         <label class="label" for="asc-target">Nereye</label>
@@ -56,7 +56,7 @@
       <div class="panel-head"><h2>Programı kopyala</h2></div>
       <form class="panel-body" method="post" action="{% url 'timetable:program_copy' institution.pk %}">
         {% csrf_token %}
-        <p class="muted small" style="margin-top:0">Ör. 1.YY'den 2.YY: seçilen veriler yeni programa kopyalanır, sonra 2.YY'de dersleri güncellersiniz. Kopya kaynaktan bağımsızdır.</p>
+        <p class="page-lead">Ör. 1.YY'den 2.YY: seçilen veriler yeni programa kopyalanır, sonra 2.YY'de dersleri güncellersiniz. Kopya kaynaktan bağımsızdır.</p>
         <label class="label" for="cp-source">Kaynak program</label>
         <select class="select" id="cp-source" name="source">{% for p in programs %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</select>
         <label class="label" for="cp-name">Yeni program adı</label>

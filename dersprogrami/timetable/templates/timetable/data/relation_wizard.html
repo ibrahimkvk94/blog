@@ -5,7 +5,7 @@
 {% block actions %}<a class="btn" href="{% url 'timetable:relation_audit' school.pk %}">{% include "timetable/icon.html" with name="gauge" %} İlişki denetimi</a>{% endblock %}
 {% block content %}
 {% include "timetable/data/subnav.html" %}
-<p class="muted small" style="margin-top:0">Aynı kodlu teori dersi ile uygulama (U) dersini her kısımda eşleştirir. Seçtiğiniz çiftlere tek seferde “art arda”, “önce teori sonra uygulama”, “aynı gün” ya da “farklı günlerde” ilişkisi kurar; var olanları bu koşula getirir, kopyaları temizler. Her çift için tek, okunur adlı bir ilişki tutulur.</p>
+<p class="page-lead">Aynı kodlu teori dersi ile uygulama (U) dersini her kısımda eşleştirir. Seçtiğiniz çiftlere tek seferde “art arda”, “önce teori sonra uygulama”, “aynı gün” ya da “farklı günlerde” ilişkisi kurar; var olanları bu koşula getirir, kopyaları temizler. Her çift için tek, okunur adlı bir ilişki tutulur.</p>
 {% with s=data.summary %}
 <div class="q-summary">
   <a class="q-card{% if not status %} on{% endif %}" href="?"><span>Bulunan çift</span><b>{{ s.pairs }}</b><small>teori + (U), kısım bazında</small></a>

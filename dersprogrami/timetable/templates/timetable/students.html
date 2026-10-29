@@ -3,7 +3,7 @@
 {% block crumbs %}<a href="{% url 'timetable:institution_detail' school.institution_id %}">{{ school.institution }}</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
 {% block heading %}<h1>Öğrenciler ve seçmeliler</h1><span class="pill">{{ total }} öğrenci</span>{% if clash_list %}<span class="pill warn">{{ clash_ids|length }} öğrencide çakışma</span>{% endif %}{% endblock %}
 {% block content %}
-<p class="muted small" style="margin-top:0">Seçmeli dersler, Dersler ekranında <b>seçmeli ders</b> işaretlenen derslerdir; aynı ders adının birden çok seçmeli dersi şube gibi davranır. Öğrencilerin seçimlerini yapıştırın, <b>Dağıt</b> deyin: her öğrenci seçtiği dersin programına çakışmayan ve kontenjanı dolmamış şubesine yerleşir. Program üretilirken aynı öğrencinin dersleri çakıştırılmaz.</p>
+<p class="page-lead">Seçmeli dersler, Dersler ekranında <b>seçmeli ders</b> işaretlenen derslerdir; aynı ders adının birden çok seçmeli dersi şube gibi davranır. Öğrencilerin seçimlerini yapıştırın, <b>Dağıt</b> deyin: her öğrenci seçtiği dersin programına çakışmayan ve kontenjanı dolmamış şubesine yerleşir. Program üretilirken aynı öğrencinin dersleri çakıştırılmaz.</p>
 
 <form method="get" class="refs-filter">
   <label class="label" for="st-sinif">Sınıf</label>

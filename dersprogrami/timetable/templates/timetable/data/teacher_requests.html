@@ -4,7 +4,7 @@
 {% block heading %}<h1>Öğretmen istekleri</h1><span class="pill{% if pending_total %} warn{% else %} ok{% endif %}">{{ pending_total }} bekleyen</span>{% endblock %}
 {% block content %}
 {% include "timetable/data/subnav.html" %}
-<p class="muted small" style="margin-top:0">Öğretmenler kendi hesaplarıyla <b>İsteklerim</b> sayfasından tarihli izin/rapor bildirir (onaylanınca o günler Vekâlet ekranına düşer) ve kalıcı olarak gelemeyecekleri (ya da tercih etmedikleri) saatleri bildirir. Onayladığınız istek öğretmenin müsaitliğine yazılır; bir sonraki üretimde ve elle düzenlemede uygulanır. Bunun için öğretmen kartı bir kullanıcı hesabına bağlı olmalı (aşağıda, <a href="#hesaplar">Hesap bağlantıları</a>).</p>
+<p class="page-lead">Öğretmenler kendi hesaplarıyla <b>İsteklerim</b> sayfasından tarihli izin/rapor bildirir (onaylanınca o günler Vekâlet ekranına düşer) ve kalıcı olarak gelemeyecekleri (ya da tercih etmedikleri) saatleri bildirir. Onayladığınız istek öğretmenin müsaitliğine yazılır; bir sonraki üretimde ve elle düzenlemede uygulanır. Bunun için öğretmen kartı bir kullanıcı hesabına bağlı olmalı (aşağıda, <a href="#hesaplar">Hesap bağlantıları</a>).</p>
 
 {% if leaves or leave_history %}
 <section class="panel" id="izinler" style="margin-bottom:16px">

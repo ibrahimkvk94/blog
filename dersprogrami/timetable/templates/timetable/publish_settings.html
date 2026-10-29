@@ -3,7 +3,7 @@
 {% block crumbs %}<a href="{% url 'timetable:institution_detail' school.institution_id %}">{{ school.institution }}</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
 {% block heading %}<h1>Web yayını</h1>{% if school.publish_enabled %}<span class="pill ok">Açık</span>{% else %}<span class="pill">Kapalı</span>{% endif %}{% endblock %}
 {% block content %}
-<p class="muted small" style="margin-top:0">Öğrenciler, veliler ve öğretmenler bu bağlantıyla giriş yapmadan sınıf, öğretmen ve derslik programlarını telefondan görür. Yalnızca <b>yayındaki sürüm</b> gösterilir; ana görünümde “Yayınla” dediğiniz an güncellenir. Bağlantıyı bilen herkes görebilir; gerektiğinde yeni bağlantı üretip eskisini geçersiz kılın.</p>
+<p class="page-lead">Öğrenciler, veliler ve öğretmenler bu bağlantıyla giriş yapmadan sınıf, öğretmen ve derslik programlarını telefondan görür. Yalnızca <b>yayındaki sürüm</b> gösterilir; ana görünümde “Yayınla” dediğiniz an güncellenir. Bağlantıyı bilen herkes görebilir; gerektiğinde yeni bağlantı üretip eskisini geçersiz kılın.</p>
 {% if not school.active_timetable %}<div class="alert alert-warning">Henüz yayınlanmış sürüm yok. Ana görünümde bir sürümü “Yayınla” ile seçin.</div>{% endif %}
 <div class="grid-2">
   <div class="panel">

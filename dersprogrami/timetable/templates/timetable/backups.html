@@ -4,7 +4,7 @@
 {% block heading %}<h1>Yedekler</h1>{% endblock %}
 {% block actions %}<form method="post">{% csrf_token %}<button class="btn btn-primary">{% include "timetable/icon.html" with name="download" %} Şimdi yedek al</button></form>{% endblock %}
 {% block content %}
-<p class="muted small" style="margin-top:0">Yedek tüm kurumları, programları, sürümleri ve kullanıcıları içerir. Sunucu çalışırken 24 saatte bir otomatik yedek alınır; son {{ keep }} yedek saklanır. Yedekleri ara sıra indirip başka bir diskte de saklayın.</p>
+<p class="page-lead">Yedek tüm kurumları, programları, sürümleri ve kullanıcıları içerir. Sunucu çalışırken 24 saatte bir otomatik yedek alınır; son {{ keep }} yedek saklanır. Yedekleri ara sıra indirip başka bir diskte de saklayın.</p>
 <div class="panel">
   <div class="panel-body flush table-wrap">
     <table class="table">
@@ -34,7 +34,7 @@
     {% csrf_token %}<input type="hidden" name="action" value="upload">
     <div class="panel-head"><h2>Başka bilgisayardan yedek yükle</h2></div>
     <div class="panel-body">
-      <p class="muted small" style="margin-top:0">İndirdiğiniz bir yedek dosyasını (<code>yedek-….json.gz</code>) buraya yükleyin; listeye eklenir, sonra “Geri yükle” ile kullanabilirsiniz.</p>
+      <p class="page-lead">İndirdiğiniz bir yedek dosyasını (<code>yedek-….json.gz</code>) buraya yükleyin; listeye eklenir, sonra “Geri yükle” ile kullanabilirsiniz.</p>
       <div class="dialog-row"><input class="input" type="file" name="dosya" accept=".gz" required><button class="btn">Yükle</button></div>
       <p class="subtle small" style="margin-bottom:0">Yedek klasörü: {{ dir }}</p>
     </div>

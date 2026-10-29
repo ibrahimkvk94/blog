@@ -102,7 +102,7 @@
           </tbody>
         </table>
         {% else %}
-          <div class="empty">Henüz program üretilmedi. Sağdaki formdan ilk programı üretin.</div>
+          {% include "timetable/empty.html" with icon="grid" title="Henüz program üretilmedi" text="Veriler tamamlanınca sağdaki formdan ilk programı üretin." %}
         {% endif %}
       </div>
     </div>

@@ -4,7 +4,7 @@
 {% block heading %}<h1>Derslik atama</h1><span class="pill{% if data.lessons %} warn{% else %} ok{% endif %}">{{ data.lessons }} ders dersliksiz</span>{% endblock %}
 {% block content %}
 {% include "timetable/data/subnav.html" %}
-<p class="muted small" style="margin-top:0">Dersliği belirlenemeyen derslerde derslik çakışması denetlenmez. Çözücü dersliği şu sırayla arar: dersin kendi dersliği → ders adının varsayılan derslikleri → öğretmen dersliği → sınıf dersliği. Aşağıdan iki yolla toplu atayın; bir derse ayrıca derslik seçilmişse ona dokunulmaz. Uygula'dan sonra kalan sayı yeniden hesaplanır.</p>
+<p class="page-lead">Dersliği belirlenemeyen derslerde derslik çakışması denetlenmez. Çözücü dersliği şu sırayla arar: dersin kendi dersliği → ders adının varsayılan derslikleri → öğretmen dersliği → sınıf dersliği. Aşağıdan iki yolla toplu atayın; bir derse ayrıca derslik seçilmişse ona dokunulmaz. Uygula'dan sonra kalan sayı yeniden hesaplanır.</p>
 {% if not data.lessons %}
   <div class="panel panel-body"><b>Tüm derslerin dersliği belirli.</b> Derslik çakışmaları denetleniyor.</div>
 {% else %}

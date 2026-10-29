@@ -4,7 +4,7 @@
 {% block heading %}<h1>Çözüm merkezi</h1>{% endblock %}
 {% block actions %}<a class="btn" href="{% url 'timetable:school_improve' timetable.pk %}">{% include "timetable/icon.html" with name="wand" %} Okul geneli iyileştirme</a>{% endblock %}
 {% block content %}
-<p class="muted small" style="margin-top:0">Kalıcı program değişikliği için: ne olması gerektiğini söyleyin; sistem çakışmasız ve <b>en az dersi oynatan</b> çözümleri, etkilenenlerin raporuyla birlikte önersin. Uyguladığınız öneri yeni sürüm olarak kaydedilir ve ana görünümde “Geri al” ile geri alınabilir. Geçici durumlar için <a href="{% url 'timetable:substitutions' school.pk %}">Vekâlet</a> ekranını kullanın.</p>
+<p class="page-lead">Kalıcı program değişikliği için: ne olması gerektiğini söyleyin; sistem çakışmasız ve <b>en az dersi oynatan</b> çözümleri, etkilenenlerin raporuyla birlikte önersin. Uyguladığınız öneri yeni sürüm olarak kaydedilir ve ana görünümde “Geri al” ile geri alınabilir. Geçici durumlar için <a href="{% url 'timetable:substitutions' school.pk %}">Vekâlet</a> ekranını kullanın.</p>
 
 <form method="post" class="panel panel-body sc-text" id="sc-text">{% csrf_token %}
   <input type="hidden" name="action" value="text">

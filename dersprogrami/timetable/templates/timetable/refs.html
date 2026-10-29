@@ -6,7 +6,7 @@
   {% if timetable %}<a class="btn" href="{% url 'timetable:reports' timetable.pk %}?tur=uybs">{% include "timetable/icon.html" with name="printer" %} Aktarım raporu</a>{% endif %}
 {% endblock %}
 {% block content %}
-<p class="muted small" style="margin-top:0">Her kısımda her dersin her haftalık saatine bir ÜYBS referansı verin. Referans saatin <b>sırasına</b> bağlıdır: 1. saat programda nerede olursa olsun ilk referansı taşır. Ders başka saate taşındığında referans yeni yerine gider; aktarım raporu o haftanın gerçek yerleşimiyle çıkar. Kutuların üstünde saatin seçili sürümdeki yeri görünür.</p>
+<p class="page-lead">Her kısımda her dersin her haftalık saatine bir ÜYBS referansı verin. Referans saatin <b>sırasına</b> bağlıdır: 1. saat programda nerede olursa olsun ilk referansı taşır. Ders başka saate taşındığında referans yeni yerine gider; aktarım raporu o haftanın gerçek yerleşimiyle çıkar. Kutuların üstünde saatin seçili sürümdeki yeri görünür.</p>
 
 <form method="get" class="refs-filter">
   <label class="label" for="rf-sinif">Kısım</label>
