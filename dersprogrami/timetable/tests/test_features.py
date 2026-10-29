@@ -293,7 +293,7 @@ class AdvisorTests(TestCase):
     def test_room_and_period_and_class_limit_checks(self):
         self.lesson("Matematik", [], 4)
         Classroom.objects.create(school=self.school, name="Lab")
-        self.assertIn("no_room", self.codes())
+        self.assertNotIn("no_room", self.codes())  # dersliksiz ders sınıfın kendi dersliğinde yapılır
         for d in range(5):
             Availability.objects.create(school=self.school, school_class=self.cls, day=d, period=5)
         self.assertIn("closed_period", self.codes())

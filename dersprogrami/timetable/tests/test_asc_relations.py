@@ -83,6 +83,7 @@ class AscRelationshipImportTests(TestCase):
         self.assertEqual((rule["condition"], rule["param"], rule["apply_to"]), (CardRelationship.RANGE_MAX_PER_DAY, 6, CardRelationship.EACH_TEACHER))
         self.assertEqual(len(rule["time_map"]), 30)
         self.assertEqual(rule["param_max"], 8)
+        self.assertFalse(rule["active"])  # işaretli saatler listede görünmez: doğrulanana dek pasif
         # 6: farklı kodlar sıralı
         self.assertEqual(by_row["6"][0]["condition"], CardRelationship.CONSECUTIVE_ORDERED)
         self.assertEqual(by_row["6"][0]["lessons"], [self.tbe.id, self.sbe.id])

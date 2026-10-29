@@ -102,7 +102,7 @@ TYPES = {
     "seçilen değerden fazla seçmeli ders olamaz": (R.ST_MAX_ELECTIVES, "set", 1),
     "seçilen seçmeli derslerde öğrenci aynı öğretmene sahip olamaz": (R.ST_DIFF_TEACHER, "set", 1),
 }
-# Haritası olmayan aSc satırında "tüm hücreler" anlamına gelen koşullar (sayım kuralları).
+# Haritası olmayan aSc satırında tüm hücrelerle önerilen (ama doğrulanana dek pasif) sayım kuralları.
 MAP_ALL = {R.RANGE_MAX_PER_DAY, R.MAP_MIN_WEEK, R.MAP_MAX_WEEK, R.MAP_MIN_IF_ANY, R.MIN_PER_POSITION}
 # Gelişmiş kuralların "Uygula" sütunundaki kısaltmaları (ör. a_32): aSc numarası → tür (metin eksikse).
 LESSON_LEVEL = {"set_lesson"}
@@ -257,7 +257,11 @@ def plan(school, rows):
                   "teachers": [], "time_map": [], "lessons": [], "subjects": [], "subjects_b": [],
                   "apply_to": R.EACH_TEACHER if teacher_scope else R.EACH_CLASS}
         if condition in MAP_ALL:
+            # Liste hangi saatlerin işaretli olduğunu göstermez; "tüm saatler" yalnızca başlangıç önerisidir.
+            # Zorunlu bir sayım kuralını yanlış haritayla açmak programı haksız yere ihlalli gösterir.
             common["time_map"] = all_cells
+            common["active"] = False
+            warning += "aSc listesinde işaretli saatler görünmüyor; tüm saatler işaretlendi. Haritayı aSc'dekiyle karşılaştırıp etkinleştirin. "
         elif condition in R.NEEDS_MAP:
             common["active"] = False
             warning += "aSc listesinde saatler görünmüyor: ilişkiyi açıp zaman haritasını işaretleyin, sonra etkinleştirin. "

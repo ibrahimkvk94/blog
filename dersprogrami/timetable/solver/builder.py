@@ -459,12 +459,7 @@ def _advisor_notes(school, classes, lessons, lesson_data, cards, avail, days, pe
                 notes.append(("warning", "group_lengths", f"{cls.name} / {division.name}: grupların kart uzunlukları farklı "
                               "(ör. birinde blok, diğerinde tekil ders). Gruplar aynı saatlere oturamaz; boşluk oluşabilir."))
 
-    if school.classrooms.exists():
-        roomless = [lesson_data[lesson.id]["label"] for lesson in lessons if lesson.classes.exists() and not lesson_data[lesson.id]["rooms"]]
-        if roomless:
-            sample = ", ".join(roomless[:3]) + (f" ve {len(roomless) - 3} ders daha" if len(roomless) > 3 else "")
-            notes.append(("warning", "no_room", f"{len(roomless)} dersin dersliği belirlenemedi ({sample}). Sınıf dersliği, "
-                          "ders adının varsayılan dersliği ya da dersin kendi dersliği girilmezse derslik çakışması denetlenmez."))
+    # Dersliği girilmemiş ders sınıfın kendi dersliğinde yapılır: uyarı gerekmez.
 
     if classes:
         for p in range(periods):
@@ -557,7 +552,7 @@ def _relationships(school, cards, lesson_data, grades):
                 return sorted({grades.get(c) for c in classes}, key=str)
             return [None]
 
-        groups_b = []
+        groups_b, owner_refs = [], []
         if rel.condition == rel.RESERVE:
             # Rezerv: seçilen dersler bir küme; aynı sınıfların seçilmeyen kartları işaretli saatlere giremez.
             chosen_keys = {c.key for c in chosen}
@@ -576,12 +571,12 @@ def _relationships(school, cards, lesson_data, grades):
             for card in chosen_b:
                 for owner in owners(card):
                     by_owner_b[owner].append(card.key)
+            keys = [k for k in by_owner if k in by_owner_b] if two_sided else list(by_owner)
+            groups = [by_owner[k] for k in keys]
             if two_sided:
-                keys = [k for k in by_owner if k in by_owner_b]
-                groups = [by_owner[k] for k in keys]
                 groups_b = [by_owner_b[k] for k in keys]
-            else:
-                groups = list(by_owner.values())
+            kind = {rel.EACH_TEACHER: "teacher", rel.EACH_CLASS: "class"}.get(rel.apply_to)
+            owner_refs = [(kind, k) if kind else None for k in keys]
         if not groups:
             continue
         spec = (
@@ -596,6 +591,7 @@ def _relationships(school, cards, lesson_data, grades):
                 groups_b,
                 _parse_map(rel.time_map_b) if two_sided else None,
                 tuple(r.id for r in rel.classrooms.all()),
+                owner_refs,
             )
         )
         if rel.condition in rel.SOFT_TARGET and rel.param_max is not None and rel.param_max > rel.param:

@@ -60,6 +60,7 @@ class RelationshipSpec:
     groups: kuralın ayrı ayrı uygulandığı kart kümeleri (eşleşmeli koşullarda her ders bir küme).
     groups_b: iki taraflı koşullarda her kümenin B tarafı (groups ile aynı sırada).
     cells / cells_b: zaman haritası (None = tüm hücreler).
+    owners: her kümenin kime ait olduğu (her öğretmen / her sınıf kurallarında), ihlal metni için.
     rooms: derslik koşullarında seçili derslikler.
     weight: None ise sert kısıt, değilse ihlal başına ceza.
     """
@@ -74,6 +75,8 @@ class RelationshipSpec:
     groups_b: list[list[int]] = field(default_factory=list)
     cells_b: frozenset | None = None
     rooms: tuple = ()
+    # groups ile aynı sırada kümenin sahibi: ("teacher", id) / ("class", id) ya da None (ihlal metninde ad için).
+    owners: list = field(default_factory=list)
 
 
 @dataclass
