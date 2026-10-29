@@ -1124,3 +1124,16 @@ a.q-card { color: inherit; } a.q-card:hover { border-color: var(--primary); }
 .rp-item span { display: flex; flex-direction: column; }
 .rp-item small { color: var(--text-3); font-size: 11.5px; }
 .rp-item.via { opacity: .65; cursor: default; }
+
+/* ---- İlişki sihirbazı / denetimi ---- */
+a.q-card.on { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+.rw2-bar { flex-wrap: wrap; gap: 8px; }
+.rw2-bar > input { max-width: 300px; }
+.rw2-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.rw2-actions select[hidden] { display: none; }
+.rw2-table td { vertical-align: top; }
+.rw2-table .pill { margin: 1px 0; }
+.ra-table td { vertical-align: top; }
+.ra-viol > summary { cursor: pointer; list-style: none; display: inline-block; }
+.ra-viol > summary::-webkit-details-marker { display: none; }
+.ra-viol ul { margin: 6px 0 0; padding-left: 16px; color: var(--danger-strong); max-width: 420px; }

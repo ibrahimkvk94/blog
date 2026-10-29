@@ -1,0 +1,89 @@
+{% extends "timetable/base.html" %}
+{% block title %}Teori + uygulama sihirbazı{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{% url 'timetable:data_list' school.pk 'kart-iliskileri' %}">Kart ilişkileri</a>{% endblock %}
+{% block heading %}<h1>Teori + uygulama sihirbazı</h1>{% endblock %}
+{% block actions %}<a class="btn" href="{% url 'timetable:relation_audit' school.pk %}">{% include "timetable/icon.html" with name="gauge" %} İlişki denetimi</a>{% endblock %}
+{% block content %}
+{% include "timetable/data/subnav.html" %}
+<p class="muted small" style="margin-top:0">Aynı kodlu teori dersi ile uygulama (U) dersini her kısımda eşleştirir. Seçtiğiniz çiftlere tek seferde “art arda”, “önce teori sonra uygulama”, “aynı gün” ya da “farklı günlerde” ilişkisi kurar; var olanları bu koşula getirir, kopyaları temizler. Her çift için tek, okunur adlı bir ilişki tutulur.</p>
+{% with s=data.summary %}
+<div class="q-summary">
+  <a class="q-card{% if not status %} on{% endif %}" href="?"><span>Bulunan çift</span><b>{{ s.pairs }}</b><small>teori + (U), kısım bazında</small></a>
+  <a class="q-card{% if status == 'missing' %} on{% endif %}" href="?durum=missing"><span>İlişkisi eksik</span><b class="{% if s.missing %}t-kotu{% endif %}">{{ s.missing }}</b><small>hiç kural yok</small></a>
+  <a class="q-card{% if status == 'ok' %} on{% endif %}" href="?durum=ok"><span>İlişkisi var</span><b class="t-iyi">{{ s.ok }}</b><small>{% for c, n in data.conditions.items %}{{ c }}: {{ n }}{% if not forloop.last %} · {% endif %}{% endfor %}</small></a>
+  <a class="q-card{% if status == 'duplicate' %} on{% endif %}" href="?durum=duplicate"><span>Kopya kural</span><b class="{% if s.duplicate %}t-orta{% endif %}">{{ s.duplicate }}</b><small>aynı çifte birden çok kural</small></a>
+  {% if s.unpaired %}<a class="q-card" href="#eslesmeyen"><span>Eşleşmeyen (U)</span><b>{{ s.unpaired }}</b><small>teorisi bulunamadı</small></a>{% endif %}
+</div>
+{% endwith %}
+
+<form method="post" class="panel" id="rw-form">
+  {% csrf_token %}<input type="hidden" name="durum" value="{{ status }}">
+  <div class="panel-head rw2-bar">
+    <input class="input input-sm" type="search" placeholder="Kod, ders, sınıf ya da öğretmen ara…" data-rw-search>
+    <div class="rw2-actions">
+      <select class="select select-sm" name="islem" data-rw-mode>
+        <option value="create">Eksiklere oluştur</option>
+        <option value="update">Oluştur ve var olanları bu koşula getir</option>
+        <option value="dedupe">Kopyaları temizle</option>
+        <option value="remove">Seçili çiftlerin ilişkilerini sil</option>
+      </select>
+      <select class="select select-sm" name="kosul" data-rw-cond>{% for k, v in conditions %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+      <select class="select select-sm" name="onem" data-rw-cond>{% for k, v in importances %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+      <button class="btn btn-primary btn-sm" data-rw-go>{% include "timetable/icon.html" with name="wand" %} Seçili <span data-rw-count>0</span> çifte uygula</button>
+    </div>
+  </div>
+  <div class="panel-body flush table-wrap">
+    <table class="table rw2-table">
+      <thead><tr><th style="width:32px"><input type="checkbox" data-rw-all aria-label="Görünenlerin hepsini seç"></th><th>Kod</th><th>Teori</th><th>Uygulama</th><th>Kısım</th><th>Öğretmen</th><th>Mevcut ilişki</th></tr></thead>
+      <tbody>
+        {% for p in data.pairs %}{% if not status or status == p.status %}
+          <tr data-text="{{ p.code|lower }} {{ p.theory.subject.name|lower }} {{ p.classes|lower }} {{ p.teachers|lower }}">
+            <td><input type="checkbox" name="cift" value="{{ p.key }}" data-rw-row></td>
+            <td><b>{{ p.code }}</b></td>
+            <td>{{ p.theory.subject.name }}<div class="subtle small">{{ p.theory.periods_per_week }} saat</div></td>
+            <td>{{ p.practical.subject.name }}<div class="subtle small">{{ p.practical.periods_per_week }} saat{% if p.practical.card_length > 1 %} · {{ p.practical.card_length }}'li blok{% endif %}</div></td>
+            <td>{{ p.classes }}</td>
+            <td class="small">{{ p.teachers }}</td>
+            <td>{% if p.status == "missing" %}<span class="pill error">yok</span>
+              {% else %}{% for r in p.relations %}<a class="pill{% if p.status == 'duplicate' %} warn{% elif p.unknown %}{% else %} ok{% endif %}" href="{% url 'timetable:data_edit' school.pk 'kart-iliskileri' r.pk %}" title="{{ r.name }}">{{ r.get_condition_display }}{% if r.importance != "strict" %} · {{ r.get_importance_display }}{% endif %}</a> {% endfor %}{% endif %}</td>
+          </tr>
+        {% endif %}{% empty %}<tr><td colspan="7" class="subtle">Teori + uygulama çifti bulunamadı. Uygulama dersinin adı “(U)” ekiyle bitmeli ve teorisiyle aynı kodu taşımalı.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</form>
+
+{% if data.unpaired %}
+<section class="panel" id="eslesmeyen" style="margin-top:16px">
+  <div class="panel-head"><h2>Eşleşmeyen uygulama dersleri</h2><span class="subtle small">aynı kısımda aynı kodlu teori dersi yok ya da birden çok aday var</span></div>
+  <div class="panel-body flush table-wrap"><table class="table table-compact"><tbody>
+    {% for u in data.unpaired %}<tr><td><b>{{ u.lesson.subject.short }}</b></td><td>{{ u.lesson.subject.name }}</td><td>{% for c in u.lesson.classes.all %}{{ c.short|default:c.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</td><td class="subtle small">{{ u.reason }}</td>
+      <td><a class="btn btn-ghost btn-sm" href="{% url 'timetable:lesson_edit' school.pk u.lesson.pk %}">Dersi aç</a></td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const form = document.getElementById("rw-form");
+  const rows = [...form.querySelectorAll("tbody tr[data-text]")];
+  const boxes = () => rows.filter((r) => !r.hidden).map((r) => r.querySelector("[data-rw-row]"));
+  const count = () => { form.querySelector("[data-rw-count]").textContent = rows.filter((r) => r.querySelector("[data-rw-row]").checked).length; };
+  form.querySelector("[data-rw-search]").addEventListener("input", (e) => {
+    const q = e.target.value.trim().toLocaleLowerCase("tr");
+    rows.forEach((r) => { r.hidden = q && !r.dataset.text.includes(q); });
+  });
+  form.querySelector("[data-rw-all]").addEventListener("change", (e) => { boxes().forEach((b) => { b.checked = e.target.checked; }); count(); });
+  form.addEventListener("change", count);
+  const mode = form.querySelector("[data-rw-mode]");
+  const sync = () => form.querySelectorAll("[data-rw-cond]").forEach((s) => { s.hidden = mode.value === "remove" || mode.value === "dedupe"; });
+  mode.addEventListener("change", sync);
+  sync();
+  form.addEventListener("submit", (e) => {
+    if (mode.value === "remove" && !confirm("Seçili çiftlerin ilişkileri silinsin mi?")) e.preventDefault();
+  });
+  count();
+})();
+</script>
+{% endblock %}

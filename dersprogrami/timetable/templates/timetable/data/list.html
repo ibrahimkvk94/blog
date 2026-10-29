@@ -2,7 +2,7 @@
 {% block title %}{{ entity.title }}{% endblock %}
 {% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / Veri{% endblock %}
 {% block heading %}<h1>{{ entity.title }}</h1><span class="pill">{{ rows|length }}</span>{% endblock %}
-{% block actions %}{% if entity.slug == "kart-iliskileri" %}<a class="btn" href="{% url 'timetable:relationship_import' school.pk %}">{% include "timetable/icon.html" with name="download" %} aSc'den yapıştır</a> {% endif %}<a class="btn btn-primary" href="{% url 'timetable:data_new' school.pk entity.slug %}">{% include "timetable/icon.html" with name="plus" %} Yeni {{ entity.singular|lower }}</a>{% endblock %}
+{% block actions %}{% if entity.slug == "kart-iliskileri" %}<a class="btn" href="{% url 'timetable:relation_audit' school.pk %}">{% include "timetable/icon.html" with name="gauge" %} Denetim</a> <a class="btn" href="{% url 'timetable:relation_wizard' school.pk %}">{% include "timetable/icon.html" with name="wand" %} Teori + uygulama sihirbazı</a> <a class="btn" href="{% url 'timetable:relationship_import' school.pk %}">{% include "timetable/icon.html" with name="download" %} aSc'den yapıştır</a> {% endif %}<a class="btn btn-primary" href="{% url 'timetable:data_new' school.pk entity.slug %}">{% include "timetable/icon.html" with name="plus" %} Yeni {{ entity.singular|lower }}</a>{% endblock %}
 {% block content %}
 {% include "timetable/data/subnav.html" %}
 {% if entity.help %}<p class="muted small" style="margin-top:0">{{ entity.help }}</p>{% endif %}

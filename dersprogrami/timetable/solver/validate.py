@@ -15,6 +15,7 @@ class Violation:
     code: str
     message: str
     level: str = "hard"
+    ref: int | None = None  # kart ilişkisi ihlallerinde ilişkinin kimliği (denetim sayfası için)
 
     def as_dict(self):
         return {"code": self.code, "message": self.message, "level": self.level}
@@ -197,7 +198,7 @@ def _relationship_violations(problem, placements):
     D, P = problem.days, problem.periods
 
     def add(rel, level, text):
-        violations.append(Violation("relationship", f"{rel.name}: {text}", level))
+        violations.append(Violation("relationship", f"{rel.name}: {text}", level, ref=rel.id))
 
     def cells_of(keys, cells=None, room_filter=None):
         """Kümenin dolu hücreleri: {(gün, saat): kart sayısı}; harita/derslik süzgeciyle."""

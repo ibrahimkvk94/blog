@@ -15,7 +15,8 @@ from .solver.builder import lesson_rooms
 from .textsort import natural_key, tr_lower
 
 PREFIX = re.compile(r"[^\W\d_]+", re.UNICODE)
-PRACTICAL = re.compile(r"\(\s*U\s*\)|uygulama", re.IGNORECASE)
+# Uygulama dersi: adında "(U)" ya da "(Uyg.)" eki olan ("Uygulamaları" gibi ad içi sözcükler sayılmaz)
+PRACTICAL = re.compile(r"\(\s*u(yg\.?)?\s*\)", re.IGNORECASE)
 
 
 def prefix_of(subject):

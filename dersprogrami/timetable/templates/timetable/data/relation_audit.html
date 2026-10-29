@@ -1,0 +1,76 @@
+{% extends "timetable/base.html" %}
+{% block title %}İlişki denetimi{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{% url 'timetable:data_list' school.pk 'kart-iliskileri' %}">Kart ilişkileri</a>{% endblock %}
+{% block heading %}<h1>İlişki denetimi</h1><span class="pill">{{ total }} ilişki</span>{% endblock %}
+{% block actions %}<a class="btn" href="{% url 'timetable:relation_wizard' school.pk %}">{% include "timetable/icon.html" with name="wand" %} Teori + uygulama sihirbazı</a>{% endblock %}
+{% block content %}
+{% include "timetable/data/subnav.html" %}
+<p class="muted small" style="margin-top:0">Her kart ilişkisinin kaç kartla eşleştiği ve {% if timetable %}<b>{{ timetable.name }}</b> programında{% else %}programda{% endif %} kaç kez ihlal edildiği. <b>Boşa çalışan</b>: etkin ama hiçbir kartla eşleşmeyen (dersi silinmiş, süzgeci fazla dar) kural. <b>Kopya</b>: koşulu ve seçimi birebir aynı olan kurallar; birini bırakıp diğerlerini silebilirsiniz.</p>
+<div class="q-summary">
+  <a class="q-card{% if not status %} on{% endif %}" href="?"><span>Tümü</span><b>{{ total }}</b><small>ilişki</small></a>
+  <a class="q-card{% if status == 'violated' %} on{% endif %}" href="?durum=violated"><span>İhlal edilen</span><b class="{% if counts.violated %}t-kotu{% endif %}">{{ counts.violated }}</b><small>{% if timetable %}programda sağlanmıyor{% else %}program yok{% endif %}</small></a>
+  <a class="q-card{% if status == 'empty' %} on{% endif %}" href="?durum=empty"><span>Boşa çalışan</span><b class="{% if counts.empty %}t-orta{% endif %}">{{ counts.empty }}</b><small>hiçbir kartla eşleşmiyor</small></a>
+  <a class="q-card{% if status == 'duplicate' %} on{% endif %}" href="?durum=duplicate"><span>Kopya</span><b class="{% if counts.duplicate %}t-orta{% endif %}">{{ counts.duplicate }}</b><small>aynı kural birden çok kez</small></a>
+  <a class="q-card{% if status == 'closed' %} on{% endif %}" href="?durum=closed"><span>Kapalı</span><b>{{ counts.closed }}</b><small>üretimde kullanılmıyor</small></a>
+</div>
+<form method="post" class="panel" id="ra-form">
+  {% csrf_token %}<input type="hidden" name="durum" value="{{ status }}">
+  <div class="panel-head rw2-bar">
+    <input class="input input-sm" type="search" placeholder="Ad, ders ya da koşul ara…" data-ra-search>
+    <select class="select select-sm" data-ra-cond><option value="">Tüm koşullar</option>{% for k, v in conditions %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+    <div class="rw2-actions">
+      {% if status == "duplicate" %}<button type="button" class="btn btn-sm" data-ra-twins>Kopyaları seç (her kümeden birini bırak)</button>{% endif %}
+      <button class="btn btn-sm" name="islem" value="enable">Etkinleştir</button>
+      <button class="btn btn-sm" name="islem" value="disable">Kapat</button>
+      <button class="btn btn-sm btn-danger" name="islem" value="delete" data-ra-delete>Sil</button>
+      <span class="subtle small"><span data-ra-count>0</span> seçili</span>
+    </div>
+  </div>
+  <div class="panel-body flush table-wrap">
+    <table class="table ra-table">
+      <thead><tr><th style="width:32px"><input type="checkbox" data-ra-all aria-label="Görünenlerin hepsini seç"></th><th>İlişki</th><th>Koşul</th><th>Kartlar</th><th class="num">Eşleşen kart</th><th>Durum</th></tr></thead>
+      <tbody>
+        {% for r in rows %}{% if not status or status in r.flags %}
+          <tr data-text="{{ r.rel.name|lower }} {{ r.target|lower }} {{ r.rel.get_condition_display|lower }}" data-cond="{{ r.rel.condition }}" data-twin="{{ r.keep|yesno:'0,1' }}"{% if not r.rel.active %} class="subtle"{% endif %}>
+            <td><input type="checkbox" name="iliski" value="{{ r.rel.pk }}" data-ra-row></td>
+            <td><a href="{% url 'timetable:data_edit' school.pk 'kart-iliskileri' r.rel.pk %}"><b>{{ r.rel.name }}</b></a>{% if r.rel.note %}<div class="subtle small">{{ r.rel.note }}</div>{% endif %}</td>
+            <td class="small">{{ r.rel.get_condition_display }}{% if r.rel.condition in r.rel.USES_N %} · N={{ r.rel.param }}{% endif %}<div class="subtle">{{ r.rel.get_apply_to_display }} · {{ r.rel.get_importance_display }}</div></td>
+            <td class="small">{{ r.target }}{% if r.filters %}<div class="subtle">{{ r.filters }}</div>{% endif %}</td>
+            <td class="num">{% if r.rel.active %}{{ r.cards }}{% else %}–{% endif %}</td>
+            <td>{% if "closed" in r.flags %}<span class="pill">kapalı</span>{% endif %}
+              {% if "empty" in r.flags %}<span class="pill warn">boşa çalışıyor</span>{% endif %}
+              {% if "duplicate" in r.flags %}<span class="pill warn" title="Aynı kural: {{ r.twins|join:', ' }}">kopya{% if r.keep %} (asıl){% endif %}</span>{% endif %}
+              {% if "violated" in r.flags %}<details class="ra-viol"><summary><span class="pill error">{{ r.violations|length }} ihlal</span></summary><ul class="small">{% for v in r.violations|slice:":8" %}<li>{{ v }}</li>{% endfor %}{% if r.violations|length > 8 %}<li>… {{ r.violations|length|add:"-8" }} tane daha</li>{% endif %}</ul></details>{% endif %}
+              {% if not r.flags %}<span class="pill ok">sağlanıyor</span>{% endif %}</td>
+          </tr>
+        {% endif %}{% empty %}<tr><td colspan="6" class="subtle">Kart ilişkisi yok.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const form = document.getElementById("ra-form");
+  const rows = [...form.querySelectorAll("tbody tr[data-text]")];
+  const count = () => { form.querySelector("[data-ra-count]").textContent = rows.filter((r) => r.querySelector("[data-ra-row]").checked).length; };
+  const search = form.querySelector("[data-ra-search]"), cond = form.querySelector("[data-ra-cond]");
+  const filter = () => {
+    const q = search.value.trim().toLocaleLowerCase("tr");
+    rows.forEach((r) => { r.hidden = (q && !r.dataset.text.includes(q)) || (cond.value && r.dataset.cond !== cond.value); });
+  };
+  search.addEventListener("input", filter);
+  cond.addEventListener("change", filter);
+  form.querySelector("[data-ra-all]").addEventListener("change", (e) => {
+    rows.filter((r) => !r.hidden).forEach((r) => { r.querySelector("[data-ra-row]").checked = e.target.checked; });
+    count();
+  });
+  const twins = form.querySelector("[data-ra-twins]");
+  if (twins) twins.addEventListener("click", () => { rows.forEach((r) => { r.querySelector("[data-ra-row]").checked = r.dataset.twin === "1"; }); count(); });
+  form.addEventListener("change", count);
+  form.querySelector("[data-ra-delete]").addEventListener("click", (e) => { if (!confirm("Seçili ilişkiler silinsin mi?")) e.preventDefault(); });
+  count();
+})();
+</script>
+{% endblock %}

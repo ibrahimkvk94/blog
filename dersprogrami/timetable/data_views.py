@@ -32,6 +32,7 @@ from .models import (
     Subject,
     Teacher,
     TeacherQuota,
+    Timetable,
 )
 from .views import _nav
 
@@ -1591,3 +1592,99 @@ def teacher_assign(request, pk):
         quota_rows=quota_rows or [], notes=notes, pool=pool, distributable=sum(1 for r in rows if not r["multi"]),
         use_program=request.POST.get("program", "1") == "1",
         options_json={k: [{"id": t.id, "name": t.full_name, "load": loads.get(t.id, 0)} for t in v] for k, v in options.items()}))
+
+
+def relation_wizard(request, pk):
+    """Teori + uygulama ilişki sihirbazı (relation_wizard.py)."""
+    from . import relation_wizard as rw
+
+    school = _school(pk)
+    if request.method == "POST":
+        keys = request.POST.getlist("cift")
+        if not keys:
+            messages.error(request, "Önce tablodan çift seçin.")
+        else:
+            try:
+                result = rw.apply(school, keys, request.POST.get("kosul"), request.POST.get("onem", CardRelationship.STRICT),
+                                  request.POST.get("islem", "create"))
+            except ValueError as exc:
+                messages.error(request, str(exc))
+            else:
+                messages.success(request, f"{result['created']} ilişki oluşturuldu, {result['updated']} güncellendi, {result['removed']} silindi.")
+        return redirect(reverse("timetable:relation_wizard", args=[school.pk]) + (f"?durum={request.POST.get('durum')}" if request.POST.get("durum") else ""))
+    return render(request, "timetable/data/relation_wizard.html", _nav(
+        school, "data", data_nav="kart-iliskileri", data=rw.analyze(school), conditions=rw.CONDITIONS,
+        importances=CardRelationship.IMPORTANCE_CHOICES, status=request.GET.get("durum", "")))
+
+
+def _relation_signature(rel):
+    ids = lambda qs: tuple(sorted(x.pk for x in qs.all()))  # noqa: E731
+    return (rel.condition, rel.param, rel.param_max, rel.apply_to, rel.card_length, ids(rel.lessons), ids(rel.subjects),
+            ids(rel.lessons_b), ids(rel.subjects_b), ids(rel.classes), ids(rel.teachers), ids(rel.classrooms),
+            tuple(sorted(rel.time_map or [])), tuple(sorted(rel.time_map_b or [])))
+
+
+def relation_audit(request, pk):
+    """İlişki denetimi: her kartın ilişkisinin eşleştiği kart sayısı, programdaki ihlalleri, boşa çalışan ve kopya
+    kurallar; toplu etkinleştirme, kapatma ve silme."""
+    from .problem_cache import problem_for, school_problem
+    from .services import placements_of
+    from .solver.validate import validate
+
+    school = _school(pk)
+    if request.method == "POST":
+        ids = [int(x) for x in request.POST.getlist("iliski") if x.isdigit()]
+        qs = school.relationships.filter(pk__in=ids)
+        action = request.POST.get("islem")
+        if not ids:
+            messages.error(request, "Önce tablodan ilişki seçin.")
+        elif action == "enable":
+            messages.success(request, f"{qs.update(active=True)} ilişki etkinleştirildi.")
+        elif action == "disable":
+            messages.success(request, f"{qs.update(active=False)} ilişki kapatıldı.")
+        elif action == "delete":
+            n = qs.count()
+            qs.delete()
+            messages.success(request, f"{n} ilişki silindi.")
+        return redirect(reverse("timetable:relation_audit", args=[school.pk]) + (f"?durum={request.POST.get('durum')}" if request.POST.get("durum") else ""))
+
+    timetable = school.active_timetable or school.timetables.filter(status__in=[Timetable.OK, Timetable.PARTIAL]).first()
+    problem = problem_for(timetable) if timetable else school_problem(school)
+    cards, violations = defaultdict(set), defaultdict(list)
+    for spec in problem.relationships:
+        for group in list(spec.groups) + list(spec.groups_b or []):
+            cards[spec.id].update(group)
+    if timetable is not None:
+        for v in validate(problem, placements_of(problem, timetable))[0]:
+            if v.ref is not None:
+                violations[v.ref].append(v.message)
+    rels = list(school.relationships.prefetch_related("lessons__subject", "lessons__classes", "subjects", "lessons_b", "subjects_b",
+                                                      "classes", "teachers", "classrooms"))
+    by_signature = defaultdict(list)
+    for rel in rels:
+        by_signature[_relation_signature(rel)].append(rel.pk)
+    rows = []
+    for rel in sorted(rels, key=lambda r: natural_key(r.name)):
+        n_cards = len(cards.get(rel.pk, ()))
+        twins = [x for x in by_signature[_relation_signature(rel)] if x != rel.pk]
+        flags = []
+        if not rel.active:
+            flags.append("closed")
+        elif rel.condition not in rel.STUDENT and n_cards == 0:
+            flags.append("empty")
+        if violations.get(rel.pk):
+            flags.append("violated")
+        if twins:
+            flags.append("duplicate")
+        target = [s.short or s.name for s in rel.subjects.all()]
+        target += [f"{l.subject.short or l.subject.name} ({', '.join(c.short or c.name for c in l.classes.all())})" for l in rel.lessons.all()]
+        rows.append({"rel": rel, "cards": n_cards, "violations": violations.get(rel.pk, []), "flags": flags,
+                     "twins": twins, "keep": not twins or rel.pk == min([rel.pk] + twins),
+                     "target": ", ".join(target[:3]) + (f" +{len(target) - 3}" if len(target) > 3 else "") or "tüm dersler",
+                     "filters": ", ".join(filter(None, [f"{rel.classes.count()} sınıf" if rel.classes.all() else "",
+                                                        f"{rel.teachers.count()} öğretmen" if rel.teachers.all() else ""]))})
+    counts = {k: sum(1 for r in rows if k in r["flags"]) for k in ("violated", "empty", "duplicate", "closed")}
+    conditions = sorted({(r["rel"].condition, r["rel"].get_condition_display()) for r in rows}, key=lambda c: c[1])
+    return render(request, "timetable/data/relation_audit.html", _nav(
+        school, "data", data_nav="kart-iliskileri", rows=rows, counts=counts, total=len(rows), timetable=timetable,
+        conditions=conditions, status=request.GET.get("durum", "")))
