@@ -1,0 +1,32 @@
+{% extends "timetable/base.html" %}
+{% block title %}Yeniden başlatılıyor{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:central' %}">Merkez paneli</a>{% endblock %}
+{% block heading %}<h1>Yeniden başlatılıyor</h1>{% endblock %}
+{% block content %}
+<section class="panel"><div class="panel-body">
+  <p style="margin-top:0"><b data-upd-text>Program kapanıyor; paketler ve veritabanı güncelleniyor…</b></p>
+  <p class="subtle small">Bu sayfa program yeniden açılınca kendiliğinden yenilenir (genellikle 20–60 saniye). <span data-upd-time></span></p>
+</div></section>
+<script>
+(function () {
+  const url = "{% url 'timetable:system_update' %}";
+  const started = Date.now();
+  let down = false;
+  const text = document.querySelector("[data-upd-text]"), time = document.querySelector("[data-upd-time]");
+  async function poll() {
+    time.textContent = Math.round((Date.now() - started) / 1000) + " sn";
+    try {
+      const r = await fetch(url + "?durum=1", { cache: "no-store", credentials: "same-origin" });
+      if (r.ok && down) { location.href = url; return; }
+      if (!r.ok) down = true;
+    } catch (e) { down = true; text.textContent = "Program yeniden açılıyor…"; }
+    if (Date.now() - started > 300000) {
+      text.textContent = "Program 5 dakikada açılmadı. Sunucu penceresindeki iletiyi kontrol edin.";
+      return;
+    }
+    setTimeout(poll, 1500);
+  }
+  setTimeout(poll, 2000);
+})();
+</script>
+{% endblock %}

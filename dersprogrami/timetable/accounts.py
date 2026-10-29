@@ -278,3 +278,52 @@ def backups(request):
     return render(request, "timetable/backups.html", {
         "items": backup.listing(), "nav": "central", "keep": settings.BACKUP_KEEP, "dir": str(backup.directory()),
     })
+
+
+def system_update(request):
+    """Merkez → Sistem güncelleme: yeni sürümü denetle, önce yedek alıp indir, sunucuyu yeniden başlat."""
+    from django.http import JsonResponse
+
+    from . import backup, updater
+    from .models import ImproveJob, Timetable
+
+    if request.GET.get("durum"):  # yeniden başlatma sırasında sayfanın yokladığı sürüm bilgisi
+        now = updater.current()
+        return JsonResponse({"head": now["hash"] if now else ""})
+    supervised = updater.supervised()
+    git_ok = updater.is_git()
+    running = Timetable.objects.filter(status=Timetable.RUNNING).count() + ImproveJob.objects.filter(
+        status__in=[ImproveJob.QUEUED, ImproveJob.RUNNING]).count()
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if not supervised:
+            messages.error(request, "Bu kurulum sayfadan yeniden başlatılamıyor; aşağıdaki açıklamaya bakın.")
+            return redirect("timetable:system_update")
+        if running and request.POST.get("zorla") != "1":
+            messages.error(request, f"Şu an {running} üretim / iyileştirme çalışıyor; yeniden başlatma onları keser. "
+                                    "Bitmesini bekleyin ya da yine de devam etmek için kutuyu işaretleyin.")
+            return redirect("timetable:system_update")
+        before = (updater.current() or {}).get("hash", "")
+        if action == "guncelle":
+            try:
+                saved = backup.create()
+            except Exception as exc:  # yedek alınamazsa güncellemeye girişilmez
+                messages.error(request, f"Önce yedek alınamadı, güncelleme yapılmadı: {exc}")
+                return redirect("timetable:system_update")
+            ok, message = updater.pull()
+            if not ok:
+                messages.error(request, f"{message} (Yedek alındı: {saved.name})")
+                return redirect("timetable:system_update")
+            if (updater.current() or {}).get("hash", "") == before:
+                messages.info(request, f"Zaten en son sürüm kullanılıyor. (Yedek alındı: {saved.name})")
+                return redirect("timetable:system_update")
+        elif action != "yeniden_baslat":
+            return redirect("timetable:system_update")
+        updater.request_restart(before)
+        return render(request, "timetable/system_restart.html", {"before": before})
+    check = updater.check() if git_ok and request.GET.get("denetle") else None
+    return render(request, "timetable/system_update.html", {
+        "supervised": supervised, "git_ok": git_ok, "current": updater.current() if git_ok else None,
+        "changes": updater.local_changes() if git_ok else [], "check": check, "running": running,
+        "last": updater.last_result(),
+    })
