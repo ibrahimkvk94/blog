@@ -11,6 +11,7 @@ import re
 import time
 from datetime import datetime
 from io import StringIO
+from pathlib import Path
 
 from django.conf import settings
 from django.core.management import call_command
@@ -104,3 +105,65 @@ def restore(path):
 
     invalidate()
     return safety
+
+
+# --- yedekle karşılaştırma ---------------------------------------------------------------------------------------
+
+def compare_path(name, school_id):
+    return directory() / f"karsilastirma-{school_id}-{name.removesuffix('.json.gz')}.json"
+
+
+def compare(path, school):
+    """Yedekteki programın üretim girdisini bugünküyle karşılaştırır (input_diff). Yedek geçici, ayrı bir SQLite
+    veritabanına yüklenir; asıl veritabanına dokunulmaz. Sonuç yedek klasörüne JSON olarak yazılır."""
+    import os
+    import subprocess
+    import sys
+
+    from . import input_diff
+    from .solver.builder import build_problem
+
+    out_path = compare_path(path.name, school.pk)
+    temp = directory() / f".karsilastir-{school.pk}-{int(time.time())}.sqlite3"
+    env = {**os.environ, "DJANGO_DB_PATH": str(temp)}
+    manage = [sys.executable, str(settings.BASE_DIR / "manage.py")]
+    result = {"backup": path.name, "school": school.name, "created": f"{datetime.now():%d.%m.%Y %H:%M}"}
+    try:
+        for args in (["migrate", "--noinput", "-v0"], ["loaddata", str(path), "-v0"]):
+            done = subprocess.run(manage + args, env=env, capture_output=True, text=True, timeout=1800)
+            if done.returncode:
+                raise RuntimeError((done.stderr or done.stdout).strip().splitlines()[-1] if (done.stderr or done.stdout) else "hata")
+        done = subprocess.run(manage + ["girdi_ozeti", "--okul", str(school.pk), "--ad", school.name], env=env,
+                              capture_output=True, text=True, timeout=1800)
+        data = json.loads(done.stdout.strip().splitlines()[-1])
+        if data.get("error"):
+            raise RuntimeError(data["error"])
+        result["diff"] = input_diff.compare(data["inputs"], input_diff.fingerprint(build_problem(school)), limit=60)
+    except Exception as exc:  # karşılaştırma yapılamadı: nedeni sayfada gösterilir
+        result["error"] = str(exc)[:500]
+    finally:
+        for suffix in ("", "-wal", "-shm"):
+            Path(str(temp) + suffix).unlink(missing_ok=True)
+    out_path.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
+    return result
+
+
+def compare_start(path, school):
+    """Karşılaştırmayı arka planda başlatır (yedeği yüklemek bir-iki dakika sürebilir)."""
+    import threading
+
+    from django.db import connection
+
+    def run():
+        try:
+            compare(path, school)
+        finally:
+            connection.close()
+
+    compare_path(path.name, school.pk).unlink(missing_ok=True)
+    threading.Thread(target=run, daemon=True).start()
+
+
+def compare_result(name, school_id):
+    path = compare_path(name, school_id)
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None

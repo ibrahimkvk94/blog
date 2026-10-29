@@ -1024,3 +1024,23 @@ def quick_search(request, pk):
         if counts[item["kind"]] <= 6:
             results.append(item)
     return JsonResponse({"results": results[:24]})
+
+
+def backup_compare(request, pk):
+    """Bir yedekteki (ör. dün yerleşim yapılabilen) veriyle bugünkü üretim girdisini karşılaştırır."""
+    from . import backup
+
+    school = get_object_or_404(School, pk=pk)
+    name = request.POST.get("yedek") or request.GET.get("yedek")
+    if request.method == "POST":
+        path = backup.path_of(name)
+        if path is None:
+            messages.error(request, "Yedek bulunamadı.")
+        else:
+            backup.compare_start(path, school)
+            messages.info(request, "Karşılaştırma başladı; yedek ayrı bir kopyaya yükleniyor (bir-iki dakika sürebilir).")
+        return redirect(reverse("timetable:backup_compare", args=[school.pk]) + (f"?yedek={name}" if name else ""))
+    result = backup.compare_result(name, school.pk) if backup.path_of(name) else None
+    return render(request, "timetable/backup_compare.html", _nav(
+        school, "dashboard", backups=backup.listing(), selected=name if backup.path_of(name) else "",
+        result=result, waiting=bool(name and backup.path_of(name) and result is None)))

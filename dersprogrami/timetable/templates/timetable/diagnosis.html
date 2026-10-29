@@ -32,4 +32,5 @@
       <p class="muted">Taslakta hiçbir kural esnetilmedi: kurallar birlikte sağlanabiliyor, katı modda süre yetmedi. Süreyi artırın ya da bu taslağı başlangıç sürümü seçerek yeniden üretin.</p>
     {% endif %}
   {% endif %}
+  <p class="small" style="margin-top:12px">Dün yerleşiyor muydu? <a href="{% url 'timetable:backup_compare' timetable.school_id %}">Eski bir yedekteki veriyle karşılaştırın</a> — çözücünün gördüğü veride neyin değiştiğini kesin olarak gösterir.</p>
 </div>

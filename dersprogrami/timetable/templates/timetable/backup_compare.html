@@ -1,0 +1,47 @@
+{% extends "timetable/base.html" %}
+{% block title %}Yedekle karşılaştır{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
+{% block heading %}<h1>Yedekle karşılaştır</h1>{% endblock %}
+{% block head %}{% if waiting %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
+{% block content %}
+<p class="page-lead">“Dün yerleşiyordu, bugün yerleşmiyor” durumunda: program çalışırken alınan otomatik yedeklerden birini seçin. Yedekteki veri ayrı bir kopyaya yüklenir ve çözücünün o gün gördüğü veriyle bugün gördüğü karşılaştırılır: kurallar, öğretmen sınırları ve uygun saatleri, dersler ve kartları, öğretmen havuzları, ızgara. Asıl veritabanınıza dokunulmaz.</p>
+<div class="grid-2">
+  <section class="panel">
+    <div class="panel-head"><h2>Yedekler</h2></div>
+    <div class="panel-body flush">
+      <table class="table"><tbody>
+        {% for b in backups %}
+          <tr{% if b.name == selected %} class="on"{% endif %}><td><b>{{ b.created|date:"d.m.Y H:i" }}</b><div class="subtle small">{{ b.name }}</div></td>
+            <td class="num"><form method="post">{% csrf_token %}<input type="hidden" name="yedek" value="{{ b.name }}"><button class="btn btn-sm{% if b.name == selected %} btn-primary{% endif %}">Bugünkü veriyle karşılaştır</button></form></td></tr>
+        {% empty %}<tr><td class="subtle">Yedek yok. Yedekler program çalışırken günde bir alınır.</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+  </section>
+  <section class="panel">
+    <div class="panel-head"><h2>Sonuç</h2>{% if result %}<span class="subtle small">{{ result.backup }} · {{ result.created }}</span>{% endif %}</div>
+    <div class="panel-body">
+      {% if waiting %}
+        <p><span class="spinner"></span> Yedek yükleniyor ve karşılaştırılıyor… Sayfa kendiliğinden yenilenir.</p>
+      {% elif result.error %}
+        <div class="alert alert-error">Karşılaştırılamadı: {{ result.error }}</div>
+      {% elif result %}
+        {% for g in result.diff %}
+          <details class="since-group" open>
+            <summary><b>{{ g.title }}</b> <span class="pill warn">{{ g.total }} değişiklik</span></summary>
+            <ul>
+              {% for n, v in g.added %}<li class="add"><b>+ {{ n }}</b> <span class="subtle">{{ v }}</span></li>{% endfor %}
+              {% for n, v in g.removed %}<li class="del"><b>− {{ n }}</b> <span class="subtle">{{ v }}</span></li>{% endfor %}
+              {% for n, a, b in g.changed %}<li><b>{{ n }}</b>: <span class="subtle">{{ a }}</span> → <b>{{ b }}</b></li>{% endfor %}
+              {% if g.total > 60 %}<li class="subtle small">… toplam {{ g.total }}</li>{% endif %}
+            </ul>
+          </details>
+        {% empty %}
+          <p class="muted">Çözücünün gördüğü veri yedektekiyle <b>aynı</b>. Fark veride değil: süre, rastgelelik ya da yazılım sürümü kaynaklı olabilir.</p>
+        {% endfor %}
+      {% else %}
+        <p class="muted">Soldan bir yedek seçin.</p>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

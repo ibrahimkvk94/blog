@@ -1,7 +1,7 @@
 {# Son başarılı üretimden bu yana: girdi farkları ve veri işlemleri. ch = report.changes #}
 {% if ch %}
 <div class="since">
-  <h3>Son başarılı üretimden bu yana neler değişti?</h3>
+  <h3>Son başarılı üretimden bu yana neler değişti? <a class="btn btn-sm" href="{% url 'timetable:backup_compare' timetable.school_id %}">Eski bir yedekle karşılaştır</a></h3>
   <p class="subtle small" style="margin-top:0">Karşılaştırılan: <a href="{% url 'timetable:timetable_detail' ch.previous.id %}"><b>{{ ch.previous.name }}</b></a> · {{ ch.previous.finished_at }}{% if ch.previous.objective is not None %} · ceza {{ ch.previous.objective }}{% endif %}</p>
   {% if ch.diff %}
     {% for g in ch.diff %}

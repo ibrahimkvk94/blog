@@ -40,6 +40,7 @@ urlpatterns = [
     path("okul/<int:pk>/basili-cikti/", printing.settings_page, name="print_settings"),
     path("okul/<int:pk>/ogretmen-hesaplari/", teacher_accounts.page, name="teacher_accounts"),
     path("okul/<int:pk>/bolumler/", departments.admin, name="departments"),
+    path("okul/<int:pk>/yedek-karsilastir/", views.backup_compare, name="backup_compare"),
     path("bolum/<int:pk>/", departments.portal, name="department_portal"),
     path("okul/<int:pk>/kurulum/", setup_wizard.wizard, name="setup_wizard_start"),
     path("okul/<int:pk>/kurulum/<slug:step>/", setup_wizard.wizard, name="setup_wizard"),
