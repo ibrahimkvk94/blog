@@ -4,6 +4,8 @@
 {% block heading %}<h1>Değişiklikler ve bildirim</h1>{% endblock %}
 {% block actions %}{% if data and data.changes %}<button type="button" class="btn" onclick="window.print()">{% include "timetable/icon.html" with name="printer" %} Yazdır / PDF</button>{% endif %}{% endblock %}
 {% block content %}
+<style>{% include "timetable/print_brand_css.html" %}</style>
+<div class="print-only">{% include "timetable/print_brand.html" with page_title="Ders programı değişiklikleri" page_info=source_label %}</div>
 <form method="get" class="panel panel-body cr-source no-print">
   <label class="label" for="cr-src">Neye göre karşılaştırılsın?</label>
   <div class="cr-source-row">
@@ -65,6 +67,7 @@
 {% endif %}
 {% endblock %}
 {% block scripts %}
+<div class="print-only">{% include "timetable/print_sign.html" %}</div>
 <script>
 (function () {
   const search = document.querySelector("[data-cr-search]");

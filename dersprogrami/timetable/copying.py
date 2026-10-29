@@ -71,7 +71,7 @@ def copy_program(source, name, parts):
     target = School.objects.create(
         institution=source.institution, name=name[:200], days_per_week=source.days_per_week,
         weeks_count=source.weeks_count, terms_count=source.terms_count, duties_per_teacher=source.duties_per_teacher,
-        uybs_settings=source.uybs_settings,
+        uybs_settings=source.uybs_settings, print_settings=source.print_settings,
     )
     for p in source.periods.all():
         _clone(p, school_id=target.id)

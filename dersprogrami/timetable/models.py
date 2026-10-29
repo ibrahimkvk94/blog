@@ -75,6 +75,8 @@ class School(models.Model):
     data_version = models.PositiveIntegerField(default=0, editable=False)
     # ÜYBS aktarım şablonu ayarları: sabit sütunlar, ders kodu öneki eşlemesi, ref sütunu (bkz. uybs.py).
     uybs_settings = models.JSONField("ÜYBS ayarları", default=dict, blank=True)
+    # Basılı çıktı: logo, kurum başlığı, dönem, imza alanları, sayfa altı (bkz. printing.py).
+    print_settings = models.JSONField("basılı çıktı ayarları", default=dict, blank=True)
 
     class Meta:
         verbose_name = "program"

@@ -15,7 +15,7 @@ from django.views.decorators.http import require_POST
 
 from . import report_excel as report_excel_module
 from . import report_pdf as report_pdf_module
-from . import access, analysis, asc_xml, duty, editing, excel, jobs, refs, reports, substitutes, versions
+from . import access, analysis, asc_xml, duty, editing, excel, jobs, printing, refs, reports, substitutes, versions
 from .demo import create_demo_school
 from .grid import KINDS, card_payload, grid_data, grid_delta, room_names
 from .models import Absence, Card, day_time_notes, Duty, DutyPlace, LessonRef, ReportPreset, School, Teacher, Timetable, TimetableVersion
@@ -381,6 +381,7 @@ def print_view(request, pk):
             "options": options,
             "summary": summary,
             "embedded": request.GET.get("gomulu") == "1",
+            "brand": printing.settings_of(school),
         },
     )
 
@@ -520,7 +521,7 @@ def duties(request, pk):
 
 def duties_print(request, pk):
     school = get_object_or_404(School, pk=pk)
-    return render(request, "timetable/duties_print.html", {"school": school, **duty.roster(school)})
+    return render(request, "timetable/duties_print.html", {"school": school, "brand": printing.settings_of(school), **duty.roster(school)})
 
 
 # --- JSON API ----------------------------------------------------------------------------------
@@ -971,7 +972,7 @@ def change_report(request, pk):
         return redirect(reverse("timetable:change_report", args=[timetable.pk]) + f"?kaynak={key}")
     return render(request, "timetable/change_report.html", _nav(
         school, "timetable", timetable=timetable, sources=cr.sources(timetable), source=key, source_label=label,
-        data=data, can_mail=notify.enabled(), print_mode=request.GET.get("yazdir") == "1"))
+        data=data, can_mail=notify.enabled(), print_mode=request.GET.get("yazdir") == "1", brand=printing.settings_of(school)))
 
 
 def quick_search(request, pk):
