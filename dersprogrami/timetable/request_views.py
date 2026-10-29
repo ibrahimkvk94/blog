@@ -11,7 +11,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from . import notify, teacher_requests as tr
-from .models import AvailabilityRequest, LeaveRequest, School, Timetable
+from .models import AvailabilityRequest, LeaveRequest, School
 from .textsort import natural_key, tr_lower
 from .views import _nav
 
@@ -122,7 +122,7 @@ def teacher_requests(request, pk):
         for error in errors:
             messages.warning(request, f"E-posta gönderilemedi: {error}")
         return redirect("timetable:teacher_requests", pk=school.pk)
-    timetable = school.active_timetable or school.timetables.exclude(status__in=[Timetable.FAILED, Timetable.RUNNING]).first()
+    timetable = school.current_timetable()
     pending = [{"r": r, "items": tr.describe(r), "conflicts": tr.conflicts(r, timetable),
                 "grid": tr.grid(r.teacher, {**tr.current_states(r.teacher), **{(d, p): s for d, p, s in r.changes}})}
                for r in school.availability_requests.filter(status=R.PENDING).select_related("teacher", "requested_by").order_by("created_at")]

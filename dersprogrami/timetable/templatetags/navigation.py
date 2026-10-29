@@ -79,7 +79,7 @@ def build(context):
     if school is None or not getattr(school, "pk", None):
         return []
     can = context.get("can") or {}
-    tt = school.active_timetable or context.get("latest_timetable")
+    tt = context.get("latest_timetable") or school.current_timetable()
     current = {context.get("data_nav"), context.get("nav")}
     badges = {"istekler": context.get("pending_requests") or 0, "bolumler": context.get("pending_departments") or 0}
     groups = []

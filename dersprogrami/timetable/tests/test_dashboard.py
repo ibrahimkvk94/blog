@@ -39,3 +39,50 @@ class DashboardTests(TestCase):
         self.assertIn("Bu program henüz yayında değil.", texts)
         self.assertContains(page, "Yayında değil")
         self.assertContains(page, reverse("timetable:pending", args=[tt.pk]))
+
+
+class WorkingTimetableTests(TestCase):
+    """Aktif (üzerinde çalışılan) program: açılan program aktif olur; yayındaki programdan bağımsızdır."""
+
+    def setUp(self):
+        self.school = School.objects.create(name="MYO", days_per_week=5)
+        Period.objects.create(school=self.school, index=0, name="1", start_time=datetime.time(8), end_time=datetime.time(8, 40))
+        self.old = Timetable.objects.create(school=self.school, name="Program 18", status=Timetable.OK)
+        self.new = Timetable.objects.create(school=self.school, name="Program 19", status=Timetable.OK)
+        self.client.force_login(User.objects.create_superuser("admin", "a@x.tr", "pw"))
+        self.url = reverse("timetable:school_detail", args=[self.school.pk])
+
+    def test_opening_a_timetable_makes_it_active(self):
+        self.assertEqual(self.client.get(self.url).context["main"], self.new)  # en yeni
+        self.client.get(reverse("timetable:timetable_detail", args=[self.old.pk]))
+        self.school.refresh_from_db()
+        self.assertEqual(self.school.working_timetable, self.old)
+        page = self.client.get(self.url)
+        self.assertEqual(page.context["main"], self.old)
+        self.assertIsNone(self.school.active_timetable)  # yayın değişmez
+
+    def test_active_wins_over_published_on_dashboard(self):
+        School.objects.filter(pk=self.school.pk).update(active_timetable=self.new)
+        self.client.post(reverse("timetable:activate", args=[self.old.pk]))
+        page = self.client.get(self.url)
+        self.assertEqual(page.context["main"], self.old)
+        self.assertContains(page, "Yayındaki program:")
+        self.school.refresh_from_db()
+        self.assertEqual(self.school.active_timetable, self.new)
+
+    def test_failed_timetable_is_not_activated(self):
+        failed = Timetable.objects.create(school=self.school, name="Hatalı", status=Timetable.FAILED)
+        self.client.get(reverse("timetable:timetable_detail", args=[failed.pk]))
+        self.school.refresh_from_db()
+        self.assertIsNone(self.school.working_timetable)
+        self.assertEqual(self.school.current_timetable(), self.new)
+
+    def test_viewer_does_not_change_active(self):
+        from timetable.models import Membership
+
+        viewer = User.objects.create_user("izleyici", password="pw")
+        Membership.objects.create(user=viewer, institution=self.school.institution, permissions=[Membership.VIEW])
+        self.client.force_login(viewer)
+        self.client.get(reverse("timetable:timetable_detail", args=[self.old.pk]))
+        self.school.refresh_from_db()
+        self.assertIsNone(self.school.working_timetable)

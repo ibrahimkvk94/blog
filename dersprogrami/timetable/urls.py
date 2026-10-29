@@ -91,6 +91,7 @@ urlpatterns = [
     path("api/program/<int:pk>/versiyonlar/", views.api_versions, name="api_versions"),
     path("api/versiyon/<int:pk>/", views.api_version, name="api_version"),
     path("program/<int:pk>/istatistik/", views.statistics, name="statistics"),
+    path("program/<int:pk>/aktif-yap/", views.activate, name="activate"),
     path("program/<int:pk>/raporlar/", views.reports_page, name="reports"),
     path("program/<int:pk>/cozum-merkezi/", resolve.center_view, name="solution_center"),
     path("program/<int:pk>/kalite/", views.quality_page, name="quality"),

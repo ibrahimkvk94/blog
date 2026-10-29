@@ -11,10 +11,18 @@
 <section class="hero{% if st.hard or st.waiting %} hero-bad{% elif st %} hero-ok{% endif %}">
   <div class="hero-main">
     <div class="hero-title">
-      <span class="subtle small">Ana program</span>
+      <span class="subtle small">Aktif program</span>
       <h2><a href="{% url 'timetable:timetable_detail' main.pk %}">{{ main.name }}</a></h2>
       {% if st.published %}<span class="pill ok">Yayında</span>{% else %}<span class="pill warn">Yayında değil</span>{% endif %}
+      {% if can.program and switchable|length > 1 %}
+        <form method="post" action="" class="hero-switch" data-switch>{% csrf_token %}
+          <select class="select select-sm" aria-label="Aktif programı değiştir" onchange="this.form.action=this.value;this.form.submit()">
+            {% for t in switchable %}<option value="{% url 'timetable:activate' t.pk %}"{% if t.pk == main.pk %} selected{% endif %}>{{ t.name }}{% if t.pk == school.active_timetable_id %} · yayında{% endif %}</option>{% endfor %}
+          </select>
+        </form>
+      {% endif %}
     </div>
+    {% if school.active_timetable_id and school.active_timetable_id != main.pk %}<div class="subtle small">Yayındaki program: <a href="{% url 'timetable:timetable_detail' school.active_timetable_id %}">{{ school.active_timetable.name }}</a> (öğrenciler, öğretmenler, vekâlet ve nöbet bunu kullanır)</div>{% endif %}
     {% if st %}
     <div class="hero-stats">
       <a class="hs{% if st.hard %} bad{% endif %}" href="{% url 'timetable:solution_center' main.pk %}"><b>{{ st.hard }}</b><span>kesin ihlal</span></a>
@@ -92,7 +100,8 @@
           <tbody>
             {% for t in timetables %}
               <tr>
-                <td><a href="{% url 'timetable:timetable_detail' t.pk %}"><b>{{ t.name }}</b></a></td>
+                <td><a href="{% url 'timetable:timetable_detail' t.pk %}"><b>{{ t.name }}</b></a>
+                  {% if main and t.pk == main.pk %}<span class="pill ok">Aktif</span>{% endif %}{% if t.pk == school.active_timetable_id %}<span class="pill">Yayında</span>{% endif %}</td>
                 <td>{% include "timetable/status_pill.html" %}</td>
                 <td class="muted">{{ t.get_mode_display }}</td>
                 <td class="num">{{ t.objective|default_if_none:"–" }}</td>

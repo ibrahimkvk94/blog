@@ -25,8 +25,8 @@ KIND_LABELS = {"sinif": "Sınıflar", "ogretmen": "Öğretmenler", "derslik": "D
 
 
 def _nav(school, nav, **extra):
-    latest = school.timetables.exclude(status__in=[Timetable.FAILED, Timetable.RUNNING]).first()
-    return {"school": school, "nav": nav, "latest_timetable": latest, **extra}
+    # Menü ve kısayollar üzerinde çalışılan (aktif) programı açar.
+    return {"school": school, "nav": nav, "latest_timetable": school.current_timetable(), **extra}
 
 
 # --- sayfalar ----------------------------------------------------------------------------------
@@ -97,7 +97,7 @@ def school_detail(request, pk):
         {"label": "Ders", "value": len(lessons), "hint": f"haftada {sum(x.periods_per_week for x in lessons)} saat", "url": reverse("timetable:lessons", args=[school.pk])},
         {"label": "Zaman ızgarası", "value": f"{school.days_per_week} × {school.periods.count()}", "hint": "gün × saat", "url": reverse("timetable:school_settings", args=[school.pk])},
     ]
-    main = school.active_timetable or next((t for t in timetables if t.has_grid), None)
+    main = school.current_timetable()
     errors = sum(1 for i in issues if i.level == "error")
     board = _dashboard(request, school, main, timetables, errors)
     return render(
@@ -112,6 +112,7 @@ def school_detail(request, pk):
             tiles=tiles,
             main=main,
             board=board,
+            switchable=[t for t in timetables if t.has_grid],
         ),
     )
 
@@ -223,6 +224,10 @@ def generate(request, pk):
 def timetable_detail(request, pk):
     timetable = refresh_stale(get_object_or_404(Timetable.objects.select_related("school"), pk=pk))
     school = timetable.school
+    if timetable.has_grid and "program" in getattr(request, "school_perms", set()) and school.working_timetable_id != timetable.pk:
+        # Açılan program aktif olur: genel bakış ve menü artık bunu gösterir (yayındaki program değişmez).
+        School.objects.filter(pk=school.pk).update(working_timetable=timetable)
+        school.working_timetable = timetable
     if timetable.has_grid:
         # Açılışta, son versiyondan beri değişiklik varsa otomatik versiyon alınır.
         versions.autosave(timetable, request.user, note="Açılışta otomatik kayıt", force=True)
@@ -268,6 +273,18 @@ def timetable_detail(request, pk):
     return render(
         request, "timetable/timetable_detail.html", _nav(school, "timetable", timetable=timetable, config=config)
     )
+
+
+@require_POST
+def activate(request, pk):
+    """Genel bakıştaki program seçicisi: programı aktif yapar (yayına dokunmaz)."""
+    timetable = get_object_or_404(Timetable, pk=pk)
+    if timetable.has_grid:
+        School.objects.filter(pk=timetable.school_id).update(working_timetable=timetable)
+        messages.success(request, f"“{timetable.name}” aktif program yapıldı.")
+    else:
+        messages.error(request, "Yalnızca üretilmiş programlar aktif yapılabilir.")
+    return redirect("timetable:school_detail", pk=timetable.school_id)
 
 
 @require_POST

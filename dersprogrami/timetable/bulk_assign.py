@@ -11,7 +11,7 @@ from collections import defaultdict
 
 from ortools.sat.python import cp_model
 
-from .models import Availability, Lesson, Timetable
+from .models import Availability, Lesson
 from .textsort import natural_key
 
 KEEP, ORDER = 100, 1  # mevcut atamayı koruma ağırlığı, sıra (blok) ağırlığı
@@ -51,7 +51,7 @@ def pool_status(lessons, quotas):
 
 
 def _timetable(school):
-    return school.active_timetable or school.timetables.exclude(status__in=[Timetable.FAILED, Timetable.RUNNING]).first()
+    return school.current_timetable()
 
 
 def distribute(school, lessons, quotas, use_timetable=True, time_limit=10):

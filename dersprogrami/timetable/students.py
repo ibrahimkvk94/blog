@@ -16,7 +16,7 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
-from .models import Lesson, School, Student, Timetable
+from .models import Lesson, School, Student
 
 
 # --- öğrencinin dersleri ------------------------------------------------------------------------
@@ -344,7 +344,7 @@ def _timetable(school, request):
         tt = school.timetables.filter(pk=pk).first()
         if tt is not None:
             return tt
-    return school.active_timetable or school.timetables.filter(status__in=[Timetable.OK, Timetable.PARTIAL]).first()
+    return school.current_timetable()
 
 
 def students_page(request, pk):

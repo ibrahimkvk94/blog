@@ -1672,7 +1672,7 @@ def relation_audit(request, pk):
             messages.success(request, f"{n} ilişki silindi.")
         return redirect(reverse("timetable:relation_audit", args=[school.pk]) + (f"?durum={request.POST.get('durum')}" if request.POST.get("durum") else ""))
 
-    timetable = school.active_timetable or school.timetables.filter(status__in=[Timetable.OK, Timetable.PARTIAL]).first()
+    timetable = school.current_timetable()
     problem = problem_for(timetable) if timetable else school_problem(school)
     cards, violations = defaultdict(set), defaultdict(list)
     for spec in problem.relationships:

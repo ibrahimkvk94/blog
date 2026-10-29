@@ -70,6 +70,11 @@ class School(models.Model):
         verbose_name="yayındaki program",
         help_text="Vekâlet işlemlerinde esas alınan program.",
     )
+    # Üzerinde çalışılan (aktif) program: genel bakış ve menü bunu açar; programı açınca değişir. Yayındaki
+    # programdan bağımsızdır (öğrenci/öğretmen yayını, vekâlet ve nöbet yayındakini kullanır).
+    working_timetable = models.ForeignKey(
+        "Timetable", on_delete=models.SET_NULL, null=True, blank=True, related_name="+", verbose_name="aktif program",
+    )
     # Programın verisi (ders, öğretmen, müsaitlik, ilişki…) her değiştiğinde artar; çözücü problemi
     # önbelleği bununla geçersiz kılınır (bkz. problem_cache.py).
     data_version = models.PositiveIntegerField(default=0, editable=False)
@@ -84,6 +89,13 @@ class School(models.Model):
 
     def __str__(self):
         return self.name
+
+    def current_timetable(self):
+        """Üzerinde çalışılan program: aktif seçilen, yoksa yayındaki, yoksa en son üretilen."""
+        for tt in (self.working_timetable, self.active_timetable):
+            if tt is not None and tt.has_grid:
+                return tt
+        return self.timetables.exclude(status__in=[Timetable.FAILED, Timetable.RUNNING]).first()
 
     def save(self, *args, **kwargs):
         # Her program bir kuruma bağlıdır; kurum verilmezse aynı adla yeni kurum açılır.
