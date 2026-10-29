@@ -9,6 +9,7 @@ from .models import (
     Card,
     CardRelationship,
     Classroom,
+    Department,
     Division,
     DutyPlace,
     Group,
@@ -114,6 +115,11 @@ def copy_program(source, name, parts):
             TeacherQuota(school=target, subject=subjects[q.subject_id], teacher=teachers[q.teacher_id], count=q.count)
             for q in source.teacher_quotas.all() if q.subject_id in subjects and q.teacher_id in teachers
         )
+        for dept in source.departments.prefetch_related("subjects", "teachers", "users"):  # bölümler (öneriler kopyalanmaz)
+            new_dept = Department.objects.create(school=target, name=dept.name)
+            new_dept.subjects.set([subjects[x.id] for x in dept.subjects.all() if x.id in subjects])
+            new_dept.teachers.set([teachers[x.id] for x in dept.teachers.all() if x.id in teachers])
+            new_dept.users.set(dept.users.all())
     if "musaitlik" in parts:
         maps = {"teacher": teachers, "school_class": classes, "classroom": rooms, "subject": subjects, "lesson": lessons}
         rows = []

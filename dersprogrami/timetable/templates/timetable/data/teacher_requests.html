@@ -42,7 +42,7 @@
   {% with r=item.r %}
   <section class="panel rq-card">
     <div class="panel-head"><h2>{{ r.teacher.full_name }}{% if r.teacher.department %} <span class="subtle">· {{ r.teacher.department }}</span>{% endif %}</h2>
-      <span class="subtle small">{{ r.requested_by.username|default:"?" }} · {{ r.created_at|date:"j F Y H:i" }}</span></div>
+      <span class="subtle small">{{ r.requested_by.username|default:"?" }}{% if r.requested_by and r.requested_by.pk != r.teacher.user_id %}{% for d in r.requested_by.departments.all %} · <b>{{ d.name }} bölümü aracılığıyla</b>{% endfor %}{% endif %} · {{ r.created_at|date:"j F Y H:i" }}</span></div>
     <div class="panel-body rq-review">
       <div>
         {% include "timetable/request_grid.html" with grid=item.grid editable=False %}

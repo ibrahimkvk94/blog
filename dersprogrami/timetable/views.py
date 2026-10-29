@@ -48,8 +48,12 @@ def school_list(request):
         {"institution": inst, "programs": progs, "perms": access.institution_permissions(request.user, inst)}
         for inst, progs in sorted(groups.items(), key=lambda kv: kv[0].name)
     ]
-    if not institutions and request.user.teacher_profiles.exists():
-        return redirect("timetable:my_timetable")  # yalnızca öğretmen hesabı: kendi programı
+    if not institutions:
+        department = request.user.departments.first()
+        if department is not None:
+            return redirect("timetable:department_portal", pk=department.pk)  # bölüm sorumlusu: bölüm ekranı
+        if request.user.teacher_profiles.exists():
+            return redirect("timetable:my_timetable")  # yalnızca öğretmen hesabı: kendi programı
     return render(request, "timetable/school_list.html", {"institutions": institutions})
 
 
@@ -174,6 +178,11 @@ def _dashboard(request, school, main, timetables, errors):
             nxt.append(("info", "Bu program henüz yayında değil.", reverse("timetable:timetable_detail", args=[main.pk]), "Aç ve yayınla"))
     if "veri" in perms and pending + leaves:
         nxt.append(("warn", f"{pending + leaves} öğretmen isteği onay bekliyor.", reverse("timetable:teacher_requests", args=[school.pk]), "İncele"))
+    if "veri" in perms:
+        from .departments import pending_count
+
+        if dept := pending_count(school.pk):
+            nxt.append(("warn", f"{dept} bölümün ders–öğretmen önerisi onay bekliyor.", reverse("timetable:departments", args=[school.pk]), "İncele"))
     for item in board["today"]:
         if item["label"] == "Bugün izinli" and item["bad"]:
             nxt.append(("warn", f"Bugün {item['hint']}.", item["url"], "Vekil ata"))

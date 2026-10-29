@@ -34,6 +34,7 @@ SCHOOL_ROUTES = {
     "print_settings": (M.DATA, M.DATA),
     "setup_wizard": (M.DATA, M.DATA),
     "teacher_accounts": (M.USERS, M.USERS),
+    "departments": (M.DATA, M.DATA),
     "setup_wizard_start": (M.DATA, M.DATA),
     "relationship_import": (M.DATA, M.DATA),
     "bulk_availability": (M.DATA, M.DATA),
@@ -116,7 +117,7 @@ CARD_ROUTES = {
 VERSION_ROUTES = {"api_version": (M.VIEW, M.PROGRAM)}
 # Herkese açık (giriş yapmış) ve yalnızca merkez yöneticiye açık sayfalar
 OPEN_ROUTES = {"school_list", "login", "logout", "account", "password_set", "password_set_done", "password_forgot",
-               "password_forgot_done", "my_requests", "my_timetable", "teacher_ics", "public_index", "public_board", "public_timetable"}
+               "password_forgot_done", "department_portal", "my_requests", "my_timetable", "teacher_ics", "public_index", "public_board", "public_timetable"}
 CENTRAL_ROUTES = {"create_demo", "import_asc", "school_create", "central", "central_school_new", "central_log", "backups"}
 
 
@@ -282,13 +283,17 @@ def can(request):
 
             from .models import LeaveRequest
 
+            from .departments import pending_count
+
             context["pending_requests"] = (
                 AvailabilityRequest.objects.filter(school_id=school_id, status=AvailabilityRequest.PENDING).count()
                 + LeaveRequest.objects.filter(school_id=school_id, status=LeaveRequest.PENDING).count())
+            context["pending_departments"] = pending_count(school_id)
     if request.user.is_authenticated:
         from .models import Teacher
 
         context["has_teacher_profile"] = Teacher.objects.filter(user=request.user).exists()
+        context["my_departments"] = list(request.user.departments.all())
     return context
 
 
@@ -313,7 +318,7 @@ ACTION_LABELS = {
     "program_copy": "Program kopyaladı", "program_import": "aSc'den program aktardı", "program_delete": "Program sildi",
     "generate": "Üretim başlattı", "stop": "Üretimi durdurdu", "publish": "Programı yayınladı",
     "substitutions": "Vekâlet", "duties": "Nöbet çizelgesi", "lesson_refs": "ÜYBS referansları",
-    "uybs_settings": "ÜYBS ayarları", "print_settings": "Basılı çıktı ayarları", "setup_wizard": "Kurulum sihirbazı", "teacher_accounts": "Öğretmen hesapları", "relationship_import": "aSc kart ilişkisi aktarımı", "bulk_availability": "Toplu müsaitlik", "room_wizard": "Derslik atama", "school_improve": "Okul geneli iyileştirme", "change_report": "Değişiklik bildirimi gönderdi", "teacher_requests": "Öğretmen istekleri", "teacher_assign": "Öğretmen atama", "relation_wizard": "Teori + uygulama sihirbazı", "relation_audit": "İlişki denetimi", "my_requests": "Müsaitlik isteği", "my_timetable": "Takvim bağlantısı", "solution_center": "Çözüm merkezi", "quality": "Kalite karnesi", "pending": "Bekleyen kart yerleştirme", "uybs_archive": "ÜYBS hafta arşivi", "students": "Öğrenciler",
+    "uybs_settings": "ÜYBS ayarları", "print_settings": "Basılı çıktı ayarları", "setup_wizard": "Kurulum sihirbazı", "teacher_accounts": "Öğretmen hesapları", "departments": "Bölümler", "department_portal": "Bölüm önerisi", "relationship_import": "aSc kart ilişkisi aktarımı", "bulk_availability": "Toplu müsaitlik", "room_wizard": "Derslik atama", "school_improve": "Okul geneli iyileştirme", "change_report": "Değişiklik bildirimi gönderdi", "teacher_requests": "Öğretmen istekleri", "teacher_assign": "Öğretmen atama", "relation_wizard": "Teori + uygulama sihirbazı", "relation_audit": "İlişki denetimi", "my_requests": "Müsaitlik isteği", "my_timetable": "Takvim bağlantısı", "solution_center": "Çözüm merkezi", "quality": "Kalite karnesi", "pending": "Bekleyen kart yerleştirme", "uybs_archive": "ÜYBS hafta arşivi", "students": "Öğrenciler",
     "school_settings": "Program ayarları/saatler", "lesson_new": "Ders ekledi", "lesson_edit": "Dersi düzenledi",
     "lesson_delete": "Ders sildi", "class_lessons": "Sınıf ders tablosu", "distribution_save": "Ders dağıtımı",
     "distribution_paste": "Ders dağıtımı (yapıştırma)", "copy_divisions": "Bölünme kopyaladı", "excel_import": "Excel'den veri aktardı",

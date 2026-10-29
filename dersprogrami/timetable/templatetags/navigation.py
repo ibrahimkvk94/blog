@@ -39,6 +39,7 @@ NAV_GROUPS = [
         ("Vekâlet", "swap", _school("substitutions"), {"subs"}, None, True),
         ("Nöbet çizelgesi", "clipboard", _school("duties"), {"duties"}, None, True),
         ("Öğretmen istekleri", "inbox", _school("teacher_requests"), {"istekler"}, "veri", True),
+        ("Bölümler", "users", _school("departments"), {"bolumler"}, "veri", True),
     ]),
     ("veri", "Veri girişi", [
         ("Kurulum sihirbazı", "sparkles", _school("setup_wizard_start"), {"kurulum"}, "veri", True),
@@ -80,7 +81,7 @@ def build(context):
     can = context.get("can") or {}
     tt = school.active_timetable or context.get("latest_timetable")
     current = {context.get("data_nav"), context.get("nav")}
-    badges = {"istekler": context.get("pending_requests") or 0}
+    badges = {"istekler": context.get("pending_requests") or 0, "bolumler": context.get("pending_departments") or 0}
     groups = []
     for key, title, items in NAV_GROUPS:
         rows = []

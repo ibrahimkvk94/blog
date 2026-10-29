@@ -535,6 +535,53 @@ class TeacherQuota(models.Model):
         constraints = [models.UniqueConstraint(fields=["subject", "teacher"], name="unique_teacher_quota")]
 
 
+class Department(models.Model):
+    """Bölüm: kendi ders adlarının kısımlarını öğretmenlerine paylaştıran birim. Bölüm sorumlusu (users) yalnızca
+    bölüm ekranını görür; hangi öğretmenin hangi dersten kaç kısım okutacağını ve öğretmenlerin mazeretlerini girip
+    onaya gönderir. Onaylanan dağılım öğretmen havuzu kotalarına (TeacherQuota) yazılır."""
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="departments")
+    name = models.CharField("ad", max_length=100)
+    subjects = models.ManyToManyField(Subject, blank=True, related_name="departments", verbose_name="ders adları")
+    teachers = models.ManyToManyField(Teacher, blank=True, related_name="departments", verbose_name="öğretmenler")
+    users = models.ManyToManyField("auth.User", blank=True, related_name="departments", verbose_name="bölüm sorumluları")
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "bölüm"
+        verbose_name_plural = "bölümler"
+
+    def __str__(self):
+        return self.name
+
+
+class DepartmentSubmission(models.Model):
+    """Bölümün ders–öğretmen kısım dağılımı önerisi. quotas: {ders adı kimliği: {öğretmen kimliği: kısım}} (JSON
+    anahtarları metin). Taslak → onay bekliyor → onaylandı / reddedildi; reddedilen yeniden düzenlenebilir."""
+
+    DRAFT = "taslak"
+    PENDING = "bekliyor"
+    APPROVED = "onaylandi"
+    REJECTED = "reddedildi"
+    STATUS_CHOICES = [(DRAFT, "Taslak"), (PENDING, "Onay bekliyor"), (APPROVED, "Onaylandı"), (REJECTED, "Reddedildi")]
+
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name="submissions")
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=DRAFT)
+    quotas = models.JSONField(default=dict)
+    message = models.TextField("bölümün notu", blank=True)
+    reply = models.TextField("yanıt", blank=True)
+    updated_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, related_name="+")
+    updated_at = models.DateTimeField(auto_now=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    decided_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+        verbose_name = "bölüm önerisi"
+        verbose_name_plural = "bölüm önerileri"
+
+
 class AvailabilityRequest(models.Model):
     """Öğretmenin müsaitlik isteği ("şu saatlerde gelemem"). Program sorumlusu onaylayınca öğretmenin
     müsaitliğine yazılır. changes: [[gün, saat, durum], ...]; durum "no" gelemem, "maybe" tercih etmem,

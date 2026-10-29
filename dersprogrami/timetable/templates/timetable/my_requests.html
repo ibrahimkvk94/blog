@@ -1,4 +1,5 @@
 {% extends "timetable/base.html" %}
+{% load assets %}
 {% block title %}İsteklerim{% endblock %}
 {% block heading %}<h1>İsteklerim</h1>{% if pending %}<span class="pill warn">onay bekliyor</span>{% endif %}{% endblock %}
 {% block content %}
@@ -88,6 +89,7 @@
 {% endif %}
 {% endblock %}
 {% block scripts %}
+<script src="{% asset 'timetable/request_grid.js' %}"></script>
 <script>
 (function () {
   const allDay = document.querySelector("[data-lv-allday]");
@@ -97,31 +99,6 @@
     const start = document.querySelector("[data-lv-start]"), end = document.querySelector("[data-lv-end]");
     start.addEventListener("change", () => { if (!end.value || end.value < start.value) end.value = start.value; end.min = start.value; });
   }
-})();
-(function () {
-  const form = document.getElementById("rq-form");
-  if (!form) return;
-  const order = ["", "no", "maybe"];
-  const cells = [...form.querySelectorAll(".rq-edit button.av-cell")];
-  const paint = (b) => {
-    const input = b.nextElementSibling, state = input.value, changed = state !== b.dataset.current;
-    b.className = "av-cell" + (state ? " av-" + state : "") + (changed ? " rq-changed" : "");
-    b.textContent = changed && !state ? "✓" : state === "maybe" ? "?" : "";
-  };
-  const count = () => {
-    const n = cells.filter((b) => b.nextElementSibling.value !== b.dataset.current).length;
-    form.querySelector("[data-rq-count]").textContent = n ? n + " saat değişti" : "Kayıtlı müsaitliğinizle aynı";
-  };
-  cells.forEach((b) => b.addEventListener("click", () => {
-    const input = b.nextElementSibling;
-    input.value = order[(order.indexOf(input.value) + 1) % order.length];
-    paint(b); count();
-  }));
-  form.querySelector("[data-rq-reset]").addEventListener("click", () => {
-    cells.forEach((b) => { b.nextElementSibling.value = b.dataset.current; paint(b); });
-    count();
-  });
-  count();
 })();
 </script>
 {% endblock %}
