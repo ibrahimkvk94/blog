@@ -66,12 +66,19 @@ html.nav-collapsed .sidebar { display: none; }
 .title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .content { padding: 0 28px 28px; min-width: 0; }
+.nav-backdrop { display: none; }
 @media (max-width: 900px) {
-  .shell { grid-template-columns: 1fr; }
-  .sidebar { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; }
-  .side-nav { flex-direction: row; flex-wrap: wrap; }
-  .nav-section, .sidebar-foot, .side-school { display: none; }
-  .topbar, .content { padding-left: 16px; padding-right: 16px; }
+  .shell, html.nav-collapsed .shell { grid-template-columns: minmax(0, 1fr); }
+  .sidebar, html.nav-collapsed .sidebar { display: flex; position: fixed; z-index: 90; left: 0; top: 0; bottom: 0; width: min(290px, 86vw); height: 100%;
+    transform: translateX(-102%); transition: transform .2s ease; box-shadow: var(--shadow-lg); }
+  html.nav-open .sidebar { transform: none; }
+  html.nav-open .nav-backdrop { display: block; position: fixed; inset: 0; z-index: 80; background: rgba(10, 13, 23, .45); }
+  .topbar { padding: 12px 16px 10px; gap: 10px; }
+  .content { padding: 0 16px 20px; }
+  .topbar-title { flex-basis: calc(100% - 140px); }
+  .topbar h1 { font-size: 19px; }
+  .topbar .actions { order: 5; width: 100%; }
+  .actions .btn { height: 32px; }
 }
 
 /* ---- Bileşenler ---- */
@@ -1351,3 +1358,28 @@ td.empty, td.subtle[colspan] { text-align: center; padding: 22px 12px; color: va
 .theme-toggle svg { width: 17px; height: 17px; }
 .theme-toggle .i-sun, :root[data-theme="dark"] .theme-toggle .i-moon { display: none; }
 :root[data-theme="dark"] .theme-toggle .i-sun { display: block; }
+
+/* ---- Telefon: tek sütun, taşan tablo ve ızgaralar kendi içinde kayar ---- */
+@media (max-width: 900px) {
+  .grid-2, .board, [class$="-layout"], [class*="-layout "] { grid-template-columns: minmax(0, 1fr) !important; }
+  .panel { min-width: 0; }
+  .panel-body { overflow-x: auto; }
+  .panel-head { flex-wrap: wrap; padding: 12px 14px; }
+  .panel-body:not(.flush) { padding: 14px; }
+  .hero { padding: 14px; }
+  .hero-actions .btn { flex: 1; }
+  .hs { min-width: 0; flex: 1 1 28%; }
+  .todo li { flex-wrap: wrap; }
+  .todo-text { flex-basis: calc(100% - 44px); }
+  .todo li .btn { margin-left: 40px; }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .theme-toggle { width: 32px; height: 32px; }
+  .subnav { overflow-x: auto; flex-wrap: nowrap; white-space: nowrap; }
+}
+@media (max-width: 640px) {
+  .avail-table { border-spacing: 2px; }
+  .avail-table .av-cell { width: 30px; height: 30px; border-radius: 5px; font-size: 12px; }
+  .avail-table th { font-size: 10.5px; }
+  .avail-table thead th small { display: none; }
+  .avail-table tbody th { padding-right: 4px; }
+}

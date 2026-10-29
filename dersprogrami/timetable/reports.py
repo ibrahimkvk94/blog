@@ -7,7 +7,7 @@ import datetime
 from collections import defaultdict
 
 from .grid import KINDS, card_payload, room_names
-from .models import Availability, day_time_notes
+from .models import Availability, day_time_notes, Lesson
 from .textsort import tr_key
 
 TYPES = {
@@ -371,11 +371,15 @@ def _free_teachers(timetable, o, cards, periods, days):
     teachers = list(school.teachers.all())
     busy = set()
     at_school = defaultdict(set)
-    for card in timetable.cards.filter(day__isnull=False).prefetch_related("lesson__teachers"):
-        for t in card.lesson.teachers.all():
-            at_school[t.id].add(card.day)
-            for i in range(card.length):
-                busy.add((t.id, card.day, card.period + i))
+    # Ders–öğretmen eşleşmesi ara tablodan tek sorguyla (büyük okulda prefetch SQLite sınırını aşar).
+    by_lesson = defaultdict(list)
+    for lesson_id, teacher_id in Lesson.teachers.through.objects.filter(lesson__school=school).values_list("lesson_id", "teacher_id"):
+        by_lesson[lesson_id].append(teacher_id)
+    for lesson_id, day, period, length in timetable.cards.filter(day__isnull=False).values_list("lesson_id", "day", "period", "length"):
+        for t in by_lesson[lesson_id]:
+            at_school[t].add(day)
+            for i in range(length):
+                busy.add((t, day, period + i))
     blocked = set(Availability.objects.filter(school=school, teacher__isnull=False, state=Availability.NO)
                   .values_list("teacher_id", "day", "period"))
 

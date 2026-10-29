@@ -11,6 +11,7 @@
 </head>
 <body>
 <div class="shell">
+  <div class="nav-backdrop" id="nav-backdrop"></div>
   <aside class="sidebar">
     <a class="brand" href="{% url 'timetable:school_list' %}">
       <span class="brand-mark">{% include "timetable/icon.html" with name="grid" %}</span>
@@ -79,10 +80,16 @@
     document.documentElement.dataset.theme = next;
     try { localStorage.setItem("theme", next); } catch (e) {}
   });
+  // Geniş ekranda menü gizlenir/gösterilir (hatırlanır); telefonda soldan açılan çekmece olur.
+  var phone = window.matchMedia("(max-width: 900px)");
   document.getElementById("nav-toggle").addEventListener("click", function () {
+    if (phone.matches) { document.documentElement.classList.toggle("nav-open"); return; }
     var on = document.documentElement.classList.toggle("nav-collapsed");
     try { localStorage.setItem("nav-collapsed", on ? "1" : "0"); } catch (e) {}
     window.dispatchEvent(new Event("resize"));
+  });
+  document.getElementById("nav-backdrop").addEventListener("click", function () {
+    document.documentElement.classList.remove("nav-open");
   });
 </script>
 {% block scripts %}{% endblock %}

@@ -13,7 +13,7 @@ from collections import defaultdict
 from django.db import transaction
 from ortools.sat.python import cp_model
 
-from .models import Availability, Duty
+from .models import Availability, Duty, Lesson
 
 W_OVER_LIMIT = 1000
 W_NO_LESSON_DAY = 60
@@ -26,9 +26,13 @@ def teacher_days(school, timetable):
     result = defaultdict(lambda: defaultdict(int))
     if timetable is None:
         return result
-    for card in timetable.cards.filter(day__isnull=False).prefetch_related("lesson__teachers"):
-        for teacher in card.lesson.teachers.all():
-            result[teacher.id][card.day] += card.length
+    # Ders–öğretmen eşleşmesi ara tablodan tek sorguyla (büyük okulda prefetch SQLite sınırını aşar).
+    teachers = defaultdict(list)
+    for lesson_id, teacher_id in Lesson.teachers.through.objects.filter(lesson__school=school).values_list("lesson_id", "teacher_id"):
+        teachers[lesson_id].append(teacher_id)
+    for lesson_id, day, length in timetable.cards.filter(day__isnull=False).values_list("lesson_id", "day", "length"):
+        for teacher_id in teachers[lesson_id]:
+            result[teacher_id][day] += length
     return result
 
 
