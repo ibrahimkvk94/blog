@@ -116,6 +116,20 @@ Tarayıcı birkaç saniye içinde kendiliğinden **http://127.0.0.1:8000/** adre
 
 **Windows'ta terminal açmak:** klasörü Dosya Gezgini'nde aç, üstteki adres çubuğuna tıkla, `cmd` yaz ve Enter'a bas.
 
+## Başkalarının da bağlanması (Tailscale)
+
+Program senin bilgisayarında çalışır; Tailscale ağındaki kişiler her yerden tarayıcıyla bağlanır. Trafik Tailscale ile şifrelidir, program internete açılmaz.
+
+1. **Bilgisayarında:** `calistir.bat` yerine **`paylas.bat`**'ı aç (ikisini aynı anda açma). İlk seferde güvenlik duvarı kuralı için dosyaya **sağ tıkla → Yönetici olarak çalıştır**; kural yalnızca Tailscale adreslerine (100.x.x.x) 8000 kapısını açar. Sonraki açılışlarda çift tıklamak yeter.
+2. Pencerede **“Tailscale ile”** başlığının altında `http://bilgisayarin-adi.xxxx.ts.net:8000/` ve `http://100.x.x.x:8000/` adresleri yazar. Bunları bağlanacak kişilere ver.
+3. **Bağlanacak kişiler:** Tailscale'i kurup senin ağına katılmalı. Tailscale yönetim panelinde (login.tailscale.com → *Users → Invite users*) onları davet et ya da yalnızca bu bilgisayarı paylaş (*Machines → bilgisayarın → Share*). Paylaşmak daha güvenlidir: kişi yalnızca bu bilgisayarı görür.
+4. **Hesaplar:** Herkese programda ayrı kullanıcı aç (sol menü → Yönetim → Kullanıcılar) ve yalnızca gereken yetkileri ver. Örneğin bölüm sorumlusuna Bölümler ekranından bölüm sorumluluğu, sadece bakacak olana “görüntüle”.
+
+Notlar:
+- Bilgisayarın kapalıysa ya da `paylas.bat` penceresi kapalıysa kimse bağlanamaz.
+- `paylas.bat` hata ayıklamayı kapatır ve bu bilgisayara özel bir gizli anahtarı bir kez `.env` dosyasına yazar; bu yüzden ilk açılışta yeniden giriş yapman gerekebilir.
+- Aynı anda birkaç kişi rahatça çalışır. Program üretimi sürerken diğerlerinin ekranları biraz yavaşlayabilir.
+
 ## Kapalı ağ (internetsiz) kurulum — tüm ağın kullanımı için
 
 İnternete çıkamayan bir ağda program, bir **sunucu bilgisayarda** çalışır; ağdaki herkes tarayıcıdan bağlanır.

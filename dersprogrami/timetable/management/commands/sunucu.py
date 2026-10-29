@@ -28,6 +28,30 @@ def lan_addresses():
     return sorted(a for a in found if not a.startswith("127."))
 
 
+def tailscale_names():
+    """Tailscale açıksa bu bilgisayarın Tailscale adresleri ve MagicDNS adı (yoksa boş liste)."""
+    import ipaddress
+    import json
+    import shutil
+    import subprocess
+
+    exe = shutil.which("tailscale") or next(
+        (p for p in (r"C:\Program Files\Tailscale\tailscale.exe",) if os.path.isfile(p)), None)
+    names = []
+    if exe:
+        try:
+            out = subprocess.run([exe, "status", "--json"], capture_output=True, text=True, timeout=5).stdout
+            me = json.loads(out or "{}").get("Self") or {}
+            dns = (me.get("DNSName") or "").rstrip(".")
+            names += [dns] if dns else []
+            names += [ip for ip in me.get("TailscaleIPs") or [] if ":" not in ip]
+        except (OSError, ValueError, subprocess.SubprocessError):
+            pass
+    tailnet = ipaddress.ip_network("100.64.0.0/10")  # Tailscale adres aralığı
+    names += [a for a in lan_addresses() if ipaddress.ip_address(a) in tailnet and a not in names]
+    return names
+
+
 def backup_loop(hours, stop):
     """Sunucu açık kaldıkça son yedek `hours` saatten eskiyse yedek alır (saatte bir denetler)."""
     from django.db import connection
@@ -63,9 +87,14 @@ class Command(BaseCommand):
         from config.wsgi import application
 
         port = options["port"]
+        tailscale = tailscale_names()
         self.stdout.write(self.style.SUCCESS("Ders Programı çalışıyor. Ağdaki bilgisayarlar tarayıcıya şu adresi yazsın:"))
-        for address in lan_addresses() or ["<bu bilgisayarın IP adresi>"]:
+        for address in [a for a in lan_addresses() if a not in tailscale] or ["<bu bilgisayarın IP adresi>"]:
             self.stdout.write(f"    http://{address}:{port}/")
+        if tailscale:
+            self.stdout.write(self.style.SUCCESS("Tailscale ile (ağınıza eklediğiniz ya da paylaştığınız kişiler, her yerden):"))
+            for address in tailscale:
+                self.stdout.write(f"    http://{address}:{port}/")
         self.stdout.write(f"Bu bilgisayardan: http://127.0.0.1:{port}/")
         if settings.DEBUG:
             self.stdout.write(self.style.WARNING("Uyarı: DJANGO_DEBUG=1 açık; ağ kurulumunda .env dosyasında DJANGO_DEBUG=0 olmalı."))
