@@ -97,9 +97,38 @@ def port_in_use(port):
         return s.connect_ex(("127.0.0.1", port)) == 0
 
 
+HANG_SECONDS = 15
+
+
+def _hang_report(thread_id, label, out):
+    """Takılan isteğin o anki yerini yazar: pencereye isteğin kendi yığını, takilma.log'a tüm iş parçacıkları."""
+    import sys
+    import time
+    import traceback
+
+    frames = sys._current_frames()
+    frame = frames.get(thread_id)
+    if frame is None:
+        return
+    stack = traceback.format_stack(frame)
+    out(f"!!! TAKILMA: {label} {HANG_SECONDS} sn'dir sürüyor. Şu an burada bekliyor (son satırlar):")
+    for line in stack[-6:]:
+        out("    " + line.rstrip().replace("\n", "\n    "))
+    path = settings.BASE_DIR / "takilma.log"
+    try:
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(f"\n===== {time.strftime('%Y-%m-%d %H:%M:%S')} {label} =====\n")
+            for tid, fr in frames.items():
+                f.write(f"--- iş parçacığı {tid}{' (takılan istek)' if tid == thread_id else ''}\n")
+                f.write("".join(traceback.format_stack(fr)))
+        out(f"    Ayrıntı: {path} dosyasına yazıldı; bu dosyayı gönderin.")
+    except OSError:
+        pass
+
+
 def request_log(application, out):
     """Her sayfa isteğini pencereye yazar (statik dosyalar hariç): saat, kim, ne, sonuç, süre. Yavaş istekler
-    işaretlenir; böylece "takıldı" denen istek pencerede görünür."""
+    işaretlenir; HANG_SECONDS'tan uzun sürenin o anki yeri (yığın) yazılır, böylece takılmanın nedeni görünür."""
     import time
 
     def logged(environ, start_response):
@@ -109,14 +138,23 @@ def request_log(application, out):
         started = time.monotonic()
         who = environ.get("REMOTE_ADDR", "?")
         method = environ.get("REQUEST_METHOD", "")
+        label = f"{who} {method} {path}"
+        watchdog = threading.Timer(HANG_SECONDS, _hang_report, args=(threading.get_ident(), label, out))
+        watchdog.daemon = True
+        watchdog.start()
 
         def start(status, headers, exc_info=None):
+            watchdog.cancel()
             took = time.monotonic() - started
             slow = "  ← YAVAŞ" if took > 5 else ""
             out(f"{time.strftime('%H:%M:%S')} {who:<15} {method:<4} {path} → {status.split()[0]} ({took:.1f} sn){slow}")
             return start_response(status, headers, exc_info) if exc_info else start_response(status, headers)
 
-        return application(environ, start)
+        try:
+            return application(environ, start)
+        except BaseException:
+            watchdog.cancel()
+            raise
 
     return logged
 
