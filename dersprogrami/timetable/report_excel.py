@@ -138,9 +138,10 @@ def build(data):
         row += 1
         for r in data["sheet_rows"]:
             row += 1
-            for i, v in enumerate(r["lead"], start=1):
-                ws.cell(row=row, column=i, value=v).alignment = WRAP
-            ws.cell(row=row, column=name_col, value=r["title"]).font = BOLD
+            # Künye sütunları (bölüm, ünvan) ad gibi kalın ve dolgulu
+            for i, v in enumerate([*r["lead"], r["title"]], start=1):
+                c = ws.cell(row=row, column=i, value=v)
+                c.font, c.fill, c.alignment, c.border = BOLD, HEAD, WRAP, BOX
             for i, v in enumerate(r["pre"], start=name_col + 1):
                 ws.cell(row=row, column=i, value=v).alignment = WRAP
             col = lead + 1

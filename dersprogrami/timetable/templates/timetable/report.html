@@ -38,7 +38,7 @@
   .overview th.row { width: 110px; white-space: normal; }
   .overview .col { width: 90px; text-align: left; white-space: normal; }
   .overview .num { width: 38px; font-weight: 600; }
-  .overview .kunye { width: 70px; }
+  .overview th.kunye { width: 80px; }
   .overview tr.first td, .overview tr.first th { border-top: 1.5px solid #6b7280; }
   .overview .c { margin: 0 0 1px; padding: 1px 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .overview .c span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -97,7 +97,7 @@
       </thead>
       <tbody>
         {% for row in sheet_rows %}
-          <tr class="{% if row.first %}first{% endif %}">{% for v in row.lead %}<td class="col kunye">{{ v }}</td>{% endfor %}<th class="row">{{ row.title }}</th>{% for v in row.pre %}<td class="col">{{ v }}</td>{% endfor %}
+          <tr class="{% if row.first %}first{% endif %}">{% for v in row.lead %}<th class="row kunye">{{ v }}</th>{% endfor %}<th class="row">{{ row.title }}</th>{% for v in row.pre %}<td class="col">{{ v }}</td>{% endfor %}
             {% for cell in row.cells %}<td colspan="{{ cell.span }}" class="{% if cell.day_start %}ds{% endif %}">{% for c in cell.cards %}<div class="c" style="background:{{ c.color }}" title="{{ c.title }}">{% for line in c.lines %}{% if forloop.first %}{{ line }}{% else %}<span>{{ line }}</span>{% endif %}{% endfor %}</div>{% endfor %}</td>{% endfor %}{% for v in row.post %}<td class="num{% if forloop.first %} ds{% endif %}">{{ v }}</td>{% endfor %}
           </tr>
         {% endfor %}

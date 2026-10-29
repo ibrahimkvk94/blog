@@ -179,7 +179,7 @@ def _sheet(data, width, colored):
         style += [("SPAN", (end + k, 0), (end + k, 1)) for k in range(len(post_h))]
         rows = [top, nums]
         for y, (r, by_day) in enumerate(split, start=2):
-            line = ([_p(v, cstyle) for v in r.get("lead", [])] + [_p(r["title"], tstyle)]
+            line = ([_p(v, tstyle) for v in r.get("lead", [])] + [_p(r["title"], tstyle)]
                     + [_p(v, cstyle) for v in r.get("pre", [])])
             for i, cells in enumerate(by_day[start:start + per]):
                 x = lead + i * P
