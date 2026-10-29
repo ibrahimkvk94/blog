@@ -22,6 +22,8 @@ Ders Programı'nı kendi bilgisayarında çalıştırmak için aşağıdaki adı
 
 `calistir.bat` her açılışta GitHub'daki son sürümü kendiliğinden çeker. Bunun için proje **git ile** indirilmelidir.
 
+Program açıkken güncellemek için pencereyi kapatıp açman gerekmez: **Merkez paneli → Sistem güncelleme** sayfasında *Güncellemeleri denetle* yeni değişiklikleri listeler; *Yedek al, güncelle ve yeniden başlat* önce yedek alır, yeni sürümü indirir ve programı yarım dakika içinde yeniden açar (sayfa kendiliğinden yenilenir). Bu sayfayı yalnızca merkez yöneticisi görür.
+
 1. **Git'i kur (bir kez):** https://git-scm.com/download/win adresinden indir ve kurulumu varsayılan ayarlarla tamamla.
    macOS'ta Terminal'e `git --version` yazman yeterli; yoksa kurulumu kendisi önerir.
 2. **Terminal aç:** Windows'ta Başlat menüsüne `cmd` yaz ve Enter'a bas.
