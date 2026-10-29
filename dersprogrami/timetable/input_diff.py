@@ -100,6 +100,17 @@ CHECK_TITLES = {
 }
 
 
+CHECK_HINTS = {
+    "room_clash": "O gün bu dersler aynı saatte yapılabiliyordu; şimdi aynı dersliğe bağlılar ve derslik aynı anda tek ders alıyor. "
+                  "Dersliğin “aynı anda en fazla ders” değerini artırın (ör. spor salonu birden çok kısma yetiyorsa) ya da bu "
+                  "dersliği derslerden / ders adının varsayılan dersliklerinden kaldırın (Derslik atama).",
+    "blocked_cell": "Bu derslerin öğretmeninin, sınıfının ya da dersliğinin müsaitliği değişmiş; kapatılan saatleri kontrol edin.",
+    "teacher_clash": "Bu öğretmenler artık aynı saatteki iki dersin de öğretmeni; ders–öğretmen atamalarını kontrol edin.",
+    "unplaced": "Bu dersler o programda yoktu ya da kartları değişti (yeni ders, değişen haftalık saat / kart dağılımı).",
+    "relationship": "Bu kart ilişkileri o programdan sonra eklendi ya da değişti.",
+}
+
+
 def recheck(previous):
     """Son başarılı programın yerleşimini BUGÜNKÜ verilerle denetler: o gün geçerli olan yerleşimin bugün takıldığı
     kurallar, arada değişen veriyi gösterir (yedek olmasa da çalışır)."""
@@ -113,7 +124,8 @@ def recheck(previous):
     for v in violations:
         if v.level != "hard":
             continue
-        g = groups.setdefault(v.code, {"code": v.code, "title": CHECK_TITLES.get(v.code, v.code), "count": 0, "examples": []})
+        g = groups.setdefault(v.code, {"code": v.code, "title": CHECK_TITLES.get(v.code, v.code), "count": 0, "examples": [],
+                                       "hint": CHECK_HINTS.get(v.code, "")})
         g["count"] += 1
         if len(g["examples"]) < 8:
             g["examples"].append(v.message)
