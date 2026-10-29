@@ -509,9 +509,23 @@ html.focus-mode .tt-scroll { max-height: calc(100vh - 120px - var(--tray-h, 0px)
 .dialog-head h3 { margin: 0; }
 .view-frame { width: 100%; height: 70vh; border: 1px solid var(--border); border-radius: 8px; }
 
-/* Kart paneli ızgarayı daraltmaz; sağ altta yüzer */
+/* Kart paneli: varsayılan olarak ızgaranın yanına sabitlenir (ızgara daralır, hiçbir gün örtülmez);
+   serbest modda sürüklenebilir yüzer; küçültülünce yalnızca başlığı sağ altta kalır. */
 .tt-wrap.with-drawer { grid-template-columns: minmax(0, 1fr); gap: 0; }
-.tt-wrap .drawer { position: fixed; right: 18px; bottom: 18px; width: 310px; max-height: 70vh; overflow-y: auto; z-index: 40; box-shadow: var(--shadow-lg); }
+.tt-wrap.with-drawer.docked { grid-template-columns: minmax(0, 1fr) 300px; gap: 12px; }
+.tt-wrap .drawer { position: sticky; top: 8px; align-self: start; max-height: calc(100vh - 16px); overflow-y: auto; }
+.tt-wrap .drawer.free { position: fixed; top: auto; right: 18px; bottom: 18px; width: 310px; max-height: 70vh; z-index: 40; box-shadow: var(--shadow-lg); }
+.tt-wrap .drawer.free [data-drag] { cursor: move; touch-action: none; }
+.tt-wrap .drawer.min { width: 260px; overflow: hidden; }
+.tt-wrap .drawer.min .panel-body { display: none; }
+.tt-wrap .drawer.min .panel-head { border-bottom: 0; }
+.tt-wrap .drawer .panel-head h2 { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drawer-tools { display: flex; gap: 2px; flex: none; }
+@media (max-width: 900px) {  /* dar ekranda yan sütun ızgarayı sıkıştırır: panel alttan şerit olur */
+  .tt-wrap.with-drawer.docked { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .tt-wrap .drawer, .tt-wrap .drawer.free { position: fixed; top: auto !important; left: 8px !important; right: 8px; bottom: 8px;
+    width: auto; max-height: 55vh; z-index: 40; box-shadow: var(--shadow-lg); }
+}
 
 .versions-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; }
 .versions-list { max-height: 60vh; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }

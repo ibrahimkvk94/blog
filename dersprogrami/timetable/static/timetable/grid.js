@@ -66,6 +66,9 @@
   const board = $("#tt-board");
   const scroller = $("#tt-scroll");
   const drawer = $("#drawer");
+  // Kart paneli: ızgaranın yanına sabit / serbest (sürüklenir) / küçültülmüş; bkz. applyDrawerMode.
+  const drawerMode = { dock: store("tt-drawer-dock") !== "0", min: store("tt-drawer-min") === "1", pos: null };
+  try { drawerMode.pos = JSON.parse(store("tt-drawer-pos") || "null"); } catch (e) { drawerMode.pos = null; }
   const state = {
     // ?tur=ogretmen&ara=Ad ile açılabilir (kalite karnesinden satıra gitmek için)
     kind: (KIND_LABELS[new URLSearchParams(location.search).get("tur")] && new URLSearchParams(location.search).get("tur")) || store("tt-kind") || "sinif",
@@ -508,6 +511,7 @@
     document.querySelectorAll(".tt-card.selected").forEach((c) => c.classList.remove("selected"));
     drawer.hidden = true;
     $("#tt-wrap").classList.remove("with-drawer");
+    applyDrawerMode();
   }
 
   async function select(cardId) {
@@ -603,8 +607,11 @@
     const counts = { free: 0, warn: 0, shift: 0, conflict: 0 };
     (options || []).forEach((o) => { if (o.status in counts) counts[o.status]++; });
     drawer.innerHTML =
-      '<div class="panel-head"><h2><span class="swatch" style="background:' + esc(card.color) + '"></span> ' + esc(card.subject_name) + "</h2>" +
-      '<button class="btn btn-ghost btn-sm" data-act="close" title="Kapat">✕</button></div>' +
+      '<div class="panel-head" data-drag><h2><span class="swatch" style="background:' + esc(card.color) + '"></span> ' + esc(card.subject_name) + "</h2>" +
+      '<span class="drawer-tools">' +
+      '<button class="btn btn-ghost btn-sm" data-act="dock" title="' + (drawerMode.dock ? "Serbest bırak (sürüklenebilir)" : "Izgaranın yanına sabitle") + '">' + (drawerMode.dock ? "⧉" : "⇥") + "</button>" +
+      '<button class="btn btn-ghost btn-sm" data-act="min" title="' + (drawerMode.min ? "Büyüt" : "Küçült") + '">' + (drawerMode.min ? "▢" : "–") + "</button>" +
+      '<button class="btn btn-ghost btn-sm" data-act="close" title="Kapat">✕</button></span></div>' +
       '<div class="panel-body"><dl class="kv">' +
       "<dt>Konum</dt><dd>" + esc(where) + "</dd>" +
       "<dt>Sınıf</dt><dd>" + esc(card.classes) + (card.groups ? " · " + esc(card.groups) : "") + "</dd>" +
@@ -623,12 +630,35 @@
       "</div></div>";
     drawer.hidden = false;
     $("#tt-wrap").classList.add("with-drawer");
+    applyDrawerMode();
+  }
+
+  // Kart paneli: ızgaranın yanına sabit (varsayılan; ızgara daralır, hiçbir gün örtülmez), serbest (sürüklenir,
+  // yeri hatırlanır) ya da küçültülmüş (yalnızca başlık). Tercih tarayıcıda saklanır.
+
+  function applyDrawerMode() {
+    const docked = !drawer.hidden && drawerMode.dock && !drawerMode.min;
+    $("#tt-wrap").classList.toggle("docked", docked);
+    drawer.classList.toggle("min", drawerMode.min);
+    drawer.classList.toggle("free", !docked);
+    if (state.data) fitDensity();
     placeDrawer();
   }
 
-  // Bilgi kartı seçilen kartın satırını örtmesin: satırın altına, yer yoksa üstüne konur.
+  // Serbest panel seçilen kartın satırını örtmesin: satırın altına, yer yoksa üstüne konur. Kullanıcı sürüklediyse
+  // bıraktığı yerde kalır; küçültülmüşse sağ altta durur.
   function placeDrawer() {
     if (drawer.hidden) return;
+    if (!drawer.classList.contains("free")) { drawer.style.left = drawer.style.top = drawer.style.bottom = ""; return; }
+    if (drawerMode.min) { drawer.style.left = drawer.style.top = ""; drawer.style.bottom = ""; return; }
+    if (drawerMode.pos) {
+      const w = drawer.offsetWidth, h = drawer.offsetHeight;
+      drawer.style.left = Math.min(Math.max(0, drawerMode.pos.x), window.innerWidth - w) + "px";
+      drawer.style.top = Math.min(Math.max(0, drawerMode.pos.y), Math.max(0, window.innerHeight - h)) + "px";
+      drawer.style.bottom = "auto";
+      return;
+    }
+    drawer.style.left = "";
     const cardNode = state.selected != null && board.querySelector('.tt-card.selected[data-card="' + state.selected + '"]');
     const row = cardNode && cardNode.closest(".tt-row");
     const margin = 8, h = drawer.offsetHeight, vh = window.innerHeight;
@@ -730,8 +760,35 @@
     if (!act || !state.selected) return;
     const id = state.selected;
     if (act.dataset.act === "close") clearSelection();
+    if (act.dataset.act === "dock" || act.dataset.act === "min") {
+      const key = act.dataset.act;
+      drawerMode[key] = !drawerMode[key];
+      if (key === "dock" && !drawerMode.dock) drawerMode.pos = null;  // serbest bırakınca yine kartın yanına gelir
+      store(key === "dock" ? "tt-drawer-dock" : "tt-drawer-min", drawerMode[key] ? "1" : "0");
+      select(id);  // başlıktaki düğmeler yeni duruma göre çizilir
+      return;
+    }
     if (act.dataset.act === "lock") run(api(urlFor(cfg.lockUrl, id), { method: "POST" }), true);
     if (act.dataset.act === "unplace") unplaceCard(id);
+  });
+
+  // Serbest paneli başlığından sürükleme
+  drawer.addEventListener("pointerdown", (e) => {
+    const head = e.target.closest("[data-drag]");
+    if (!head || e.target.closest("button") || !drawer.classList.contains("free") || drawerMode.min) return;
+    const r = drawer.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
+    head.setPointerCapture(e.pointerId);
+    const move = (ev) => {
+      drawerMode.pos = { x: ev.clientX - dx, y: ev.clientY - dy };
+      placeDrawer();
+    };
+    const up = () => {
+      head.removeEventListener("pointermove", move);
+      head.removeEventListener("pointerup", up);
+      if (drawerMode.pos) store("tt-drawer-pos", JSON.stringify(drawerMode.pos));
+    };
+    head.addEventListener("pointermove", move);
+    head.addEventListener("pointerup", up);
   });
 
   function onCardOrCellClick(e) {
