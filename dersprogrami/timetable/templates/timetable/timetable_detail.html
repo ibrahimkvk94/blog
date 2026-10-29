@@ -118,6 +118,15 @@
           {% for v in config.versions %}<option value="{{ v.id }}">{{ v.name }}</option>{% endfor %}
         </select>
       {% endif %}
+      <div class="dropdown" id="view-menu">
+        <button class="btn btn-sm" type="button" data-toggle="dropdown" title="Kartlarda ne yazsın, neye göre renklensin">{% include "timetable/icon.html" with name="layout" %} Kart görünümü {% include "timetable/icon.html" with name="chevron" %}</button>
+        <div class="dropdown-menu dropdown-form">
+          <label>Başlık<select class="select select-sm" data-view="title"><option value="code">Ders kodu</option><option value="name">Ders adı</option></select></label>
+          <label>Alt satır<select class="select select-sm" data-view="line"><option value="auto">Otomatik</option><option value="teachers">Öğretmen</option><option value="classes">Sınıf</option><option value="room">Derslik</option><option value="none">Gösterme</option></select></label>
+          <label>Renk<select class="select select-sm" data-view="color"><option value="subject">Derse göre</option><option value="teacher">Öğretmene göre</option><option value="class">Sınıfa göre</option><option value="room">Dersliğe göre</option><option value="none">Renksiz</option></select></label>
+          <label class="check small"><input type="checkbox" data-view="stripes"> <span>Günleri şeritle ayır</span></label>
+        </div>
+      </div>
     </div>
     <div class="right chips" id="stats"></div>
   </div>

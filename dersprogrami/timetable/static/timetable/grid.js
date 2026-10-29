@@ -47,6 +47,7 @@
 
   document.addEventListener("click", (e) => {
     const toggle = e.target.closest("[data-toggle=dropdown]");
+    if (!toggle && e.target.closest(".dropdown-form")) return;  // form menüsü içinde seçim yaparken açık kalır
     document.querySelectorAll(".dropdown.open").forEach((d) => { if (!toggle || d !== toggle.parentElement) d.classList.remove("open"); });
     if (toggle) toggle.parentElement.classList.toggle("open");
   });
@@ -77,6 +78,15 @@
   }
   if (!cfg.hasGrid) return;
 
+  // Bugünün gün sırası (Pazartesi = 0).
+  function todayIndex() {
+    return (new Date().getDay() + 6) % 7;
+  }
+
+  function readJSON(text) {
+    try { return JSON.parse(text) || {}; } catch (e) { return {}; }
+  }
+
   // ---- durum ------------------------------------------------------------------------------
   const board = $("#tt-board");
   const scroller = $("#tt-scroll");
@@ -92,6 +102,7 @@
     dragging: null,
     compare: "",
     preview: null,  // çözüm merkezi önizlemesi: {index, total, moves, ...}
+    view: Object.assign({ title: "code", line: "auto", color: "subject", stripes: true }, readJSON(store("tt-view"))),
   };
 
   async function load() {
@@ -115,7 +126,7 @@
     const d = state.data;
     const P = d.periods.length;
     const D = d.days.length;
-    board.className = "tt-board " + state.zoom;
+    board.className = "tt-board " + state.zoom + (state.view.stripes ? " stripes" : "");
     board.style.setProperty("--cols", P * D);
     // Satır başlığı en uzun ada göre daralır (aSc'deki gibi yalnızca kısa ad); ayrıntı ipucunda.
     const longest = d.rows.reduce((m, r) => Math.max(m, r.label.length), 4);
@@ -128,13 +139,13 @@
     const corner = el("div", "tt-corner", esc(KIND_LABELS[state.kind]));
     hr.appendChild(corner);
     d.days.forEach((name, i) => {
-      const day = el("div", "tt-day", esc(name));
+      const day = el("div", "tt-day" + (i % 2 ? " day-alt" : "") + (i === todayIndex() ? " today" : ""), esc(name));
       day.style.gridColumn = 2 + i * P + " / span " + P;
       day.style.gridRow = "1";
       hr.appendChild(day);
       d.periods.forEach((p, j) => {
         const start = (p.starts && p.starts[i]) || p.start || "";  // o güne özel saat
-        const cell = el("div", "tt-period" + (j === 0 ? " day-start" : "") + (start !== (p.start || "") ? " day-time" : ""), "<b>" + (p.index + 1) + "</b>" + esc(start));
+        const cell = el("div", "tt-period" + (j === 0 ? " day-start" : "") + (i % 2 ? " day-alt" : "") + (i === todayIndex() ? " today" : "") + (start !== (p.start || "") ? " day-time" : ""), "<b>" + (p.index + 1) + "</b>" + esc(start));
         cell.title = d.days[i] + ", " + (p.index + 1) + ". saat" + (start ? " · " + start : "");
         cell.dataset.day = i;
         cell.dataset.period = j;
@@ -188,7 +199,7 @@
     rowEl.appendChild(label);
     for (let day = 0; day < D; day++) {
       for (let p = 0; p < P; p++) {
-        const cell = el("div", "tt-cell" + (p === 0 ? " day-start" : ""));
+        const cell = el("div", "tt-cell" + (p === 0 ? " day-start" : "") + (day % 2 ? " day-alt" : "") + (day === todayIndex() ? " today" : ""));
         cell.style.gridColumn = String(2 + day * P + p);
         cell.dataset.day = day;
         cell.dataset.period = p;
@@ -352,10 +363,42 @@
       : '<tr><td colspan="3" class="subtle">İki sürüm aynı.</td></tr>';
   }
 
+  // Kart görünümü: başlık, alt satır ve renk ölçütü kullanıcıya göre (tarayıcıda saklanır).
+  const PALETTE = ["#dbeafe", "#dcfce7", "#fef3c7", "#fce7f3", "#e0e7ff", "#ccfbf1", "#fee2e2", "#ede9fe",
+    "#fef9c3", "#cffafe", "#ffedd5", "#f3e8ff", "#d9f99d", "#e2e8f0", "#fbcfe8", "#bae6fd"];
+  function hashColor(key) {
+    let h = 0;
+    for (const ch of String(key)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+    return PALETTE[h % PALETTE.length];
+  }
+  function cardColor(c) {
+    const v = state.view.color;
+    if (v === "none") return "#eef0f4";
+    if (v === "teacher") return c.teacher_ids.length ? hashColor("t" + c.teacher_ids[0]) : "#eef0f4";
+    if (v === "class") return c.class_ids.length ? hashColor("c" + c.class_ids[0]) : "#eef0f4";
+    if (v === "room") return c.room ? hashColor("r" + c.room) : "#eef0f4";
+    return c.color;
+  }
+  function isDark(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+    if (!m) return false;
+    const n = parseInt(m[1], 16);
+    return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) < 140;
+  }
+  function cardLine(c) {
+    const v = state.view.line;
+    if (v === "none") return "";
+    if (v === "auto") return c.line2;
+    return c[v] || "";
+  }
+
   function cardEl(c) {
-    const e = el("div", "tt-card" + (c.locked ? " locked" : ""),
-      '<div class="t">' + (c.locked ? LOCK_SVG : "") + "<span>" + esc(c.subject) + '</span></div><div class="d">' + esc(c.line2) + "</div>");
-    e.style.setProperty("--c", c.color);
+    const color = cardColor(c);
+    const title = state.view.title === "name" ? c.subject_name : c.subject;
+    const line = cardLine(c);
+    const e = el("div", "tt-card" + (c.locked ? " locked" : "") + (isDark(color) ? " dark" : ""),
+      '<div class="t">' + (c.locked ? LOCK_SVG : "") + "<span>" + esc(title) + "</span></div>" + (line ? '<div class="d">' + esc(line) + "</div>" : ""));
+    e.style.setProperty("--c", color);
     e.title = c.title;
     e.dataset.card = c.id;
     e.draggable = !c.locked && cfg.canEdit;
@@ -849,8 +892,20 @@
     state.zoom = b.dataset.zoom;
     store("tt-zoom", state.zoom);
     setActive(zoomSwitch, "zoom", state.zoom);
-    board.className = "tt-board " + state.zoom;
+    board.className = "tt-board " + state.zoom + (state.view.stripes ? " stripes" : "");
     fitDensity();
+  });
+
+  // Kart görünümü menüsü
+  document.querySelectorAll("[data-view]").forEach((input) => {
+    const key = input.dataset.view;
+    if (input.type === "checkbox") input.checked = !!state.view[key];
+    else input.value = state.view[key];
+    input.addEventListener("change", () => {
+      state.view[key] = input.type === "checkbox" ? input.checked : input.value;
+      store("tt-view", JSON.stringify(state.view));
+      if (state.data) render();
+    });
   });
 
   // Tam ekran

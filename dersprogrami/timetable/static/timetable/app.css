@@ -1234,3 +1234,17 @@ a.q-card.on { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary)
 .today-icon.bad { background: var(--danger-soft); color: var(--danger-strong); border-color: #f3c3bd; }
 .section-title { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-3); margin: 6px 0 10px; }
 .today-icon svg { width: 18px; height: 18px; }
+
+/* ---- Ana görünüm: gün şeritleri, bugün, koyu kartlar, kart görünümü menüsü ---- */
+.tt-board.stripes .tt-cell.day-alt { background: #f5f6fa; }
+.tt-board.stripes .tt-row:nth-child(even) .tt-cell.day-alt { background: #f0f2f7; }
+.tt-board.stripes .tt-day.day-alt, .tt-board.stripes .tt-period.day-alt { background: #f5f6fa; }
+.tt-day.today { color: var(--primary); box-shadow: inset 0 3px 0 var(--primary); }
+.tt-period.today b { color: var(--primary); }
+.tt-card.dark { color: #fff; }
+.tt-card.dark .d { color: rgba(255,255,255,.82); }
+.dropdown-form { min-width: 230px; padding: 10px 12px; display: none; flex-direction: column; gap: 10px; left: 0; right: auto; }
+.dropdown.open .dropdown-form { display: flex; }
+.dropdown-form > label:not(.check) { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--text-2); }
+.tray.empty .tray-body { min-height: 0; padding: 8px 18px; }
+.tray.empty #tray-count { background: var(--success-soft); color: var(--success); border-color: #bfe5cc; }
