@@ -105,6 +105,15 @@ def sidebar_nav(context):
     return {"groups": build(context)}
 
 
+@register.inclusion_tag("timetable/nav/ribbon.html", takes_context=True)
+def ribbon_nav(context):
+    """Üst şerit menü (Word şeridi gibi): sekmeler = menü grupları, şerit = seçili grubun sayfaları. Açık sayfanın
+    grubu seçili gelir."""
+    groups = [{**g, "items": [i for i in g["items"] if i["visible"] or i["active"]]} for g in build(context)]
+    current = next((g["key"] for g in groups if g["active"]), groups[0]["key"] if groups else None)
+    return {**context.flatten(), "groups": groups, "current": current}
+
+
 @register.inclusion_tag("timetable/nav/section_tabs.html", takes_context=True)
 def section_tabs(context):
     """Açık sayfanın grubundaki sayfalar (birden fazlaysa) sekme olarak."""

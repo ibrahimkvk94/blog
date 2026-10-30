@@ -6,7 +6,9 @@
   <title>{% block title %}Ders Programı{% endblock %} · Ders Programı</title>
   <link href="{% asset 'timetable/app.css' %}" rel="stylesheet">
   {% include "timetable/theme_init.html" %}
-  <script>try { if (localStorage.getItem("nav-collapsed") === "1") document.documentElement.classList.add("nav-collapsed"); } catch (e) {}</script>
+  <script>try { if (localStorage.getItem("nav-collapsed") === "1") document.documentElement.classList.add("nav-collapsed");
+    if (localStorage.getItem("nav-layout") === "side") document.documentElement.classList.add("layout-side");
+    if (localStorage.getItem("ribbon-min") === "1") document.documentElement.classList.add("ribbon-min"); } catch (e) {}</script>
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -42,10 +44,11 @@
         <a href="{% url 'timetable:account' %}" class="{% if nav == 'account' %}active{% endif %}">{% include "timetable/icon.html" with name="user" %} <span class="nav-label">Hesabım</span></a>
       </nav>
     {% endif %}
-    <div class="sidebar-foot"><a href="{% url 'timetable:account' %}" style="color:inherit">{% firstof user.get_full_name user.username %}</a>{% if has_teacher_profile and school %} · <a href="{% url 'timetable:my_timetable' %}" style="color:inherit">Programım</a>{% endif %}{% if user.is_superuser %} · <a href="{% url 'timetable:central' %}" style="color:inherit">Merkez</a>{% endif %} · <a href="{% url 'timetable:logout' %}" style="color:inherit" onclick="event.preventDefault();document.getElementById('logout-form').submit()">Çıkış</a>
+    <div class="sidebar-foot"><a href="#" style="color:inherit;display:block;margin-bottom:6px" data-layout-ribbon>Üst şerit menüye geç</a><a href="{% url 'timetable:account' %}" style="color:inherit">{% firstof user.get_full_name user.username %}</a>{% if has_teacher_profile and school %} · <a href="{% url 'timetable:my_timetable' %}" style="color:inherit">Programım</a>{% endif %}{% if user.is_superuser %} · <a href="{% url 'timetable:central' %}" style="color:inherit">Merkez</a>{% endif %} · <a href="{% url 'timetable:logout' %}" style="color:inherit" onclick="event.preventDefault();document.getElementById('logout-form').submit()">Çıkış</a>
       <form id="logout-form" method="post" action="{% url 'timetable:logout' %}" hidden>{% csrf_token %}</form></div>
   </aside>
   <div class="main">
+    {% ribbon_nav %}
     <header class="topbar">
       <button type="button" class="nav-toggle" id="nav-toggle" title="Sol menüyü gizle / göster" aria-label="Sol menüyü gizle / göster">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
@@ -55,7 +58,7 @@
         <div class="title-row">{% block heading %}{% endblock %}</div>
       </div>
       <div class="actions">{% block actions %}{% endblock %}</div>
-      <button type="button" class="theme-toggle" id="theme-toggle" title="Açık / koyu tema" aria-label="Açık / koyu tema"><span class="i-moon">{% include "timetable/icon.html" with name="moon" %}</span><span class="i-sun">{% include "timetable/icon.html" with name="sun" %}</span></button>
+      <button type="button" class="theme-toggle" id="theme-toggle" data-theme-toggle title="Açık / koyu tema" aria-label="Açık / koyu tema"><span class="i-moon">{% include "timetable/icon.html" with name="moon" %}</span><span class="i-sun">{% include "timetable/icon.html" with name="sun" %}</span></button>
       <button type="button" class="btn btn-ghost pal-open" data-palette-open title="Hızlı git (Ctrl+K)">{% include "timetable/icon.html" with name="search" %}<span>Ara</span><kbd>Ctrl K</kbd></button>
     </header>
     <main class="content">
@@ -76,11 +79,52 @@
 <script type="application/json" id="palette-icons">{% palette_icons_json %}</script>
 <script src="{% asset 'timetable/palette.js' %}" defer></script>
 <script>
-  document.getElementById("theme-toggle").addEventListener("click", function () {
+  document.querySelectorAll("[data-theme-toggle]").forEach(function (b) { b.addEventListener("click", function () {
     var next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
     document.documentElement.dataset.theme = next;
     try { localStorage.setItem("theme", next); } catch (e) {}
-  });
+  }); });
+  // Üst şerit: sekme seçilince o grubun sayfaları görünür; şerit daraltılabilir (yalnız sekmeler; sekmeye basınca
+  // şerit açılır kutu olarak iner). Şerit / sol menü tercihi tarayıcıda saklanır.
+  (function () {
+    var root = document.documentElement, rb = document.querySelector("[data-ribbon]");
+    function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+    document.querySelectorAll("[data-layout-side], [data-layout-ribbon]").forEach(function (b) {
+      b.addEventListener("click", function (e) {
+        e.preventDefault();
+        var side = b.hasAttribute("data-layout-side");
+        root.classList.toggle("layout-side", side);
+        store("nav-layout", side ? "side" : "ribbon");
+        window.dispatchEvent(new Event("resize"));
+      });
+    });
+    if (!rb) return;
+    var tabs = rb.querySelectorAll("[data-rb-tab]"), panels = rb.querySelectorAll("[data-rb-panel]");
+    function show(key) {
+      tabs.forEach(function (t) { var on = t.dataset.rbTab === key; t.classList.toggle("on", on); t.setAttribute("aria-selected", on ? "true" : "false"); });
+      panels.forEach(function (p) { p.hidden = p.dataset.rbPanel !== key; });
+    }
+    tabs.forEach(function (t) {
+      t.addEventListener("click", function () {
+        var open = root.classList.contains("ribbon-min") && rb.classList.contains("drop") && t.classList.contains("on");
+        show(t.dataset.rbTab);
+        if (root.classList.contains("ribbon-min")) rb.classList.toggle("drop", !open);
+      });
+      t.addEventListener("dblclick", function () { rb.querySelector("[data-rb-min]").click(); });
+    });
+    rb.querySelector("[data-rb-min]").addEventListener("click", function () {
+      var min = root.classList.toggle("ribbon-min");
+      rb.classList.remove("drop");
+      store("ribbon-min", min ? "1" : "0");
+      window.dispatchEvent(new Event("resize"));
+    });
+    document.addEventListener("click", function (e) {
+      if (rb.classList.contains("drop") && !rb.contains(e.target)) rb.classList.remove("drop");
+      var user = rb.querySelector(".rb-user");
+      if (user && user.open && !user.contains(e.target)) user.open = false;
+    });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape") rb.classList.remove("drop"); });
+  })();
   // Geniş ekranda menü gizlenir/gösterilir (hatırlanır); telefonda soldan açılan çekmece olur.
   var phone = window.matchMedia("(max-width: 900px)");
   document.getElementById("nav-toggle").addEventListener("click", function () {
