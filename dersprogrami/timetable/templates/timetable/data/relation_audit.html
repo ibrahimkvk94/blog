@@ -12,7 +12,11 @@
   <a class="q-card{% if status == 'empty' %} on{% endif %}" href="?durum=empty"><span>Boşa çalışan</span><b class="{% if counts.empty %}t-orta{% endif %}">{{ counts.empty }}</b><small>hiçbir kartla eşleşmiyor</small></a>
   <a class="q-card{% if status == 'duplicate' %} on{% endif %}" href="?durum=duplicate"><span>Kopya</span><b class="{% if counts.duplicate %}t-orta{% endif %}">{{ counts.duplicate }}</b><small>aynı kural birden çok kez</small></a>
   <a class="q-card{% if status == 'closed' %} on{% endif %}" href="?durum=closed"><span>Kapalı</span><b>{{ counts.closed }}</b><small>üretimde kullanılmıyor</small></a>
+  {% if asc_tt %}<a class="q-card{% if status == 'asc' %} on{% endif %}" href="?durum=asc"><span>aSc'de de sağlanmayan</span><b class="{% if counts.asc %}t-kotu{% endif %}">{{ counts.asc }}</b><small>aSc'nin kendi programı uymuyor</small></a>{% endif %}
 </div>
+{% if asc_tt and counts.asc %}
+  <div class="alert alert-warning"><b>{{ counts.asc }} etkin kural aSc'nin kendi programında da sağlanmıyor.</b> aSc bu programı aynı veriyle ürettiğine göre bu kurallar bize aSc'dekinden farklı (genellikle daha sıkı) aktarılmış: örneğin aSc listede göstermediği için tüm saatleri işaretlenmiş “işaretli saatlerde…” kuralları. Kesin kalırlarsa program bulunamayabilir ya da çok ihlalle çıkar. <a href="?durum=asc">Bu kuralları listeleyin</a>; zaman haritasını aSc'dekiyle karşılaştırıp düzeltin, ya da seçip <b>Tercihe çevir</b> / <b>Kapat</b> deyin.</div>
+{% endif %}
 <form method="post" class="panel" id="ra-form">
   {% csrf_token %}<input type="hidden" name="durum" value="{{ status }}">
   <div class="panel-head rw2-bar">
@@ -22,6 +26,7 @@
       {% if status == "duplicate" %}<button type="button" class="btn btn-sm" data-ra-twins>Kopyaları seç (her kümeden birini bırak)</button>{% endif %}
       <button class="btn btn-sm" name="islem" value="enable">Etkinleştir</button>
       <button class="btn btn-sm" name="islem" value="disable">Kapat</button>
+      <button class="btn btn-sm" name="islem" value="soften" title="Kesin kuralları yüksek önemli tercihe çevirir">Tercihe çevir</button>
       <button class="btn btn-sm btn-danger" name="islem" value="delete" data-ra-delete>Sil</button>
       <span class="subtle small"><span data-ra-count>0</span> seçili</span>
     </div>
@@ -41,6 +46,7 @@
               {% if "empty" in r.flags %}<span class="pill warn">boşa çalışıyor</span>{% endif %}
               {% if "duplicate" in r.flags %}<span class="pill warn" title="Aynı kural: {{ r.twins|join:', ' }}">kopya{% if r.keep %} (asıl){% endif %}</span>{% endif %}
               {% if "violated" in r.flags %}<details class="ra-viol"><summary><span class="pill error">{{ r.violations|length }} ihlal</span></summary><ul class="small">{% for v in r.violations|slice:":8" %}<li>{{ v }}</li>{% endfor %}{% if r.violations|length > 8 %}<li>… {{ r.violations|length|add:"-8" }} tane daha</li>{% endif %}</ul></details>{% endif %}
+              {% if "asc" in r.flags %}<details class="ra-viol"><summary><span class="pill warn">aSc'de de {{ r.asc_violations|length }} ihlal</span></summary><ul class="small">{% for v in r.asc_violations|slice:":6" %}<li>{{ v }}</li>{% endfor %}{% if r.asc_violations|length > 6 %}<li>… {{ r.asc_violations|length|add:"-6" }} tane daha</li>{% endif %}</ul></details>{% endif %}
               {% if not r.flags %}<span class="pill ok">sağlanıyor</span>{% endif %}</td>
           </tr>
         {% endif %}{% empty %}<tr><td colspan="6" class="subtle">Kart ilişkisi yok.</td></tr>{% endfor %}

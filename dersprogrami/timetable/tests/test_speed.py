@@ -74,3 +74,19 @@ class SpeedTests(TestCase):
         after = {(c.lesson_id, c.day, c.period) for c in timetable.cards.exclude(lesson__classes=cls)}
         self.assertEqual(before, after)
         self.assertFalse([v for v in verify_timetable(timetable)[0] if v.level == "hard"])
+
+
+class RepairWithViolationsTests(TestCase):
+    """Onarım yolunun "taslakta aşım var" dalı: taslak ilk çözümde durdurulur, katı model ipucuyla onarır (çökmeden)."""
+
+    def test_repair_from_draft_with_violations(self):
+        import time
+        from unittest import mock
+
+        school = create_demo_school()
+        problem = build_problem(school)
+        builder = cpsat._Builder(problem, cpsat.STRICT)
+        model = builder.build()
+        with mock.patch.object(cpsat._StopAtZero, "on_solution_callback", lambda self: self.StopSearch()):
+            solver, callback, info = cpsat._repair_search(problem, builder, model, 40, time.monotonic(), 8, 0, None, None)
+        self.assertTrue(callback.found, info)

@@ -1666,6 +1666,10 @@ def relation_audit(request, pk):
             messages.success(request, f"{qs.update(active=True)} ilişki etkinleştirildi.")
         elif action == "disable":
             messages.success(request, f"{qs.update(active=False)} ilişki kapatıldı.")
+        elif action == "soften":
+            n = qs.filter(importance=CardRelationship.STRICT).update(importance=CardRelationship.HIGH)
+            messages.success(request, f"{n} ilişki kesinden “yüksek” öneme (tercih) çevrildi: üretim artık bunlar yüzünden "
+                                      "durmaz, mümkün olduğunca sağlamaya çalışır.")
         elif action == "delete":
             n = qs.count()
             qs.delete()
@@ -1682,6 +1686,9 @@ def relation_audit(request, pk):
         for v in validate(problem, placements_of(problem, timetable))[0]:
             if v.ref is not None:
                 violations[v.ref].append(v.message)
+    from .input_diff import asc_mismatches
+
+    asc_tt, asc_violations = asc_mismatches(school)
     rels = list(school.relationships.prefetch_related("lessons__subject", "lessons__classes", "subjects", "lessons_b", "subjects_b",
                                                       "classes", "teachers", "classrooms"))
     by_signature = defaultdict(list)
@@ -1700,18 +1707,21 @@ def relation_audit(request, pk):
             flags.append("violated")
         if twins:
             flags.append("duplicate")
+        if rel.active and asc_violations.get(rel.pk):
+            flags.append("asc")
         target = [s.short or s.name for s in rel.subjects.all()]
         target += [f"{l.subject.short or l.subject.name} ({', '.join(c.short or c.name for c in l.classes.all())})" for l in rel.lessons.all()]
         rows.append({"rel": rel, "cards": n_cards, "violations": violations.get(rel.pk, []), "flags": flags,
+                     "asc_violations": asc_violations.get(rel.pk, []),
                      "twins": twins, "keep": not twins or rel.pk == min([rel.pk] + twins),
                      "target": ", ".join(target[:3]) + (f" +{len(target) - 3}" if len(target) > 3 else "") or "tüm dersler",
                      "filters": ", ".join(filter(None, [f"{rel.classes.count()} sınıf" if rel.classes.all() else "",
                                                         f"{rel.teachers.count()} öğretmen" if rel.teachers.all() else ""]))})
-    counts = {k: sum(1 for r in rows if k in r["flags"]) for k in ("violated", "empty", "duplicate", "closed")}
+    counts = {k: sum(1 for r in rows if k in r["flags"]) for k in ("violated", "empty", "duplicate", "closed", "asc")}
     conditions = sorted({(r["rel"].condition, r["rel"].get_condition_display()) for r in rows}, key=lambda c: c[1])
     return render(request, "timetable/data/relation_audit.html", _nav(
         school, "data", data_nav="kart-iliskileri", rows=rows, counts=counts, total=len(rows), timetable=timetable,
-        conditions=conditions, status=request.GET.get("durum", "")))
+        conditions=conditions, status=request.GET.get("durum", ""), asc_tt=asc_tt))
 
 
 def availability_import(request, pk):

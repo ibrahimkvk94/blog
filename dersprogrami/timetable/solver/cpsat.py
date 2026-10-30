@@ -819,6 +819,7 @@ class _FirstSolution(cp_model.CpSolverSolutionCallback):
 
 # İki aşamalı arama bu kart sayısından itibaren kullanılır (küçük programlarda gerek yok).
 TWO_PHASE_MIN_CARDS = 150
+PHASE1_SHARE = 0.45  # 1. aşamanın (doğrudan geçerli program arama) süre payı; kalanı onarım ve iyileştirme
 
 
 class StopHandle:
@@ -873,7 +874,8 @@ def solve(
         feasibility = model.clone()
         feasibility.ClearObjective()
         first = cp_model.CpSolver()
-        first.parameters.max_time_in_seconds = float(time_limit) * 0.3
+        # Doğrudan arama bu veride çoğunlukla 15–20 sn sürer; payı kısa tutmak kısa sürelerde sonucu şansa bırakıyordu.
+        first.parameters.max_time_in_seconds = float(time_limit) * PHASE1_SHARE
         first.parameters.num_workers = workers
         first.parameters.random_seed = seed
         if stop_handle is not None:
@@ -973,7 +975,7 @@ class _StopAtZero(cp_model.CpSolverSolutionCallback):
 
 def _repair_search(problem, builder, model, time_limit, started, workers, seed, on_progress, stop_handle):
     """1. aşamanın yedeği: esnek modelde (her kart yerleşmek zorunda, kurallar cezalı) yaklaşık program kurar,
-    onu katı modele ipucu verip `repair_hint` ile kurallara uyar hale getirir. (çözücü, geri çağırma, özet) döner."""
+    onu katı modele ipucu verip kurallara uyar hale getirir. (çözücü, geri çağırma, özet) döner."""
     if on_progress:
         on_progress({"phase": "repair"})
     info = {}
@@ -985,7 +987,7 @@ def _repair_search(problem, builder, model, time_limit, started, workers, seed, 
     relaxed_model.Minimize(sum(slacks))
     draft = cp_model.CpSolver()
     # Onarım için birkaç saniye bırakılır (aşımsız taslak 1–2 sn'de tamamlanır).
-    draft.parameters.max_time_in_seconds = max(1.0, float(time_limit) * 0.55 - (time.monotonic() - started))
+    draft.parameters.max_time_in_seconds = max(1.0, float(time_limit) * 0.7 - (time.monotonic() - started))
     draft.parameters.num_workers = workers
     draft.parameters.random_seed = seed
     if stop_handle is not None:
@@ -1029,10 +1031,11 @@ def _repair_search(problem, builder, model, time_limit, started, workers, seed, 
         for var, v in pairs:
             feasibility.AddHint(feasibility.GetIntVarFromProtoIndex(var.Index()), v)
     fixer = cp_model.CpSolver()
-    fixer.parameters.max_time_in_seconds = max(1.0, float(time_limit) * 0.6 - (time.monotonic() - started))
+    fixer.parameters.max_time_in_seconds = max(1.0, float(time_limit) * 0.75 - (time.monotonic() - started))
     fixer.parameters.num_workers = workers
     fixer.parameters.random_seed = seed
-    fixer.parameters.repair_hint = bool(info["violations"])
+    # repair_hint burada kullanılmaz: amaç fonksiyonu olmayan kopya modelde OR-Tools'u çökertebiliyor
+    # ("heuristics.fixed_search"); ipucu yine aramayı yönlendirir.
     if stop_handle is not None:
         stop_handle.attach(fixer)
     callback = _FirstSolution(on_progress)

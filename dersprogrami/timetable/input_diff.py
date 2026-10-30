@@ -158,3 +158,30 @@ def since_last_success(timetable, inputs):
         "operations": operations[-60:], "operation_count": len(operations),
         "recheck": recheck(previous),
     }
+
+
+ASC_TIMETABLE = "aSc'den içe aktarılan"
+
+
+def asc_mismatches(school):
+    """aSc'den içe aktarılan programın bugünkü kurallarla sağlamadığı kart ilişkileri: (aSc programı, {ilişki: [ileti]}).
+
+    aSc o programı aynı veriyle ürettiğine göre bu kurallar aSc'dekinden farklı (çoğunlukla daha sıkı) aktarılmıştır;
+    ör. aSc listede saatleri göstermediği için tüm hücreleri işaretlenen "işaretli saatlerde…" kuralları."""
+    from collections import defaultdict
+
+    from .problem_cache import problem_for
+    from .services import placements_of
+    from .solver.validate import validate
+
+    asc_tt = school.timetables.filter(name=ASC_TIMETABLE, status__in=[Timetable.OK, Timetable.PARTIAL]).order_by("-pk").first()
+    found = defaultdict(list)
+    if asc_tt is not None:
+        try:
+            problem = problem_for(asc_tt)
+            for v in validate(problem, placements_of(problem, asc_tt))[0]:
+                if v.ref is not None and v.level == "hard":
+                    found[v.ref].append(v.message)
+        except Exception:  # eski program bugünkü veriyle kurulamıyor: denetim yapılmaz
+            return asc_tt, {}
+    return asc_tt, dict(found)

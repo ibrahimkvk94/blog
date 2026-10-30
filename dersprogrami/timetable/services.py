@@ -135,6 +135,7 @@ def run_generation(timetable_id, base_id=None, seed=0):
                 timetable.school, problem, time_limit=min(180, max(60, timetable.time_limit)), known_infeasible=True
             )
         report["changes"] = input_diff.since_last_success(timetable, inputs)  # "dün bulunuyordu; arada ne değişti?"
+        report["asc_mismatch"] = _asc_mismatch(timetable.school)
         stopped = solution.stats.get("stopped") or jobs.handle_for(timetable_id).stopped
         if solution.status in ("unknown", "infeasible") and not relaxed and not stopped:
             # Tanı: kurallar ağır cezalı esnetilerek en yakın taslak aranır; hangi kuralların ne kadar
@@ -163,8 +164,24 @@ def run_generation(timetable_id, base_id=None, seed=0):
         # Gevşek mod: yüksek cezanın kaynağı aynı raporla gösterilir (hangi kesin kural ne kadar esnedi, ne sığmadı).
         report["diagnosis"] = diagnosis(timetable.school, problem, "relaxed", solution)
         report["changes"] = input_diff.since_last_success(timetable, inputs)
+        report["asc_mismatch"] = _asc_mismatch(timetable.school)
 
     _retry_locked(lambda: _save_result(timetable, problem, solution, report))
+
+
+def _asc_mismatch(school):
+    """Rapor için: aSc'nin kendi programının da sağlamadığı etkin kurallar (yoksa None)."""
+    from .models import CardRelationship
+
+    try:
+        _, found = input_diff.asc_mismatches(school)
+    except Exception:  # rapor yardımcısı; üretimi bozmasın
+        return None
+    if not found:
+        return None
+    names = dict(CardRelationship.objects.filter(pk__in=found, active=True).values_list("pk", "name"))
+    rows = sorted(((names[k], len(v)) for k, v in found.items() if k in names), key=lambda r: -r[1])
+    return {"count": len(rows), "rules": rows[:10]} if rows else None
 
 
 def _retry_locked(func, attempts=8):

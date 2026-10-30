@@ -70,7 +70,7 @@
     <div class="panel-body">
       {% if timetable.report.error %}<div class="alert alert-error">{{ timetable.report.error }}</div>{% endif %}
       {% if timetable.report.diagnosis %}{% include "timetable/diagnosis.html" with d=timetable.report.diagnosis %}{% endif %}
-      {% include "timetable/changes_since.html" with ch=timetable.report.changes %}
+      {% include "timetable/changes_since.html" with ch=timetable.report.changes %}{% include "timetable/asc_mismatch.html" with m=timetable.report.asc_mismatch %}
       {% with c=timetable.report.conflict %}{% if c %}
         <div class="conflict">
           {% if c.status == "core" %}
@@ -104,7 +104,7 @@
         <span><b>Bu taslakta kesin kurallar esnetildi</b>{% if timetable.report.diagnosis.unplaced_hours %} ve {{ timetable.report.diagnosis.unplaced_hours }} ders saati sığmadı{% endif %}. Cezanın kaynağını ve son başarılı üretimden bu yana değişenleri görmek için açın.</span></summary>
       <div class="panel-body">
         {% include "timetable/diagnosis.html" with d=timetable.report.diagnosis %}
-        {% include "timetable/changes_since.html" with ch=timetable.report.changes %}
+        {% include "timetable/changes_since.html" with ch=timetable.report.changes %}{% include "timetable/asc_mismatch.html" with m=timetable.report.asc_mismatch %}
       </div>
     </details>
   {% endif %}
@@ -118,7 +118,7 @@
             {% for rule in c.rules %}{% if rule.url %}<a href="{{ rule.url }}">{{ rule.label }}</a>{% else %}{{ rule.label }}{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</div>
         {% endif %}{% endwith %}
         {% include "timetable/diagnosis.html" with d=timetable.report.diagnosis %}
-        {% include "timetable/changes_since.html" with ch=timetable.report.changes %}
+        {% include "timetable/changes_since.html" with ch=timetable.report.changes %}{% include "timetable/asc_mismatch.html" with m=timetable.report.asc_mismatch %}
       </div>
     </details>
   {% endif %}{% endwith %}
