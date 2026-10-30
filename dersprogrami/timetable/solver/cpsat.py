@@ -17,7 +17,6 @@ boşlukları, koşullu (?) hücre kullanımı, önemi "kesin" olmayan kart iliş
 """
 
 import threading
-from collections import defaultdict
 import time
 from dataclasses import dataclass, field
 from types import SimpleNamespace
@@ -725,9 +724,6 @@ class _Builder:
                             # a'nın hemen ardından b başlar; sırası serbestse b'nin ardından a da olur.
                             len_a, len_b = self.problem.cards[a].length, self.problem.cards[b].length
                             ordered = cond == "consecutive_ordered"
-                            if hard and not self.relaxed and not self.explain:
-                                self._consecutive_blocks(a, b, len_a, len_b, ordered, f"{name}_{g}_{a}_{b}")
-                                continue
                             for (d, p), xa in self.x[a].items():
                                 after = self.x[b].get((d, p + len_a), 0)
                                 before = 0 if ordered or p - len_b < 0 else self.x[b].get((d, p - len_b), 0)
@@ -736,23 +732,6 @@ class _Builder:
                                 before_a = self.x[a].get((d, p - len_a), 0) if p - len_a >= 0 else 0
                                 after_a = 0 if ordered else self.x[a].get((d, p + len_b), 0)
                                 self.m.Add(xb <= before_a + after_a + v)
-
-    def _consecutive_blocks(self, a, b, len_a, len_b, ordered, name):
-        """Kesin "art arda" çifti, ikili blok olarak: her blok birlikte geçerli bir yerleşimdir (a şu saatte, b hemen
-        ardında; sıra serbestse tersi de). Kartların başlangıcı bloklardan birine bağlanır, böylece eşi sığmayan
-        saatler daha baştan elenir. Çift başına "a buradaysa b yanında" koşullarından çok daha güçlü yayılım verir;
-        teori + uygulama kurallarıyla dolu programlarda sıfırdan aramayı belirleyici biçimde hızlandırır."""
-        by_a, by_b = defaultdict(list), defaultdict(list)
-        for (d, p) in self.x[a]:
-            options = [(d, p + len_a)] + ([] if ordered else [(d, p - len_b)])
-            for slot_b in options:
-                if slot_b in self.x[b]:
-                    z = self.m.NewBoolVar(f"blk_{name}_{d}_{p}_{slot_b[1]}")
-                    by_a[(d, p)].append(z)
-                    by_b[slot_b].append(z)
-        for x, by in ((self.x[a], by_a), (self.x[b], by_b)):
-            for slot, var in x.items():
-                self.m.Add(var == sum(by.get(slot, [])))
 
     def maybe_cells(self):
         for card in self.problem.cards:
