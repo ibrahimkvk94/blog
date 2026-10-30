@@ -185,3 +185,32 @@ def asc_mismatches(school):
         except Exception:  # eski program bugünkü veriyle kurulamıyor: denetim yapılmaz
             return asc_tt, {}
     return asc_tt, dict(found)
+
+
+def best_hint(timetable, limit=5):
+    """Üretimin başlayacağı ipucu: son başarılı üretimler, aSc'den içe aktarılan program ve yayındaki / aktif program
+    arasından BUGÜNKÜ veriyle en az kesin ihlali olanı. (program, ihlal sayısı) ya da (None, None).
+
+    Son başarılı program veri değiştikten sonra yüzlerce ihlalli kalabiliyor; aSc'nin çözümü ise çoğunlukla neredeyse
+    geçerlidir ve onarılması saniyeler sürer."""
+    from .services import verify_timetable
+
+    school = timetable.school
+    candidates = []
+    recent = list(Timetable.objects.filter(school_id=timetable.school_id, status__in=[Timetable.OK, Timetable.PARTIAL],
+                                           finished_at__isnull=False).exclude(pk=timetable.pk).order_by("-finished_at")[:2])
+    for tt in (last_success(timetable), *recent,
+               school.timetables.filter(name=ASC_TIMETABLE, status__in=[Timetable.OK, Timetable.PARTIAL]).order_by("-pk").first(),
+               school.working_timetable, school.active_timetable):
+        if tt is not None and tt.pk != timetable.pk and tt.has_grid and tt.pk not in [c.pk for c in candidates]:
+            candidates.append(tt)
+    best = None
+    for tt in candidates[:limit]:
+        try:
+            violations, stats = verify_timetable(tt)
+        except Exception:  # eski program bugünkü veriyle kurulamıyor
+            continue
+        hard = sum(1 for v in violations if v.level == "hard")
+        if best is None or hard < best[1]:
+            best = (tt, hard)
+    return best if best else (None, None)

@@ -153,7 +153,7 @@
       <div class="form-row">
         <label class="label" for="base">Başlangıç sürümü</label>
         <select class="select" id="base" name="base">
-          <option value="">Otomatik: son başarılı programdan ipucuyla (önerilen)</option>
+          <option value="">Otomatik: en yakın programdan (son başarılı ya da aSc çözümü) başla (önerilen)</option>
           <option value="sifir">Tamamen sıfırdan</option>
           {% for t in timetables %}{% if t.has_grid %}<option value="{{ t.pk }}">{{ t.name }} (kilitli kartlar korunur)</option>{% endif %}{% endfor %}
         </select>

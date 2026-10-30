@@ -38,3 +38,30 @@ class AscMismatchTests(TestCase):
         self.client.post(url, {"islem": "soften", "iliski": [self.rel.pk]})
         self.rel.refresh_from_db()
         self.assertEqual(self.rel.importance, CardRelationship.HIGH)
+
+
+class BestHintTests(TestCase):
+    """Üretim ipucu: adaylar (son başarılı, aSc çözümü, aktif/yayındaki) arasından bugünkü veriyle en az ihlalli olan."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = create_demo_school()
+        cls.good = generate_timetable(cls.school, "iyi", time_limit=20)
+        cls.bad = generate_timetable(cls.school, "kötü", time_limit=20)
+        Timetable.objects.filter(pk=cls.bad.pk).update(name=input_diff.ASC_TIMETABLE)
+        ids = list(cls.bad.cards.values_list("pk", flat=True)[:5])
+        cls.bad.cards.filter(pk__in=ids).update(day=None, period=None)  # 5 kart yerleşmemiş: 5 kesin ihlal
+
+    def test_picks_fewest_violations_and_solver_repairs_from_it(self):
+        target = Timetable.objects.create(school=self.school, name="yeni", status=Timetable.RUNNING)
+        hint, hard = input_diff.best_hint(target)
+        self.assertEqual((hint.pk, hard), (self.good.pk, 0))
+
+        from timetable.solver import cpsat
+        from timetable.solver.builder import build_problem
+
+        problem = build_problem(self.school, base=hint, lock_base=False)
+        solution = cpsat.solve(problem, time_limit=30, two_phase=True)
+        self.assertTrue(solution.ok, solution.status)
+        self.assertIn("from_hint", solution.stats["phase1"])
+        self.assertEqual(solution.stats["phase1"]["from_hint"]["violations"], 0)

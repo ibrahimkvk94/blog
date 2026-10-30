@@ -80,6 +80,8 @@ class Solution:
     teacher_choice: dict[int, int] = field(default_factory=dict)  # havuzdaki ders -> seçilen öğretmen
     # Gevşek modda esnetilen sert kurallar: [{"rule": anahtar, "label": ad, "amount": aşım}], en çok aşılan önce
     relaxed_rules: list = field(default_factory=list)
+    # Katı çözüm bulunamadıysa onarım yolunun en iyi taslağı: {kart: (gün, saat)}; tanı üretimi buradan başlar.
+    draft: dict = field(default_factory=dict)
 
     @property
     def ok(self):
@@ -871,30 +873,45 @@ def solve(
         # veri imkânsızdır ve bunu erken söyleriz. 2. aşama bu programı ipucu alıp iyileştirir.
         # Doğrudan arama tıkanırsa (sıkışık veride sıfırdan başlarken olur) kurallar esnetilip her kartın
         # yerleştiği yaklaşık bir program kurulur; sonra kurallar yeniden zorunlu yapılıp o program onarılır.
-        feasibility = model.clone()
-        feasibility.ClearObjective()
-        first = cp_model.CpSolver()
-        # Doğrudan arama bu veride çoğunlukla 15–20 sn sürer; payı kısa tutmak kısa sürelerde sonucu şansa bırakıyordu.
-        first.parameters.max_time_in_seconds = float(time_limit) * PHASE1_SHARE
-        first.parameters.num_workers = workers
-        first.parameters.random_seed = seed
-        if stop_handle is not None:
-            stop_handle.attach(first)
-        callback1 = _FirstSolution(on_progress)
-        status1 = first.Solve(feasibility, callback1)
-        phase1 = {"status": STATUS_NAMES.get(status1, "unknown"), "wall_time": round(first.WallTime(), 2)}
-        if status1 == cp_model.INFEASIBLE:
-            return Solution(status="infeasible", stats={"wall_time": phase1["wall_time"], "cards": len(problem.cards),
-                                                        "solutions": 0, "mode": mode, "phase1": phase1, "stopped": False})
-        if not callback1.found and not (stop_handle and stop_handle.stopped) and not (should_stop and should_stop()):
+        stopped = lambda: bool((stop_handle and stop_handle.stopped) or (should_stop and should_stop()))  # noqa: E731
+        infeasible = lambda: Solution(status="infeasible", stats={  # noqa: E731
+            "wall_time": round(time.monotonic() - started, 2), "cards": len(problem.cards), "solutions": 0, "mode": mode,
+            "phase1": phase1, "stopped": False})
+        phase1, found = {}, False
+        # Önceki bir programdan (son başarılı üretim ya da aSc'nin çözümü) ipucu varsa önce o onarılır: yerleşim
+        # büyük ölçüde doğru olduğundan kural aşımları saniyeler içinde sıfırlanır (gerçek veride 540 sn'lik doğrudan
+        # arama bulamazken ipucunu onarmak 7 sn sürdü). Olmazsa doğrudan aramaya geçilir.
+        hinted = any(c.hint is not None and c.fixed is None for c in problem.cards)
+        if hinted:
             first, callback1, repair = _repair_search(problem, builder, model, time_limit, started, workers, seed,
-                                                      on_progress, stop_handle)
-            phase1["repair"] = repair
+                                                      on_progress, stop_handle, draft_until=0.35, fix_until=0.45)
+            phase1 = {"status": repair.get("status"), "wall_time": round(time.monotonic() - started, 2), "from_hint": repair}
             if repair.get("status") == "infeasible":
-                return Solution(status="infeasible", stats={"wall_time": round(time.monotonic() - started, 2),
-                                                            "cards": len(problem.cards), "solutions": 0, "mode": mode,
-                                                            "phase1": phase1, "stopped": False})
-        if callback1.found:
+                return infeasible()
+            found = callback1.found
+        if not found and not stopped():
+            feasibility = model.clone()
+            feasibility.ClearObjective()
+            first = cp_model.CpSolver()
+            # Doğrudan arama bu veride çoğunlukla 15–20 sn sürer; payı kısa tutmak kısa sürelerde sonucu şansa bırakıyordu.
+            share = 0.75 if hinted else PHASE1_SHARE
+            first.parameters.max_time_in_seconds = max(1.0, float(time_limit) * share - (time.monotonic() - started))
+            first.parameters.num_workers = workers
+            first.parameters.random_seed = seed
+            if stop_handle is not None:
+                stop_handle.attach(first)
+            callback1 = _FirstSolution(on_progress)
+            status1 = first.Solve(feasibility, callback1)
+            phase1.update({"status": STATUS_NAMES.get(status1, "unknown"), "wall_time": round(first.WallTime(), 2)})
+            if status1 == cp_model.INFEASIBLE:
+                return infeasible()
+            if not callback1.found and not hinted and not stopped():
+                first, callback1, repair = _repair_search(problem, builder, model, time_limit, started, workers, seed,
+                                                          on_progress, stop_handle)
+                phase1["repair"] = repair
+                if repair.get("status") == "infeasible":
+                    return infeasible()
+        if callback1 is not None and callback1.found:
             values = list(first.ResponseProto().solution)
             model.ClearHints()
             for index, value in enumerate(values):
@@ -912,7 +929,7 @@ def solve(
     callback = _Progress(on_progress, should_stop)
     status = solver.Solve(model, callback)
     status_name = STATUS_NAMES.get(status, "unknown")
-    if status_name not in ("optimal", "feasible") and phase1 and callback1.found:
+    if status_name not in ("optimal", "feasible") and phase1 and callback1 is not None and callback1.found:
         # 2. aşama sonuç veremediyse (ör. durdurma) 1. aşamanın geçerli programı kullanılır;
         # değişken sıraları iki modelde aynı olduğundan değerler oradan okunur.
         solver, status_name = first, "feasible"
@@ -930,6 +947,9 @@ def solve(
         },
     )
     if not solution.ok:
+        if getattr(builder, "best_draft", None):
+            solution.draft = builder.best_draft[1]
+            solution.stats["draft_violations"] = builder.best_draft[0]
         return solution
     if builder.penalties:
         solution.objective = int(solver.ObjectiveValue()) if solver is not first else _objective(solver, builder)
@@ -973,7 +993,8 @@ class _StopAtZero(cp_model.CpSolverSolutionCallback):
             self.StopSearch()
 
 
-def _repair_search(problem, builder, model, time_limit, started, workers, seed, on_progress, stop_handle):
+def _repair_search(problem, builder, model, time_limit, started, workers, seed, on_progress, stop_handle,
+                   draft_until=0.7, fix_until=0.75):
     """1. aşamanın yedeği: esnek modelde (her kart yerleşmek zorunda, kurallar cezalı) yaklaşık program kurar,
     onu katı modele ipucu verip kurallara uyar hale getirir. (çözücü, geri çağırma, özet) döner."""
     if on_progress:
@@ -987,7 +1008,7 @@ def _repair_search(problem, builder, model, time_limit, started, workers, seed, 
     relaxed_model.Minimize(sum(slacks))
     draft = cp_model.CpSolver()
     # Onarım için birkaç saniye bırakılır (aşımsız taslak 1–2 sn'de tamamlanır).
-    draft.parameters.max_time_in_seconds = max(1.0, float(time_limit) * 0.7 - (time.monotonic() - started))
+    draft.parameters.max_time_in_seconds = max(1.0, float(time_limit) * draft_until - (time.monotonic() - started))
     draft.parameters.num_workers = workers
     draft.parameters.random_seed = seed
     if stop_handle is not None:
@@ -1002,6 +1023,10 @@ def _repair_search(problem, builder, model, time_limit, started, workers, seed, 
         info["status"] = "no_draft"
         return draft, _FirstSolution(None), info
     info["violations"] = sum(v if isinstance(v, int) else draft.Value(v) for _, _, v in relaxed.relaxed_slacks)
+    best = getattr(builder, "best_draft", None)
+    if best is None or info["violations"] < best[0]:
+        builder.best_draft = (info["violations"], {key: slot for key, slots in relaxed.x.items() for slot, v in slots.items()
+                                                   if (v if isinstance(v, int) else draft.Value(v))})
     value = lambda v: v if isinstance(v, int) else draft.Value(v)  # noqa: E731
     # Katı model özdeş kartları başlangıç sırasına dizer; taslakta sıra farklı olabilir, kartlar ona göre eşlenir.
     source = {key: key for key in builder.x}
@@ -1031,7 +1056,7 @@ def _repair_search(problem, builder, model, time_limit, started, workers, seed, 
         for var, v in pairs:
             feasibility.AddHint(feasibility.GetIntVarFromProtoIndex(var.Index()), v)
     fixer = cp_model.CpSolver()
-    fixer.parameters.max_time_in_seconds = max(1.0, float(time_limit) * 0.75 - (time.monotonic() - started))
+    fixer.parameters.max_time_in_seconds = max(1.0, float(time_limit) * fix_until - (time.monotonic() - started))
     fixer.parameters.num_workers = workers
     fixer.parameters.random_seed = seed
     # repair_hint burada kullanılmaz: amaç fonksiyonu olmayan kopya modelde OR-Tools'u çökertebiliyor

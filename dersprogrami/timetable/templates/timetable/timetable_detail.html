@@ -122,7 +122,7 @@
       </div>
     </details>
   {% endif %}{% endwith %}
-  {% with h=timetable.report.hint_from %}{% if h %}<p class="subtle small" style="margin:-6px 0 10px">Üretim, son başarılı program <a href="{% url 'timetable:timetable_detail' h.id %}">{{ h.name }}</a> ipucu alınarak yapıldı (kartlar kilitlenmedi; çözücü oradan başlayıp değişenleri onardı).</p>{% endif %}{% endwith %}
+  {% with h=timetable.report.hint_from %}{% if h %}<p class="subtle small" style="margin:-6px 0 10px">Üretim <a href="{% url 'timetable:timetable_detail' h.id %}">{{ h.name }}</a> programından başlayarak yapıldı{% if h.hard is not None %} (o program bugünkü verilerle {{ h.hard }} kesin ihlalliydi; adaylar arasında en yakını buydu){% endif %}. Kartlar kilitlenmedi; çözücü oradan başlayıp kuralları sağlamayan yerleri onardı.</p>{% endif %}{% endwith %}
   {% with pools=timetable.report.pools %}{% if pools.pools %}
     <div class="pool-note">{% include "timetable/icon.html" with name="users" %}
       <span><b>Öğretmen havuzu</b> bu üretimde kısımları dağıttı{% if pools.changed %} · <b>{{ pools.changed }}</b> kısmın öğretmeni değişti{% endif %}:

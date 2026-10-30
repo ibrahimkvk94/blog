@@ -91,9 +91,9 @@ def run_generation(timetable_id, base_id=None, seed=0):
         if base is None and not report.get("only") and not report.get("from_scratch"):
             # Başlangıç sürümü seçilmediyse son başarılı program ipucu olur (kilitlenmez): "dün yerleşiyordu, bugün küçük
             # bir değişiklik var" durumunda çözücü sıfırdan aramak yerine o yerleşimi onarır.
-            hint = input_diff.last_success(timetable)
+            hint, hard = input_diff.best_hint(timetable)
             if hint is not None:
-                report["hint_from"] = {"id": hint.pk, "name": hint.name}
+                report["hint_from"] = {"id": hint.pk, "name": hint.name, "hard": hard}
         problem = build_problem(timetable.school, base=base or hint, lock_base=hint is None)
         if base is not None and report.get("only"):
             report["frozen"] = freeze_except(problem, report["only"])
@@ -143,6 +143,11 @@ def run_generation(timetable_id, base_id=None, seed=0):
             # Önce her kart yerleşmek zorunda, yalnızca kurallar esner ("hangi kural esnemeli?" sorusunun cevabı);
             # kartlar o şekilde de sığmıyorsa tam gevşek mod (sığmayan kartlar da bekler).
             jobs.set_progress(timetable_id, {"phase": "diagnose"})
+            if solution.draft:
+                # Onarım yolunun en iyi taslağı (az aşımlı) başlangıç olur; tanı sıfırdan başlayıp daha kötüsünü bulmasın.
+                for card in problem.cards:
+                    if card.fixed is None and card.key in solution.draft:
+                        card.hint = (*solution.draft[card.key], None)
             budget = min(240, max(60, timetable.time_limit // 3))
             progress = lambda p: jobs.set_progress(timetable_id, {**p, "phase": "diagnose"})  # noqa: E731
             draft = cpsat.solve(problem, time_limit=budget, seed=seed, mode=Timetable.RELAXED, place_all=True,
