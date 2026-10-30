@@ -921,6 +921,12 @@ def solve(
     solver.parameters.max_time_in_seconds = remaining
     if phase1:
         solver.parameters.repair_hint = True
+    if callback1 is not None and callback1.found:
+        # Elde geçerli program varken çekirdeklerin hepsi yerel iyileştirmeye (LNS: programın küçük parçalarını
+        # yeniden düzenleme) ayrılır. Gerçek veride (1104 kart) aynı başlangıçtan 120 sn'de ceza ortalama %25 düştü
+        # (1540 → 1155); en kötü sonuç bile varsayılan ayarın en iyisinden iyiydi. Geçerli program yoksa kullanılmaz:
+        # bu modda çözücü sıfırdan program aramaz.
+        solver.parameters.use_lns_only = True
     solver.parameters.num_workers = workers
     solver.parameters.random_seed = seed
     solver.parameters.log_search_progress = log
