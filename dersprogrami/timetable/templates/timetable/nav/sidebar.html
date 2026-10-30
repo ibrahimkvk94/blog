@@ -1,3 +1,4 @@
+{% if groups %}<div class="nav-search"><input type="search" placeholder="Menüde ara…" aria-label="Menüde ara" autocomplete="off" data-nav-search><div class="nav-none" data-nav-none hidden>Eşleşen sayfa yok</div></div>{% endif %}
 {% for g in groups %}
 <details class="nav-group" data-nav-group="{{ g.key }}" open{% if g.active %} data-active{% endif %}>
   <summary class="nav-section"><span>{{ g.title }}</span>{% if g.badge %}<span class="nav-badge">{{ g.badge }}</span>{% endif %}<span class="nav-caret" aria-hidden="true"></span></summary>
@@ -19,6 +20,39 @@
       closed = list;
       try { localStorage.setItem("nav-closed", JSON.stringify(list)); } catch (e) {}
     });
+  });
+})();
+/* Menü araması: eşleşmeyen sayfalar gizlenir, eşleşen grup açılır; Enter ilk sonuca gider, Esc temizler. */
+(function () {
+  var input = document.querySelector("[data-nav-search]");
+  if (!input) return;
+  var norm = function (t) { return (t || "").replace(/İ/g, "i").replace(/I/g, "ı").toLocaleLowerCase("tr").trim(); };
+  var groups = Array.prototype.slice.call(document.querySelectorAll("[data-nav-group]"));
+  var opened = groups.map(function (d) { return d.open; });
+  var searching = false;
+  function filter() {
+    var q = norm(input.value), any = false;
+    if (q && !searching) { opened = groups.map(function (d) { return d.open; }); searching = true; }
+    groups.forEach(function (d, i) {
+      var title = norm(d.querySelector(".nav-section span").textContent), hits = 0;
+      d.querySelectorAll(".side-nav a").forEach(function (a) {
+        var show = !q || norm(a.textContent).indexOf(q) >= 0 || title.indexOf(q) >= 0;
+        a.hidden = !show;
+        if (show) hits++;
+      });
+      d.hidden = !!q && !hits;
+      if (q) d.open = hits > 0; else if (searching) d.open = opened[i];
+      if (hits) any = true;
+    });
+    if (!q) searching = false;
+    document.querySelector("[data-nav-none]").hidden = !q || any;
+  }
+  input.addEventListener("input", filter);
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+      var first = document.querySelector("[data-nav-group]:not([hidden]) .side-nav a:not([hidden])");
+      if (first) { e.preventDefault(); location.href = first.href; }
+    } else if (e.key === "Escape") { input.value = ""; filter(); input.blur(); }
   });
 })();
 </script>

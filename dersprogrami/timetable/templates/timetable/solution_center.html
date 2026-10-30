@@ -72,6 +72,17 @@
         <div style="width:140px"><label class="label" for="sc-m">En fazla değişiklik</label><input class="input" type="number" min="1" max="10" name="en_fazla" id="sc-m" value="{{ form.max_moves }}"></div>
         <label class="check" data-sc="shift" style="align-self:end;margin-bottom:8px"><input type="checkbox" name="ayni_gun" value="1"{% if form.same_day %} checked{% endif %}> <span>Yalnızca aynı gün içinde</span></label>
       </div>
+      <input type="hidden" name="koru_set" value="1">
+      <details class="sc-protect"{% if form.protected %} open{% endif %}>
+        <summary>Değişmeyecek dersler{% if form.protected %} <span class="pill">{{ form.protected|length }}</span>{% endif %}</summary>
+        <p class="subtle small">Seçilen ders kodlarının kartları çözümde yerinden oynamaz; diğer dersler bunların etrafında kayar. Seçim bu program için hatırlanır.</p>
+        {% if form.protected %}<div class="sc-protect-chosen" data-protect-chosen>{% for c in form.protected %}<span class="chip">{{ c }}</span>{% endfor %}</div>{% endif %}
+        <input class="input input-sm" type="search" placeholder="Ders kodu ya da adı ara (ör. BSB100)…" data-protect-search autocomplete="off">
+        <div class="sc-protect-list" data-protect-list>
+          {% for o in protect_options %}<label class="check small" data-q="{{ o.code|lower }} {{ o.names|lower }}"><input type="checkbox" name="koru" value="{{ o.code }}"{% if o.code in form.protected %} checked{% endif %}> <span><b>{{ o.code }}</b> <span class="subtle">{{ o.names|truncatechars:48 }} · {{ o.cards }} kart</span></span></label>{% empty %}<p class="subtle small">Programda yerleşmiş ders yok.</p>{% endfor %}
+        </div>
+        <button type="button" class="btn btn-sm btn-ghost" data-protect-clear>Seçimi temizle</button>
+      </details>
       <button class="btn btn-primary" style="margin-top:12px" id="sc-solve">{% include "timetable/icon.html" with name="wand" %} Çözüm öner</button>
       <p class="subtle small" id="sc-wait" hidden>Çözümler hesaplanıyor (genellikle 5–20 sn)…</p>
     </div>
@@ -179,6 +190,21 @@
       location.search = q.toString();
     }
   });
+  // Değişmeyecek dersler: arama ve temizleme
+  const pSearch = form.querySelector("[data-protect-search]");
+  if (pSearch) {
+    const norm = (t) => (t || "").replace(/İ/g, "i").replace(/I/g, "ı").toLocaleLowerCase("tr");
+    pSearch.addEventListener("input", () => {
+      const q = norm(pSearch.value.trim());
+      form.querySelectorAll("[data-protect-list] [data-q]").forEach((l) => { l.hidden = q && !norm(l.dataset.q).includes(q); });
+    });
+    pSearch.addEventListener("keydown", (e) => { if (e.key === "Enter") e.preventDefault(); });
+    form.querySelector("[data-protect-clear]").addEventListener("click", () => {
+      form.querySelectorAll("[name=koru]").forEach((c) => { c.checked = false; });
+      const chosen = form.querySelector("[data-protect-chosen]");
+      if (chosen) chosen.hidden = true;
+    });
+  }
   form.addEventListener("submit", () => { document.getElementById("sc-wait").hidden = false; document.getElementById("sc-solve").disabled = true; });
   sync();
 })();

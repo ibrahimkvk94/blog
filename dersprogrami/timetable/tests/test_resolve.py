@@ -172,3 +172,60 @@ class TextRequestTests(TestCase):
         page = self.client.post(url, {"action": "text", "istek": f"{self.teacher.full_name} {self.day} {self.card.period + 1}. saat dersini kaydır"})
         self.assertContains(page, "Anlaşılan")
         self.assertContains(page, "Öneri 1")
+
+
+class ProtectedLessonsTests(TestCase):
+    """Çözüm merkezinde "değişmeyecek dersler": seçilen ders kodlarının kartları önerilerde yerinden oynamaz."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.school = create_demo_school()
+        cls.timetable = generate_timetable(cls.school, "t", time_limit=20)
+
+    def _codes_moved(self, proposals, target_id):
+        from timetable.resolve import subject_code
+
+        cards = {c.id: c for c in self.timetable.cards.select_related("lesson__subject")}
+        return {subject_code(cards[m["card_id"]].lesson.subject) for p in proposals for m in p["moves"]
+                if m["time_moved"] and m["card_id"] != target_id}
+
+    def test_protected_codes_stay_in_place(self):
+        # Başka dersleri de oynatan bir kaydırma bul; oynayan kodları koruyunca öneriler onlara dokunmamalı.
+        for card in self.timetable.cards.filter(day__isnull=False, locked=False).select_related("lesson__subject")[:40]:
+            proposals = Center(self.timetable).proposals(Request("shift", card_ids=[card.id], max_moves=4))
+            from timetable.resolve import subject_code
+
+            moved = self._codes_moved(proposals, card.id) - {subject_code(card.lesson.subject)}
+            if moved:
+                break
+        else:
+            self.skipTest("Örnek programda başka dersi oynatan kaydırma bulunamadı.")
+        protected = sorted(moved)
+        again = Center(self.timetable).proposals(Request("shift", card_ids=[card.id], max_moves=6, protected=protected))
+        self.assertFalse(self._codes_moved(again, card.id) & set(protected))
+        for p in again:
+            self.assertEqual(p["new_violations_hard"], 0)
+
+    def test_protected_lesson_on_closed_hours_is_explained(self):
+        from timetable.resolve import subject_code
+
+        card = self.timetable.cards.filter(day__isnull=False, locked=False).select_related("lesson__subject").first()
+        teacher = card.lesson.teachers.first()
+        req = Request("teacher", teacher_id=teacher.id, day=card.day, periods=[card.period],
+                      protected=[subject_code(card.lesson.subject)])
+        with self.assertRaisesMessage(ResolveError, "Korunan dersler"):
+            Center(self.timetable).proposals(req)
+
+    def test_choice_is_remembered_per_program(self):
+        from timetable.resolve import subject_code
+
+        self.client.force_login(User.objects.create_superuser("admin", "a@x.tr", "pw"))
+        code = subject_code(self.timetable.cards.filter(day__isnull=False).select_related("lesson__subject").first().lesson.subject)
+        url = reverse("timetable:solution_center", args=[self.timetable.pk])
+        page = self.client.get(url)
+        self.assertContains(page, "Değişmeyecek dersler")
+        self.assertContains(page, f'value="{code}"')
+        self.client.post(url, {"action": "solve", "tur": "shift", "koru_set": "1", "koru": [code]})
+        page = self.client.get(url)
+        self.assertEqual(page.context["form"]["protected"], [code])
+        self.assertContains(page, f'value="{code}" checked')

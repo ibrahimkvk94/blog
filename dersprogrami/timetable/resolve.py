@@ -36,6 +36,11 @@ RING_LIMITS = (6, 10, 16, 25)  # halka başına çözüm süresi (sn)
 IMPROVE_GAP, IMPROVE_DAY, IMPROVE_MOVE = 40, 30, 12
 
 
+def subject_code(subject):
+    """Ders adının kodu: kısa adı (ör. BSB100), yoksa adı. Teori ve uygulama (U) aynı kodu paylaşır."""
+    return (subject.short or subject.name).strip()
+
+
 class ResolveError(Exception):
     pass
 
@@ -51,6 +56,7 @@ class Request:
     same_day: bool = False
     max_moves: int = 4
     alternatives: int = 3
+    protected: list = field(default_factory=list)  # bu ders kodlarının kartları çözümde yerinden oynamaz (ör. ["BSB100"])
 
 
 def _where(day, period, length):
@@ -123,6 +129,14 @@ class Center:
                          .prefetch_related("lesson__classes", "lesson__teachers", "lesson__groups")}
         self.key_of = {c.card_id: c.key for c in self.full.cards}
 
+    def protected_keys(self, codes):
+        """Çözümde yerinden oynamayacak kartlar: ders kodu (ders adının kısa adı, yoksa adı) seçilenlerden olanlar."""
+        codes = set(codes or ())
+        if not codes:
+            return set()
+        return {self.key_of[c.id] for c in self.db_cards.values()
+                if c.id in self.key_of and subject_code(c.lesson.subject) in codes}
+
     # --- isteği probleme çevirme -----------------------------------------------------------
 
     def _targets(self, req):
@@ -184,6 +198,10 @@ class Center:
                 allowed[card.key] = list(card.starts)
         if req.kind in ("teacher", "room") and not allowed:
             raise ResolveError("Seçilen saatlerde etkilenen ders yok.")
+        blocked = sorted({self.full.label("lesson", cards[k].lesson_id) for k in set(allowed) & self.protected_keys(req.protected)})
+        if blocked and req.kind in ("teacher", "room"):
+            raise ResolveError(f"Korunan dersler kapanan saate düşüyor ve yerinde kalamaz: {', '.join(blocked)}. "
+                               "Bu dersleri “Değişmeyecek dersler” listesinden çıkarın ya da kapanan saatleri değiştirin.")
         return allowed
 
     # --- çözme -----------------------------------------------------------------------------
@@ -216,6 +234,8 @@ class Center:
         return found
 
     def _solve(self, req, allowed, keep, free, forbidden, limit, tune=None):
+        # Korunan dersler serbest bırakılmaz: yerlerinde sabit kalır (istenen dersin kendisi hariç).
+        free = set(free) - (self.protected_keys(getattr(req, "protected", ())) - set(allowed))
         sub, new_key = _subproblem(self.full, keep)
         old_of = {v: k for k, v in new_key.items()}
         anchors, room_anchors = {}, {}
@@ -488,6 +508,13 @@ def center_view(request, pk):
         "periods": [int(p) for p in data.getlist("saatler") if p.isdigit()] if hasattr(data, "getlist") else [],
         "max_moves": min(10, max(1, _int(data.get("en_fazla"), 4))), "same_day": data.get("ayni_gun") == "1",
     }
+    # Değişmeyecek dersler (ders kodları): formda gönderildiyse kaydedilir, yoksa programın son seçimi kullanılır.
+    protect_key = f"resolve-protect-{school.pk}"
+    if request.method == "POST" and request.POST.get("koru_set") == "1":
+        form["protected"] = sorted(set(request.POST.getlist("koru")))
+        request.session[protect_key] = form["protected"]
+    else:
+        form["protected"] = request.session.get(protect_key) or []
 
     if request.method == "POST" and request.POST.get("action") == "swap":
         from . import swaps
@@ -559,6 +586,7 @@ def center_view(request, pk):
         req = availability = None
         try:
             req, label, availability = _build_request(center, form)
+            req.protected = form["protected"]
             proposals = center.proposals(req)
             if not proposals:
                 error = f"En fazla {form['max_moves']} değişiklikle çakışmasız çözüm bulunamadı. Değişiklik sınırını artırıp yeniden deneyin."
@@ -584,7 +612,20 @@ def center_view(request, pk):
         rooms=list(school.classrooms.all()), days=list(enumerate(school.day_names)),
         periods=[(p.index, f"{p.index + 1}. saat" + (f" ({p.start_time:%H:%M})" if p.start_time else "")) for p in school.periods.all()],
         proposals=proposals, label=label, error=error, swaps=swap_list, parsed=parsed, text=request.POST.get("istek", ""), can_notify=__import__("timetable.notify", fromlist=["enabled"]).enabled(),
+        protect_options=_protect_options(timetable),
     ))
+
+
+def _protect_options(timetable):
+    """"Değişmeyecek dersler" listesi: programdaki ders kodları, adları ve yerleşmiş kart sayılarıyla."""
+    rows = {}
+    for card in timetable.cards.filter(day__isnull=False).select_related("lesson__subject"):
+        subject = card.lesson.subject
+        code = subject_code(subject)
+        row = rows.setdefault(code, {"code": code, "names": set(), "cards": 0})
+        row["names"].add(subject.name)
+        row["cards"] += 1
+    return [{**r, "names": ", ".join(sorted(r["names"]))} for r in sorted(rows.values(), key=lambda r: r["code"])]
 
 
 def _build_request(center, form):

@@ -1553,3 +1553,20 @@ td.empty, td.subtle[colspan] { text-align: center; padding: 22px 12px; color: va
 .av-mini i.av-no { background: #dc2626; }
 .av-mini i.av-maybe { background: #f59e0b; }
 .av-mini i.ch { outline: 1.5px solid var(--text); outline-offset: -1px; }
+
+/* Sol menü araması */
+.nav-search { margin: 0 0 10px; }
+.nav-search input { width: 100%; box-sizing: border-box; height: 32px; padding: 0 10px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06); color: #fff; font: inherit; font-size: 13px; }
+.nav-search input::placeholder { color: var(--sidebar-text); opacity: .7; }
+.nav-search input:focus { outline: none; border-color: rgba(129,140,248,.7); background: rgba(255,255,255,.1); }
+.nav-none { color: var(--sidebar-text); font-size: 12px; padding: 8px 4px 0; opacity: .8; }
+.nav-group[hidden], .side-nav a[hidden] { display: none; }
+
+/* Çözüm merkezi: değişmeyecek dersler */
+.sc-protect { margin-top: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 10px; }
+.sc-protect > summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+.sc-protect .input { margin: 6px 0; width: 100%; }
+.sc-protect-list { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+.sc-protect-list label[hidden] { display: none; }
+.sc-protect-chosen { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
