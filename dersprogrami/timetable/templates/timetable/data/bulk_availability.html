@@ -3,6 +3,7 @@
 {% block title %}Toplu müsaitlik{% endblock %}
 {% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / Veri{% endblock %}
 {% block heading %}<h1>Toplu müsaitlik</h1>{% endblock %}
+{% block actions %}<a class="btn" href="{% url 'timetable:availability_import' school.pk %}">{% include "timetable/icon.html" with name="download" %} aSc'den öğretmen mazeretleri</a>{% endblock %}
 {% block content %}
 {% include "timetable/data/subnav.html" %}
 <div class="segmented" style="margin-bottom:12px">

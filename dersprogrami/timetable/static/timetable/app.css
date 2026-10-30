@@ -1545,3 +1545,11 @@ td.empty, td.subtle[colspan] { text-align: center; padding: 22px 12px; color: va
 .upd-steps pre { white-space: pre-wrap; font-size: 12px; color: var(--text-2); }
 .upd-commits li { margin-bottom: 4px; }
 .upd-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
+
+/* aSc müsaitlik aktarımı: öğretmen başına küçük ızgara (gün satırları × saat kutuları) */
+.av-mini { display: inline-flex; flex-direction: column; gap: 1px; }
+.av-mini div { display: flex; gap: 1px; }
+.av-mini i { width: 9px; height: 7px; border-radius: 1px; background: #e9f7ee; box-sizing: border-box; }
+.av-mini i.av-no { background: #dc2626; }
+.av-mini i.av-maybe { background: #f59e0b; }
+.av-mini i.ch { outline: 1.5px solid var(--text); outline-offset: -1px; }

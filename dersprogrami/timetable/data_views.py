@@ -1712,3 +1712,24 @@ def relation_audit(request, pk):
     return render(request, "timetable/data/relation_audit.html", _nav(
         school, "data", data_nav="kart-iliskileri", rows=rows, counts=counts, total=len(rows), timetable=timetable,
         conditions=conditions, status=request.GET.get("durum", "")))
+
+
+def availability_import(request, pk):
+    """aSc öğretmen listesindeki "Zaman Tablosu" ızgaralarından öğretmen müsaitliklerini aktarır (ön izlemeyle)."""
+    from . import asc_availability
+
+    school = _school(pk)
+    text = request.POST.get("text", "") if request.method == "POST" else ""
+    items = asc_availability.plan(school, asc_availability.parse(text)) if text else []
+    if request.method == "POST" and request.POST.get("action") == "import" and items:
+        chosen = {int(i) for i in request.POST.getlist("sec") if i.isdigit()}
+        with transaction.atomic():
+            n = asc_availability.apply(school, [it for it in items if it["index"] in chosen])
+        names = ", ".join(it["teacher"].full_name for it in items if it["index"] in chosen and it["teacher"] and not it["error"])
+        messages.success(request, f"{n} öğretmenin müsaitliği aSc'den aktarıldı" + (f": {names[:300]}." if names else "."))
+        return redirect(f"{reverse('timetable:bulk_availability', args=[school.pk])}?tur=ogretmen")
+    return render(request, "timetable/data/availability_import.html", _nav(
+        school, "data", data_nav="toplu-musaitlik", text=text, items=items,
+        ok_count=sum(1 for it in items if not it["error"]), periods=range(1, school.periods.count() + 1),
+        days=school.day_names[:school.days_per_week],
+    ))
