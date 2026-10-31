@@ -1369,3 +1369,7 @@ class Notification(models.Model):
 
     def __str__(self):
         return self.title
+
+
+# Sınav programı modelleri ayrı dosyada (bkz. exam_models.py).
+from .exam_models import Exam, ExamPeriod, ExamPlacement, ExamRoom  # noqa: E402,F401

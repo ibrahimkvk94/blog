@@ -1,0 +1,6 @@
+<nav class="segmented ex-tabs" aria-label="Sınav dönemi">
+  <a href="{% url 'timetable:exam_period' school.pk period.pk %}" class="{% if active == 'sinavlar' %}active{% endif %}">Sınav listesi</a>
+  <a href="{% url 'timetable:exam_period' school.pk period.pk %}?sekme=ayarlar" class="{% if active == 'ayarlar' %}active{% endif %}">Ayarlar</a>
+  <a href="{% url 'timetable:exam_proctors' school.pk period.pk %}" class="{% if active == 'gozetmen' %}active{% endif %}">Gözetmenler</a>
+  <a href="{% url 'timetable:exam_results' school.pk period.pk %}" class="{% if active == 'program' %}active{% endif %}">Program</a>
+</nav>

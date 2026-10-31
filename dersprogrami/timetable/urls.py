@@ -129,3 +129,17 @@ urlpatterns = [
     path("api/program/<int:pk>/satir/", views.api_row_action, name="api_row_action"),
     path("api/program/<int:pk>/hucre/", views.api_cell_candidates, name="api_cell_candidates"),
 ]
+
+# Sınav programı (bkz. exam_views.py)
+from . import exam_views  # noqa: E402
+
+urlpatterns += [
+    path("okul/<int:pk>/sinavlar/", exam_views.period_list, name="exams"),
+    path("okul/<int:pk>/sinavlar/<int:period_id>/", exam_views.period_page, name="exam_period"),
+    path("okul/<int:pk>/sinavlar/<int:period_id>/olustur/", exam_views.solve, name="exam_solve"),
+    path("okul/<int:pk>/sinavlar/<int:period_id>/program/", exam_views.results, name="exam_results"),
+    path("okul/<int:pk>/sinavlar/<int:period_id>/sinav/<int:exam_id>/", exam_views.exam_edit, name="exam_edit"),
+    path("okul/<int:pk>/sinavlar/<int:period_id>/gozetmenler/", exam_views.proctors, name="exam_proctors"),
+    path("okul/<int:pk>/sinavlar/<int:period_id>/yazdir/", exam_views.print_view, name="exam_print"),
+    path("okul/<int:pk>/sinavlar/<int:period_id>/excel/", exam_views.excel_view, name="exam_excel"),
+]

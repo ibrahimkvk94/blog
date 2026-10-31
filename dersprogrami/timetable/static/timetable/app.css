@@ -1804,3 +1804,63 @@ html.ribbon-min .ribbon.drop .rb-panels { display: block; position: absolute; le
 .av-banner > summary > .btn { margin-left: auto; flex: none; }
 .av-result { margin-bottom: 14px; border-left: 4px solid var(--success); }
 .av-moves td, .av-moves th { font-size: 13px; }
+
+/* ---- Sınav programı ---- */
+.ex-tabs { margin-bottom: 4px; }
+.ex-summary { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+.ex-summary > div { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 9px 14px; min-width: 120px; box-shadow: var(--shadow); }
+.ex-summary b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+.ex-summary span { font-size: 12px; color: var(--text-2); }
+.ex-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ex-toolbar h2 { margin-right: auto; }
+.ex-tools { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.ex-sel-tools { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+details.panel > summary.panel-head { cursor: pointer; list-style: none; }
+details.panel > summary.panel-head::-webkit-details-marker { display: none; }
+details.panel > summary.panel-head h2 { display: inline-flex; gap: 8px; align-items: center; }
+details.panel > summary.panel-head h2 svg { width: 16px; height: 16px; }
+.ex-subjects { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 14px; max-height: 320px; overflow: auto; padding: 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+.ex-subject { display: flex; gap: 8px; align-items: flex-start; padding: 4px 6px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.ex-subject:hover { background: var(--surface); }
+.ex-subject input { margin-top: 3px; accent-color: var(--primary); }
+.ex-subject[hidden] { display: none; }
+.ex-num { width: 74px; text-align: right; }
+.ex-num[data-manual] { border-color: var(--warning); }
+#ex-table tr.ex-off td { color: var(--text-3); }
+#ex-table tr.ex-off td b { text-decoration: line-through; }
+.ex-list { margin: 6px 0 0 18px; padding: 0; }
+.ex-list li { margin: 2px 0; }
+.ex-list a { color: inherit; text-decoration: underline dotted; }
+.alert > summary { cursor: pointer; }
+.ex-cal { table-layout: fixed; min-width: 760px; }
+.ex-cal th, .ex-cal td { vertical-align: top; border-right: 1px solid var(--border); }
+.ex-cal td { padding: 6px; }
+.ex-cal .ex-cal-day { width: 110px; white-space: nowrap; }
+.ex-cal tr:hover td { background: transparent; }
+.ex-chip { display: block; border: 1px solid var(--border); border-left: 4px solid var(--ex-color, var(--primary)); border-radius: 7px; padding: 5px 8px; margin-bottom: 6px; background: var(--surface); color: var(--text); font-size: 12px; line-height: 1.35; }
+.ex-chip:hover { border-color: var(--border-strong); border-left-color: var(--ex-color, var(--primary)); color: var(--text); box-shadow: var(--shadow); }
+.ex-chip b { display: flex; gap: 4px; align-items: center; font-size: 12.5px; }
+.ex-chip b svg { width: 12px; height: 12px; color: var(--text-3); }
+.ex-chip-classes { display: block; color: var(--text-2); }
+.ex-chip-room { display: block; color: var(--text-3); }
+.ex-bad { color: var(--danger-strong); font-weight: 600; }
+.ex-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 14px; }
+.ex-cards > [hidden] { display: none !important; }
+.ex-card .panel-head h3 { font-size: 14px; }
+.ex-duty { display: inline-block; margin: 2px 6px 2px 0; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); font-size: 12px; white-space: nowrap; }
+.ex-duty:hover { border-color: var(--primary); color: var(--text); }
+.ex-busy span { color: var(--text-3); }
+.ex-proctor-select { height: auto; padding: 4px; }
+.ex-proctor-select option.ex-opt-bad, option.ex-opt-bad { color: var(--danger-strong); }
+#ex-teachers tr.ex-selected td { background: var(--primary-soft); }
+.ex-block-grid td, .ex-block-grid th { text-align: center; }
+.ex-block-grid th:first-child { text-align: left; }
+.ex-block-grid td.ex-auto { background: var(--danger-soft); }
+.ex-cell { display: inline-flex; gap: 4px; align-items: center; cursor: pointer; }
+details.dropdown > summary { list-style: none; }
+details.dropdown > summary::-webkit-details-marker { display: none; }
+details.dropdown[open] .dropdown-menu { display: block; }
+@media print {
+  .ex-tabs, .ex-toolbar, .ex-tools { display: none !important; }
+  .ex-chip { box-shadow: none; break-inside: avoid; }
+}
