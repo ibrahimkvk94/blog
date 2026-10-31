@@ -109,4 +109,6 @@
     } catch (err) { toast(err.message, true); }
   });
   button.addEventListener("click", () => { dialog.showModal(); load().catch((err) => toast(err.message, true)); });
+  // Müsaitlik onarımı sonucundaki "Versiyon geçmişi" bağlantısı (#versiyonlar) pencereyi açık getirir.
+  if (location.hash === "#versiyonlar") button.click();
 })();

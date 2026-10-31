@@ -137,6 +137,17 @@
       {% for name, counts in pools.pools.items %}<b>{{ name }}</b> ({% for t, n in counts.items %}{{ t }} {{ n }}{% if not forloop.last %}, {% endif %}{% endfor %}){% if not forloop.last %} · {% endif %}{% endfor %}</span>
       <a href="{% url 'timetable:teacher_assign' school.pk %}">Öğretmen atama</a></div>
   {% endif %}{% endwith %}
+  {% if closed_cards %}
+    <details class="panel diag-banner av-banner">
+      <summary><span class="diag-icon">{% include "timetable/icon.html" with name="calendar-x" %}</span>
+        <span><b>{{ closed_cards|length }} ders kapalı saatte</b>: öğretmen, sınıf, derslik ya da dersin müsaitliği bu saatlerde artık kapalı. Listeyi görmek için açın.</span>
+        <a class="btn btn-sm" href="{% url 'timetable:availability_repair' timetable.pk %}">{% if can.program %}{% include "timetable/icon.html" with name="wand" %} Onar…{% else %}Ayrıntılar{% endif %}</a></summary>
+      <div class="panel-body">
+        <ul class="av-alert-list">{% for c in closed_cards|slice:":12" %}<li>{{ c.text }}{% if c.locked %} <span class="pill">kilitli</span>{% endif %}</li>{% endfor %}
+          {% if closed_cards|length > 12 %}<li class="subtle">… ve {{ closed_cards|length|add:"-12" }} ders daha</li>{% endif %}</ul>
+      </div>
+    </details>
+  {% endif %}
   <div class="tt-toolbar">
     <div class="left">
       <label class="search">{% include "timetable/icon.html" with name="search" %}<input class="input" id="row-filter" placeholder="Satır ara…" autocomplete="off"></label>

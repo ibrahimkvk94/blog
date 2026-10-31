@@ -277,9 +277,14 @@ def timetable_detail(request, pk):
     # Kim düzenliyor: açık düzenleyici nabız yazar, diğer düzenleyiciler başlıkta görünür (concurrency.py).
     presence = {"key": f"program:{timetable.pk}", "url": reverse("timetable:api_presence", args=[school.pk]),
                 "editing": config["canEdit"]} if timetable.has_grid else None
+    closed = []
+    if timetable.has_grid and not timetable.is_running:
+        from .availability_repair import conflicts
+
+        closed = conflicts(timetable)  # müsaitliği sonradan kapanmış saatlerde duran dersler
     return render(
         request, "timetable/timetable_detail.html",
-        _nav(school, "timetable", timetable=timetable, config=config, presence=presence),
+        _nav(school, "timetable", timetable=timetable, config=config, presence=presence, closed_cards=closed),
     )
 
 
