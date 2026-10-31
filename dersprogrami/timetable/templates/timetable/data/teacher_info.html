@@ -1,0 +1,59 @@
+{% extends "timetable/base.html" %}
+{% load assets %}
+{% block title %}Öğretmen bilgileri{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / Veri{% endblock %}
+{% block heading %}<h1>Öğretmen bilgileri</h1>{% endblock %}
+{% block actions %}<a class="btn" href="{% url 'timetable:data_list' school.pk 'ogretmenler' %}">{% include "timetable/icon.html" with name="user" %} Öğretmenler</a>{% endblock %}
+{% block content %}
+{% include "timetable/data/subnav.html" %}
+<p class="page-lead">Bölüm, ünvan / rütbe, branş ve TC kimlik numarasını tek tabloda düzenleyin. Satırları seçip üstteki kutulardan <b>seçilenlere</b> aynı değeri yazabilir, TC'leri Excel'den yapıştırabilirsiniz. Değişen hücreler sarı görünür; hiçbir şey <b>Kaydet</b>'e basılana kadar yazılmaz.</p>
+{% if teachers %}
+<div class="ti-tools">
+  <div class="panel">
+    <div class="panel-head"><h2><span class="step-no">1</span>Seçilenlere uygula</h2><span class="subtle small" data-ti-count>Seçili öğretmen yok</span></div>
+    <div class="panel-body ti-apply">
+      <div class="ti-bulk-field"><label class="label" for="ti-b-department">Bölüm</label><input class="input input-sm" id="ti-b-department" list="ti-dl-department" data-ti-bulk="department" placeholder="değişmesin"><label class="ti-erase small"><input type="checkbox" data-ti-erase="department"> boşalt</label></div>
+      <div class="ti-bulk-field"><label class="label" for="ti-b-title">Ünvan / rütbe</label><input class="input input-sm" id="ti-b-title" list="ti-dl-title" data-ti-bulk="title" placeholder="değişmesin"><label class="ti-erase small"><input type="checkbox" data-ti-erase="title"> boşalt</label></div>
+      <div class="ti-bulk-field"><label class="label" for="ti-b-branch">Branş</label><input class="input input-sm" id="ti-b-branch" list="ti-dl-branch" data-ti-bulk="branch" placeholder="değişmesin"><label class="ti-erase small"><input type="checkbox" data-ti-erase="branch"> boşalt</label></div>
+      <div class="ti-apply-btns">
+        <button type="button" class="btn btn-sm btn-primary" data-ti-apply disabled>{% include "timetable/icon.html" with name="check" %} Seçilenlere yaz</button>
+      </div>
+      <p class="subtle small ti-hint">Boş bırakılan kutu o alanı değiştirmez; “boşalt” işaretli alan seçilenlerde silinir. Satırı seçmek için satırın boş bir yerine de tıklayabilirsiniz.</p>
+    </div>
+  </div>
+  <details class="panel" data-ti-paste-panel>
+    <summary class="panel-head"><h2><span class="step-no">2</span>Excel'den yapıştır</h2><span class="subtle small">{% if missing_tc %}{{ missing_tc }} öğretmenin TC'si eksik{% else %}tüm TC'ler girili{% endif %}</span></summary>
+    <div class="panel-body">
+      <p class="subtle small" style="margin-top:0">Excel'de iki sütunu seçip kopyalayın: <b>öğretmen</b> (ad soyad, soyad ad ya da kısa ad) ve <b>TC</b>. İlk satır başlıksa (ör. <code>Ad Soyad · TC · Bölüm · Ünvan · Branş</code>) sütunlar başlığa göre eşleşir; böylece bölüm, ünvan ve branş da aynı yolla gelir.</p>
+      <textarea class="input ti-paste" rows="6" data-ti-paste placeholder="Ahmet Yılmaz&#9;12345678901&#10;AYLM&#9;10987654321"></textarea>
+      <div class="ti-paste-foot"><button type="button" class="btn btn-sm" data-ti-paste-go>{% include "timetable/icon.html" with name="upload" %} Tabloya aktar</button><span class="small" data-ti-paste-result></span></div>
+    </div>
+  </details>
+</div>
+{% for name, values in suggestions.items %}<datalist id="ti-dl-{{ name }}">{% for v in values %}<option value="{{ v }}">{% endfor %}</datalist>{% endfor %}
+<form method="post" id="ti-form">{% csrf_token %}
+  <div class="list-tools"><input class="input" type="search" placeholder="Öğretmen, bölüm, ünvan, branş ara…" aria-label="Ara" data-ti-search>
+    <select class="select select-sm" data-ti-filter aria-label="Süz"><option value="">Tümü</option><option value="tc">TC'si eksik</option><option value="department">Bölümü boş</option><option value="title">Ünvanı boş</option><option value="branch">Branşı boş</option><option value="changed">Değişenler</option></select>
+    <span class="subtle small" data-ti-visible></span></div>
+  <div class="table-wrap"><table class="table ti-table" data-ti-table>
+    <thead><tr><th class="ti-check"><input type="checkbox" data-ti-all title="Görünenlerin tümünü seç" aria-label="Tümünü seç"></th>
+      <th>Öğretmen</th><th>Kısa ad</th><th>Bölüm</th><th>Ünvan / rütbe</th><th>Branş</th><th>TC kimlik no</th></tr></thead>
+    <tbody>
+    {% for t in teachers %}
+      <tr data-ti-row data-keys="{{ t.full_name|lower }}|{{ t.last_name|lower }} {{ t.first_name|lower }}|{{ t.short|lower }}">
+        <td class="ti-check"><input type="checkbox" data-ti-select aria-label="{{ t.full_name }} seç"></td>
+        <td><b>{{ t.full_name }}</b></td>
+        <td class="subtle">{{ t.short }}</td>
+        <td><input class="input input-sm" name="t-{{ t.pk }}-department" value="{{ t.department }}" maxlength="60" list="ti-dl-department" data-ti-field="department"></td>
+        <td><input class="input input-sm" name="t-{{ t.pk }}-title" value="{{ t.title }}" maxlength="100" list="ti-dl-title" data-ti-field="title"></td>
+        <td><input class="input input-sm" name="t-{{ t.pk }}-branch" value="{{ t.branch }}" maxlength="100" list="ti-dl-branch" data-ti-field="branch"></td>
+        <td><input class="input input-sm ti-tc" name="t-{{ t.pk }}-tc_no" value="{{ t.tc_no }}" maxlength="11" inputmode="numeric" pattern="\d{11}" autocomplete="off" data-ti-field="tc_no"></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  <div class="form-actions ti-save"><div><button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} Kaydet</button><span class="subtle small" data-ti-dirty>Değişiklik yok</span></div></div>
+</form>
+{% else %}<div class="empty">Henüz öğretmen yok. <a href="{% url 'timetable:data_new' school.pk 'ogretmenler' %}">Öğretmen ekleyin</a> ya da Excel aktarımını kullanın.</div>{% endif %}
+{% endblock %}
+{% block scripts %}<script src="{% asset 'timetable/teacher_info.js' %}"></script>{% endblock %}

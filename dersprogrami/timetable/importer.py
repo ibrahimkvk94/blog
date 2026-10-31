@@ -5,6 +5,7 @@ Geri yüklemede kayıtlar adlarına göre eşleştirilir: varsa güncellenir, yo
 satırda hata olursa hiçbir değişiklik kaydedilmez ve hatalar satır numarasıyla bildirilir.
 """
 
+import re
 from collections import defaultdict
 from io import BytesIO
 
@@ -30,15 +31,16 @@ SHEETS = {
 OPTIONAL = {
     "Ders adları": ["Varsayılan derslikler"],
     "Sınıflar": ["Öğrenci sayısı", "Sınıf öğretmeni"],
-    "Öğretmenler": ["Haftalık ders yükü", "Branşlar", "Öğretmen dersliği", "Bölüm", "Ünvan / Rütbe"],
+    "Öğretmenler": ["Haftalık ders yükü", "Okutabildiği dersler", "Öğretmen dersliği", "Bölüm", "Ünvan / Rütbe", "Branş", "TC kimlik no"],
     "Dersler": ["Kart dağılımı", "Derslik sayısı"],
 }
 # Şablonda yer almayan ama okunmaya devam eden eski sütunlar (ünvan ve rütbe önceden ayrıydı).
-LEGACY = {"Öğretmenler": ["Ünvan", "Rütbe"]}
+LEGACY = {"Öğretmenler": ["Ünvan", "Rütbe", "Branşlar"]}  # "Branşlar": okutabildiği derslerin eski adı
 
 NOTES = {
     "Sınıflar": "Bölünmeler: “Yabancı dil 2: Almanca, Fransızca; Beden: Kız, Erkek” biçiminde.",
-    "Öğretmenler": "Branşlar: ders adları ya da kısa adları virgülle. Haftalık ders yükü: ör. 21 (maaş karşılığı + ek ders).",
+    "Öğretmenler": "Okutabildiği dersler: ders adları ya da kısa adları virgülle. Branş: düz metin (ör. Bilgisayar). "
+    "Haftalık ders yükü: ör. 21 (maaş karşılığı + ek ders).",
     "Dersler": "Sınıflar, gruplar, öğretmenler ve derslikler virgülle ayrılır. Öğretmen kısa adı ya da ad soyadı yazılabilir. "
     "Grup birden çok sınıfta aynı adı taşıyorsa yalnızca grup adı yeterlidir (ör. 9-A, 9-B + Almanca). "
     "Sınıfsız (yalnızca öğretmenli) satır toplantı/hazırlık saati olur. Kart dağılımı: ör. 2+2+1.",
@@ -95,7 +97,7 @@ def export_workbook(school):
                 t.first_name, t.last_name, t.short, t.max_periods_per_day, t.max_days_per_week, t.max_gaps_per_week,
                 t.target_periods, ", ".join(sub.short or sub.name for sub in t.subjects.all()),
                 str(t.home_classroom) if t.home_classroom else "",
-                t.department, t.title,
+                t.department, t.title, t.branch, t.tc_no,
             ]
             for t in school.teachers.select_related("home_classroom").prefetch_related("subjects")
         ],
@@ -329,7 +331,8 @@ class _Importer:
             except ValueError:
                 self.error(title, n, "Haftalık ders yükü sayı olmalı.")
                 continue
-            subjects = self.lookup(title, n, self.subjects, v.get("Branşlar"), "ders adı")
+            subject_column = "Okutabildiği dersler" if "Okutabildiği dersler" in v else "Branşlar"
+            subjects = self.lookup(title, n, self.subjects, v.get(subject_column), "ders adı")
             home = None
             if v.get("Öğretmen dersliği"):
                 home = self.rooms.get(_key(v["Öğretmen dersliği"]))
@@ -354,8 +357,16 @@ class _Importer:
             title_columns = [c for c in ("Ünvan / Rütbe", "Ünvan", "Rütbe") if c in v]
             if title_columns:
                 teacher.title = " ".join(filter(None, (str(v[c] or "").strip() for c in title_columns)))[:100]
+            if "Branş" in v:
+                teacher.branch = str(v["Branş"] or "").strip()[:100]
+            if "TC kimlik no" in v:
+                tc = re.sub(r"\D", "", str(v["TC kimlik no"] or "").split(".")[0])
+                if tc and len(tc) != 11:
+                    self.error(title, n, f"TC kimlik no 11 haneli olmalı ({v['TC kimlik no']}).")
+                    continue
+                teacher.tc_no = tc
             teacher.save()
-            if "Branşlar" in v:
+            if subject_column in v:
                 teacher.subjects.set(subjects)
             self.count(title, created)
 

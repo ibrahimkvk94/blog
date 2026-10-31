@@ -1678,3 +1678,27 @@ html.ribbon-min .ribbon.drop .rb-panels { display: block; position: absolute; le
 .school-card-wrap:hover > .pm-more, .school-card-wrap > .pm-more:focus { opacity: 1; }
 @media (hover: none) { .school-card-wrap > .pm-more { opacity: 1; } }
 .ctx-item.danger span { color: var(--danger, #dc2626); }
+
+/* Öğretmen bilgileri (toplu) */
+.ti-tools { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; align-items: start; margin-bottom: 16px; }
+@media (max-width: 1000px) { .ti-tools { grid-template-columns: 1fr; } }
+.ti-tools details > summary { cursor: pointer; list-style: none; }
+.ti-tools details > summary::-webkit-details-marker { display: none; }
+.ti-apply { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 12px; align-items: end; }
+@media (max-width: 640px) { .ti-apply { grid-template-columns: 1fr; } }
+.ti-bulk-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ti-erase { display: inline-flex; align-items: center; gap: 4px; color: var(--text-2); }
+.ti-apply-btns { grid-column: 1 / -1; display: flex; gap: 8px; flex-wrap: wrap; }
+.ti-hint { grid-column: 1 / -1; margin: 0; }
+.ti-paste { width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; resize: vertical; }
+.ti-paste-foot { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; margin-top: 8px; }
+.ti-paste-foot .ok { color: var(--ok, #15803d); }
+.ti-table td { padding-top: 4px; padding-bottom: 4px; vertical-align: middle; }
+.ti-table .input { width: 100%; min-width: 110px; }
+.ti-table .ti-tc { font-variant-numeric: tabular-nums; min-width: 120px; }
+.ti-table .ti-check { width: 34px; text-align: center; }
+.ti-table tr[data-ti-row] { cursor: pointer; }
+.ti-table tr.ti-selected td { background: color-mix(in srgb, var(--accent, #2563eb) 9%, transparent); }
+.ti-table .input.ti-changed { background: color-mix(in srgb, #facc15 22%, var(--surface, #fff)); border-color: #d4a106; }
+.ti-table .input.ti-bad { border-color: #dc2626; box-shadow: 0 0 0 2px color-mix(in srgb, #dc2626 25%, transparent); }
+.ti-save { position: sticky; bottom: 0; background: var(--bg); padding: 10px 0; z-index: 2; }

@@ -234,8 +234,8 @@ class Teacher(models.Model):
         help_text="Ör. 15 maaş karşılığı + 6 ek ders = 21. Ders dağıtımında eksik/fazla yük gösterilir.",
     )
     subjects = models.ManyToManyField(
-        Subject, blank=True, related_name="qualified_teachers", verbose_name="branşlar",
-        help_text="Öğretmenin okutabildiği dersler. Branş dışı atamalar uyarı verir; vekil önerisinde önceliklidir.",
+        Subject, blank=True, related_name="qualified_teachers", verbose_name="okutabildiği dersler",
+        help_text="Öğretmen havuzunda hangi dersleri alabileceği; vekil önerisinde önceliklidir. Boş bırakılabilir.",
     )
     home_classroom = models.ForeignKey(
         Classroom, on_delete=models.SET_NULL, null=True, blank=True, related_name="home_teachers",
@@ -248,6 +248,7 @@ class Teacher(models.Model):
     )
     department = models.CharField("bölüm", max_length=60, blank=True, help_text="Raporlarda adın önüne yazılabilir (ör. ELN).")
     title = models.CharField("ünvan / rütbe", max_length=100, blank=True, help_text="Ör. Öğr.Gör. Ütğm., Dr., Bnb.")
+    branch = models.CharField("branş", max_length=100, blank=True, help_text="Ör. Bilgisayar, Elektronik, Matematik.")
     tc_no = models.CharField("TC kimlik no", max_length=11, blank=True, help_text="ÜYBS aktarımında öğretim elemanı sütununa yazılır.")
     email = models.EmailField("e-posta", blank=True, help_text="Program değişikliği ve vekâlet bildirimleri için.")
     user = models.ForeignKey(

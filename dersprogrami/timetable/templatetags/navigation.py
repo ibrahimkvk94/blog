@@ -46,6 +46,7 @@ NAV_GROUPS = [
         ("Ayarlar ve saatler", "settings", _school("school_settings"), {"okul"}, "veri", True),
         ("Sınıflar", "layers", _data("siniflar"), {"siniflar"}, "veri", True),
         ("Öğretmenler", "user", _data("ogretmenler"), {"ogretmenler"}, "veri", True),
+        ("Öğretmen bilgileri", "users", _school("teacher_info"), {"ogretmen-bilgileri"}, "veri", True),
         ("Ders adları", "book", _data("ders-adlari"), {"ders-adlari"}, "veri", True),
         ("Derslikler", "building", _data("derslikler"), {"derslikler"}, "veri", True),
         ("Binalar", "building", _data("binalar"), {"binalar"}, "veri", False),

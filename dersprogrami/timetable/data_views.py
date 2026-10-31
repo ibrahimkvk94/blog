@@ -161,7 +161,7 @@ ENTITIES = {
             ("Kısa ad", lambda t, ctx: t.short),
             ("Haftalık yük", lambda t, ctx: _load_badge(ctx["teacher_loads"].get(t.id))),
             ("Hedef yük", _target_badge),
-            ("Branş", lambda t, ctx: ", ".join(s.short or s.name for s in t.subjects.all()) or "–"),
+            ("Branş", lambda t, ctx: t.branch or "–"),
             ("Sınırlar", lambda t, ctx: " · ".join(filter(None, [
                 f"günde ≤{t.max_periods_per_day}" if t.max_periods_per_day else "",
                 f"haftada ≤{t.max_days_per_week} gün" if t.max_days_per_week else "",
@@ -171,8 +171,8 @@ ENTITIES = {
         availability="teacher", order=("last_name", "first_name"), prefetch=("subjects",),
         tabs=(
             ("genel", "Genel", (
-                ("Kimlik", "Ad, kısa ad ve raporlarda adın önüne yazılabilen künye.", ("first_name", "last_name", "short", "department", "title")),
-                ("Görev", "Ders yükü hedefi, branşlar ve öğretmenin dersliği.", ("target_periods", "home_classroom", "subjects")),
+                ("Kimlik", "Ad, kısa ad ve raporlarda adın önüne yazılabilen künye.", ("first_name", "last_name", "short", "department", "title", "branch")),
+                ("Görev", "Ders yükü hedefi, okutabildiği dersler ve öğretmenin dersliği.", ("target_periods", "home_classroom", "subjects")),
                 ("İletişim ve hesap", "Bildirimler, ÜYBS aktarımı ve öğretmenin kendi kullanıcı hesabı (istek formu için).", ("email", "tc_no", "user")),
             )),
             ("kisitlar", "Kısıtlar", (
@@ -190,6 +190,7 @@ ENTITIES = {
             ("soyad", "Soyad", lambda t, ctx: f"{t.last_name} {t.first_name}", False),
             ("bolum", "Bölüm", lambda t, ctx: t.department, False),
             ("unvan", "Ünvan / rütbe", lambda t, ctx: t.title, False),
+            ("brans", "Branş", lambda t, ctx: t.branch, False),
             ("saat", "Haftalık ders saati", lambda t, ctx: (ctx["teacher_loads"].get(t.id) or (0, 0))[0], True),
         ),
     ),
