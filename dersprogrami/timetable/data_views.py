@@ -16,7 +16,7 @@ from django.urls import reverse
 from django.utils.html import format_html
 from django.views.decorators.http import require_POST
 
-from . import forms, importer
+from . import availability_repair, forms, importer
 from .textsort import natural_key
 from .models import (
     Availability,
@@ -402,6 +402,14 @@ def entity_list(request, pk, slug):
     )
 
 
+def _alert_message(request, alert):
+    """Müsaitlik değişikliği aktif programda dersleri kapalı saate düşürdüyse uyarı (onar düğmesiyle)."""
+    if alert:
+        from django.utils.safestring import mark_safe
+
+        messages.warning(request, mark_safe(alert))
+
+
 def _availability_qs(school, field, obj):
     """field == "school": hedefsiz (okul geneli) kayıtlar."""
     if field == "school":
@@ -560,10 +568,12 @@ def bulk_availability(request, pk):
         elif mode != "replace" and not states:
             messages.error(request, "Izgarada en az bir hücre işaretleyin.")
         else:
+            watch = availability_repair.Watch(school, [(field, o.pk) for o in objs])
             with transaction.atomic():
                 n = apply_availability(school, field, objs, states, mode)
             verb = {"replace": "müsaitliği değiştirildi", "close": "işaretli saatleri kapatıldı", "open": "işaretli saatleri açıldı"}[mode]
             messages.success(request, f"{n} {singular} için {verb}.")
+            availability_repair.notify(request, watch)
         return redirect(f"{reverse('timetable:bulk_availability', args=[school.pk])}?tur={kind}")
     source = None
     source_id = request.GET.get("kaynak")
@@ -629,6 +639,11 @@ def entity_edit(request, pk, slug, obj_id=None):
     form = entity.form(request.POST or None, instance=obj, school=school)
     if request.method == "POST" and form.is_valid():
         created = obj is None
+        watch = None
+        if entity.availability and obj is not None and request.POST.get("availability") is not None:
+            # Kayıttan önce: aktif programda bu kayıtların hangi dersleri zaten kapalı saatteydi
+            copy_ids = [int(x) for x in request.POST.getlist("copy_to") if x.isdigit()]
+            watch = availability_repair.Watch(school, [(entity.availability, obj.pk)] + [(entity.availability, i) for i in copy_ids])
         with transaction.atomic():
             obj = form.save()
             copied = 0
@@ -642,18 +657,21 @@ def entity_edit(request, pk, slug, obj_id=None):
         message = f"{entity.singular} kaydedildi: {obj}" + (f" · müsaitlik {copied} kayda daha uygulandı." if copied else "")
         url = reverse("timetable:data_edit", args=[school.pk, slug, obj.pk])
         new_url = reverse("timetable:data_new", args=[school.pk, slug])
+        alert = watch.report(request) if watch else ""
         if _wants_json(request):
             # Sayfadan çıkmadan kaydet. Yeni kayıt ya da yeni bölünme (kimlik aldı) varsa sayfa kendi adresine yenilenir.
             if created or new_divisions:
                 messages.success(request, message)
+                _alert_message(request, alert)
             ctx = _entity_ctx(school, entity)
             return JsonResponse({
-                "ok": True, "message": message, "url": url, "reload": created or new_divisions,
+                "ok": True, "message": message, "url": url, "reload": created or new_divisions, "alert": alert,
                 "next": new_url if request.POST.get("next") == "new" else "",
                 "title": entity.nav_label(obj, ctx) if entity.nav_label else str(obj),
                 "sub": entity.nav_sub(obj, ctx) if entity.nav_sub else "",
             })
         messages.success(request, message)
+        _alert_message(request, alert)
         return redirect(new_url if request.POST.get("next") == "new" else url)
     if request.method == "POST" and _wants_json(request):
         return _form_errors(form)
@@ -908,6 +926,7 @@ def school_settings(request, pk):
                 return JsonResponse({"ok": False, "message": "En az bir ders saati olmalı.", "errors": {}, "non_field": ["En az bir ders saati olmalı."]}, status=400)
             messages.error(request, "En az bir ders saati olmalı.")
         else:
+            watch = availability_repair.Watch(school, [("school", None)]) if request.POST.get("availability") is not None else None
             with transaction.atomic():
                 form.save()
                 _save_availability(school, "school", school, request.POST.get("availability"))
@@ -928,14 +947,17 @@ def school_settings(request, pk):
                         period.day_times = day_times[period.pk]
                     period.save()
             message = "Program ayarları ve ders saatleri kaydedildi."
+            alert = watch.report(request) if watch else ""
             if ajax:
                 # Saat eklendi/silindiyse satırlar yeni kimlik ve sırayla yeniden açılmalı.
                 if structure_changed:
                     messages.success(request, message)
-                return JsonResponse({"ok": True, "message": message, "reload": structure_changed,
+                    _alert_message(request, alert)
+                return JsonResponse({"ok": True, "message": message, "reload": structure_changed, "alert": alert,
                                      "url": reverse("timetable:school_settings", args=[school.pk]),
                                      "title": school.name, "sub": _school_sub(school)})
             messages.success(request, message)
+            _alert_message(request, alert)
             return redirect("timetable:school_settings", pk=school.pk)
     if request.method == "POST" and ajax:
         errors = {name: [str(e) for e in errs] for name, errs in form.errors.items() if name != "__all__"}
@@ -1123,9 +1145,13 @@ def lesson_edit(request, pk, lesson_id=None):
     form = forms.LessonForm(request.POST or None, instance=lesson, school=school, initial=initial)
     if request.method == "POST" and form.is_valid():
         created = lesson is None
+        watch = None
+        if lesson is not None and request.POST.get("availability") is not None:
+            watch = availability_repair.Watch(school, [("lesson", lesson.pk)])
         with transaction.atomic():
             lesson = form.save()
             _save_availability(school, "lesson", lesson, request.POST.get("availability"))
+        alert = watch.report(request) if watch else ""
         message = f"Ders kaydedildi: {lesson}"
         url = reverse("timetable:lesson_edit", args=[school.pk, lesson.pk])
         back = request.POST.get("back") or ""
@@ -1136,11 +1162,12 @@ def lesson_edit(request, pk, lesson_id=None):
             if created:
                 messages.success(request, message)
             return JsonResponse({
-                "ok": True, "message": message, "url": url, "reload": created,
+                "ok": True, "message": message, "url": url, "reload": created, "alert": alert,
                 "next": new_url if request.POST.get("next") == "new" else "",
                 "title": lesson.subject.name, "sub": _lesson_sub(lesson),
             })
         messages.success(request, message)
+        _alert_message(request, alert)
         return redirect(new_url if request.POST.get("next") == "new" else url)
     if request.method == "POST" and _wants_json(request):
         return _form_errors(form)
@@ -1809,10 +1836,13 @@ def availability_import(request, pk):
     items = asc_availability.plan(school, asc_availability.parse(text)) if text else []
     if request.method == "POST" and request.POST.get("action") == "import" and items:
         chosen = {int(i) for i in request.POST.getlist("sec") if i.isdigit()}
+        watch = availability_repair.Watch(school, [("teacher", it["teacher"].pk) for it in items
+                                                   if it["index"] in chosen and it["teacher"] and not it["error"]])
         with transaction.atomic():
             n = asc_availability.apply(school, [it for it in items if it["index"] in chosen])
         names = ", ".join(it["teacher"].full_name for it in items if it["index"] in chosen and it["teacher"] and not it["error"])
         messages.success(request, f"{n} öğretmenin müsaitliği aSc'den aktarıldı" + (f": {names[:300]}." if names else "."))
+        availability_repair.notify(request, watch)
         return redirect(f"{reverse('timetable:bulk_availability', args=[school.pk])}?tur=ogretmen")
     return render(request, "timetable/data/availability_import.html", _nav(
         school, "data", data_nav="toplu-musaitlik", text=text, items=items,

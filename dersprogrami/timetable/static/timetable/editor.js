@@ -91,6 +91,22 @@
     }
   }
 
+  // Müsaitlik değişikliği aktif programda dersleri kapalı saate düşürdüyse sunucunun hazırladığı uyarı
+  // ("En az değişiklikle onar" düğmesiyle) düzenleyicinin üstünde gösterilir; kapatılana kadar durur.
+  function showAvailabilityAlert(html) {
+    if (!html) return;
+    let box = document.querySelector("[data-av-alert-box]");
+    if (!box) {
+      box = document.createElement("div");
+      box.className = "alert alert-warning av-alert-box";
+      box.dataset.avAlertBox = "";
+      root.parentNode.insertBefore(box, root);
+    }
+    box.innerHTML = html + '<button type="button" class="av-alert-close" title="Kapat" aria-label="Kapat">×</button>';
+    box.querySelector(".av-alert-close").addEventListener("click", () => box.remove());
+    box.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }
+
   // ---- kaydet ----------------------------------------------------------------------------------
   async function save(submitter) {
     if (saving) return;
@@ -124,6 +140,7 @@
     state.classList.remove("error");
     check();
     toast(data.message, "ok");
+    showAvailabilityAlert(data.alert);
     if (data.title) $("[data-rec-title]").textContent = data.title;
     $("[data-rec-sub]").textContent = data.sub || "";
     const item = $(".rec-item.active", root);

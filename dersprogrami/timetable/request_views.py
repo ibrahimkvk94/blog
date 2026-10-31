@@ -109,8 +109,12 @@ def teacher_requests(request, pk):
             raise Http404
         note = (request.POST.get("note") or "").strip()[:2000]
         if action == "approve":
+            from . import availability_repair
+
+            watch = availability_repair.Watch(school, [("teacher", req.teacher_id)])
             tr.approve(req, request.user, note)
             messages.success(request, f"{req.teacher.full_name}: {len(req.changes)} saat müsaitliğe yazıldı.")
+            availability_repair.notify(request, watch)
         elif action == "reject":
             tr.reject(req, request.user, note)
             messages.info(request, f"{req.teacher.full_name} isteği reddedildi.")

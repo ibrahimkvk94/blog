@@ -273,8 +273,14 @@ def timetable_detail(request, pk):
             if t.has_grid
         ],
     }
+    closed = []
+    if timetable.has_grid and not timetable.is_running:
+        from .availability_repair import conflicts
+
+        closed = conflicts(timetable)  # müsaitliği sonradan kapanmış saatlerde duran dersler
     return render(
-        request, "timetable/timetable_detail.html", _nav(school, "timetable", timetable=timetable, config=config)
+        request, "timetable/timetable_detail.html",
+        _nav(school, "timetable", timetable=timetable, config=config, closed_cards=closed),
     )
 
 

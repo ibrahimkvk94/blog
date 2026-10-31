@@ -97,6 +97,7 @@ TIMETABLE_ROUTES = {
     "reports": (M.VIEW, M.VIEW),
     "solution_center": (M.PROGRAM, M.PROGRAM),
     "quality": (M.VIEW, M.PROGRAM),
+    "availability_repair": (M.VIEW, M.PROGRAM),
     "pending": (M.VIEW, M.PROGRAM),
     "room_usage": (M.VIEW, M.VIEW),
     "school_improve": (M.PROGRAM, M.PROGRAM),
@@ -209,7 +210,7 @@ def _deny(request, message):
 # Yalnızca kartların yerini değiştiren işlemler: çözücü problemi değişmez, önbellek korunur.
 PLACEMENT_ONLY = set(CARD_ROUTES) | {
     "api_row_action", "api_undo", "api_redo", "api_bulk", "api_cell_candidates", "api_versions", "publish", "activate", "api_resolve",
-    "report_excel", "report_pdf", "uybs_export", "uybs_archive", "substitutions", "duties", "solution_center", "quality", "pending", "school_improve", "change_report", "print_settings", "backup_compare",
+    "report_excel", "report_pdf", "uybs_export", "uybs_archive", "substitutions", "duties", "solution_center", "quality", "availability_repair", "pending", "school_improve", "change_report", "print_settings", "backup_compare",
 }
 
 
@@ -324,7 +325,7 @@ ACTION_LABELS = {
     "program_copy": "Program kopyaladı", "program_import": "aSc'den program aktardı", "program_delete": "Program sildi",
     "generate": "Üretim başlattı", "stop": "Üretimi durdurdu", "publish": "Programı yayınladı", "activate": "Aktif programı değiştirdi",
     "substitutions": "Vekâlet", "duties": "Nöbet çizelgesi", "lesson_refs": "ÜYBS referansları",
-    "uybs_settings": "ÜYBS ayarları", "print_settings": "Basılı çıktı ayarları", "setup_wizard": "Kurulum sihirbazı", "teacher_accounts": "Öğretmen hesapları", "departments": "Bölümler", "backup_compare": "Yedekle karşılaştırdı", "department_portal": "Bölüm önerisi", "relationship_import": "aSc kart ilişkisi aktarımı", "bulk_availability": "Toplu müsaitlik", "availability_import": "aSc müsaitlik aktarımı", "room_wizard": "Derslik atama", "school_improve": "Okul geneli iyileştirme", "change_report": "Değişiklik bildirimi gönderdi", "teacher_requests": "Öğretmen istekleri", "teacher_assign": "Öğretmen atama", "teacher_info": "Öğretmen bilgileri (toplu)", "relation_wizard": "Teori + uygulama sihirbazı", "relation_audit": "İlişki denetimi", "my_requests": "Müsaitlik isteği", "my_timetable": "Takvim bağlantısı", "solution_center": "Çözüm merkezi", "quality": "Kalite karnesi", "pending": "Bekleyen kart yerleştirme", "uybs_archive": "ÜYBS hafta arşivi", "students": "Öğrenciler",
+    "uybs_settings": "ÜYBS ayarları", "print_settings": "Basılı çıktı ayarları", "setup_wizard": "Kurulum sihirbazı", "teacher_accounts": "Öğretmen hesapları", "departments": "Bölümler", "backup_compare": "Yedekle karşılaştırdı", "department_portal": "Bölüm önerisi", "relationship_import": "aSc kart ilişkisi aktarımı", "bulk_availability": "Toplu müsaitlik", "availability_import": "aSc müsaitlik aktarımı", "room_wizard": "Derslik atama", "school_improve": "Okul geneli iyileştirme", "change_report": "Değişiklik bildirimi gönderdi", "teacher_requests": "Öğretmen istekleri", "teacher_assign": "Öğretmen atama", "teacher_info": "Öğretmen bilgileri (toplu)", "relation_wizard": "Teori + uygulama sihirbazı", "relation_audit": "İlişki denetimi", "my_requests": "Müsaitlik isteği", "my_timetable": "Takvim bağlantısı", "solution_center": "Çözüm merkezi", "quality": "Kalite karnesi", "availability_repair": "Müsaitlik onarımı", "pending": "Bekleyen kart yerleştirme", "uybs_archive": "ÜYBS hafta arşivi", "students": "Öğrenciler",
     "school_settings": "Program ayarları/saatler", "lesson_new": "Ders ekledi", "lesson_edit": "Dersi düzenledi",
     "lesson_delete": "Ders sildi", "class_lessons": "Sınıf ders tablosu", "distribution_save": "Ders dağıtımı",
     "distribution_paste": "Ders dağıtımı (yapıştırma)", "copy_divisions": "Bölünme kopyaladı", "excel_import": "Excel'den veri aktardı",

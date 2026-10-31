@@ -1,0 +1,56 @@
+{% extends "timetable/base.html" %}
+{% block title %}Kapalı saatteki dersler · {{ timetable.name }}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{% url 'timetable:timetable_detail' timetable.pk %}">{{ timetable.name }}</a>{% endblock %}
+{% block heading %}<h1>Kapalı saatteki dersler</h1><span class="pill{% if items %} warn{% else %} ok{% endif %}">{{ items|length }} ders</span>{% endblock %}
+{% block actions %}<a class="btn" href="{% url 'timetable:timetable_detail' timetable.pk %}">{% include "timetable/icon.html" with name="grid" %} Programa dön</a>{% endblock %}
+{% block content %}
+{% if result %}
+  <div class="panel av-result">
+    <div class="panel-head"><h2>Onarım sonucu: {{ result.count }} kart taşındı</h2>
+      <a class="btn btn-sm" href="{% url 'timetable:timetable_detail' timetable.pk %}#versiyonlar">{% include "timetable/icon.html" with name="history" %} Versiyon geçmişi</a></div>
+    <div class="panel-body">
+      <p class="muted small">{{ result.targets }} ders kapalı saatten çıkarıldı · kullanılan alan: <b>{{ result.tier }}</b>{% if result.fixed %} · giderilen ihlal: {{ result.fixed }}{% endif %}{% if result.version %} · değişiklik öncesi hâl {{ result.version }}. versiyon olarak kaydedildi{% endif %}. Ana görünümdeki “Geri al” ile de geri alınabilir.</p>
+      {% if result.moves %}
+        <table class="table av-moves">
+          <thead><tr><th>Ders</th><th>Önce</th><th>Sonra</th><th>Derslik</th></tr></thead>
+          <tbody>{% for m in result.moves %}<tr><td>{{ m.text }}</td><td>{{ m.from }}</td><td>{% if m.time_moved %}<b>{{ m.to }}</b>{% else %}{{ m.to }}{% endif %}</td><td class="subtle">{{ m.room|default:"–" }}</td></tr>{% endfor %}</tbody>
+        </table>
+      {% endif %}
+      {% if result.skipped_locked %}
+        <div class="alert alert-warning"><div><b>Kilitli olduğu için taşınmayanlar:</b> {{ result.skipped_locked|join:" · " }}</div></div>
+      {% endif %}
+    </div>
+  </div>
+{% endif %}
+
+{% if items %}
+  <div class="panel">
+    <div class="panel-head"><h2>Aktif programda kapalı saate düşen dersler</h2>
+      {% if new_count %}<span class="pill warn">{{ new_count }} yeni</span>{% endif %}</div>
+    <div class="panel-body">
+      <p class="muted small">Öğretmen, sınıf, derslik, ders adı ya da dersin müsaitliğinde kapalı (yasak) olan saatte duran dersler. “En az değişiklikle onar”
+        önce yalnızca bu dersleri, olmazsa aynı öğretmen/sınıf/dersliğin haftasını, en son bütün programı oynatır; diğer dersler yerinde kalır.
+        Kilitli dersler taşınmaz. Değişiklikten önce versiyon kaydedilir.</p>
+      <ul class="av-alert-list">
+        {% for c in items %}<li>{{ c.text }}{% if c.new %} <span class="pill warn">yeni</span>{% endif %}{% if c.locked %} <span class="pill">kilitli</span>{% endif %}</li>{% endfor %}
+      </ul>
+      {% if can.program and movable %}
+        <form method="post" data-av-repair>{% csrf_token %}
+          {% for c in items %}{% if not c.locked %}<input type="hidden" name="kart" value="{{ c.card_id }}">{% endif %}{% endfor %}
+          <button class="btn btn-primary">{% include "timetable/icon.html" with name="wand" %} En az değişiklikle onar</button>
+          <span class="subtle small">Birkaç saniyeden bir dakikaya kadar sürebilir.</span>
+        </form>
+      {% elif items and not movable %}
+        <p class="subtle small">Kapalı saatteki derslerin hepsi kilitli; taşınabilmeleri için ana görünümde kilitlerini açın.</p>
+      {% endif %}
+    </div>
+  </div>
+{% else %}
+  <div class="panel"><div class="panel-body"><p class="muted">Aktif programda kapalı saate düşen ders yok.</p></div></div>
+{% endif %}
+<script>
+  document.querySelectorAll("[data-av-repair]").forEach((f) => f.addEventListener("submit", () => {
+    const b = f.querySelector("button"); if (b) { b.disabled = true; b.textContent = "Onarılıyor…"; }
+  }));
+</script>
+{% endblock %}

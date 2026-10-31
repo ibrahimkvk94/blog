@@ -1707,3 +1707,16 @@ html.ribbon-min .ribbon.drop .rb-panels { display: block; position: absolute; le
 .ti-table .input.ti-changed { background: color-mix(in srgb, #facc15 22%, var(--surface, #fff)); border-color: #d4a106; }
 .ti-table .input.ti-bad { border-color: #dc2626; box-shadow: 0 0 0 2px color-mix(in srgb, #dc2626 25%, transparent); }
 .ti-save { position: sticky; bottom: 0; background: var(--bg); padding: 10px 0; z-index: 2; }
+
+/* ---- Müsaitlik değişince yerel onarım (availability_repair.py) ---- */
+.av-alert { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+.av-alert-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.av-alert-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.av-alert-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+.av-alert-actions form { margin: 0; }
+.av-alert-box { position: relative; padding-right: 34px; }
+.av-alert-close { position: absolute; top: 6px; right: 8px; background: none; border: 0; color: inherit; font-size: 18px; line-height: 1; cursor: pointer; opacity: .7; }
+.av-alert-close:hover { opacity: 1; }
+.av-banner > summary > .btn { margin-left: auto; flex: none; }
+.av-result { margin-bottom: 14px; border-left: 4px solid var(--success); }
+.av-moves td, .av-moves th { font-size: 13px; }
