@@ -1,7 +1,7 @@
 from django.contrib.auth import views as auth_views
 from django.urls import path
 
-from . import accounts, asc_relations, data_views, departments, printing, request_views, setup_wizard, teacher_accounts, resolve, institutions, public, school_improve, students, uybs, views
+from . import accounts, asc_relations, data_views, departments, notification_views, printing, request_views, setup_wizard, teacher_accounts, resolve, institutions, public, school_improve, students, uybs, views
 
 app_name = "timetable"
 
@@ -21,6 +21,11 @@ urlpatterns = [
     path("merkez/gunluk/", accounts.central_log, name="central_log"),
     path("merkez/yedekler/", accounts.backups, name="backups"),
     path("merkez/guncelleme/", accounts.system_update, name="system_update"),
+    path("merkez/duyuru/", notification_views.broadcast, name="broadcast"),
+    path("bildirimler/", notification_views.notification_list, name="notifications"),
+    path("bildirimler/<int:pk>/ac/", notification_views.open_notification, name="notification_open"),
+    path("api/bildirimler/", notification_views.api_list, name="api_notifications"),
+    path("api/bildirimler/okundu/", notification_views.api_read, name="api_notifications_read"),
     path("kurum/<int:pk>/gunluk/", accounts.institution_log, name="institution_log"),
     path("merkez/okul-ekle/", accounts.central_school_new, name="central_school_new"),
     path("okul/<int:pk>/kullanicilar/", accounts.school_users, name="school_users"),

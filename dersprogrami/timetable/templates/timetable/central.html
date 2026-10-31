@@ -3,6 +3,7 @@
 {% block heading %}<h1>Merkez paneli</h1>{% endblock %}
 {% block actions %}
   <a class="btn" href="{% url 'timetable:backups' %}">{% include "timetable/icon.html" with name="download" %} Yedekler</a>
+  <a class="btn" href="{% url 'timetable:broadcast' %}">{% include "timetable/icon.html" with name="mail" %} Duyuru gönder</a>
   <a class="btn" href="{% url 'timetable:system_update' %}">{% include "timetable/icon.html" with name="sparkles" %} Sistem güncelleme</a>
   <a class="btn" href="{% url 'timetable:central_log' %}">{% include "timetable/icon.html" with name="list" %} İşlem günlüğü</a>
   <form method="post" action="{% url 'timetable:create_demo' %}">{% csrf_token %}<button class="btn">{% include "timetable/icon.html" with name="plus" %} Örnek okul</button></form>

@@ -212,7 +212,8 @@ def generate(request, pk):
         "classes": [int(x) for x in request.POST.getlist("only_classes") if x.isdigit()],
         "teachers": [int(x) for x in request.POST.getlist("only_teachers") if x.isdigit()],
     } if base else None
-    timetable = start_generation(school, name, time_limit=time_limit, mode=mode, base=base, only=only, from_scratch=from_scratch)
+    timetable = start_generation(school, name, time_limit=time_limit, mode=mode, base=base, only=only, from_scratch=from_scratch,
+                                 user=request.user)
     return redirect("timetable:timetable_detail", pk=timetable.pk)
 
 

@@ -16,7 +16,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 
-from . import access, bulk_assign
+from . import access, bulk_assign, notifications
 from . import teacher_requests as tr
 from .models import Department, DepartmentSubmission as DS, Lesson, Membership, School, Subject, Teacher, TeacherQuota
 from .textsort import natural_key
@@ -173,6 +173,8 @@ def portal(request, pk):
             sub.status = DS.DRAFT
             messages.success(request, "Taslak kaydedildi.")
         sub.save()
+        if action == "submit":
+            notifications.submission_sent(sub, request.user)
         return redirect(url)
     context = {"department": department, "dept_school": school, "tab": tab, "sub": sub, "nav": "bolum",
                "last": department.submissions.filter(status=DS.APPROVED).first()}
@@ -333,6 +335,7 @@ def admin(request, pk):
                 sub.status, sub.decided_by, sub.decided_at, sub.reply = DS.REJECTED, request.user, timezone.now(), reply
                 sub.save(update_fields=["status", "decided_by", "decided_at", "reply"])
                 messages.info(request, f"{sub.department.name} önerisi düzeltilmek üzere geri gönderildi.")
+            notifications.submission_decided(sub, request.user)
             return redirect(f"{url}?bolum={sub.department_id}")
         return redirect(url)
 

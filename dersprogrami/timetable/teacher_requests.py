@@ -8,6 +8,7 @@ aynı anda tek bekleyen isteği olur: yeniden gönderince bekleyen istek güncel
 from django.db import transaction
 from django.utils import timezone
 
+from . import notifications
 from .models import Availability, AvailabilityRequest, Teacher
 
 STATES = ("no", "maybe", "")
@@ -112,6 +113,7 @@ def submit(teacher, user, desired, reason):
         pending.save(update_fields=["changes", "reason", "requested_by"])
         return pending, "Bekleyen isteğiniz güncellendi."
     req = R.objects.create(school=teacher.school, teacher=teacher, requested_by=user, changes=changes, reason=reason)
+    notifications.request_sent(req, user)
     return req, "İsteğiniz program sorumlusuna iletildi."
 
 
@@ -129,11 +131,13 @@ def approve(req, user, note=""):
                 Availability.objects.create(school=req.school, teacher=req.teacher, day=d, period=p, state=state)
         req.status, req.decided_by, req.decided_at, req.note = R.APPROVED, user, timezone.now(), note
         req.save(update_fields=["status", "decided_by", "decided_at", "note"])
+    notifications.request_decided(req, user)
 
 
 def reject(req, user, note=""):
     req.status, req.decided_by, req.decided_at, req.note = R.REJECTED, user, timezone.now(), note
     req.save(update_fields=["status", "decided_by", "decided_at", "note"])
+    notifications.request_decided(req, user)
 
 
 def describe(req):
@@ -203,6 +207,7 @@ def submit_leave(teacher, user, fields):
     if not req.school_days():
         return None, "Seçilen aralıkta okul günü yok."
     req.save()
+    notifications.request_sent(req, user, kind="izin")
     return req, "İzin bildiriminiz program sorumlusuna iletildi."
 
 
@@ -233,9 +238,11 @@ def approve_leave(req, user, note=""):
                 absence.save(update_fields=["periods", "reason"])
         req.status, req.decided_by, req.decided_at, req.note = LeaveRequest.APPROVED, user, timezone.now(), note
         req.save(update_fields=["status", "decided_by", "decided_at", "note"])
+    notifications.request_decided(req, user, kind="izin")
     return len(req.school_days())
 
 
 def decide_leave(req, user, status, note=""):
     req.status, req.decided_by, req.decided_at, req.note = status, user, timezone.now(), note
     req.save(update_fields=["status", "decided_by", "decided_at", "note"])
+    notifications.request_decided(req, user, kind="izin")

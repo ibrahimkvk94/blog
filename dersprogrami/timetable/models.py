@@ -1317,3 +1317,31 @@ class Student(models.Model):
     @property
     def full_name(self):
         return f"{self.first_name} {self.last_name}".strip()
+
+
+class Notification(models.Model):
+    """Hesaba gelen bildirim: üretim bitti, bölüm önerisi geldi / karara bağlandı, öğretmen isteği, merkezden
+    duyuru… Ekranda anlık (toast) gösterilir ve Bildirimler sayfasında geçmişiyle durur. Duyurular her alıcıya
+    ayrı satır olarak yazılır; aynı duyurunun satırları broadcast ile bağlanır."""
+
+    INFO, SUCCESS, WARNING, ERROR = "info", "success", "warning", "error"
+    LEVEL_CHOICES = [(INFO, "Bilgi"), (SUCCESS, "Başarılı"), (WARNING, "Uyarı"), (ERROR, "Hata")]
+
+    user = models.ForeignKey("auth.User", on_delete=models.CASCADE, related_name="notifications")
+    title = models.CharField("başlık", max_length=200)
+    body = models.TextField("ileti", blank=True)
+    url = models.CharField("bağlantı", max_length=300, blank=True)
+    level = models.CharField("tür", max_length=10, choices=LEVEL_CHOICES, default=INFO)
+    sender = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    broadcast = models.CharField("duyuru", max_length=36, blank=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["user", "read_at"])]
+        verbose_name = "bildirim"
+        verbose_name_plural = "bildirimler"
+
+    def __str__(self):
+        return self.title

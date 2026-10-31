@@ -1631,3 +1631,32 @@ html.ribbon-min .ribbon.drop .rb-panels { display: block; position: absolute; le
 /* Ana görünüm: İhlalleri çöz menüsü */
 #resolve-menu .dropdown-menu { min-width: 270px; }
 #resolve-menu .dropdown-menu button[data-resolve] { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; }
+
+/* ---- Bildirimler: zil, açılır liste, anlık bildirim ve geçmiş sayfası ---- */
+.ntf-bell { position: relative; }
+.ntf-bell .rb-icon { position: relative; }
+.ntf-badge { position: absolute; top: 2px; right: 1px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #ef4444; color: #fff;
+  font-size: 10.5px; font-weight: 700; line-height: 16px; text-align: center; }
+.ntf-badge.inline { position: static; display: inline-block; margin-left: 4px; }
+.ntf-badge[hidden] { display: none; }
+.ntf-panel { position: absolute; right: 0; top: calc(100% + 8px); width: min(360px, 92vw); background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow-lg); z-index: 70; overflow: hidden; color: var(--text); }
+.ntf-panel[hidden] { display: none; }
+.ntf-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.ntf-panel-list { max-height: 60vh; overflow-y: auto; }
+.ntf-panel-foot { display: block; text-align: center; padding: 9px; font-size: 13px; border-top: 1px solid var(--border); }
+.ntf-row { display: flex; gap: 10px; padding: 10px 12px; color: var(--text-2); border-bottom: 1px solid var(--border); font-size: 13px; }
+.ntf-row:hover { background: var(--surface-2); color: var(--text); }
+.ntf-row b { display: block; color: var(--text); font-weight: 600; }
+.ntf-row.unread { background: var(--primary-soft); }
+.ntf-row small, .ntf-toast small { display: block; color: var(--text-2); margin-top: 2px; }
+.ntf-row em { display: block; font-style: normal; font-size: 11.5px; color: var(--text-3); margin-top: 3px; }
+.ntf-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; margin-top: 5px; background: #6366f1; }
+.ntf-success .ntf-dot { background: #16a34a; } .ntf-warning .ntf-dot { background: #f59e0b; } .ntf-error .ntf-dot { background: #dc2626; }
+.ntf-toast { display: flex; gap: 10px; align-items: flex-start; max-width: 380px; }
+.ntf-toast small { color: #cbd2e0; }
+.ntf-toast button { background: none; border: 0; color: #9aa3b5; cursor: pointer; margin-left: auto; font-size: 13px; }
+.ntf-list { list-style: none; margin: 0; padding: 0; }
+.ntf-item { display: flex; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+.ntf-item.unread { background: var(--primary-soft); }
+.ntf-body { color: var(--text-2); margin: 3px 0; font-size: 13.5px; }

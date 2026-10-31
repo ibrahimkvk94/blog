@@ -25,7 +25,7 @@ def check_school(school):
     return feasibility.check(school_problem(school))
 
 
-def start_generation(school, name, time_limit=None, mode=Timetable.STRICT, base=None, seed=0, only=None, from_scratch=False):
+def start_generation(school, name, time_limit=None, mode=Timetable.STRICT, base=None, seed=0, only=None, from_scratch=False, user=None):
     """Yeni bir program sürümü oluşturur ve üretimi arka planda başlatır.
 
     only: {"classes": [...], "teachers": [...]} — yalnızca bunların kartları yeniden yerleşir, diğerleri
@@ -38,7 +38,7 @@ def start_generation(school, name, time_limit=None, mode=Timetable.STRICT, base=
         time_limit=time_limit or settings.TIMETABLE_SOLVER_TIME_LIMIT,
         started_at=timezone.now(),
         report={"base": base.pk if base else None, **({"only": only} if only and any(only.values()) else {}),
-                **({"from_scratch": True} if from_scratch else {})},
+                **({"from_scratch": True} if from_scratch else {}), **({"by": user.pk} if user else {})},
     )
     jobs.start(timetable.pk, run_generation, base.pk if base else None, seed)
     return timetable
@@ -75,6 +75,19 @@ def freeze_except(problem, only):
 
 
 def run_generation(timetable_id, base_id=None, seed=0):
+    """Üretim işi; nasıl biterse bitsin (başarı, taslak, hata) başlatana bildirim gider."""
+    try:
+        _run_generation(timetable_id, base_id, seed)
+    finally:
+        try:
+            from . import notifications
+
+            notifications.generation_finished(Timetable.objects.select_related("school").get(pk=timetable_id))
+        except Exception:  # bildirim üretimi bozmasın
+            pass
+
+
+def _run_generation(timetable_id, base_id=None, seed=0):
     timetable = Timetable.objects.select_related("school").get(pk=timetable_id)
     base = Timetable.objects.filter(pk=base_id).first() if base_id else None
     relaxed = timetable.mode == Timetable.RELAXED

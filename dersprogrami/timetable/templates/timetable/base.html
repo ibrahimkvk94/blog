@@ -44,7 +44,7 @@
         <a href="{% url 'timetable:account' %}" class="{% if nav == 'account' %}active{% endif %}">{% include "timetable/icon.html" with name="user" %} <span class="nav-label">Hesabım</span></a>
       </nav>
     {% endif %}
-    <div class="sidebar-foot"><a href="#" style="color:inherit;display:block;margin-bottom:6px" data-layout-ribbon>Üst şerit menüye geç</a><a href="{% url 'timetable:account' %}" style="color:inherit">{% firstof user.get_full_name user.username %}</a>{% if has_teacher_profile and school %} · <a href="{% url 'timetable:my_timetable' %}" style="color:inherit">Programım</a>{% endif %}{% if user.is_superuser %} · <a href="{% url 'timetable:central' %}" style="color:inherit">Merkez</a>{% endif %} · <a href="{% url 'timetable:logout' %}" style="color:inherit" onclick="event.preventDefault();document.getElementById('logout-form').submit()">Çıkış</a>
+    <div class="sidebar-foot"><a href="{% url 'timetable:notifications' %}" style="color:inherit;display:block;margin-bottom:6px">Bildirimler <span class="ntf-badge inline" data-ntf-count hidden></span></a><a href="#" style="color:inherit;display:block;margin-bottom:6px" data-layout-ribbon>Üst şerit menüye geç</a><a href="{% url 'timetable:account' %}" style="color:inherit">{% firstof user.get_full_name user.username %}</a>{% if has_teacher_profile and school %} · <a href="{% url 'timetable:my_timetable' %}" style="color:inherit">Programım</a>{% endif %}{% if user.is_superuser %} · <a href="{% url 'timetable:central' %}" style="color:inherit">Merkez</a>{% endif %} · <a href="{% url 'timetable:logout' %}" style="color:inherit" onclick="event.preventDefault();document.getElementById('logout-form').submit()">Çıkış</a>
       <form id="logout-form" method="post" action="{% url 'timetable:logout' %}" hidden>{% csrf_token %}</form></div>
   </aside>
   <div class="main">
@@ -78,6 +78,7 @@
 <script type="application/json" id="palette-pages">{% nav_pages_json %}</script>
 <script type="application/json" id="palette-icons">{% palette_icons_json %}</script>
 <script src="{% asset 'timetable/palette.js' %}" defer></script>
+{% if user.is_authenticated %}<script src="{% asset 'timetable/notifications.js' %}" data-url="{% url 'timetable:api_notifications' %}" data-read="{% url 'timetable:api_notifications_read' %}" data-page="{% url 'timetable:notifications' %}" defer></script>{% endif %}
 <script>
   document.querySelectorAll("[data-theme-toggle]").forEach(function (b) { b.addEventListener("click", function () {
     var next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";

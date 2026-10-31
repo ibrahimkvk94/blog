@@ -127,6 +127,25 @@ Program senin bilgisayarında çalışır; Tailscale ağındaki kişiler her yer
 3. **Bağlanacak kişiler:** Tailscale'i kurup senin ağına katılmalı. Tailscale yönetim panelinde (login.tailscale.com → *Users → Invite users*) onları davet et ya da yalnızca bu bilgisayarı paylaş (*Machines → bilgisayarın → Share*). Paylaşmak daha güvenlidir: kişi yalnızca bu bilgisayarı görür.
 4. **Hesaplar:** Herkese programda ayrı kullanıcı aç (sol menü → Yönetim → Kullanıcılar) ve yalnızca gereken yetkileri ver. Örneğin bölüm sorumlusuna Bölümler ekranından bölüm sorumluluğu, sadece bakacak olana “görüntüle”.
 
+**Sunucu Linux (ya da macOS) ise:** programın kendisi aynıdır; yalnızca kurulum ve başlatma farklıdır. `sh kurulum.sh` ile bir kez kur, `sh paylas.sh` ile ağa açık başlat (yerel kullanım için `sh calistir.sh`). Güvenlik duvarı açıksa 8000 kapısını Tailscale ağına bir kez aç: `sudo ufw allow from 100.64.0.0/10 to any port 8000 proto tcp`. Bilgisayar açılınca kendiliğinden başlaması için bir systemd hizmeti yeterlidir (`/etc/systemd/system/dersprogrami.service`):
+
+```
+[Unit]
+Description=Ders Programı
+After=network-online.target
+
+[Service]
+User=KULLANICI
+WorkingDirectory=/home/KULLANICI/blog/dersprogrami
+ExecStart=/home/KULLANICI/blog/dersprogrami/.venv/bin/python baslat.py paylas
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+```
+
+ardından `sudo systemctl enable --now dersprogrami`. Sistem güncelleme sayfası bu düzende de çalışır (başlatıcı kendini yeniden açar).
+
 Notlar:
 - Bilgisayarın kapalıysa ya da `paylas.bat` penceresi kapalıysa kimse bağlanamaz.
 - `paylas.bat` hata ayıklamayı kapatır ve bu bilgisayara özel bir gizli anahtarı bir kez `.env` dosyasına yazar; bu yüzden ilk açılışta yeniden giriş yapman gerekebilir.
