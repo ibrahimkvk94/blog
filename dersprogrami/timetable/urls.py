@@ -87,6 +87,7 @@ urlpatterns = [
     path("api/program/<int:pk>/izgara/", views.api_grid, name="api_grid"),
     path("api/program/<int:pk>/durum/", views.api_status, name="api_status"),
     path("api/program/<int:pk>/onar/", views.api_repair, name="api_repair"),
+    path("api/program/<int:pk>/ihlal-coz/", views.api_resolve, name="api_resolve"),
     path("api/program/<int:pk>/geri-al/", views.api_undo, name="api_undo"),
     path("api/program/<int:pk>/yinele/", views.api_redo, name="api_redo"),
     path("api/program/<int:pk>/toplu/", views.api_bulk, name="api_bulk"),

@@ -1627,3 +1627,7 @@ html.ribbon-min .ribbon.drop .rb-panels { display: block; position: absolute; le
   .rb-program { max-width: 46vw; }
   .rb-btn { min-width: 68px; }
 }
+
+/* Ana görünüm: İhlalleri çöz menüsü */
+#resolve-menu .dropdown-menu { min-width: 270px; }
+#resolve-menu .dropdown-menu button[data-resolve] { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; }

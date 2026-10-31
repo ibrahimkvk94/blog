@@ -235,6 +235,7 @@ def timetable_detail(request, pk):
         "statusUrl": reverse("timetable:api_status", args=[timetable.pk]),
         "gridUrl": reverse("timetable:api_grid", args=[timetable.pk]),
         "repairUrl": reverse("timetable:api_repair", args=[timetable.pk]),
+        "resolveUrl": reverse("timetable:api_resolve", args=[timetable.pk]),
         "optionsUrl": reverse("timetable:api_card_options", args=[0]),
         "moveUrl": reverse("timetable:api_card_move", args=[0]),
         "unplaceUrl": reverse("timetable:api_card_unplace", args=[0]),
@@ -808,6 +809,19 @@ def api_repair(request, pk):
     if not timetable.has_grid:
         return JsonResponse({"ok": False, "message": "Bu program düzenlenemez."}, status=400)
     return JsonResponse(repair_timetable(timetable))
+
+
+@require_POST
+def api_resolve(request, pk):
+    """Ana görünümde "İhlalleri çöz": kesin ihlaller en az kartı oynatarak giderilir (geri alınabilir)."""
+    from .services import resolve_violations
+
+    timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
+    if not timetable.has_grid:
+        return JsonResponse({"ok": False, "message": "Bu program düzenlenemez."}, status=400)
+    seconds = _json_body(request).get("sure")
+    seconds = 90 if seconds == 90 else 40
+    return JsonResponse(resolve_violations(timetable, time_limit=seconds))
 
 
 def _card(pk):

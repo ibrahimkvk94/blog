@@ -365,6 +365,56 @@ def repair_timetable(timetable, time_limit=20):
     }
 
 
+def resolve_violations(timetable, time_limit=40):
+    """Kesin ihlalleri en az kartı oynatarak giderir (ana görünümde "İhlalleri çöz").
+
+    Önce ihlal en aza indirilir, sonra o sayıyı aşmadan en az kart oynatılır (cpsat.minimal_repair); kilitli kartlar
+    yerinde kalır. Giderilemeyen ihlal kalabilir; sonuç ancak kesin ihlal sayısı azalırsa uygulanır. Değişiklik "Geri al" ile geri alınabilir."""
+    problem = build_problem(timetable.school, timetable=timetable)
+    placements = placements_of(problem, timetable)
+    hard = lambda violations: sum(1 for v in violations if v.level == "hard")  # noqa: E731
+    before = hard(validate(problem, placements)[0])
+    if not before:
+        return {"ok": True, "moved": 0, "before": 0, "after": 0, "message": "Programda kesin ihlal yok."}
+    anchors, room_anchors = {}, {}
+    for card in problem.cards:
+        place = placements.get(card.key)
+        if place is not None and card.fixed is None:
+            card.hint = (place.day, place.period, place.room)
+            anchors[card.key] = (place.day, place.period)
+            if place.rooms:
+                room_anchors[card.key] = tuple(place.rooms)
+    problem.anchors, problem.room_anchors = anchors, room_anchors
+    placements_after, _ = cpsat.minimal_repair(problem, time_limit=time_limit, place_all=len(placements) == len(problem.cards))
+    if placements_after is None:
+        return {"ok": False, "message": "Süre içinde çözüm bulunamadı; biraz sonra yeniden deneyin."}
+    after = hard(validate(problem, placements_after)[0])
+    if after >= before:
+        return {"ok": True, "moved": 0, "before": before, "after": before,
+                "message": f"{before} kesin ihlal, kart oynatılarak azaltılamadı. Nedenini Çözüm merkezinde ya da "
+                           "ilişki denetiminde inceleyin; kuralı değiştirmek gerekebilir."}
+
+    db_cards = {c.id: c for c in timetable.cards.all()}
+    updates = []
+    for card in problem.cards:
+        db_card = db_cards[card.card_id]
+        place = placements_after.get(card.key)
+        new = (place.day, place.period, place.room, list(place.extra_rooms)) if place else (None, None, None, [])
+        if (db_card.day, db_card.period, db_card.classroom_id, list(db_card.extra_rooms or [])) != new:
+            updates.append((db_card, new))
+    changed = [db_card for db_card, _ in updates]
+    shifted = sum(1 for db_card, new in updates if (db_card.day, db_card.period) != tuple(new[:2]))
+    editing.record(timetable, "ihlaller çözüldü", editing.snapshot(changed))
+    for db_card, new in updates:
+        db_card.day, db_card.period, db_card.classroom_id, db_card.extra_rooms = new
+    Card.objects.bulk_update(changed, ["day", "period", "classroom", "extra_rooms"])
+    rooms = f", {len(changed) - shifted} dersin yalnızca dersliği değişti" if len(changed) > shifted else ""
+    rest = f"; {after} ihlal kaldı (kart oynatarak giderilemedi)" if after else "; program ihlalsiz"
+    return {"ok": True, "moved": len(changed), "shifted": shifted, "before": before, "after": after,
+            "message": f"{before - after} kesin ihlal giderildi: {shifted} ders başka saate taşındı{rooms}{rest}. "
+                       "Geri almak için “Geri al”."}
+
+
 ENTITY_PAGES = {"teacher": "ogretmenler", "school_class": "siniflar", "subject": "ders-adlari", "classroom": "derslikler"}
 
 

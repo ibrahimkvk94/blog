@@ -987,6 +987,76 @@ def solve(
     return solution
 
 
+def _violation_expr(builder):
+    """Esnek modeldeki toplam kural aşımı; yerleşmeyen kart 10 aşım sayılır."""
+    terms = [e for _, _, e in builder.relaxed_slacks]
+    terms += [10 * e for category, _, e in builder.penalties if category == "unplaced"]
+    return sum(terms)
+
+
+def _placements(builder, solver, problem):
+    """Çözücünün değerlerinden {kart: Placement}; yerleşmeyenler dışarıda."""
+    out = {}
+    for card in problem.cards:
+        start = next((slot for slot, var in builder.x[card.key].items() if solver.Value(var)), None)
+        if start is not None:
+            rooms = [r for r, var in builder.y.get(card.key, {}).items() if isinstance(var, int) or solver.Value(var)]
+            out[card.key] = Placement(start[0], start[1], rooms[0] if rooms else None, tuple(rooms[1:]))
+    return out
+
+
+VIOLATION_FIRST = 2000 * 200  # bir aşım, kart hareketinin (ağırlık 200) 2000 katı
+
+
+def minimal_repair(problem, time_limit=40, workers=8, seed=0, place_all=False):
+    """Mevcut programdaki ihlalleri en az kartı oynatarak giderir; iki adımda (önce ihlal, sonra hareket):
+
+    1. Kartlar bugünkü yerlerinden (ipucu) başlar, yalnızca kural aşımı en aza indirilir (aşım sıfırsa durur).
+    2. Aynı modelde bu aşımı geçmemek şartıyla yer değiştiren kart sayısı en aza indirilir (problem.anchors);
+       1. adımın tam çözümü başlangıç olur, böylece 2. adım hemen geçerli bir yerleşimden iyileştirir.
+    Tek bir puanda iki hedefi birleştirmek ilerlemeyi tıkıyordu (gerçek veride 37 ihlalden yalnızca 1'i gitti).
+    place_all: bekleyen kart yoksa her kart yerleşmek zorunda (daha küçük arama).
+    Dönüş: ({kart: Placement}, kalan aşım) ya da çözüm yoksa (None, None)."""
+    started = time.monotonic()
+    builder = _Builder(problem, RELAXED, place_all=place_all)
+    model = builder.build()
+    violations = _violation_expr(builder)
+    # Yer değiştiren kart ve gereksiz derslik değişimi (anchor_rules ağırlıklarıyla: kart 200, derslik 20)
+    moved = [w * e for c, w, e in builder.penalties if c in ("moved", "moved_room")]
+    # İhlal her zaman önce gelir (bir aşım 2000 karta bedel); aynı aşımda daha az oynatan tercih edilir, böylece
+    # 1. adım kartları gereksiz yere gezdirmez.
+    model.Minimize(VIOLATION_FIRST * violations + sum(moved))
+    solver = cp_model.CpSolver()
+    solver.parameters.max_time_in_seconds = float(time_limit) * 0.6
+    solver.parameters.num_workers = workers
+    solver.parameters.random_seed = seed
+    watched = [e for _, _, e in builder.relaxed_slacks if not isinstance(e, int)]
+    watched += [e for c, _, e in builder.penalties if c == "unplaced" and not isinstance(e, int)]
+    status = solver.Solve(model, _StopAtZero(watched))
+    if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        return None, None
+    best = int(round(solver.Value(violations))) if not isinstance(violations, int) else violations
+    placements = _placements(builder, solver, problem)
+    if not moved:
+        return placements, best
+    values = list(solver.ResponseProto().solution)
+    model.Add(violations <= best)
+    model.Minimize(sum(moved))
+    model.ClearHints()
+    for index, value in enumerate(values):
+        model.AddHint(model.GetIntVarFromProtoIndex(index), value)
+    second = cp_model.CpSolver()
+    second.parameters.max_time_in_seconds = max(1.0, float(time_limit) - (time.monotonic() - started))
+    second.parameters.num_workers = workers
+    second.parameters.random_seed = seed
+    # repair_hint kullanılmaz: değiştirilmiş modelde OR-Tools'u çökertiyor; ipucu zaten geçerli bir tam çözüm.
+    # Geçerli çözümden hareket azaltmak yerel aramanın (LNS) işi; 2. aşama iyileştirmesindeki gibi yalnızca o çalışır.
+    second.parameters.use_lns_only = True
+    if second.Solve(model) in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+        return _placements(builder, second, problem), best
+    return placements, best
+
+
 class _StopAtZero(cp_model.CpSolverSolutionCallback):
     """Onarım taslağı: hiçbir kural aşılmadığında durur."""
 

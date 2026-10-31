@@ -12,6 +12,14 @@
   {% if timetable.has_grid %}
     {% if can.program %}
     <button class="btn" id="btn-repair" title="Bekleyen kartları programa yerleştir">{% include "timetable/icon.html" with name="wand" %} Bekleyenleri yerleştir</button>
+    <div class="dropdown" id="resolve-menu">
+      <button class="btn" type="button" data-toggle="dropdown" id="btn-resolve" title="Kesin ihlalleri en az kartı oynatarak gider (geri alınabilir)">{% include "timetable/icon.html" with name="shield" %} <span data-resolve-label>İhlalleri çöz</span> {% include "timetable/icon.html" with name="chevron" %}</button>
+      <div class="dropdown-menu">
+        <button type="button" data-resolve="40"><b>Hızlı</b><span class="subtle small">yaklaşık 40 sn</span></button>
+        <button type="button" data-resolve="90"><b>Az değişiklik</b><span class="subtle small">yaklaşık 90 sn · daha az ders taşınır</span></button>
+        <div class="subtle small" style="padding:6px 10px 2px;max-width:280px">Kilitli kartlara dokunulmaz. Ortaya çıkan değişiklik “Geri al” ile geri alınabilir.</div>
+      </div>
+    </div>
     {% endif %}
     <button class="btn" type="button" id="btn-versions" title="Kayıtlı versiyonlar, geri dönme">{% include "timetable/icon.html" with name="list" %} Versiyonlar</button>
     <div class="dropdown" id="ops-menu"{% if not can.program %} hidden{% endif %}>

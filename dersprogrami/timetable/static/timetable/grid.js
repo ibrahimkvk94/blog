@@ -1007,6 +1007,23 @@
     });
   }
 
+  // İhlalleri çöz: kesin ihlaller en az kartı oynatarak giderilir; süre seçilir (hızlı / az değişiklik).
+  const resolveMenu = $("#resolve-menu");
+  if (resolveMenu) {
+    const resolveBtn = $("#btn-resolve"), label = $("[data-resolve-label]", resolveMenu);
+    resolveMenu.addEventListener("click", async (e) => {
+      const opt = e.target.closest("[data-resolve]");
+      if (!opt) return;
+      resolveMenu.classList.remove("open");
+      const seconds = Number(opt.dataset.resolve);
+      resolveBtn.disabled = true;
+      label.innerHTML = '<span class="spinner"></span> İhlaller çözülüyor (~' + seconds + " sn)…";
+      await run(api(cfg.resolveUrl, { method: "POST", body: JSON.stringify({ sure: seconds }) }));
+      resolveBtn.disabled = false;
+      label.textContent = "İhlalleri çöz";
+    });
+  }
+
   // ---- sağ tık menüleri (aSc 13.5, 13.7, 13.9) -------------------------------------------
   const ctx = $("#ctx-menu");
   const KIND_ENTITY = { sinif: "Sınıf", ogretmen: "Öğretmen", derslik: "Derslik" };
