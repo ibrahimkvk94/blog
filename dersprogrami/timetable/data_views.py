@@ -1634,13 +1634,15 @@ def teacher_assign(request, pk):
         with transaction.atomic():
             for lesson in by_subject[subject.id]:
                 key = f"ogretmen-{lesson.pk}"
+                if key not in request.POST:
+                    continue
                 current = [t.id for t in lesson.teachers.all()]
-                if key not in request.POST or len(current) > 1:
-                    continue  # çok öğretmenli dersler ders düzenleyicisinden
-                value = request.POST[key]
-                new = [int(value)] if value.isdigit() and int(value) in teachers else []
+                new = []  # bir kısımda birden çok öğretmen olabilir (ör. uygulamada iki hoca); sıra korunur
+                for value in request.POST.getlist(key):
+                    if value.isdigit() and int(value) in teachers and int(value) not in new:
+                        new.append(int(value))
                 locked = f"kilit-{lesson.pk}" in request.POST
-                if new != current or locked != lesson.teacher_locked:
+                if sorted(new) != sorted(current) or locked != lesson.teacher_locked:
                     lesson.teachers.set(new)
                     if locked != lesson.teacher_locked:
                         lesson.teacher_locked = locked

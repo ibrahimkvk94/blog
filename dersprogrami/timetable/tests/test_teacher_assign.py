@@ -35,12 +35,25 @@ class TeacherAssignTests(TestCase):
         self.assertEqual([t["name"] for t in data["branch"]], ["Ayşe Ak"])
         l2, l10, l3 = self.lessons
         self.client.post(self.url, {"ders": self.math.pk, "action": "save", f"ogretmen-{l2.pk}": self.mehmet.pk, f"kilit-{l2.pk}": "on",
-                                    f"ogretmen-{l10.pk}": self.ayse.pk, f"ogretmen-{l3.pk}": ""})
+                                    f"ogretmen-{l10.pk}": self.ayse.pk})
         self.assertEqual(list(l2.teachers.all()), [self.mehmet])
         l2.refresh_from_db()
         self.assertTrue(l2.teacher_locked)
         self.assertEqual(list(l10.teachers.all()), [self.ayse])
-        self.assertEqual(l3.teachers.count(), 2)  # çok öğretmenli derse dokunulmaz
+        self.assertEqual(l3.teachers.count(), 2)  # gönderilmeyen kısma dokunulmaz
+
+    def test_multiple_teachers_per_section(self):
+        l2, l10, l3 = self.lessons
+        self.client.post(self.url, {"ders": self.math.pk, "action": "save",
+                                    f"ogretmen-{l10.pk}": [self.ayse.pk, self.mehmet.pk, self.ayse.pk, ""],
+                                    f"ogretmen-{l3.pk}": [self.mehmet.pk, ""], f"kilit-{l3.pk}": "on"})
+        self.assertEqual(sorted(t.pk for t in l10.teachers.all()), sorted([self.ayse.pk, self.mehmet.pk]))
+        self.assertEqual([t.pk for t in l3.teachers.all()], [self.mehmet.pk])  # ikinci öğretmen çıkarıldı
+        l3.refresh_from_db()
+        self.assertTrue(l3.teacher_locked)
+        page = self.client.get(self.url)
+        self.assertContains(page, f'data-name="ogretmen-{l10.pk}"')
+        self.assertContains(page, 'data-ta-apply="add"')
 
     def test_lesson_form_hints(self):
         hints = _teacher_hints(self.school)

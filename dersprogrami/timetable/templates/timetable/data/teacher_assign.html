@@ -4,7 +4,7 @@
 {% block heading %}<h1>Öğretmen atama</h1>{% endblock %}
 {% block content %}
 {% include "timetable/data/subnav.html" %}
-<p class="page-lead">Soldan ders adını seçin; sağda o dersin bütün kısımları alt alta gelir. Her kısmın yanından öğretmeni seçip <b>Kaydet</b>'e basın. Listenin başında bu dersi zaten okutanlar ve branşı uyanlar, yanlarında haftalık yükleriyle yer alır. Birden çok öğretmenli dersler ders düzenleyicisinden değiştirilir.</p>
+<p class="page-lead">Soldan ders adını seçin; sağda o dersin bütün kısımları alt alta gelir. Her kısmın yanından öğretmeni seçip <b>Kaydet</b>'e basın; bir kısma ikinci öğretmen için <b>+</b> düğmesini kullanın. Seçtiğiniz kısımlara bir öğretmeni topluca <b>atayabilir</b>, <b>ekleyebilir</b> ya da <b>çıkarabilirsiniz</b>. Listenin başında bu dersi zaten okutanlar ve branşı uyanlar, yanlarında haftalık yükleriyle yer alır.</p>
 <div class="ta-layout">
   <aside class="panel ta-subjects">
     <div class="panel-head"><input class="input input-sm" type="search" placeholder="Ders adı ara…" data-ta-search></div>
@@ -49,19 +49,21 @@
   <form method="post" class="panel" id="ta-form">
     {% csrf_token %}<input type="hidden" name="ders" value="{{ subject.pk }}"><input type="hidden" name="action" value="save">
     <div class="panel-head"><h2>{{ subject.name }} <span class="subtle">· {{ rows|length }} kısım</span></h2>
-      <div class="ta-bulk"><span class="subtle small">Seçili kısımlara:</span><select class="select select-sm" data-ta-bulk data-ta-teacher><option value="">— öğretmen —</option></select><button type="button" class="btn btn-sm" data-ta-apply>Ata</button></div></div>
+      <div class="ta-bulk"><span class="subtle small" data-ta-selcount>Seçili kısımlara:</span><select class="select select-sm" data-ta-bulk data-ta-teacher><option value="">— öğretmen —</option></select>
+        <button type="button" class="btn btn-sm" data-ta-apply="set" title="Seçili kısımların öğretmeni yalnızca bu öğretmen olur">Ata</button>
+        <button type="button" class="btn btn-sm" data-ta-apply="add" title="Mevcut öğretmenlere ek olarak bu öğretmeni ekler">{% include "timetable/icon.html" with name="plus" %} Ekle</button>
+        <button type="button" class="btn btn-sm" data-ta-apply="remove" title="Bu öğretmeni seçili kısımlardan çıkarır; diğer öğretmenler kalır">Çıkar</button></div></div>
     <div class="panel-body flush table-wrap">
       <table class="table ta-table">
         <thead><tr><th style="width:32px"><input type="checkbox" data-ta-all aria-label="Tümünü seç"></th><th>Kısım</th><th class="num">Saat</th><th>Öğretmen</th><th title="İşaretli kısmın öğretmeni üretimde değişmez">Sabit</th><th></th></tr></thead>
         <tbody>
           {% for r in rows %}
             <tr{% if not r.teacher_ids %} class="ta-missing"{% endif %}>
-              <td>{% if not r.multi %}<input type="checkbox" data-ta-row>{% endif %}</td>
+              <td><input type="checkbox" data-ta-row aria-label="{{ r.classes }} seç"></td>
               <td><b>{{ r.classes }}</b>{% if r.groups %} <span class="subtle small">{{ r.groups }}</span>{% endif %}</td>
               <td class="num">{{ r.lesson.periods_per_week }}</td>
-              <td>{% if r.multi %}{{ r.teachers }} <span class="pill">birden çok öğretmen</span>
-                {% else %}<select class="select select-sm" name="ogretmen-{{ r.lesson.pk }}" data-ta-teacher data-value="{{ r.teacher_ids.0|default:'' }}"{% if r.proposed %} data-proposed="{{ r.proposed }}"{% endif %}><option value="">— atanmadı —</option></select>{% endif %}</td>
-              <td>{% if not r.multi %}<label class="ta-lock" title="Öğretmeni sabit: üretimde değişmez"><input type="checkbox" name="kilit-{{ r.lesson.pk }}" data-value="{{ r.locked|yesno:'1,' }}"{% if r.locked %} checked{% endif %}><span>{% include "timetable/icon.html" with name="lock" %}</span></label>{% if pool.ok and not r.locked %}<span class="ta-pooled" title="Öğretmenini üretim seçer">havuz</span>{% endif %}{% endif %}</td>
+              <td><div class="ta-teachers" data-ta-cell data-name="ogretmen-{{ r.lesson.pk }}" data-value="{{ r.teacher_ids|join:',' }}"{% if r.proposed %} data-proposed="{{ r.proposed }}"{% endif %}></div></td>
+              <td><label class="ta-lock" title="Öğretmeni sabit: üretimde değişmez"><input type="checkbox" name="kilit-{{ r.lesson.pk }}" data-value="{{ r.locked|yesno:'1,' }}"{% if r.locked %} checked{% endif %}><span>{% include "timetable/icon.html" with name="lock" %}</span></label>{% if pool.ok and not r.locked and not r.multi %}<span class="ta-pooled" title="Öğretmenini üretim seçer">havuz</span>{% endif %}</td>
               <td class="num"><a class="btn btn-ghost btn-sm" href="{% url 'timetable:lesson_edit' school.pk r.lesson.pk %}?back={{ request.get_full_path|urlencode }}">Ayrıntı</a></td>
             </tr>
           {% endfor %}
@@ -91,9 +93,37 @@
   const group = (label, list) => list.length ? '<optgroup label="' + label + '">' + list.map((t) => '<option value="' + t.id + '">' + t.name.replace(/</g, "&lt;") + " · " + t.load + " saat</option>").join("") + "</optgroup>" : "";
   const html = group("Bu dersi okutanlar", data.teaching) + group("Branşı uyanlar", data.branch) + group("Diğer öğretmenler", data.others);
   const fill = (s) => { s.insertAdjacentHTML("beforeend", html); if (s.dataset.value !== undefined) s.value = s.dataset.value; };
-  const selects = [...form.querySelectorAll("select[data-ta-teacher]")];
-  selects.forEach(fill);
-  selects.forEach((s) => { if (s.dataset.proposed) s.value = s.dataset.proposed; });  // toplu dağıtım önizlemesi
+  form.querySelectorAll("select[data-ta-bulk]").forEach(fill);
+
+  // Kısım hücresi: bir ya da daha çok öğretmen seçimi; ilk seçim kalıcı, ötekiler ✕ ile silinir.
+  const cellValues = (cell) => [...cell.querySelectorAll("select")].map((s) => s.value).filter(Boolean);
+  const addSelect = (cell, value) => {
+    const wrap = document.createElement("div");
+    wrap.className = "ta-pick";
+    const first = !cell.querySelector(".ta-pick");
+    wrap.innerHTML = '<select class="select select-sm" name="' + cell.dataset.name + '"><option value="">— atanmadı —</option></select>' +
+      (first ? '<button type="button" class="btn btn-ghost btn-sm ta-add" data-ta-more title="Bu kısma bir öğretmen daha ekle" aria-label="Öğretmen ekle">+</button>'
+             : '<button type="button" class="btn btn-ghost btn-sm" data-ta-less title="Bu öğretmeni kısımdan çıkar" aria-label="Çıkar">✕</button>');
+    const s = wrap.querySelector("select");
+    fill(s);
+    s.value = value || "";
+    cell.appendChild(wrap);
+    return s;
+  };
+  const setCell = (cell, ids) => {
+    cell.querySelectorAll(".ta-pick").forEach((p) => p.remove());
+    (ids.length ? ids : [""]).forEach((v) => addSelect(cell, v));
+  };
+  const cells = [...form.querySelectorAll("[data-ta-cell]")];
+  cells.forEach((cell) => {
+    const ids = cell.dataset.value ? cell.dataset.value.split(",") : [];
+    setCell(cell, ids.length <= 1 && cell.dataset.proposed ? [cell.dataset.proposed] : ids);  // toplu dağıtım önizlemesi
+  });
+  form.addEventListener("click", (e) => {
+    const more = e.target.closest("[data-ta-more]"), less = e.target.closest("[data-ta-less]");
+    if (more) { addSelect(more.closest("[data-ta-cell]")).focus(); update(); }
+    if (less) { less.closest(".ta-pick").remove(); update(); }
+  });
 
   // Toplu dağıt: kota satırları ve toplam
   const dist = document.getElementById("ta-dist-form");
@@ -125,8 +155,9 @@
   });
   const dirty = form.querySelector("[data-ta-dirty]");
   const rowChanged = (tr) => {
-    const s = tr.querySelector("select[data-ta-teacher]"), l = tr.querySelector(".ta-lock input");
-    return (s && s.value !== s.dataset.value) || (l && l.checked !== (l.dataset.value === "1"));
+    const c = tr.querySelector("[data-ta-cell]"), l = tr.querySelector(".ta-lock input");
+    const same = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
+    return (c && !same(cellValues(c), c.dataset.value ? c.dataset.value.split(",") : [])) || (l && l.checked !== (l.dataset.value === "1"));
   };
   const update = () => {
     const trs = [...form.querySelectorAll("tbody tr")];
@@ -135,12 +166,26 @@
     dirty.textContent = n ? n + " kısım değişti (kaydedilmedi)" : "";
   };
   form.addEventListener("change", update);
-  form.querySelector("[data-ta-all]").addEventListener("change", (e) => form.querySelectorAll("[data-ta-row]").forEach((c) => { c.checked = e.target.checked; }));
-  form.querySelector("[data-ta-apply]").addEventListener("click", () => {
-    const value = form.querySelector("[data-ta-bulk]").value;
-    form.querySelectorAll("[data-ta-row]:checked").forEach((c) => { c.closest("tr").querySelector("select[data-ta-teacher]").value = value; });
+  const selCount = form.querySelector("[data-ta-selcount]");
+  const countSelected = () => {
+    const n = form.querySelectorAll("[data-ta-row]:checked").length;
+    selCount.textContent = n ? n + " seçili kısma:" : "Seçili kısımlara:";
+  };
+  form.querySelector("[data-ta-all]").addEventListener("change", (e) => { form.querySelectorAll("[data-ta-row]").forEach((c) => { c.checked = e.target.checked; }); countSelected(); });
+  form.addEventListener("change", (e) => { if (e.target.matches("[data-ta-row]")) countSelected(); });
+  form.querySelectorAll("[data-ta-apply]").forEach((btn) => btn.addEventListener("click", () => {
+    const value = form.querySelector("[data-ta-bulk]").value, mode = btn.dataset.taApply;
+    const rows = [...form.querySelectorAll("[data-ta-row]:checked")].map((c) => c.closest("tr").querySelector("[data-ta-cell]"));
+    if (!rows.length) { alert("Önce tablodan kısım seçin."); return; }
+    if (!value && mode !== "set") { alert("Önce öğretmeni seçin."); return; }
+    rows.forEach((cell) => {
+      const ids = cellValues(cell);
+      if (mode === "set") setCell(cell, value ? [value] : []);
+      else if (mode === "add" && !ids.includes(value)) setCell(cell, ids.concat(value));
+      else if (mode === "remove") setCell(cell, ids.filter((v) => v !== value));
+    });
     update();
-  });
+  }));
   update();
   window.addEventListener("beforeunload", (e) => { if (dirty.textContent) { e.preventDefault(); e.returnValue = ""; } });
   form.addEventListener("submit", () => { dirty.textContent = ""; });

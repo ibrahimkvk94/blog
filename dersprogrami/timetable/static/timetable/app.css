@@ -988,7 +988,12 @@ a.q-card { color: inherit; } a.q-card:hover { border-color: var(--primary); }
 .ta-item:hover { background: var(--surface-2); text-decoration: none; }
 .ta-item.active { background: var(--primary-soft); box-shadow: inset 3px 0 0 var(--primary); }
 .ta-item[hidden] { display: none; }
-.ta-bulk { display: flex; gap: 6px; align-items: center; }
+.ta-bulk { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.ta-bulk .btn svg { width: 14px; height: 14px; }
+.ta-teachers { display: flex; flex-direction: column; gap: 4px; }
+.ta-pick { display: flex; gap: 4px; align-items: center; }
+.ta-pick .btn { min-width: 30px; justify-content: center; padding-left: 6px; padding-right: 6px; }
+.ta-pick .ta-add { font-weight: 700; font-size: 16px; line-height: 1; }
 .ta-table select { min-width: 280px; }
 .ta-table tr.ta-missing td:nth-child(2) b { color: var(--danger-strong); }
 .ta-table tr.ta-changed { background: var(--warning-soft); }
