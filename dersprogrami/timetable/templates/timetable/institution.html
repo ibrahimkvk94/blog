@@ -1,7 +1,7 @@
 {% extends "timetable/base.html" %}
 {% block title %}{{ institution }}{% endblock %}
 {% block crumbs %}<a href="{% url 'timetable:school_list' %}">Kurumlarım</a>{% endblock %}
-{% block heading %}<h1>{{ institution }}</h1>{% endblock %}
+{% block heading %}<h1 data-pm="institution" data-pm-id="{{ institution.pk }}" data-pm-name="{{ institution.name }}" data-pm-open="{% url 'timetable:institution_detail' institution.pk %}" data-pm-edit="{% if can_programs %}1{% else %}0{% endif %}" data-pm-deletable="{% if can_delete %}1{% else %}0{% endif %}">{{ institution }}</h1>{% endblock %}
 {% block actions %}
   {% if can_users %}<a class="btn" href="{% url 'timetable:institution_log' institution.pk %}">{% include "timetable/icon.html" with name="list" %} İşlem günlüğü</a>
   <a class="btn" href="{% url 'timetable:institution_users' institution.pk %}">{% include "timetable/icon.html" with name="users" %} Kullanıcılar</a>{% endif %}
@@ -16,26 +16,12 @@
         <thead><tr><th>Program</th><th class="num">Sınıf</th><th class="num">Öğretmen</th><th>Yayında</th><th></th></tr></thead>
         <tbody>
           {% for p in programs %}
-            <tr>
+            <tr data-pm="program" data-pm-id="{{ p.pk }}" data-pm-name="{{ p.name }}" data-pm-inst="{{ institution.pk }}" data-pm-open="{% url 'timetable:school_detail' p.pk %}" data-pm-edit="{% if can_programs %}1{% else %}0{% endif %}">
               <td><a href="{% url 'timetable:school_detail' p.pk %}"><b>{{ p.name }}</b></a></td>
               <td class="num">{{ p.n_classes }}</td><td class="num">{{ p.n_teachers }}</td>
               <td>{% if p.active_timetable %}<a href="{% url 'timetable:timetable_detail' p.active_timetable_id %}">★ {{ p.active_timetable.name }}</a>{% else %}<span class="subtle">–</span>{% endif %}</td>
               <td class="nowrap"><a class="btn btn-sm" href="{% url 'timetable:school_detail' p.pk %}">Aç</a>
-                {% if can_programs %}<button type="button" class="btn btn-sm btn-ghost" title="Adını değiştir ya da başka kuruma taşı" onclick="this.nextElementSibling.showModal()">Düzenle</button>
-                <dialog class="inst-dialog">
-                  <div class="dialog-head"><h3>{{ p.name }}</h3><button type="button" class="btn btn-sm btn-ghost" onclick="this.closest('dialog').close()" aria-label="Kapat">✕</button></div>
-                  <div class="inst-pop">
-                    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="rename_program"><input type="hidden" name="program" value="{{ p.pk }}">
-                      <label class="label" for="pn-{{ p.pk }}" style="margin-top:0">Program adı</label>
-                      <div class="inst-row"><input class="input input-sm" id="pn-{{ p.pk }}" name="name" value="{{ p.name }}" maxlength="200" required><button class="btn btn-sm btn-primary">Kaydet</button></div>
-                    </form>
-                    {% if targets %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="move_program"><input type="hidden" name="program" value="{{ p.pk }}">
-                      <label class="label" for="pt-{{ p.pk }}">Başka kuruma taşı</label>
-                      <div class="inst-row"><select class="select select-sm" id="pt-{{ p.pk }}" name="target">{% for i in targets %}<option value="{{ i.pk }}">{{ i.name }}</option>{% endfor %}</select>
-                        <button class="btn btn-sm" onclick="return confirm('“{{ p.name|escapejs }}” programı seçilen kuruma taşınsın mı? Verileri ve sürümleri olduğu gibi taşınır.')">Taşı</button></div>
-                    </form>{% endif %}
-                  </div>
-                </dialog>{% endif %}</td>
+                {% if can_programs %}<button type="button" class="btn btn-sm btn-ghost" data-pm-button title="Yeniden adlandır, kopyala, taşı, sil (sağ tık da olur)" aria-label="Program işlemleri">⋯</button>{% endif %}</td>
             </tr>
           {% empty %}<tr><td colspan="5" class="subtle">Henüz program yok.</td></tr>{% endfor %}
         </tbody>
@@ -49,7 +35,7 @@
       <form class="panel-body" method="post">{% csrf_token %}<input type="hidden" name="action" value="rename">
         <label class="label" for="inst-name" style="margin-top:0">Kurumun adı</label>
         <div class="inst-row"><input class="input" id="inst-name" name="name" value="{{ institution.name }}" maxlength="200" required><button class="btn btn-primary">Kaydet</button></div>
-        <p class="subtle small" style="margin:8px 0 0">Programların adı, satırlarındaki <b>Düzenle</b> ile değişir; aynı menüden bir program başka kuruma taşınabilir (ör. aSc'den içe aktarırken ayrı kurum olarak açılan programı asıl kuruma almak için).</p>
+        <p class="subtle small" style="margin:8px 0 0">Programlar için satıra sağ tıklayın ya da <b>⋯</b> düğmesine basın: yeniden adlandır, kopyala, başka kuruma taşı, sil. Taşıma, ör. aSc'den içe aktarırken ayrı kurum olarak açılan programı asıl kuruma almak için.</p>
       </form>
       {% if can_delete %}<form class="panel-body" method="post" style="border-top:1px solid var(--border)">{% csrf_token %}<input type="hidden" name="action" value="delete">
         <p class="small" style="margin:0 0 8px">Bu kurumda program kalmadı.</p>
@@ -113,6 +99,7 @@
   </div>
   {% endif %}
 </div>
+{% include "timetable/program_menu.html" %}
 {% endblock %}
 {% block scripts %}
 <script>

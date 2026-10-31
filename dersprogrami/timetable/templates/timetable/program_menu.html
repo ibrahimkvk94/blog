@@ -1,0 +1,45 @@
+{# Program ve kurum sağ tık menüsü (Kurumlarım ve kurum sayfası): Aç, Yeniden adlandır, Kopyala, Başka kuruma taşı, Sil. #}
+{% load assets %}
+<div class="ctx-menu" id="pm-menu" hidden></div>
+<div id="pm-config" hidden data-next="{{ request.get_full_path }}"
+     data-inst-url="{% url 'timetable:institution_detail' 0 %}" data-copy-url="{% url 'timetable:program_copy' 0 %}"
+     data-delete-url="{% url 'timetable:program_delete' 0 %}"></div>
+{{ pm_targets|json_script:"pm-targets" }}
+
+<dialog class="inst-dialog" id="pm-rename"><form method="post">{% csrf_token %}
+  <input type="hidden" name="action"><input type="hidden" name="program"><input type="hidden" name="next">
+  <div class="dialog-head"><h3 data-pm-title>Yeniden adlandır</h3><button type="button" class="btn btn-sm btn-ghost" data-pm-close aria-label="Kapat">✕</button></div>
+  <label class="label" for="pm-rename-name" style="margin-top:0" data-pm-label>Yeni ad</label>
+  <input class="input" id="pm-rename-name" name="name" maxlength="200" required>
+  <div class="dialog-actions"><button type="button" class="btn" data-pm-close>Vazgeç</button><button class="btn btn-primary">Kaydet</button></div>
+</form></dialog>
+
+<dialog class="inst-dialog" id="pm-copy"><form method="post">{% csrf_token %}
+  <input type="hidden" name="source">
+  <div class="dialog-head"><h3 data-pm-title>Programı kopyala</h3><button type="button" class="btn btn-sm btn-ghost" data-pm-close aria-label="Kapat">✕</button></div>
+  <p class="subtle small" style="margin-top:0">Kopya aynı kurumda yeni ve bağımsız bir program olur.</p>
+  <label class="label" for="pm-copy-name">Yeni program adı</label>
+  <input class="input" id="pm-copy-name" name="name" maxlength="200" required>
+  <label class="label">Kopyalanacaklar</label>
+  <div class="user-perms column">{% for key, label in pm_parts.items %}<label><input type="checkbox" name="parts" value="{{ key }}"{% if key != "yerlesim" and key != "refler" %} checked{% endif %}> {{ label }}</label>{% endfor %}</div>
+  <div class="dialog-actions"><button type="button" class="btn" data-pm-close>Vazgeç</button><button class="btn btn-primary">Kopyala</button></div>
+</form></dialog>
+
+<dialog class="inst-dialog" id="pm-move"><form method="post">{% csrf_token %}
+  <input type="hidden" name="action" value="move_program"><input type="hidden" name="program"><input type="hidden" name="next">
+  <div class="dialog-head"><h3 data-pm-title>Başka kuruma taşı</h3><button type="button" class="btn btn-sm btn-ghost" data-pm-close aria-label="Kapat">✕</button></div>
+  <p class="subtle small" style="margin-top:0">Programın verisi ve sürümleri olduğu gibi taşınır.</p>
+  <label class="label" for="pm-move-target">Hedef kurum</label>
+  <select class="select" id="pm-move-target" name="target" required></select>
+  <div class="dialog-actions"><button type="button" class="btn" data-pm-close>Vazgeç</button><button class="btn btn-primary">Taşı</button></div>
+</form></dialog>
+
+<dialog class="inst-dialog" id="pm-delete"><form method="post">{% csrf_token %}
+  <input type="hidden" name="action"><input type="hidden" name="next">
+  <div class="dialog-head"><h3 data-pm-title>Sil</h3><button type="button" class="btn btn-sm btn-ghost" data-pm-close aria-label="Kapat">✕</button></div>
+  <p class="small" data-pm-text style="margin-top:0"></p>
+  <div data-pm-confirm-box><label class="label" for="pm-delete-confirm">Onay için adını aynen yazın</label>
+    <input class="input" id="pm-delete-confirm" name="confirm" autocomplete="off"></div>
+  <div class="dialog-actions"><button type="button" class="btn" data-pm-close>Vazgeç</button><button class="btn btn-danger" data-pm-delete-go disabled>Sil</button></div>
+</form></dialog>
+<script src="{% asset 'timetable/program_menu.js' %}" defer></script>

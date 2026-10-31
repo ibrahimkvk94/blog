@@ -14,12 +14,14 @@
   {% for item in institutions %}
     <section class="panel institution-block">
       <div class="panel-head">
-        <h2><a href="{% url 'timetable:institution_detail' item.institution.pk %}">{{ item.institution }}</a> <span class="pill">{{ item.programs|length }} program</span></h2>
+        <h2 data-pm="institution" data-pm-id="{{ item.institution.pk }}" data-pm-name="{{ item.institution.name }}" data-pm-open="{% url 'timetable:institution_detail' item.institution.pk %}" data-pm-edit="{% if 'programlar' in item.perms %}1{% else %}0{% endif %}" data-pm-deletable="{% if user.is_superuser and item.empty %}1{% else %}0{% endif %}"><a href="{% url 'timetable:institution_detail' item.institution.pk %}">{{ item.institution }}</a> <span class="pill">{{ item.programs|length }} program</span>
+          <button type="button" class="pm-more" data-pm-button title="Kurum işlemleri (sağ tık da olur)" aria-label="Kurum işlemleri">⋯</button></h2>
         <a class="btn btn-sm" href="{% url 'timetable:institution_detail' item.institution.pk %}">Kurum sayfası{% if "programlar" in item.perms %} · düzenle / program ekle / aSc aktar{% endif %}</a>
       </div>
       <div class="panel-body">
         <div class="school-cards">
           {% for s in item.programs %}
+            <div class="school-card-wrap" data-pm="program" data-pm-id="{{ s.pk }}" data-pm-name="{{ s.name }}" data-pm-inst="{{ item.institution.pk }}" data-pm-open="{% url 'timetable:school_detail' s.pk %}" data-pm-edit="{% if 'programlar' in item.perms %}1{% else %}0{% endif %}">
             <a class="panel school-card" href="{% if s.active_timetable_id %}{% url 'timetable:timetable_detail' s.active_timetable_id %}{% else %}{% url 'timetable:school_detail' s.pk %}{% endif %}">
               <h2>{{ s.name }}</h2>
               <div class="meta">
@@ -27,6 +29,8 @@
               </div>
               {% if s.active_timetable %}<div class="subtle small" style="margin-top:6px">★ Yayında: {{ s.active_timetable.name }}</div>{% endif %}
             </a>
+            <button type="button" class="pm-more" data-pm-button title="Program işlemleri (sağ tık da olur)" aria-label="Program işlemleri">⋯</button>
+            </div>
           {% empty %}<p class="muted" style="margin:0">Henüz program yok.</p>{% endfor %}
         </div>
       </div>
@@ -35,4 +39,5 @@
     <div class="panel"><div class="empty">{% if user.is_superuser %}Henüz kurum yok. Merkez panelinden kurum ekleyin ya da örnek okul oluşturun.{% else %}Henüz size atanmış bir kurum yok. Kurum yöneticinizden ya da merkezden yetki isteyin.{% endif %}</div></div>
   {% endfor %}
 </div>
+{% include "timetable/program_menu.html" %}
 {% endblock %}

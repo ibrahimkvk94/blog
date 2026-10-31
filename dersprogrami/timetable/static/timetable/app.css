@@ -1668,3 +1668,13 @@ html.ribbon-min .ribbon.drop .rb-panels { display: block; position: absolute; le
   box-shadow: var(--shadow-lg); padding: 16px; white-space: normal; text-align: left; }
 .inst-dialog::backdrop { background: rgba(10, 13, 23, .4); }
 .inst-pop { display: flex; flex-direction: column; gap: 4px; }
+
+/* Program / kurum sağ tık menüsü: ⋯ düğmesi ve kart sarmalı */
+.school-card-wrap { position: relative; }
+.school-card-wrap > .school-card { display: block; height: 100%; }
+.pm-more { background: none; border: 1px solid transparent; border-radius: 6px; color: var(--text-3); cursor: pointer; font-size: 16px; line-height: 1; padding: 3px 7px; }
+.pm-more:hover { color: var(--text); background: var(--surface-2); border-color: var(--border); }
+.school-card-wrap > .pm-more { position: absolute; top: 10px; right: 10px; opacity: 0; transition: opacity .12s; }
+.school-card-wrap:hover > .pm-more, .school-card-wrap > .pm-more:focus { opacity: 1; }
+@media (hover: none) { .school-card-wrap > .pm-more { opacity: 1; } }
+.ctx-item.danger span { color: var(--danger, #dc2626); }

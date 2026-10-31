@@ -50,7 +50,12 @@ def school_list(request):
             return redirect("timetable:department_portal", pk=department.pk)  # bölüm sorumlusu: bölüm ekranı
         if request.user.teacher_profiles.exists():
             return redirect("timetable:my_timetable")  # yalnızca öğretmen hesabı: kendi programı
-    return render(request, "timetable/school_list.html", {"institutions": institutions})
+    from .institutions import menu_context
+
+    for item in institutions:
+        item["empty"] = not item["programs"] and not item["institution"].programs.exists()
+    return render(request, "timetable/school_list.html", {
+        "institutions": institutions, **menu_context(request.user, [item["institution"] for item in institutions])})
 
 
 @require_POST

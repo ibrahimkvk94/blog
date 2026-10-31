@@ -37,13 +37,28 @@ def institution_detail(request, pk):
         "can_programs": "programlar" in perms, "can_users": "kullanici" in perms,
         "targets": _movable_targets(request.user, institution) if "programlar" in perms else [],
         "can_delete": request.user.is_superuser and not programs and not institution.programs.exists(),
+        **menu_context(request.user, Institution.objects.order_by("name")),
     })
+
+
+def _next(request, default):
+    """İşlemden sonra dönülecek sayfa: formdaki next (yalnızca bu sitenin yolu) ya da varsayılan."""
+    target = request.POST.get("next") or ""
+    return redirect(target) if target.startswith("/") and not target.startswith("//") else redirect(*default)
+
+
+def menu_context(user, institutions):
+    """Sağ tık menüsü için: program taşınabilecek kurumlar (program yetkisi olanlar) ve kopyalanabilir bölümler."""
+    from .copying import PARTS
+
+    return {"pm_targets": [{"id": i.pk, "name": i.name} for i in institutions
+                           if "programlar" in access.institution_permissions(user, i)], "pm_parts": PARTS}
 
 
 def _edit(request, institution):
     """Kurum sayfasındaki düzenlemeler: kurum adı, program adı, programı başka kuruma taşıma, boş kurumu silme."""
     action = request.POST.get("action")
-    url = redirect("timetable:institution_detail", pk=institution.pk)
+    url = _next(request, ("timetable:institution_detail", institution.pk))
     if action == "rename":
         name = (request.POST.get("name") or "").strip()[:200]
         if not name:
@@ -60,7 +75,7 @@ def _edit(request, institution):
         name = institution.name
         institution.delete()
         messages.success(request, f"“{name}” kurumu silindi.")
-        return redirect("timetable:school_list")
+        return redirect("timetable:school_list")  # kurumun kendi sayfası artık yok
     school = institution.programs.filter(pk=request.POST.get("program") or 0).first()
     if school is None or school not in access.visible_schools(request.user):
         messages.error(request, "Program bulunamadı.")
@@ -185,13 +200,16 @@ def _replace(old, new):
 def program_delete(request, pk):
     school = get_object_or_404(School, pk=pk)
     institution = school.institution
-    if request.POST.get("confirm") != school.name:
+    if (request.POST.get("confirm") or "").strip() != school.name.strip():
         messages.error(request, "Silmek için program adını aynen yazın.")
-        return redirect("timetable:school_settings", pk=school.pk)
+        return _next(request, ("timetable:school_settings", school.pk))
     name = school.name
     school.delete()
     messages.success(request, f"“{name}” programı silindi.")
-    return redirect("timetable:institution_detail", pk=institution.pk)
+    nxt = request.POST.get("next") or ""
+    if f"/okul/{pk}/" in nxt or f"/program/" in nxt:  # silinen programın sayfasına dönülmez
+        return redirect("timetable:institution_detail", pk=institution.pk)
+    return _next(request, ("timetable:institution_detail", institution.pk))
 
 
 @require_POST
