@@ -446,8 +446,8 @@ class RelationshipForm(SchoolScopedForm):
     def clean(self):
         data = super().clean()
         condition = data.get("condition")
-        if condition in CardRelationship.PAIRED and len(data.get("lessons") or []) < 2:
-            self.add_error("lessons", "Bu koşul seçilen derslerin kartlarını eşleştirir; en az iki ders seçin.")
+        if condition in CardRelationship.PAIRED and len(data.get("lessons") or []) + len(data.get("subjects") or []) < 2:
+            self.add_error("lessons", "Bu koşul derslerin kartlarını eşleştirir; en az iki ders ya da ders adı seçin.")
         if condition in CardRelationship.TWO_SIDED and not (data.get("lessons_b") or data.get("subjects_b")):
             self.add_error("subjects_b", "İki taraflı koşul için B tarafında ders ya da ders adı seçin.")
         if condition in CardRelationship.ROOMS and not data.get("classrooms"):

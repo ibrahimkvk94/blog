@@ -78,8 +78,8 @@
     $("[data-rel-side-a]").textContent = show.two ? "Değiştir: Dersler A" : "Değiştir: Dersler";
     $("[data-rel-map-label]").innerHTML = "Zaman haritası" + (sets.needsMap.includes(c) ? ' <span class="req">*</span>' : ' <span class="subtle small">(boş = tüm saatler)</span>');
     $("[data-rel-filter-help]").textContent = sets.paired.includes(c)
-      ? "Bu koşul seçilen derslerin kartlarını eşleştirir: en az iki ders (kısım) seçin; ör. BİL103 teori ve BİL103 (U)."
-      : "Boş bırakılan alan süzmez (ör. sınıf seçilmezse tüm sınıflar).";
+      ? "Bu koşul seçilen dersleri her kısımda eşleştirir: iki ders ya da ders adı seçin (ör. TBE201 ve SBE201). Sınıf ya da öğretmen seçmezseniz o derslerin okutulduğu bütün kısımlara uygulanır; listede ilk görünen ders önce gelir."
+      : "Seçilen ders kendi ders adını temsil eder: sınıf ya da öğretmen seçmezseniz kural o dersin okutulduğu bütün kısımlara uygulanır; seçerseniz yalnızca onlarla sınırlanır.";
     renderSummary();
   }
   select.addEventListener("change", update);

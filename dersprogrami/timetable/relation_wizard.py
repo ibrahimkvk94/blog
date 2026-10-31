@@ -3,7 +3,9 @@
 
 Eşleştirme: ders adları kısa koda göre (kod yoksa adın "(U)"suz haline göre) gruplanır; uygulama dersi adında
 "(U)" ya da "(Uyg.)" eki olandır. Aynı sınıf kümesine verilen bir teori ve bir uygulama dersi bir çifttir.
-Var olan ilişki: tam olarak bu iki dersi seçen (başka seçimi olmayan) eşleştirme ilişkisi.
+Var olan ilişki: tam olarak bu iki dersi seçen (başka seçimi olmayan) eşleştirme ilişkisi. Sihirbazın kurduğu
+ilişkiler çiftin sınıflarıyla süzülür: seçilen ders ders adını temsil ettiğinden (solver/builder.py) süzgeçsiz bir
+ilişki bütün kısımlara yayılırdı; sihirbazda ise her kısmın koşulu ayrı seçilebilir.
 """
 
 import re
@@ -42,8 +44,11 @@ def analyze(school):
             groups[(_key(lesson.subject), classes)][kind].append(lesson)
     # ilişkiler: ders kümesi → ilişkiler
     rels = defaultdict(list)
-    for rel in school.relationships.prefetch_related("lessons", "subjects", "classes", "teachers", "lessons_b", "subjects_b"):
-        if rel.subjects.all() or rel.lessons_b.all() or rel.subjects_b.all() or rel.classes.all() or rel.teachers.all():
+    for rel in school.relationships.prefetch_related("lessons__classes", "subjects", "classes", "teachers", "lessons_b", "subjects_b"):
+        if rel.subjects.all() or rel.lessons_b.all() or rel.subjects_b.all() or rel.teachers.all():
+            continue
+        lesson_classes = {c.id for l in rel.lessons.all() for c in l.classes.all()}
+        if rel.classes.all() and {c.id for c in rel.classes.all()} != lesson_classes:
             continue
         ids = frozenset(l.id for l in rel.lessons.all())
         if len(ids) == 2:
@@ -110,6 +115,7 @@ def apply(school, keys, condition, importance, mode):
                     school=school, name=f"Teori + uygulama: {label} – {p['code']} ({p['classes']})"[:200],
                     condition=condition, importance=importance, apply_to=R.EACH_CLASS, param=1)
                 rel.lessons.set([p["theory"], p["practical"]])  # sıralı koşulda önce teori
+                rel.classes.set(p["theory"].classes.all())  # yalnızca bu kısım
                 created += 1
             elif existing and mode == "update":
                 rel = existing[0]

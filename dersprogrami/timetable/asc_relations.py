@@ -307,10 +307,16 @@ def plan(school, rows):
                 # Aynı kod iki kez (teori + uygulama): hangisinin önce geleceği belli olmadığından sırasız.
                 cond = R.CONSECUTIVE if same_code and condition == R.CONSECUTIVE_ORDERED else condition
                 candidates += 1
-                add({**common, "condition": cond, "lessons": [x.id for x in items], "classes": [],
-                     "name": f"aSc {row['no']}: {_title(cond)} – {', '.join(dict.fromkeys(codes))} ({cls.short or cls.name})",
+                # Tek kural yeter: seçilen dersler ders adlarını temsil eder ve sınıf süzgeci yoksa her kısımda
+                # o kısmın dersleri eşleşir (solver/builder.py). aSc kuralı sınıflarla sınırlıysa süzgeç olarak kalır.
+                sections = [c for c, its in by_class.items() if len(dict.fromkeys(its)) >= 2]
+                add({**common, "condition": cond, "lessons": [x.id for x in items],
+                     "classes": [c.id for c in scope_classes] if scope_classes else [],
+                     "name": f"aSc {row['no']}: {_title(cond)} – {', '.join(dict.fromkeys(codes))}"
+                             + (f" ({', '.join(c.short or c.name for c in scope_classes)})" if scope_classes else ""),
                      "warning": warning,
-                     "detail": " + ".join(f"{x.subject.name} ({x.periods_per_week} sa)" for x in items)})
+                     "detail": " + ".join(f"{x.subject.name} ({x.periods_per_week} sa)" for x in items) + f" · {len(sections)} kısımda"})
+                break
             if len(proposals) == before:
                 proposals.append({**base, "error": "Önceki bir satırla aynı (tekrar)." if candidates else "Hiçbir sınıfta bu kodlarla eşleşen iki ders yok."})
         elif kind == "together":

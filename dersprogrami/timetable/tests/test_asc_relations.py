@@ -66,10 +66,11 @@ class AscRelationshipImportTests(TestCase):
         by_row = {}
         for p in proposals:
             by_row.setdefault(p["row"], []).append(p)
-        # 1: her sınıfta teori + uygulama, sırasız art arda
-        self.assertEqual([p["condition"] for p in by_row["1"]], [CardRelationship.CONSECUTIVE] * 2)
-        self.assertEqual({tuple(sorted(p["lessons"])) for p in by_row["1"]},
-                         {tuple(sorted((a.id, b.id))) for a, b in zip(self.bil, self.bil_u)})
+        # 1: teori + uygulama, sırasız art arda: tek kural, sınıf süzgeci yok → çözücü her kısımda eşleştirir
+        self.assertEqual([p["condition"] for p in by_row["1"]], [CardRelationship.CONSECUTIVE])
+        self.assertIn(tuple(sorted(by_row["1"][0]["lessons"])), {tuple(sorted((a.id, b.id))) for a, b in zip(self.bil, self.bil_u)})
+        self.assertEqual(by_row["1"][0]["classes"], [])
+        self.assertIn("2 kısımda", by_row["1"][0]["detail"])
         self.assertIn("tekrar", by_row["2"][0]["error"])
         # 3: iki sınıfın dersleri aynı anda, yumuşak
         self.assertEqual(by_row["3"][0]["condition"], CardRelationship.SAME_TIME)
@@ -88,15 +89,15 @@ class AscRelationshipImportTests(TestCase):
         self.assertEqual(by_row["6"][0]["condition"], CardRelationship.CONSECUTIVE_ORDERED)
         self.assertEqual(by_row["6"][0]["lessons"], [self.tbe.id, self.sbe.id])
         self.assertIn("desteklenmiyor", by_row["7"][0]["error"])
-        self.assertEqual(len(ok), 6)
+        self.assertEqual(len(ok), 5)
 
     def test_view_preview_and_import(self):
         self.client.force_login(User.objects.create_superuser("admin", "a@x.tr", "pw"))
         url = reverse("timetable:relationship_import", args=[self.school.pk])
         page = self.client.post(url, {"action": "preview", "text": HTML})
         self.assertContains(page, "ilişki önerisi")
-        self.client.post(url, {"action": "import", "text": HTML, "sec": ["0", "1", "3", "4"]})
-        self.assertEqual(self.school.relationships.count(), 4)
+        self.client.post(url, {"action": "import", "text": HTML, "sec": ["0", "2", "3"]})
+        self.assertEqual(self.school.relationships.count(), 3)
         self.assertEqual(self.school.relationships.filter(active=False).count(), 1)
         # Aynısını yeniden yapıştırınca "zaten var" çıkar
         again = asc_relations.plan(self.school, asc_relations.parse(HTML))

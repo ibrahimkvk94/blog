@@ -1898,9 +1898,21 @@ def relation_wizard(request, pk):
 
 
 def _relation_signature(rel):
+    """Aynı kartlara aynı kuralı koyan ilişkiler aynı imzayı alır. Seçilen ders kendi ders adını temsil ettiğinden
+    (solver/builder.py) ör. aSc'den kısım kısım gelmiş "TBE201 → SBE201 (1SVN)" ve "(2SVN)" kuralları kopyadır;
+    yalnızca farklı sınıfların dersleri birbirine bağlanmışsa (ör. iki sınıf aynı anda) dersler ayrı sayılır."""
     ids = lambda qs: tuple(sorted(x.pk for x in qs.all()))  # noqa: E731
-    return (rel.condition, rel.param, rel.param_max, rel.apply_to, rel.card_length, ids(rel.lessons), ids(rel.subjects),
-            ids(rel.lessons_b), ids(rel.subjects_b), ids(rel.classes), ids(rel.teachers), ids(rel.classrooms),
+
+    def side(lessons, subjects):
+        lessons = list(lessons.all())
+        if len({tuple(sorted(c.pk for c in l.classes.all())) for l in lessons}) > 1 and rel.condition in rel.PAIRED:
+            return ("dersler", tuple(l.pk for l in lessons))
+        ordered = list(dict.fromkeys([l.subject_id for l in lessons]))
+        rest = sorted(s.pk for s in subjects.all() if s.pk not in ordered)
+        return tuple(ordered if rel.condition in rel.PAIRED else sorted(ordered)) + tuple(rest)
+
+    return (rel.condition, rel.param, rel.param_max, rel.apply_to, rel.card_length, side(rel.lessons, rel.subjects),
+            side(rel.lessons_b, rel.subjects_b), ids(rel.classes), ids(rel.teachers), ids(rel.classrooms),
             tuple(sorted(rel.time_map or [])), tuple(sorted(rel.time_map_b or [])))
 
 
@@ -1945,7 +1957,7 @@ def relation_audit(request, pk):
     from .input_diff import asc_mismatches
 
     asc_tt, asc_violations = asc_mismatches(school)
-    rels = list(school.relationships.prefetch_related("lessons__subject", "lessons__classes", "subjects", "lessons_b", "subjects_b",
+    rels = list(school.relationships.prefetch_related("lessons__subject", "lessons__classes", "subjects", "lessons_b__classes", "subjects_b",
                                                       "classes", "teachers", "classrooms"))
     by_signature = defaultdict(list)
     for rel in rels:
@@ -1957,7 +1969,7 @@ def relation_audit(request, pk):
         flags = []
         if not rel.active:
             flags.append("closed")
-        elif rel.condition not in rel.STUDENT and n_cards == 0:
+        elif rel.condition not in rel.STUDENT and n_cards == 0 and not twins:
             flags.append("empty")
         if violations.get(rel.pk):
             flags.append("violated")

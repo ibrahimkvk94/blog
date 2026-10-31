@@ -499,9 +499,18 @@ def _parse_map(raw):
 
 
 def _relationships(school, cards, lesson_data, grades):
+    """Kart ilişkileri → RelationshipSpec listesi.
+
+    Seçilen bir ders (kısım) kendi ders adını temsil eder: sınıf ya da öğretmen süzgeci yoksa kural o ders
+    adının okutulduğu bütün kısımlara uygulanır (ör. "TBE201 1SVN → SBE201 1SVN" art arda kuralı her kısımda
+    o kısmın TBE201'i ile SBE201'ini eşleştirir). Sınıf / öğretmen seçilirse yalnızca onlarla sınırlanır.
+    """
+    from ..models import SchoolClass
+
     specs = []
+    class_names = {c.id: c.short or c.name for c in SchoolClass.objects.filter(school=school)}
     relationships = school.relationships.filter(active=True).prefetch_related(
-        "lessons", "subjects", "lessons_b", "subjects_b", "classes", "teachers", "classrooms"
+        "lessons__classes", "subjects", "lessons_b", "subjects_b", "classes", "teachers", "classrooms"
     )
     for rel in relationships:
         if rel.condition in rel.STUDENT:  # seçmeli dağıtımında uygulanır
@@ -509,10 +518,12 @@ def _relationships(school, cards, lesson_data, grades):
         class_filter = {c.id for c in rel.classes.all()}
         teacher_filter = {t.id for t in rel.teachers.all()}
 
-        def side(lesson_ids, subject_ids):
+        def side(lessons, subject_ids):
+            subject_ids = set(subject_ids) | {lesson.subject_id for lesson in lessons}
+
             def selected(card):
                 data = lesson_data[card.lesson_id]
-                if (lesson_ids or subject_ids) and card.lesson_id not in lesson_ids and data["subject"] not in subject_ids:
+                if subject_ids and data["subject"] not in subject_ids:
                     return False
                 if class_filter and not class_filter & set(data["classes"]):
                     return False
@@ -524,10 +535,9 @@ def _relationships(school, cards, lesson_data, grades):
 
             return [c for c in cards if selected(c)]
 
-        lesson_ids = [lesson.id for lesson in rel.lessons.all()]
-        chosen = side(lesson_ids, {s.id for s in rel.subjects.all()})
+        chosen = side(list(rel.lessons.all()), {s.id for s in rel.subjects.all()})
         two_sided = rel.condition in rel.TWO_SIDED
-        chosen_b = side([lesson.id for lesson in rel.lessons_b.all()], {s.id for s in rel.subjects_b.all()}) if two_sided else []
+        chosen_b = side(list(rel.lessons_b.all()), {s.id for s in rel.subjects_b.all()}) if two_sided else []
         if not chosen or (two_sided and not chosen_b):
             continue
 
@@ -552,7 +562,7 @@ def _relationships(school, cards, lesson_data, grades):
                 return sorted({grades.get(c) for c in classes}, key=str)
             return [None]
 
-        groups_b, owner_refs = [], []
+        groups_b, owner_refs, paired_sets = [], [], []
         if rel.condition == rel.RESERVE:
             # Rezerv: seçilen dersler bir küme; aynı sınıfların seçilmeyen kartları işaretli saatlere giremez.
             chosen_keys = {c.key for c in chosen}
@@ -560,9 +570,30 @@ def _relationships(school, cards, lesson_data, grades):
             others = [c.key for c in cards if c.key not in chosen_keys and classes & set(lesson_data[c.lesson_id]["classes"])]
             groups, groups_b = [sorted(chosen_keys)], [others]
         elif rel.condition in rel.PAIRED:
-            order = lesson_ids or sorted({c.lesson_id for c in chosen})
-            groups = [[c.key for c in chosen if c.lesson_id == lid] for lid in order]
-            groups = [g for g in groups if g]
+            # Kısım kısım eşleştir: aynı sınıf(lar)ın seçilen ders adlarındaki dersleri, ders adı sırasıyla (önce
+            # listede ilk görünen dersin adı); aynı ad iki kez varsa (teori + uygulama) ders sırasıyla.
+            subject_order = list(dict.fromkeys([l.subject_id for l in rel.lessons.all()] + [s.id for s in rel.subjects.all()]))
+            rank = {sid: i for i, sid in enumerate(subject_order)}
+            by_section = defaultdict(lambda: defaultdict(list))
+            for card in chosen:
+                data = lesson_data[card.lesson_id]
+                section = tuple(sorted(c for c in data["classes"] if not class_filter or c in class_filter))
+                by_section[section][card.lesson_id].append(card.key)
+            picked = list(rel.lessons.all())
+            if len({tuple(sorted(c.id for c in l.classes.all())) for l in picked}) > 1:
+                # Farklı sınıfların dersleri birbirine bağlanmış (ör. BSB203 ile İŞL299 aynı anda): kısım karşılığı
+                # olmadığından yalnızca seçilen dersler, seçildikleri sırayla eşleşir.
+                by_section = {}
+                explicit = [[c.key for c in chosen if c.lesson_id == lesson.id] for lesson in picked]
+                explicit = [g for g in explicit if g]
+                if len(explicit) >= 2:
+                    paired_sets.append(("", explicit))
+            for section, lessons in sorted(by_section.items()):
+                ordered = sorted(lessons, key=lambda lid: (rank.get(lesson_data[lid]["subject"], len(rank)), lid))
+                section_groups = [lessons[lid] for lid in ordered]
+                if len(section_groups) >= 2:
+                    paired_sets.append((", ".join(class_names.get(c, "?") for c in section) or "sınıfsız", section_groups))
+            groups = paired_sets[0][1] if paired_sets else []
         else:
             by_owner, by_owner_b = defaultdict(list), defaultdict(list)
             for card in chosen:
@@ -598,5 +629,19 @@ def _relationships(school, cards, lesson_data, grades):
             # N tercih edilen sınır (aşımı cezalı), param_max hiç aşılamayan istisna sınırı.
             specs.append(replace(spec, name=f"{rel.name} (istisna sınırı {rel.param_max})", param=rel.param_max, weight=None))
             spec = replace(spec, name=f"{rel.name} (tercih {rel.param})", weight=rel.weight or rel.WEIGHTS[rel.HIGH])
-        specs.append(spec)
-    return specs
+        if paired_sets:
+            single = len(paired_sets) == 1
+            specs.extend(spec if single else replace(spec, name=f"{rel.name} · {label}", groups=g) for label, g in paired_sets)
+        else:
+            specs.append(spec)
+    # Aynı kart kümesine aynı kuralı koyan ilişkiler (ör. aSc'den kısım kısım gelmiş, artık hepsi tüm kısımlara
+    # yayılan kopyalar) tek kez çözülür.
+    apply_to = {rel.id: rel.apply_to for rel in relationships}
+    unique, seen = [], set()
+    for spec in specs:
+        key = (apply_to.get(spec.id), spec.condition, spec.param, spec.weight, tuple(map(tuple, spec.groups)), tuple(map(tuple, spec.groups_b)),
+               spec.cells, spec.cells_b, tuple(spec.rooms))
+        if key not in seen:
+            seen.add(key)
+            unique.append(spec)
+    return unique
