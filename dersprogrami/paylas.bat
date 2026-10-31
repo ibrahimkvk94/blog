@@ -12,15 +12,25 @@ cd /d "%~dp0"
     pause
     exit /b 1
   )
-  echo Guvenlik duvari: 8000 kapisi yalnizca Tailscale agina aciliyor...
+  REM 8000 kapisi yalnizca Tailscale agina ve ayni yerel alt aga acilir; internetten gelene kapali kalir.
+  echo Guvenlik duvari: 8000 kapisi Tailscale agina ve ayni yerel aga aciliyor...
   netsh advfirewall firewall show rule name="Ders Programi (Tailscale)" >nul 2>&1 && (
-    echo        Kural zaten var.
+    echo        Tailscale kurali zaten var.
   ) || (
     netsh advfirewall firewall add rule name="Ders Programi (Tailscale)" dir=in action=allow protocol=TCP localport=8000 remoteip=100.64.0.0/10 profile=any >nul 2>&1 && (
-      echo        Kural eklendi.
+      echo        Tailscale kurali eklendi.
     ) || (
       echo        Kural eklenemedi: yonetici yetkisi gerekiyor. Bu dosyaya bir kez sag tiklayip
       echo        "Yonetici olarak calistir" deyin; sonraki acilislarda gerekmez.
+    )
+  )
+  netsh advfirewall firewall show rule name="Ders Programi (yerel ag)" >nul 2>&1 && (
+    echo        Yerel ag kurali zaten var.
+  ) || (
+    netsh advfirewall firewall add rule name="Ders Programi (yerel ag)" dir=in action=allow protocol=TCP localport=8000 remoteip=localsubnet profile=any >nul 2>&1 && (
+      echo        Yerel ag kurali eklendi: ayni agdaki bilgisayarlar bu bilgisayarin IP adresiyle baglanabilir.
+    ) || (
+      echo        Yerel ag kurali eklenemedi: yonetici yetkisi gerekiyor ^(yukaridaki gibi bir kez^).
     )
   )
   call .venv\Scripts\activate.bat

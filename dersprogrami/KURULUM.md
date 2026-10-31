@@ -122,7 +122,9 @@ Tarayıcı birkaç saniye içinde kendiliğinden **http://127.0.0.1:8000/** adre
 
 Program senin bilgisayarında çalışır; Tailscale ağındaki kişiler her yerden tarayıcıyla bağlanır. Trafik Tailscale ile şifrelidir, program internete açılmaz.
 
-1. **Bilgisayarında:** `calistir.bat` yerine **`paylas.bat`**'ı aç (ikisini aynı anda açma). İlk seferde güvenlik duvarı kuralı için dosyaya **sağ tıkla → Yönetici olarak çalıştır**; kural yalnızca Tailscale adreslerine (100.x.x.x) 8000 kapısını açar. Sonraki açılışlarda çift tıklamak yeter.
+1. **Bilgisayarında:** `calistir.bat` yerine **`paylas.bat`**'ı aç (ikisini aynı anda açma). İlk seferde güvenlik duvarı kuralları için dosyaya **sağ tıkla → Yönetici olarak çalıştır**; kurallar 8000 kapısını yalnızca Tailscale adreslerine (100.x.x.x) ve aynı yerel ağdaki (alt ağdaki) bilgisayarlara açar, internetten gelene kapalı kalır. Sonraki açılışlarda çift tıklamak yeter.
+
+**Tailscale olmadan, aynı ağdan:** `paylas.bat` açılınca pencerede `http://192.168.x.x:8000/` gibi yerel adres de yazar; aynı ağdaki (aynı modem / switch) bilgisayarlar bu adresi tarayıcıya yazarak bağlanır. Bu adres değişmesin diye sunucu bilgisayara modemden ya da ağ yöneticisinden **sabit IP** verdirin.
 2. Pencerede **“Tailscale ile”** başlığının altında `http://bilgisayarin-adi.xxxx.ts.net:8000/` ve `http://100.x.x.x:8000/` adresleri yazar. Bunları bağlanacak kişilere ver.
 3. **Bağlanacak kişiler:** Tailscale'i kurup senin ağına katılmalı. Tailscale yönetim panelinde (login.tailscale.com → *Users → Invite users*) onları davet et ya da yalnızca bu bilgisayarı paylaş (*Machines → bilgisayarın → Share*). Paylaşmak daha güvenlidir: kişi yalnızca bu bilgisayarı görür.
 4. **Hesaplar:** Herkese programda ayrı kullanıcı aç (sol menü → Yönetim → Kullanıcılar) ve yalnızca gereken yetkileri ver. Örneğin bölüm sorumlusuna Bölümler ekranından bölüm sorumluluğu, sadece bakacak olana “görüntüle”.
