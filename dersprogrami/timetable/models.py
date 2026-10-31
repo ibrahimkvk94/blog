@@ -902,7 +902,7 @@ class CardRelationship(models.Model):
             (SAME_TIME, "Aynı anda"),
             (SAME_DAY, "Aynı gün"),
             (CONSECUTIVE, "Art arda, bitişik (sıra serbest)"),
-            (CONSECUTIVE_ORDERED, "Art arda, sıralı (önce ilk seçilen ders)"),
+            (CONSECUTIVE_ORDERED, "Art arda, sıralı (önce listedeki ilk ders)"),
         ]),
         ("İki taraflı (A ↔ B)", [
             (AB_NOT_SAME_DAY, "A ile B aynı gün olmasın"),

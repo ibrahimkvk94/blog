@@ -330,7 +330,7 @@ class RelationshipForm(SchoolScopedForm):
         CardRelationship.SAME_TIME: "Seçilen derslerin kartları eşleşip aynı saate konur (1. kart ile 1. kart…). Ör. 5A ve 5B Matematik aynı anda.",
         CardRelationship.SAME_DAY: "Seçilen derslerin eşleşen kartları aynı güne konur.",
         CardRelationship.CONSECUTIVE: "Seçilen derslerin eşleşen kartları aynı gün art arda (bitişik) olur; sıra serbesttir.",
-        CardRelationship.CONSECUTIVE_ORDERED: "Eşleşen kartlar aynı gün art arda olur ve ilk seçilen ders önce gelir. Ör. teori ve ardından laboratuvar.",
+        CardRelationship.CONSECUTIVE_ORDERED: "Seçilen iki dersin kartları sırayla eşleşir (1. kart ↔ 1. kart, 2. kart ↔ 2. kart…). Her eşte, listede ilk görünen dersin kartı biter bitmez aynı gün ikinci dersin kartı başlar. Ör. TBE201 Pzt 1–2. saat ise SBE201 Pzt 3. saat. Fazla kalan kartlar serbesttir; Kartlar seçimi yalnızca tekil ya da blok kartları eşleştirir.",
         CardRelationship.AB_NOT_SAME_DAY: "A tarafındaki hiçbir kart B tarafındaki bir kartla aynı güne düşmez. Haritalarla: ör. öğretmen aynı gün hem sabah (A haritası) hem öğleden sonra (B haritası) ders vermesin.",
         CardRelationship.AB_NOT_CONSECUTIVE: "A ve B kartları art arda gelmez. Ör. iki zor ders üst üste olmasın.",
         CardRelationship.AB_NOT_DAY_AFTER: "B kartı, A kartının ertesi gününe düşmez. Ör. Biyoloji Kimya'dan sonraki gün olmasın (A: Kimya, B: Biyoloji).",
