@@ -1,0 +1,6 @@
+{% comment %}
+Eşzamanlı düzenleme: kaydın sayfa açılırkenki hali (alan özetleri). Kaydederken kayıt bu arada değiştiyse
+kaydedilmez, aşağıda farklı alanlar listelenir (editor.js JSON yanıtındaki aynı kutuyu buraya koyar).
+{% endcomment %}
+{% if record_state %}<input type="hidden" name="_kayit_durumu" value="{{ record_state }}" data-record-state>{% endif %}
+<div data-conflict>{% if conflict %}{% include "timetable/data/conflict.html" %}{% endif %}</div>

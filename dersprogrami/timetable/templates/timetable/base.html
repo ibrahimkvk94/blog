@@ -55,7 +55,7 @@
       </button>
       <div class="topbar-title">
         <div class="crumbs">{% block crumbs %}{% endblock %}</div>
-        <div class="title-row">{% block heading %}{% endblock %}</div>
+        <div class="title-row">{% block heading %}{% endblock %}{% if presence %}<span class="presence-pill" data-presence data-url="{{ presence.url }}" data-key="{{ presence.key }}" data-editing="{{ presence.editing|yesno:'1,0' }}" role="status" hidden>{% include "timetable/icon.html" with name="users" %}<span data-presence-text></span></span>{% endif %}</div>
       </div>
       <div class="actions">{% block actions %}{% endblock %}</div>
       <button type="button" class="theme-toggle" id="theme-toggle" data-theme-toggle title="Açık / koyu tema" aria-label="Açık / koyu tema"><span class="i-moon">{% include "timetable/icon.html" with name="moon" %}</span><span class="i-sun">{% include "timetable/icon.html" with name="sun" %}</span></button>
@@ -78,6 +78,7 @@
 <script type="application/json" id="palette-pages">{% nav_pages_json %}</script>
 <script type="application/json" id="palette-icons">{% palette_icons_json %}</script>
 <script src="{% asset 'timetable/palette.js' %}" defer></script>
+{% if presence %}<script src="{% asset 'timetable/presence.js' %}" defer></script>{% endif %}
 {% if user.is_authenticated %}<script src="{% asset 'timetable/notifications.js' %}" data-url="{% url 'timetable:api_notifications' %}" data-read="{% url 'timetable:api_notifications_read' %}" data-page="{% url 'timetable:notifications' %}" defer></script>{% endif %}
 <script>
   document.querySelectorAll("[data-theme-toggle]").forEach(function (b) { b.addEventListener("click", function () {

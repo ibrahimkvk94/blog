@@ -8,6 +8,7 @@ from collections import defaultdict
 
 from django.db import transaction
 
+from . import concurrency
 from .models import Card, Timetable
 from .problem_cache import problem_for
 
@@ -227,6 +228,7 @@ def record(timetable, label, before):
     history = (list(timetable.history or []) + [{"label": label, "cards": before}])[-HISTORY_LIMIT:]
     Timetable.objects.filter(pk=timetable.pk).update(history=history, redo_stack=[])
     timetable.history, timetable.redo_stack = history, []
+    timetable.revision = concurrency.bump(timetable.pk, [s[0] for s in before], label)  # eşzamanlı düzenleme denetimi
 
 
 def _apply(timetable, states):
@@ -251,6 +253,7 @@ def _step(timetable, source, target, verb):
         current = _apply(timetable, step["cards"])
         other = (list(getattr(timetable, target) or []) + [{"label": step["label"], "cards": current}])[-HISTORY_LIMIT:]
         Timetable.objects.filter(pk=timetable.pk).update(**{source: stack, target: other})
+        concurrency.bump(timetable.pk, [s[0] for s in step["cards"]], f"{step['label']} ({verb})")
     return {"ok": True, "message": f"{verb.capitalize()}: {step['label']}"}
 
 
@@ -273,12 +276,15 @@ def history_info(timetable):
 # --- kart işlemleri ---------------------------------------------------------------------------
 
 
-def move_card(card, day, period, mode="displace"):
+def move_card(card, day, period, mode="displace", protect=None):
     """Kartı taşır. mode: "displace" çakışan kartları bekleyenlere alır, "ignore" çakışmaya rağmen
     yerleştirir, "swap" tek çakışan kartla yer değiştirir, "ask" çakışma varsa hiçbir şey yapmadan
-    çakışmaları döndürür (kullanıcıya sorulur)."""
+    çakışmaları döndürür (kullanıcıya sorulur). protect: kullanıcı son baktığından beri başkasının değiştirdiği
+    kartlar; hedefte bunlardan biri varsa hiçbir şey yapılmaz ({"stale": True})."""
     board = Board(card.timetable)
     info = board.evaluate(card.id, day, period)
+    if protect and {d["card"] for d in info["conflicts"]} & set(protect):
+        return {"ok": False, "stale": True, "message": "Hedef hücre siz bakarken değişti."}
     if info["status"] == BLOCKED:
         return {"ok": False, "message": " ".join(info["reasons"])}
     conflicts = info["conflicts"]

@@ -110,6 +110,16 @@
     }
     saving = false;
     clearErrors();
+    const conflictBox = $("[data-conflict]", form);
+    if (data.conflict && conflictBox) {
+      // Kayıt bu sayfa açıldıktan sonra başkası tarafından değişti: farklı alanlar gösterilir, "Yine de kaydet" sorulur.
+      conflictBox.innerHTML = data.html || "";
+      setState("error", "Kayıt siz düzenlerken değişti");
+      toast(data.message || "Kayıt siz düzenlerken değişti.", "error");
+      conflictBox.scrollIntoView({ block: "center", behavior: "smooth" });
+      return;
+    }
+    if (conflictBox) conflictBox.innerHTML = "";
     if (!data.ok) {
       setState("error", "Hatalı alanlar var");
       toast(data.message || "Kaydedilemedi.", "error");
@@ -119,6 +129,8 @@
     dirty = false;
     if (data.next) { location.href = data.next; return; }
     if (data.reload) { location.href = data.url + location.hash; return; }
+    const token = $("[data-record-state]", form);
+    if (token && data.state) token.value = data.state;  // kaydedilen hal yeni karşılaştırma noktası
     baseline = snapshot();
     state.dataset.saved = "Kaydedildi · " + new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
     state.classList.remove("error");
@@ -138,6 +150,8 @@
     baseline = snapshot();
   }
   form.addEventListener("submit", (e) => { e.preventDefault(); save(e.submitter); });
+  // Çakışma kutusundaki "Güncel hali yükle": değişiklikler bilerek bırakılıyor, ayrıca sorulmaz.
+  form.addEventListener("click", (e) => { if (e.target.closest("[data-conflict-reload]")) dirty = false; });
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); save(null); }
     if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {

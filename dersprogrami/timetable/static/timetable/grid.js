@@ -23,13 +23,23 @@
     return m ? decodeURIComponent(m[1]) : "";
   }
 
+  // Eşzamanlı düzenleme: her işlem son görülen program sürümünü ve bu sekmenin kimliğini gönderir; arada
+  // başkası değiştirdiyse sunucu işlemi reddeder (409, stale) ya da uygular ve "others" ile bildirir.
+  const TAB = window.EditorTab || (window.EditorTab = Math.random().toString(36).slice(2, 10));
+  let inflight = 0;
+
   async function api(url, options) {
-    const res = await fetch(url, Object.assign({
-      credentials: "same-origin",
-      headers: { "X-CSRFToken": csrf(), "Content-Type": "application/json", "X-Grid-Kind": state.kind },
-    }, options || {}));
+    const headers = { "X-CSRFToken": csrf(), "Content-Type": "application/json", "X-Grid-Kind": state.kind, "X-Editor-Tab": TAB };
+    if (options && options.method === "POST" && state.revision != null) headers["X-Timetable-Revision"] = String(state.revision);
+    inflight += 1;
+    let res;
+    try {
+      res = await fetch(url, Object.assign({ credentials: "same-origin", headers }, options || {}));
+    } finally { inflight -= 1; }
     let data = {};
     try { data = await res.json(); } catch (e) { /* boş yanıt */ }
+    // "others" varsa görünüm eskidir: sürüm, ardından gelen tam yüklemede güncellenir.
+    if (typeof data.revision === "number" && !data.stale && !data.others) state.revision = data.revision;
     if (!res.ok || data.ok === false) {
       const err = new Error(data.message || "İşlem başarısız oldu.");
       err.data = data;
@@ -80,6 +90,7 @@
     dragging: null,
     compare: "",
     preview: null,  // çözüm merkezi önizlemesi: {index, total, moves, ...}
+    revision: null,  // sunucudaki program sürümü (son yüklemede / son işlemde görülen)
     view: Object.assign({ title: "code", line: "auto", color: "subject", stripes: true }, readJSON(store("tt-view"))),
   };
 
@@ -128,6 +139,7 @@
       toast(e.message, "error");
       return;
     }
+    if (typeof state.data.revision === "number") state.revision = state.data.revision;
     if (state.preview) applyPreview(state.data);
     state.cards = new Map();
     state.data.cards.concat(state.data.unplaced).forEach((c) => state.cards.set(c.id, c));
@@ -681,6 +693,11 @@
   // ---- işlemler ---------------------------------------------------------------------------
   // İşlemden sonra: yanıtta değişen kartlar varsa yalnızca onlar güncellenir, yoksa tablo yeniden yüklenir.
   async function refresh(result) {
+    if (result && result.others) {  // işlem uygulandı ama arada başkası da değiştirmiş: tümü yeniden yüklenir
+      toast(result.others);
+      await load();
+      return;
+    }
     if (result && applyDelta(result.delta)) {
       if (state.selected && state.cards.has(state.selected)) select(state.selected);
       else clearSelection();
@@ -695,7 +712,7 @@
       r = await promise;
       if (r.message) toast(r.message);
     } catch (e) {
-      toast(e.message, "error");
+      toast(e.message, e.data && e.data.stale ? "" : "error");  // stale: başkası değiştirdi, tablo aşağıda yenilenir
     }
     if (!keepSelection) state.selected = null;
     await refresh(r);
@@ -730,7 +747,12 @@
       // Zincirleme taşıma: oradaki kart(lar) yerinden çıkar, ilki seçilir ve onun uygun yerleri yanar.
       try {
         r = await postMove(id, day, period, "displace");
-      } catch (e) { toast(e.message, "error"); return; }
+      } catch (e) {
+        toast(e.message, e.data && e.data.stale ? "" : "error");
+        if (e.data && e.data.stale) { state.selected = null; await load(); }
+        return;
+      }
+      if (r.others) { toast(r.others); state.selected = null; await load(); return; }
       const next = (r.displaced || [])[0];
       const moved = state.cards.get(next);
       toast(moved ? moved.subject_name + " (" + moved.classes + ") yerinden çıktı: şimdi onu yerleştirin. Bırakmak için Esc."
@@ -748,7 +770,7 @@
         if (choice === "cancel") return;
         return run(postMove(id, day, period, choice));
       }
-      toast(e.message, "error");
+      toast(e.message, e.data && e.data.stale ? "" : "error");
     }
     state.selected = null;
     await refresh(r);
@@ -1221,4 +1243,14 @@
     if (search) $("#row-filter").value = search;
     load();
   }
+
+  // Kim düzenliyor (presence.js): nabız son görülen sürümü taşır; arada başka biri değiştirdiyse ve kullanıcı
+  // o an bir şey yapmıyorsa (sürükleme, açık pencere, süren istek yok) tablo kendiliğinden yenilenir.
+  window.PresenceExtra = () => (state.revision == null ? { tab: TAB } : { tab: TAB, since: state.revision });
+  document.addEventListener("presence:update", async (e) => {
+    const d = e.detail || {};
+    if (!d.changed || state.dragging != null || inflight || document.querySelector("dialog[open]")) return;
+    toast(d.changed);
+    await load();
+  });
 })();
