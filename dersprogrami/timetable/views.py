@@ -712,6 +712,31 @@ def quality_page(request, pk):
     ))
 
 
+def program_compare(request, pk):
+    """Program karşılaştırma karnesi: bu program ile aynı okulun seçilen başka bir programı (ör. aSc'den gelen)
+    aynı ölçütlerle; özet, öğretmen ve sınıf tabloları. ?excel=1 aynı karşılaştırmayı Excel olarak indirir."""
+    from . import program_compare as pc
+
+    timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
+    school = timetable.school
+    others = pc.candidates(timetable)
+    other_id = request.GET.get("diger", "")
+    other = next((t for t in others if str(t.pk) == other_id), None) if other_id else pc.default_other(timetable)
+    try:
+        threshold = min(30, max(0, int(request.GET.get("esik") or pc.DEFAULT_THRESHOLD)))
+    except ValueError:
+        threshold = pc.DEFAULT_THRESHOLD
+    data = pc.compare(timetable, other, threshold) if other is not None else None
+    if data is not None and request.GET.get("excel"):
+        response = HttpResponse(pc.workbook(data), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        response["Content-Disposition"] = f'attachment; filename="program-karsilastirma-{timetable.pk}-{other.pk}.xlsx"'
+        return response
+    return render(request, "timetable/program_compare.html", _nav(
+        school, "compare", timetable=timetable, other=other, others=others, data=data, threshold=threshold,
+        grid_url=reverse("timetable:timetable_detail", args=[pk]),
+    ))
+
+
 def room_usage(request, pk):
     """Derslik doluluğu: gün × saat ısı haritası (hücrede boş/dolu derslikler) ve derslik başına kullanım."""
     from . import occupancy
