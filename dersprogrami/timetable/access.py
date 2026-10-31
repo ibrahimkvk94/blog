@@ -67,6 +67,15 @@ SCHOOL_ROUTES = {
     "data_delete": (M.DATA, M.DATA),
     "school_users": (M.USERS, M.USERS),
     "program_delete": (M.PROGRAMS, M.PROGRAMS),
+    # sınav programı (exam_views.py)
+    "exams": (M.VIEW, M.DATA),
+    "exam_period": (M.VIEW, M.DATA),
+    "exam_solve": (M.VIEW, M.DATA),
+    "exam_results": (M.VIEW, M.DATA),
+    "exam_edit": (M.VIEW, M.DATA),
+    "exam_proctors": (M.VIEW, M.DATA),
+    "exam_print": (M.VIEW, M.VIEW),
+    "exam_excel": (M.VIEW, M.VIEW),
 }
 # pk = kurum
 INSTITUTION_ROUTES = {
@@ -210,6 +219,8 @@ def _deny(request, message):
 PLACEMENT_ONLY = set(CARD_ROUTES) | {
     "api_row_action", "api_undo", "api_redo", "api_bulk", "api_cell_candidates", "api_versions", "publish", "activate", "api_resolve",
     "report_excel", "report_pdf", "uybs_export", "uybs_archive", "substitutions", "duties", "solution_center", "quality", "pending", "school_improve", "change_report", "print_settings", "backup_compare",
+    # sınav programı ders programının çözücü verisini değiştirmez
+    "exams", "exam_period", "exam_solve", "exam_results", "exam_edit", "exam_proctors",
 }
 
 
@@ -333,6 +344,9 @@ ACTION_LABELS = {
     "api_versions": "Versiyon kaydetti", "api_version": "Versiyon işlemi", "api_row_action": "Satır işlemi",
     "api_card_move": "Kart taşıdı", "api_card_unplace": "Kartı kaldırdı", "api_card_lock": "Kart kilidi",
     "api_card_room": "Derslik değiştirdi", "api_lesson_quick": "Hızlı değişiklik", "reports": "Rapor şablonu",
+    "exams": "Sınav dönemi ekledi", "exam_period": "Sınav dönemini düzenledi", "exam_solve": "Sınav programı oluşturdu",
+    "exam_results": "Sınav programı işlemi", "exam_edit": "Sınavı düzenledi", "exam_proctors": "Gözetmen ayarları",
+    "exam_print": "Sınav programı yazdırdı", "exam_excel": "Sınav programı Excel",
     "account": "Parolasını değiştirdi", "backups": "Yedekleme", "system_update": "Sistem güncelleme", "broadcast": "Duyuru gönderdi", "institution_detail": "Kurumu düzenledi", "publish_settings": "Web yayını",
 }
 SKIP_AUDIT = {"login", "logout", "api_notifications_read", "notifications"}  # okundu işaretleri günlüğe yazılmaz

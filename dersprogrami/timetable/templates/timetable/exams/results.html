@@ -1,0 +1,146 @@
+{% extends "timetable/base.html" %}
+{% load assets %}
+{% block title %}{{ period.name }} – program{% endblock %}
+{% block head %}{% if period.is_running %}<meta http-equiv="refresh" content="3">{% endif %}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{% url 'timetable:exams' school.pk %}">Sınav programı</a> / <a href="{% url 'timetable:exam_period' school.pk period.pk %}">{{ period.name }}</a>{% endblock %}
+{% block heading %}<h1>{{ period.name }}</h1>{% include "timetable/exams/status.html" %}{% endblock %}
+{% block actions %}
+  {% if can.veri and total %}
+    <form method="post" action="{% url 'timetable:exam_solve' school.pk period.pk %}"{% if placed %} data-confirm="Kilitli olmayan yerleşimler silinip program yeniden oluşturulsun mu?"{% endif %}>{% csrf_token %}
+      <button class="btn btn-primary"{% if period.is_running %} disabled{% endif %}>{% include "timetable/icon.html" with name="wand" %} {% if placed %}Yeniden oluştur{% else %}Programı oluştur{% endif %}</button></form>
+  {% endif %}
+  {% if placed %}
+    <details class="dropdown">
+      <summary class="btn">{% include "timetable/icon.html" with name="printer" %} Yazdır</summary>
+      <div class="dropdown-menu">
+        <a href="{% url 'timetable:exam_print' school.pk period.pk %}?tur=takvim" target="_blank">Sınav takvimi</a>
+        <a href="{% url 'timetable:exam_print' school.pk period.pk %}?tur=gozetmenler" target="_blank">Gözetmen listesi</a>
+        <a href="{% url 'timetable:exam_print' school.pk period.pk %}?tur=siniflar" target="_blank">Sınıfların programı</a>
+        <a href="{% url 'timetable:exam_print' school.pk period.pk %}?tur=salonlar" target="_blank">Salonlar</a>
+      </div>
+    </details>
+    <a class="btn" href="{% url 'timetable:exam_excel' school.pk period.pk %}">{% include "timetable/icon.html" with name="download" %} Excel</a>
+  {% endif %}
+{% endblock %}
+{% block content %}
+{% include "timetable/exams/tabs.html" with active="program" %}
+
+{% if period.is_running %}
+  <div class="panel running-card" style="margin-top:14px"><div class="panel-body">
+    <span class="pill running">Oluşturuluyor</span> Sınav programı aranıyor (en çok {{ period.time_limit }} sn). Sayfa kendiliğinden yenilenir; bitince bildirim de gelir.
+  </div></div>
+{% else %}
+
+{% if report.errors %}
+  <div class="alert alert-error" style="margin-top:14px"><b>Program oluşturulamadı:</b>
+    <ul class="ex-list">{% for e in report.errors %}<li>{{ e }}</li>{% endfor %}</ul></div>
+{% endif %}
+{% if report.stats and not report.errors %}
+  <div class="ex-summary" style="margin-top:14px">
+    <div><b>{{ placed }} / {{ total }}</b><span>yerleşen sınav</span></div>
+    <div><b>{{ report.stats.rooms_used }}</b><span>salon kullanımı</span></div>
+    <div><b>{{ report.stats.proctor_teachers }}</b><span>gözetmen öğretmen</span></div>
+    <div><b>{{ report.stats.proctor_max }}</b><span>en çok görev</span></div>
+    <div><b>{{ report.stats.seconds }} sn</b><span>süre</span></div>
+  </div>
+{% endif %}
+{% if errors %}
+  <div class="alert alert-error"><b>{{ errors|length }} kural ihlali</b> (çoğunlukla elle yapılan değişikliklerden):
+    <ul class="ex-list">{% for i in errors|slice:":30" %}<li>{% if i.exam %}<a href="{% url 'timetable:exam_edit' school.pk period.pk i.exam %}">{{ i.text }}</a>{% else %}{{ i.text }}{% endif %}</li>{% endfor %}</ul></div>
+{% endif %}
+{% if warns %}
+  <details class="alert alert-warning"><summary><b>{{ warns|length }} uyarı</b></summary>
+    <ul class="ex-list">{% for i in warns|slice:":60" %}<li>{% if i.exam %}<a href="{% url 'timetable:exam_edit' school.pk period.pk i.exam %}">{{ i.text }}</a>{% else %}{{ i.text }}{% endif %}</li>{% endfor %}</ul></details>
+{% endif %}
+
+{% if placed %}
+<div class="ex-toolbar" style="margin:14px 0 10px">
+  <nav class="segmented" aria-label="Görünüm">
+    {% for key, label in views %}<a href="?gorunum={{ key }}" class="{% if view == key %}active{% endif %}">{{ label }}</a>{% endfor %}
+  </nav>
+  {% if view != "takvim" %}<input type="search" class="input input-sm" placeholder="Ara…" data-ex-filter="#ex-view" style="max-width:240px">{% endif %}
+  {% if can.veri %}
+  <form method="post" class="ex-tools">{% csrf_token %}<input type="hidden" name="gorunum" value="{{ view }}">
+    <button class="btn btn-sm" name="action" value="lock_all" title="Yeniden oluşturmada tüm yerleşimler korunur">{% include "timetable/icon.html" with name="lock" %} Tümünü kilitle</button>
+    <button class="btn btn-sm" name="action" value="unlock_all">{% include "timetable/icon.html" with name="unlock" %} Kilitleri kaldır</button>
+    <button class="btn btn-sm btn-ghost" name="action" value="clear" onclick="return confirm('Tüm yerleşimler (kilitliler dahil) silinsin mi?')">Temizle</button>
+  </form>
+  {% endif %}
+</div>
+
+{% if view == "takvim" %}
+<div class="panel"><div class="panel-body flush table-wrap">
+  <table class="table ex-cal">
+    <thead><tr><th class="ex-cal-day">Gün</th>{% for t in sessions %}<th>{{ forloop.counter }}. oturum · {{ t }}</th>{% endfor %}</tr></thead>
+    <tbody>
+      {% for day in calendar %}
+        <tr>
+          <th class="ex-cal-day">{{ day.date|date:"d.m.Y" }}<div class="subtle small">{{ day.day }}</div></th>
+          {% for cell in day.cells %}
+            <td>{% for pl in cell %}{% include "timetable/exams/exam_chip.html" %}{% endfor %}</td>
+          {% endfor %}
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+
+{% elif view == "siniflar" %}
+<div class="ex-cards" id="ex-view">
+  {% for c, items in classes %}
+    <div class="panel ex-card" data-search="{{ c.name|fold }} {{ c.short|fold }}">
+      <div class="panel-head"><h3>{{ c.short|default:c.name }}</h3><span class="subtle small">{{ items|length }} sınav</span></div>
+      <div class="panel-body flush"><table class="table table-compact">
+        {% for pl, crooms in items %}
+          <tr><td class="nowrap small">{{ pl.date|date:"d.m D" }}</td><td class="nowrap small">{% include "timetable/exams/time.html" %}</td>
+            <td><a href="{% url 'timetable:exam_edit' school.pk period.pk pl.exam_id %}">{{ pl.exam.title }}</a>{% if pl.exam.classes.all|length > 1 %} <span class="subtle small" title="Ortak sınav">· ortak</span>{% endif %}</td>
+            <td class="small">{% for r in crooms %}{{ r.classroom }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="ex-bad">salon yok</span>{% endfor %}</td></tr>
+        {% endfor %}
+      </table></div>
+    </div>
+  {% endfor %}
+</div>
+
+{% elif view == "gozetmenler" %}
+<div class="panel"><div class="panel-body flush table-wrap">
+  <table class="table table-compact" id="ex-view">
+    <thead><tr><th>Öğretmen</th><th class="num">Görev</th><th>Görevleri</th></tr></thead>
+    <tbody>
+      {% for t, items in teachers %}
+        <tr data-search="{{ t.full_name|fold }}">
+          <td class="nowrap">{{ t.full_name }}</td>
+          <td class="num"><b>{{ items|length }}</b></td>
+          <td>{% for pl, room in items %}<a class="ex-duty" href="{% url 'timetable:exam_edit' school.pk period.pk pl.exam_id %}">{{ pl.date|date:"d.m" }} {% include "timetable/exams/time.html" %} · {{ pl.exam.title }} · {{ room.classroom }}</a>{% endfor %}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div></div>
+{% if idle %}<p class="subtle small">Görev almayan öğretmenler ({{ idle|length }}): {% for t in idle %}{{ t.full_name }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+
+{% else %}
+<div class="ex-cards" id="ex-view">
+  {% for room, items in rooms %}
+    <div class="panel ex-card" data-search="{{ room.name|fold }}">
+      <div class="panel-head"><h3>{{ room }}</h3><span class="subtle small">kapasite {{ room.capacity }} · {{ items|length }} sınav</span></div>
+      <div class="panel-body flush"><table class="table table-compact">
+        {% for pl, r in items %}
+          <tr><td class="nowrap small">{{ pl.date|date:"d.m D" }}</td><td class="nowrap small">{% include "timetable/exams/time.html" %}</td>
+            <td><a href="{% url 'timetable:exam_edit' school.pk period.pk pl.exam_id %}">{{ pl.exam.title }}</a> <span class="subtle small">{{ r.seats }} öğr.</span></td>
+            <td class="small">{% for t in r.proctors.all %}{{ t.full_name }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="ex-bad">gözetmen yok</span>{% endfor %}</td></tr>
+        {% endfor %}
+      </table></div>
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% elif not report.errors %}
+  <div class="empty-state" style="margin-top:18px">
+    {% if total %}<p>Program henüz oluşturulmadı. <b>Programı oluştur</b> ile {{ total }} sınavı yerleştirin.</p>
+    {% else %}<p>Önce <a href="{% url 'timetable:exam_period' school.pk period.pk %}">sınav listesinde</a> sınavları derslerden oluşturun.</p>{% endif %}
+  </div>
+{% endif %}
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="{% asset 'timetable/data.js' %}"></script><script src="{% asset 'timetable/exams.js' %}"></script>{% endblock %}

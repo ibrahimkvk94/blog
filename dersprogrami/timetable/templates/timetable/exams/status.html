@@ -1,0 +1,1 @@
+{% if period.status == "running" %}<span class="pill running">Oluşturuluyor</span>{% elif period.status == "ok" %}<span class="pill ok">Oluşturuldu</span>{% elif period.status == "partial" %}<span class="pill warn">Kısmen</span>{% elif period.status == "failed" %}<span class="pill failed">Oluşturulamadı</span>{% else %}<span class="pill">Oluşturulmadı</span>{% endif %}

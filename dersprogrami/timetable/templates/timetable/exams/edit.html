@@ -1,0 +1,119 @@
+{% extends "timetable/base.html" %}
+{% load assets %}
+{% block title %}{{ exam.title }}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:exams' school.pk %}">Sınav programı</a> / <a href="{% url 'timetable:exam_period' school.pk period.pk %}">{{ period.name }}</a> / <a href="{% url 'timetable:exam_results' school.pk period.pk %}">Program</a>{% endblock %}
+{% block heading %}<h1>{{ exam.title }}</h1>{% if exam.excluded %}<span class="pill">sınav yapılmaz</span>{% elif placement %}<span class="pill ok">{{ placement.date|date:"d.m.Y" }} · {{ placement.session|add:1 }}. oturum</span>{% if placement.locked %}<span class="pill active-tt">kilitli</span>{% endif %}{% else %}<span class="pill warn">yerleşmedi</span>{% endif %}{% endblock %}
+{% block content %}
+<p class="page-lead">{% for c in exam.classes.all %}{{ c.short|default:c.name }}{% if not forloop.last %}, {% endif %}{% empty %}Sınıf seçilmemiş{% endfor %} · {{ exam.student_count }} öğrenci · {{ exam.duration }} oturum{% if exam.teachers.all %} · Dersin öğretmeni: {% for t in exam.teachers.all %}{{ t.full_name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}</p>
+
+{% if issues %}
+  <div class="alert alert-warning"><b>Bu sınavdaki sorunlar:</b><ul class="ex-list">{% for i in issues %}<li>{{ i.text }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+<div class="grid-2">
+  <div class="stack">
+    <div class="panel">
+      <div class="panel-head"><h2>Yerleşim</h2><span class="subtle small">Elle taşınan sınav kilitlenir; yeniden oluşturmada yeri korunur</span></div>
+      <div class="panel-body">
+        {% if can.veri and not exam.excluded %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="place">
+          <div class="form-row">
+            <label class="label" for="ex-slot">Gün ve oturum</label>
+            <select class="select" id="ex-slot" name="slot">
+              {% for date, s, label, problems in slots %}
+                <option value="{{ date|date:'Y-m-d' }}#{{ s }}"{% if placement and placement.date == date and placement.session == s %} selected{% endif %}{% if problems %} class="ex-opt-bad"{% endif %}>{{ label }}{% if problems %} — {{ problems|join:"; " }}{% endif %}</option>
+              {% endfor %}
+            </select>
+            <div class="help">Sınıflarının başka sınavıyla çakışan ya da günlük sınırı dolu oturumlar yanında yazılır; yine de seçilebilir.</div>
+          </div>
+          <div class="form-row">
+            <label class="label">Salonlar <span class="subtle small">(sınav kapasitesi; {{ exam.student_count }} öğrenci)</span></label>
+            <div class="chips-field" data-chips><input type="search" class="input chip-search" placeholder="Salon ara…" aria-label="Salon ara"><div class="chip-list">
+              {% for r in room_rows %}
+                <label class="chip-opt{% if r.busy %} ex-busy{% endif %}" data-label="{{ r.room.name|fold }}" title="{% if r.busy %}Bu oturumda dolu: {{ r.busy }}{% endif %}"><input type="checkbox" name="rooms" value="{{ r.room.pk }}"{% if r.on %} checked{% endif %}><span>{{ r.room }} ({{ r.cap }}){% if r.busy %} · dolu{% endif %}</span></label>
+              {% empty %}<span class="subtle small">Sınav salonu yok: dersliklere kapasite girin.</span>
+              {% endfor %}
+            </div></div>
+            {% if placement %}<div class="help">“dolu” işaretli salonlar şu anki oturumda başka sınavda kullanılıyor.</div>{% endif %}
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn btn-primary">{% if placement %}Kaydet{% else %}Yerleştir{% endif %}</button>
+            {% if placement %}
+              <button class="btn" form="ex-lock">{% if placement.locked %}{% include "timetable/icon.html" with name="unlock" %} Kilidi kaldır{% else %}{% include "timetable/icon.html" with name="lock" %} Kilitle{% endif %}</button>
+              <button class="btn btn-ghost" form="ex-unplace" onclick="return confirm('Sınav programdan kaldırılsın mı?')">Programdan kaldır</button>
+            {% endif %}
+          </div>
+        </form>
+        {% if placement %}
+          <form method="post" id="ex-lock">{% csrf_token %}<input type="hidden" name="action" value="lock"></form>
+          <form method="post" id="ex-unplace">{% csrf_token %}<input type="hidden" name="action" value="unplace"></form>
+        {% endif %}
+        {% elif exam.excluded %}
+          <p class="subtle">Bu sınav “sınav yapılmaz” olarak işaretli; programa alınmaz.</p>
+        {% elif placement %}
+          <p>{{ placement.date|date:"d.m.Y l" }}, {{ placement.session|add:1 }}. oturum</p>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if placement %}
+    <div class="panel">
+      <div class="panel-head"><h2>Gözetmenler</h2><span class="subtle small">salon başına {{ period.proctors_per_room }}</span></div>
+      <div class="panel-body">
+        {% if rooms %}
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="proctors">
+          {% for room in rooms %}
+            <div class="form-row">
+              <label class="label" for="pr-{{ room.pk }}">{{ room.classroom }} <span class="subtle small">({{ room.seats }} öğrenci)</span></label>
+              <select class="select ex-proctor-select" id="pr-{{ room.pk }}" name="proctors-{{ room.pk }}" multiple size="6"{% if not can.veri %} disabled{% endif %}>
+                {% for row in teacher_rows %}
+                  <option value="{{ row.teacher.pk }}"{% for t in room.proctors.all %}{% if t.pk == row.teacher.pk %} selected{% endif %}{% endfor %}{% if row.bad %} class="ex-opt-bad"{% endif %}>{{ row.teacher.full_name }} · {{ row.load }} görev{% if row.notes %} · {{ row.notes|join:", " }}{% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+          {% endfor %}
+          {% if can.veri %}
+          <div class="subtle small" style="margin:-6px 0 10px">Ctrl ile birden çok seçin. Liste müsait ve yükü az olandan başlar; çakışan seçimler kaydedilir ama uyarı verilir.</div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-primary">Gözetmenleri kaydet</button>
+            <button class="btn" name="action" value="auto_proctors" title="Eksik gözetmenleri müsait ve yükü az öğretmenlerden ata">{% include "timetable/icon.html" with name="wand" %} Eksikleri otomatik ata</button>
+          </div>
+          {% endif %}
+        </form>
+        {% else %}<p class="subtle">Önce salon seçin.</p>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Sınav bilgileri</h2></div>
+    <div class="panel-body">
+      <form method="post">{% csrf_token %}<input type="hidden" name="action" value="save">
+        <div class="form-grid">
+          {% include "timetable/data/field.html" with field=form.name %}
+          {% include "timetable/data/field.html" with field=form.duration %}
+          {% include "timetable/data/field.html" with field=form.student_count %}
+          {% include "timetable/data/field.html" with field=form.rooms_needed %}
+          {% include "timetable/data/field.html" with field=form.fixed_date %}
+          {% include "timetable/data/field.html" with field=form.fixed_session %}
+          {% include "timetable/data/field.html" with field=form.count_manual %}
+          {% include "timetable/data/field.html" with field=form.excluded %}
+          <div class="form-row form-row-wide"><label class="label">{{ form.classes.label }}</label>{{ form.classes }}</div>
+          <div class="form-row form-row-wide"><label class="label">{{ form.teachers.label }}</label>{{ form.teachers }}<div class="help">Dersin öğretmeni tercihen kendi sınavında gözetmen olur.</div></div>
+          <div class="form-row form-row-wide"><label class="label">{{ form.allowed_rooms.label }}</label>{{ form.allowed_rooms }}<div class="help">Boş = tüm sınav salonları (ör. laboratuvar sınavı için yalnızca laboratuvarları seçin).</div></div>
+          {% include "timetable/data/field.html" with field=form.note %}
+        </div>
+        {% if can.veri %}
+        <div class="form-actions" style="display:flex;gap:6px">
+          <button class="btn btn-primary">Kaydet</button>
+          <button class="btn btn-ghost" form="ex-delete" onclick="return confirm('Sınav silinsin mi?')">Sınavı sil</button>
+        </div>
+        {% endif %}
+      </form>
+      <form method="post" id="ex-delete">{% csrf_token %}<input type="hidden" name="action" value="delete"></form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{% asset 'timetable/data.js' %}"></script>{% endblock %}

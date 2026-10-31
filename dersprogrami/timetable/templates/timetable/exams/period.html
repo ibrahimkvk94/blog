@@ -1,0 +1,119 @@
+{% extends "timetable/base.html" %}
+{% load assets %}
+{% block title %}{{ period.name }}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{% url 'timetable:exams' school.pk %}">Sınav programı</a>{% endblock %}
+{% block heading %}<h1>{{ period.name }}</h1>{% include "timetable/exams/status.html" %}{% endblock %}
+{% block actions %}
+  {% if can.veri and rows %}
+    <form method="post" action="{% url 'timetable:exam_solve' school.pk period.pk %}"{% if period.status %} data-confirm="Kilitli olmayan yerleşimler silinip program yeniden oluşturulsun mu?"{% endif %}>{% csrf_token %}
+      <button class="btn btn-primary"{% if period.is_running %} disabled{% endif %}>{% include "timetable/icon.html" with name="wand" %} Programı oluştur</button></form>
+  {% endif %}
+{% endblock %}
+{% block content %}
+{% include "timetable/exams/tabs.html" with active=tab %}
+
+{% if tab == "ayarlar" %}
+<div class="panel" style="margin-top:14px">
+  <div class="panel-head"><h2>Dönem ayarları</h2><span class="subtle small">{{ slots }} oturum ({{ period.dates|length }} gün × {{ period.session_times|length }})</span></div>
+  <div class="panel-body">
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="settings">
+      {% include "timetable/exams/period_form.html" %}
+      {% if can.veri %}<div class="form-actions"><button class="btn btn-primary">Kaydet</button></div>{% endif %}
+    </form>
+  </div>
+</div>
+{% if can.veri %}
+<form method="post" class="danger-zone" data-confirm="“{{ period.name }}” sınav dönemi, tüm sınavları ve programıyla silinsin mi?">{% csrf_token %}
+  <input type="hidden" name="action" value="delete_period">
+  <div><b>Sınav dönemini sil</b><div class="subtle small">Sınavlar, yerleşimler ve gözetmen görevleri silinir. Ders programı etkilenmez.</div></div>
+  <button class="btn btn-danger">Sil</button>
+</form>
+{% endif %}
+
+{% else %}
+<div class="ex-summary">
+  <div><b>{{ rows|length }}</b><span>sınav</span></div>
+  <div><b>{{ total_students }}</b><span>öğrenci-sınav</span></div>
+  <div><b>{{ slots }}</b><span>oturum ({{ period.dates|length }} gün)</span></div>
+  <div><b>{{ period.max_per_day }}</b><span>sınıfın günlük sınırı</span></div>
+  <div><b>%{{ period.capacity_percent }}</b><span>sınav kapasitesi</span></div>
+</div>
+
+{% if can.veri %}
+<details class="panel" style="margin-bottom:18px"{% if not rows %} open{% endif %}>
+  <summary class="panel-head"><h2>{% include "timetable/icon.html" with name="sparkles" %} Derslerden oluştur</h2><span class="subtle small">Her ders adı için bir sınav; aynı ders adının kısımları ortak sınavda birleşir</span></summary>
+  <div class="panel-body">
+    <form method="post" data-confirm="Sınavlar derslerden oluşturulsun mu? “Yeniden oluştur” seçiliyse mevcut sınavlar ve yerleşimleri silinir.">{% csrf_token %}
+      <input type="hidden" name="action" value="from_lessons">
+      <div class="seg-radio" style="margin-bottom:12px">
+        <label><input type="radio" name="mode" value="replace"{% if not rows %} checked{% endif %}> Yeniden oluştur (mevcut sınavlar silinir)</label>
+        <label><input type="radio" name="mode" value="add"{% if rows %} checked{% endif %}> Yalnızca sınavı olmayan ders adlarını ekle</label>
+      </div>
+      {% if multi_subjects %}
+        <p class="small" style="margin:0 0 6px">Birden çok kısmı olan ders adları varsayılan olarak <b>ortak sınav</b> olur. Kısımları ayrı ayrı sınav yapılacak dersleri işaretleyin:</p>
+        <input type="search" class="input input-sm" placeholder="Ders adı ara…" data-ex-filter="#ex-subjects" style="max-width:280px;margin-bottom:8px">
+        <div class="ex-subjects" id="ex-subjects">
+          {% for s in multi_subjects %}
+            <label class="ex-subject" data-search="{{ s.subject.name|fold }} {{ s.subject.short|fold }}">
+              <input type="checkbox" name="separate" value="{{ s.subject.pk }}">
+              <span><b>{{ s.subject.name }}</b> <span class="subtle small">{{ s.lessons|length }} kısım · {{ s.classes|join:", "|truncatechars:80 }}</span></span>
+            </label>
+          {% endfor %}
+        </div>
+      {% elif not subjects %}
+        <div class="alert alert-warning">Bu programda sınıfı olan ders yok; önce dersleri girin.</div>
+      {% endif %}
+      <div class="form-actions"><button class="btn btn-primary">{% include "timetable/icon.html" with name="sparkles" %} Sınavları oluştur</button></div>
+    </form>
+  </div>
+</details>
+{% endif %}
+
+{% if rows %}
+<form method="post" class="panel" id="ex-rows">{% csrf_token %}
+  <div class="panel-head ex-toolbar">
+    <h2>Sınavlar</h2>
+    <input type="search" class="input input-sm" name="q" value="{{ request.GET.q }}" placeholder="Sınav, sınıf, öğretmen ara…" data-ex-filter="#ex-table tbody" style="max-width:260px">
+    {% if can.veri %}
+    <div class="ex-tools">
+      <button class="btn btn-sm btn-primary" name="action" value="save_rows">{% include "timetable/icon.html" with name="check" %} Kaydet</button>
+      <span class="ex-sel-tools" data-ex-sel-tools>
+        <button class="btn btn-sm" name="action" value="merge" title="Seçilen sınavları tek ortak sınav yap">Birleştir</button>
+        <button class="btn btn-sm" name="action" value="split" title="Seçilen ortak sınavları sınıf başına ayır">Böl</button>
+        <button class="btn btn-sm" name="action" value="exclude" title="Sınav yapılmayacak (programa alınmaz)">Çıkar</button>
+        <button class="btn btn-sm" name="action" value="include">Dahil et</button>
+        <button class="btn btn-sm btn-ghost" name="action" value="delete" onclick="return confirm('Seçilen sınavlar silinsin mi?')">Sil</button>
+      </span>
+      <button class="btn btn-sm btn-ghost" name="action" value="refresh_counts" title="Elle girilmemiş öğrenci sayılarını sınıf ve öğrenci kayıtlarından yeniden hesapla">Sayıları yenile</button>
+    </div>
+    {% endif %}
+  </div>
+  <div class="panel-body flush table-wrap">
+    <table class="table table-compact" id="ex-table">
+      <thead><tr>
+        <th style="width:28px"><input type="checkbox" data-ex-all aria-label="Tümünü seç"></th>
+        <th>Sınav</th><th>Sınıflar</th><th>Dersin öğretmeni</th><th class="num">Öğrenci</th><th class="num">Süre</th><th>Sabit</th><th>Yapılmaz</th><th>Yerleşim</th>
+      </tr></thead>
+      <tbody>
+        {% for e in rows %}
+          <tr class="{% if e.excluded %}ex-off{% endif %}" data-search="{{ e.title|fold }} {% for c in e.classes.all %}{{ c.name|fold }} {{ c.short|fold }} {% endfor %}{% for t in e.teachers.all %}{{ t.full_name|fold }} {% endfor %}">
+            <td><input type="checkbox" name="sel" value="{{ e.pk }}" aria-label="Seç"><input type="hidden" name="row" value="{{ e.pk }}"></td>
+            <td><a href="{% url 'timetable:exam_edit' school.pk period.pk e.pk %}"><b>{{ e.title }}</b></a>{% if e.note %}<div class="subtle small">{{ e.note }}</div>{% endif %}</td>
+            <td class="small">{% for c in e.classes.all %}{{ c.short|default:c.name }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="subtle">—</span>{% endfor %}</td>
+            <td class="small">{% for t in e.teachers.all %}{{ t.full_name }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="subtle">—</span>{% endfor %}</td>
+            <td class="num"><input class="input input-sm ex-num" type="number" min="0" name="count-{{ e.pk }}" value="{{ e.student_count }}" title="{% if e.count_manual %}Elle girildi{% else %}Sınıflardan hesaplandı{% endif %}"{% if e.count_manual %} data-manual{% endif %}></td>
+            <td class="num"><input class="input input-sm ex-num" type="number" min="1" max="{{ period.session_times|length }}" name="duration-{{ e.pk }}" value="{{ e.duration }}" title="Oturum sayısı"></td>
+            <td class="small nowrap">{% if e.fixed_date %}{{ e.fixed_date|date:"d.m" }}{% if e.fixed_session is not None %} · {{ e.fixed_session|add:1 }}. ot.{% endif %}{% else %}<span class="subtle">—</span>{% endif %}</td>
+            <td><input type="checkbox" name="excluded-{{ e.pk }}" value="1"{% if e.excluded %} checked{% endif %} aria-label="Sınav yapılmaz"></td>
+            <td class="small nowrap">{% if e.placed %}{{ e.placement.date|date:"d.m" }} · {{ e.placement.session|add:1 }}. ot.{% if e.placement.locked %} {% include "timetable/icon.html" with name="lock" %}{% endif %}{% elif not e.excluded %}<span class="subtle">yerleşmedi</span>{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="panel-body subtle small">Öğrenci sayısı sınıfların öğrenci kayıtlarından (yoksa sınıfın “öğrenci sayısı” alanından) hesaplanır; elle değiştirilen sayı korunur. Sabit tarih, salon kısıtı ve not için sınavın adına tıklayın.</div>
+</form>
+{% endif %}
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="{% asset 'timetable/data.js' %}"></script><script src="{% asset 'timetable/exams.js' %}"></script>{% endblock %}

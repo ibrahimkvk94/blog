@@ -38,6 +38,7 @@ NAV_GROUPS = [
     ("gunluk", "Günlük işler", [
         ("Vekâlet", "swap", _school("substitutions"), {"subs"}, None, True),
         ("Nöbet çizelgesi", "clipboard", _school("duties"), {"duties"}, None, True),
+        ("Sınav programı", "calendar", _school("exams"), {"sinavlar"}, None, True),
         ("Öğretmen istekleri", "inbox", _school("teacher_requests"), {"istekler"}, "veri", True),
         ("Bölümler", "users", _school("departments"), {"bolumler"}, "veri", True),
     ]),
@@ -132,7 +133,7 @@ def nav_pages_json(context):
 
 PALETTE_ICONS = ("layout", "grid", "wand", "gauge", "door", "printer", "swap", "clipboard", "inbox", "settings", "layers", "user",
                  "book", "building", "list", "user-plus", "columns", "link", "map-pin", "calendar-x", "upload", "file-text", "cap",
-                 "globe", "users", "sparkles")
+                 "globe", "users", "sparkles", "calendar")
 
 
 @register.simple_tag
