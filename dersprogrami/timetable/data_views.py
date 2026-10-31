@@ -623,11 +623,151 @@ def _save_divisions(cls, raw):
     Division.objects.filter(school_class=cls).exclude(id__in=kept).delete()
 
 
+# --- eşzamanlı düzenleme: "siz düzenlerken değişti" uyarısı ---------------------------------------
+
+AVAILABILITY_KEY, DIVISIONS_KEY = "__musaitlik", "__bolunmeler"
+
+
+def _availability_canon(states):
+    """{"gün-saat": durum} → karşılaştırılabilir metin (yalnızca kapalı / koşullu saatler)."""
+    return json.dumps(sorted(f"{k}:{v}" for k, v in states.items() if v in (Availability.NO, Availability.MAYBE)))
+
+
+def _divisions_canon(rows):
+    """[(bölünme, [gruplar])] → karşılaştırılabilir metin; _save_divisions'ın kaydetmediği satırlar atlanır."""
+    kept = []
+    for name, groups in rows:
+        names = sorted(g.strip() for g in groups if g and g.strip())
+        if name and name.strip() and len(names) >= 2:
+            kept.append([name.strip(), names])
+    return json.dumps(sorted(kept), ensure_ascii=False)
+
+
+def _posted_divisions(raw):
+    try:
+        rows = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    return _divisions_canon([(r.get("name", ""), [g.get("name", "") for g in r.get("groups", [])]) for r in rows if isinstance(r, dict)])
+
+
+def _posted_availability(raw):
+    try:
+        states = json.loads(raw or "{}")
+    except (TypeError, ValueError):
+        return None
+    return _availability_canon(states) if isinstance(states, dict) else None
+
+
+def _record_values(school, entity, obj, form):
+    """Kaydın şu anki hali (alan → karşılaştırılabilir metin): form alanları, müsaitlik ve bölünmeler."""
+    from .concurrency import normalize
+
+    values = {name: normalize(form[name].initial) for name in form.fields}
+    if entity.availability:
+        values[AVAILABILITY_KEY] = _availability_canon(_availability_grid(school, entity.availability, obj)["states"])
+    if entity.model is SchoolClass:
+        values[DIVISIONS_KEY] = _divisions_canon([(d["name"], [g["name"] for g in d["groups"]]) for d in _division_rows(obj)])
+    return values
+
+
+def _display(field, value):
+    """Alan değerinin okunur hali (seçimlerde adlar)."""
+    if value is None or value == "" or value == [] or value == ():
+        return "—"
+    if isinstance(value, bool):
+        return "Evet" if value else "Hayır"
+    many = isinstance(value, (list, tuple, set)) or hasattr(value, "model")
+    items = list(value) if many else [value]
+    if hasattr(field, "queryset"):
+        ids = [getattr(v, "pk", v) for v in items]
+        names = [str(o) for o in field.queryset.filter(pk__in=[i for i in ids if str(i).isdigit()])]
+        text = ", ".join(sorted(names, key=natural_key))
+    elif getattr(field, "choices", None):
+        flat = {}
+        for k, v in field.choices:
+            for k2, v2 in (v if isinstance(v, (list, tuple)) else [(k, v)]):
+                flat[str(k2)] = v2
+        text = ", ".join(str(flat.get(str(i), i)) for i in items)
+    else:
+        text = ", ".join(str(i) for i in items)
+    return (text[:200] + "…" if len(text) > 200 else text) or "—"
+
+
+def _cell_count(canon):
+    n = len(json.loads(canon))
+    return f"{n} kapalı / koşullu saat" if n else "tümü açık"
+
+
+def _record_conflict(request, school, entity, obj, form):
+    """Kayıt bu sayfa açıldıktan sonra değiştiyse ve kullanıcı o alanlara farklı değer kaydetmek istiyorsa:
+    {"message", "fields": [{"label", "current", "mine"}]}; yoksa None. "Yine de kaydet" (FORCE_FIELD) denetimi atlar."""
+    from . import concurrency
+    from .models import AuditLog
+
+    token = concurrency.read_token(request.POST.get(concurrency.STATE_FIELD))
+    if obj is None or token is None or request.POST.get(concurrency.FORCE_FIELD):
+        return None
+    current = _record_values(school, entity, obj, form)
+    changed = concurrency.changed_fields(token, current)
+    if not changed:
+        return None
+    shown = {n: _display(form.fields[n], form[n].initial) for n in changed if n in form.fields}  # is_valid öncesi
+    valid = form.is_valid()
+    rows = []
+    for name in changed:
+        if name == AVAILABILITY_KEY:
+            mine = _posted_availability(request.POST.get("availability")) if "availability" in request.POST else None
+            if mine is not None and mine != current[name]:
+                rows.append({"label": "Müsaitlik", "current": _cell_count(current[name]), "mine": _cell_count(mine)})
+        elif name == DIVISIONS_KEY:
+            mine = _posted_divisions(request.POST.get("divisions")) if request.POST.get("divisions") else None
+            if mine is not None and mine != current[name]:
+                fmt = lambda c: "; ".join(f"{d}: {', '.join(g)}" for d, g in json.loads(c)) or "—"  # noqa: E731
+                rows.append({"label": "Bölünmeler", "current": fmt(current[name]), "mine": fmt(mine)})
+        elif name in form.fields:
+            mine = form.cleaned_data.get(name) if valid else form[name].value()
+            if concurrency.normalize(mine) != current[name]:
+                rows.append({"label": form.fields[name].label or name, "current": shown[name], "mine": _display(form.fields[name], mine)})
+    if not rows:
+        return None
+    by = []
+    if token["t"] is not None:
+        logs = (AuditLog.objects.filter(path=request.path, created_at__gte=token["t"]).exclude(user=request.user)
+                .select_related("user").order_by("created_at"))
+        for log in logs:
+            name = concurrency.short_name(log.user) if log.user else log.username
+            if name and name not in by:
+                by.append(name)
+    who = f"{' ve '.join(by)} tarafından " if by else ""
+    return {
+        "message": f"Bu kayıt siz düzenlerken {who}değiştirildi; değişikliğiniz kaydedilmedi.",
+        "hint": "Aşağıdaki alanlarda şu anki kayıtlı değer sizinkinden farklı. “Yine de kaydet” sizin değerlerinizi yazar; "
+                "“Güncel hali yükle” sayfayı kayıtlı haliyle yeniden açar (değişiklikleriniz silinir).",
+        "fields": rows,
+    }
+
+
+def _state_token(school, entity, obj):
+    """Kaydedilmiş halin yeni durum belirteci (kayıttan sonra sayfa yenilenmeden yine kaydedilebilsin)."""
+    from .concurrency import make_token
+
+    fresh = entity.model.objects.get(pk=obj.pk)
+    return make_token(_record_values(school, entity, fresh, entity.form(instance=fresh, school=school)))
+
+
 def entity_edit(request, pk, slug, obj_id=None):
+    from . import concurrency
+    from django.template.loader import render_to_string
+
     school, entity = _school(pk), _entity(slug)
     obj = get_object_or_404(entity.model, pk=obj_id, school=school) if obj_id else None
     form = entity.form(request.POST or None, instance=obj, school=school)
-    if request.method == "POST" and form.is_valid():
+    conflict = _record_conflict(request, school, entity, obj, form) if request.method == "POST" else None
+    if conflict and _wants_json(request):
+        return JsonResponse({"ok": False, "conflict": True, "message": conflict["message"],
+                             "html": render_to_string("timetable/data/conflict.html", {"conflict": conflict}, request)}, status=409)
+    if request.method == "POST" and not conflict and form.is_valid():
         created = obj is None
         with transaction.atomic():
             obj = form.save()
@@ -652,11 +792,20 @@ def entity_edit(request, pk, slug, obj_id=None):
                 "next": new_url if request.POST.get("next") == "new" else "",
                 "title": entity.nav_label(obj, ctx) if entity.nav_label else str(obj),
                 "sub": entity.nav_sub(obj, ctx) if entity.nav_sub else "",
+                "state": _state_token(school, entity, obj),
             })
         messages.success(request, message)
         return redirect(new_url if request.POST.get("next") == "new" else url)
     if request.method == "POST" and _wants_json(request):
         return _form_errors(form)
+    if obj is not None:
+        # Çakışmada eski belirteç kalır: yeniden "Kaydet" yine uyarır, "Yine de kaydet" yazar.
+        record_state = request.POST.get(concurrency.STATE_FIELD, "") if conflict else concurrency.make_token(
+            _record_values(school, entity, obj, form))
+        presence = {"key": f"kayit:{slug}:{obj.pk}", "url": reverse("timetable:api_presence", args=[school.pk]),
+                    "editing": "veri" in getattr(request, "school_perms", set())}
+    else:
+        record_state, presence = "", None
 
     impact = ""
     if obj is not None:
@@ -691,7 +840,11 @@ def entity_edit(request, pk, slug, obj_id=None):
             record_sub=(entity.nav_sub(obj, ctx) if entity.nav_sub and obj is not None else ""),
             list_url=reverse("timetable:data_list", args=[school.pk, slug]),
             new_url=reverse("timetable:data_new", args=[school.pk, slug]),
+            record_state=record_state,
+            conflict=conflict,
+            presence=presence,
         ),
+        status=409 if conflict else 200,  # kaydedilmedi: işlem günlüğüne "düzenledi" yazılmaz
     )
 
 

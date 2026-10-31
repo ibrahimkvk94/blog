@@ -667,6 +667,10 @@ class Timetable(models.Model):
     # Elle düzenleme geçmişi (geri al / yinele): her adım {"label", "cards": [[id, gün, saat, derslik, ek derslikler, kilit]]}
     history = models.JSONField(default=list, blank=True)
     redo_stack = models.JSONField(default=list, blank=True)
+    # Eşzamanlı düzenleme: kartlar her değiştiğinde artan sayaç ve son değişikliklerin kısa kaydı
+    # ({"rev", "user", "user_id", "tab", "label", "cards": [kimlikler] ya da "all": true}); bkz. concurrency.py.
+    revision = models.PositiveIntegerField(default=0)
+    changes = models.JSONField(default=list, blank=True)
 
     @property
     def has_grid(self):
@@ -1270,6 +1274,25 @@ class AuditLog(models.Model):
 
     def __str__(self):
         return f"{self.created_at:%d.%m.%Y %H:%M} {self.username}: {self.action}"
+
+
+class EditPresence(models.Model):
+    """Kim neyi düzenliyor: açık düzenleyici (program ya da kayıt) 30 sn'de bir nabız yazar. Anahtar okul içinde
+    "program:<kimlik>" ya da "kayit:<tür>:<kimlik>" biçimindedir; eski satırlar nabızlarda temizlenir."""
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="+")
+    key = models.CharField(max_length=80)
+    user = models.ForeignKey("auth.User", on_delete=models.CASCADE, related_name="+")
+    editing = models.BooleanField(default=True)
+    last_seen = models.DateTimeField(db_index=True)
+
+    class Meta:
+        verbose_name = "düzenleme varlığı"
+        verbose_name_plural = "düzenleme varlıkları"
+        constraints = [models.UniqueConstraint(fields=["school", "key", "user"], name="unique_edit_presence")]
+
+    def __str__(self):
+        return f"{self.user} @ {self.key}"
 
 
 class WeekArchive(models.Model):

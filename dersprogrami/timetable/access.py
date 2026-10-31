@@ -67,6 +67,7 @@ SCHOOL_ROUTES = {
     "data_delete": (M.DATA, M.DATA),
     "school_users": (M.USERS, M.USERS),
     "program_delete": (M.PROGRAMS, M.PROGRAMS),
+    "api_presence": (M.VIEW, M.VIEW),  # düzenleyici nabzı (kim düzenliyor)
 }
 # pk = kurum
 INSTITUTION_ROUTES = {
@@ -209,7 +210,7 @@ def _deny(request, message):
 # Yalnızca kartların yerini değiştiren işlemler: çözücü problemi değişmez, önbellek korunur.
 PLACEMENT_ONLY = set(CARD_ROUTES) | {
     "api_row_action", "api_undo", "api_redo", "api_bulk", "api_cell_candidates", "api_versions", "publish", "activate", "api_resolve",
-    "report_excel", "report_pdf", "uybs_export", "uybs_archive", "substitutions", "duties", "solution_center", "quality", "pending", "school_improve", "change_report", "print_settings", "backup_compare",
+    "api_presence", "report_excel", "report_pdf", "uybs_export", "uybs_archive", "substitutions", "duties", "solution_center", "quality", "pending", "school_improve", "change_report", "print_settings", "backup_compare",
 }
 
 
@@ -229,7 +230,13 @@ class SchoolAccessMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        response = self.get_response(request)
+        from . import concurrency
+
+        token = concurrency.bind_request(request)  # kart değişikliğini kimin yaptığı (sürüm kaydı) buradan okunur
+        try:
+            response = self.get_response(request)
+        finally:
+            concurrency.release(token)
         if request.method == "POST" and response.status_code < 400:
             try:
                 audit(request, response)
@@ -334,8 +341,9 @@ ACTION_LABELS = {
     "api_card_move": "Kart taşıdı", "api_card_unplace": "Kartı kaldırdı", "api_card_lock": "Kart kilidi",
     "api_card_room": "Derslik değiştirdi", "api_lesson_quick": "Hızlı değişiklik", "reports": "Rapor şablonu",
     "account": "Parolasını değiştirdi", "backups": "Yedekleme", "system_update": "Sistem güncelleme", "broadcast": "Duyuru gönderdi", "institution_detail": "Kurumu düzenledi", "publish_settings": "Web yayını",
+    "api_presence": "Düzenleyici nabzı",
 }
-SKIP_AUDIT = {"login", "logout", "api_notifications_read", "notifications"}  # okundu işaretleri günlüğe yazılmaz
+SKIP_AUDIT = {"login", "logout", "api_notifications_read", "notifications", "api_presence"}  # okundu işaretleri ve nabızlar günlüğe yazılmaz
 
 
 def _detail(request, response):

@@ -1707,3 +1707,21 @@ html.ribbon-min .ribbon.drop .rb-panels { display: block; position: absolute; le
 .ti-table .input.ti-changed { background: color-mix(in srgb, #facc15 22%, var(--surface, #fff)); border-color: #d4a106; }
 .ti-table .input.ti-bad { border-color: #dc2626; box-shadow: 0 0 0 2px color-mix(in srgb, #dc2626 25%, transparent); }
 .ti-save { position: sticky; bottom: 0; background: var(--bg); padding: 10px 0; z-index: 2; }
+
+/* ---- Eşzamanlı düzenleme: kim düzenliyor rozeti ve kayıt çakışması kutusu ---- */
+.presence-pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--warning-soft); color: var(--warning); border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent); white-space: nowrap; max-width: 420px; overflow: hidden; text-overflow: ellipsis; }
+.presence-pill[hidden] { display: none; }
+.presence-pill svg { width: 14px; height: 14px; flex: none; }
+.presence-pill span { overflow: hidden; text-overflow: ellipsis; }
+.conflict-box { margin: 0 0 12px; align-items: flex-start; }
+.rec-form .conflict-box { margin: 0; border-radius: 0; }
+.conflict-box > svg { width: 18px; height: 18px; flex: none; margin-top: 2px; }
+.conflict-body { flex: 1; min-width: 0; }
+.conflict-body p { margin: 4px 0 8px; }
+.conflict-table { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.conflict-table th, .conflict-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.conflict-table th { background: var(--surface-2); color: var(--text-2); font-weight: 600; font-size: 12px; }
+.conflict-table tr:last-child td { border-bottom: 0; }
+.conflict-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+:root[data-theme="dark"] .conflict-box { color: var(--text); border-color: color-mix(in srgb, var(--warning) 35%, transparent); }
+:root[data-theme="dark"] .conflict-box > svg { color: var(--warning); }

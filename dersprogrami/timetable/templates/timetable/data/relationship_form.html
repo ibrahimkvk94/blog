@@ -11,6 +11,7 @@
 {% block editor_body %}
 <form method="post" class="data-form rec-form rel-editor" id="entity-form" novalidate data-rel-editor>
   {% csrf_token %}
+  {% include "timetable/data/record_state.html" %}
   <div class="alert alert-error" data-non-field{% if not form.non_field_errors %} hidden{% endif %}>{{ form.non_field_errors|join:" " }}</div>
   {{ picker|json_script:"rel-data" }}
   {{ form.map_meta|json_script:"time-map-meta" }}

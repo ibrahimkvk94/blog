@@ -15,6 +15,7 @@ from django.views.decorators.http import require_POST
 from . import report_excel as report_excel_module
 from . import report_pdf as report_pdf_module
 from . import access, analysis, asc_xml, duty, editing, excel, jobs, printing, refs, reports, substitutes, versions
+from .concurrency import guard
 from .counts import with_program_counts
 from .demo import create_demo_school
 from .grid import KINDS, card_payload, grid_data, grid_delta, room_names
@@ -273,8 +274,12 @@ def timetable_detail(request, pk):
             if t.has_grid
         ],
     }
+    # Kim düzenliyor: açık düzenleyici nabız yazar, diğer düzenleyiciler başlıkta görünür (concurrency.py).
+    presence = {"key": f"program:{timetable.pk}", "url": reverse("timetable:api_presence", args=[school.pk]),
+                "editing": config["canEdit"]} if timetable.has_grid else None
     return render(
-        request, "timetable/timetable_detail.html", _nav(school, "timetable", timetable=timetable, config=config)
+        request, "timetable/timetable_detail.html",
+        _nav(school, "timetable", timetable=timetable, config=config, presence=presence),
     )
 
 
@@ -575,6 +580,7 @@ def api_grid(request, pk):
     timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
     data = grid_data(timetable, request.GET.get("tur", "sinif"))
     data["history"] = editing.history_info(timetable)
+    data["revision"] = timetable.revision  # eşzamanlı düzenleme: istemci işlemlerde geri gönderir
     other_id = request.GET.get("karsilastir")
     if other_id and other_id.isdigit():
         other = Timetable.objects.filter(pk=other_id, school=timetable.school).first()
@@ -609,6 +615,7 @@ def _with_delta(stack="history", by_card=True):
 
 
 @require_POST
+@guard("program")
 @_with_delta("redo_stack", by_card=False)
 def api_undo(request, pk):
     result = editing.undo(get_object_or_404(Timetable, pk=pk))
@@ -616,6 +623,7 @@ def api_undo(request, pk):
 
 
 @require_POST
+@guard("program")
 @_with_delta("history", by_card=False)
 def api_redo(request, pk):
     result = editing.redo(get_object_or_404(Timetable, pk=pk))
@@ -623,6 +631,7 @@ def api_redo(request, pk):
 
 
 @require_POST
+@guard("program")
 def api_bulk(request, pk):
     timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
     if not timetable.has_grid:
@@ -841,6 +850,7 @@ def api_card_options(request, pk):
 
 
 @require_POST
+@guard("card")
 @_with_delta()
 def api_card_move(request, pk):
     card = _card(pk)
@@ -854,7 +864,7 @@ def api_card_move(request, pk):
     mode = body.get("mode", "displace")
     if mode not in ("displace", "ignore", "swap", "ask"):
         mode = "displace"
-    result = editing.move_card(card, day, period, mode)
+    result = editing.move_card(card, day, period, mode, protect=getattr(request, "protect_cards", None))
     if result.get("ask"):
         return JsonResponse(result, status=409)
     return JsonResponse(result, status=200 if result["ok"] else 400)
@@ -886,6 +896,7 @@ def api_card_info(request, pk):
 
 
 @require_POST
+@guard("card")
 @_with_delta()
 def api_card_room(request, pk):
     card = _card(pk)
@@ -907,6 +918,7 @@ def api_lesson_quick(request, pk):
 
 
 @require_POST
+@guard("program")
 def api_row_action(request, pk):
     timetable = get_object_or_404(Timetable, pk=pk)
     body = _json_body(request)
@@ -929,6 +941,7 @@ def api_cell_candidates(request, pk):
 
 
 @require_POST
+@guard("card")
 @_with_delta()
 def api_card_unplace(request, pk):
     result = editing.unplace_card(_card(pk))
@@ -936,6 +949,7 @@ def api_card_unplace(request, pk):
 
 
 @require_POST
+@guard("card")
 @_with_delta()
 def api_card_lock(request, pk):
     return JsonResponse(editing.toggle_lock(_card(pk)))
