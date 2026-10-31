@@ -1,0 +1,30 @@
+<div class="panel" data-cmp-panel="{{ kind }}"{% if hidden %} hidden{% endif %}>
+  <div class="panel-head"><h2>{{ label }} başına</h2>
+    <span class="small"><b class="t-iyi">{{ counts.iyi }}</b> iyileşen · <b class="t-kotu">{{ counts.kotu }}</b> kötüleşen · <span class="subtle">{{ counts.ayni }} aynı puan</span></span>
+  </div>
+  <div class="table-wrap">
+    <table class="table q-table cmp-table" data-cmp-table>
+      <thead><tr>
+        <th data-sort="name">{{ label }}</th>
+        {% for key, short in columns %}<th data-sort="{{ key }}" class="num" title="Farka göre sırala">{{ short }}</th>{% endfor %}
+        <th></th>
+      </tr></thead>
+      <tbody>
+        {% for p in pairs %}
+          <tr data-status="{{ p.status }}" data-changed="{% if p.changed %}1{% else %}0{% endif %}" data-name="{{ p.name|fold }} {{ p.sub|fold }}"{% for c in p.cells %} data-d-{{ c.key }}="{{ c.d }}"{% endfor %}>
+            <td><b>{{ p.name }}</b>{% if p.sub %}<div class="subtle small">{{ p.sub }}</div>{% endif %}</td>
+            {% for c in p.cells %}
+              <td class="num cmp-cell">
+                <span class="nowrap">{{ c.a }} <span class="subtle">→</span> {{ c.b }}</span>
+                {% if c.d %}<div class="cmp-d {% if c.key == 'hours' %}neutral{% elif c.d > 0 %}up{% else %}down{% endif %}">{% if c.d > 0 %}+{% endif %}{{ c.d }}</div>{% endif %}
+              </td>
+            {% endfor %}
+            <td class="num nowrap"><a class="btn btn-sm" href="{% url 'timetable:timetable_detail' timetable.pk %}?tur={{ kind }}&ara={{ p.search|urlencode }}">Görünümde aç</a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="{{ columns|length|add:2 }}" class="empty">Karşılaştırılacak satır yok.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>

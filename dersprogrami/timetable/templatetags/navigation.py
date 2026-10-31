@@ -32,6 +32,7 @@ NAV_GROUPS = [
         ("Ana görünüm", "grid", _tt("timetable_detail"), {"timetable"}, None, True),
         ("Çözüm merkezi", "wand", _tt("solution_center"), {"solution"}, "program", True),
         ("Kalite karnesi", "gauge", _tt("quality"), {"quality"}, None, True),
+        ("Program karşılaştırma", "columns", _tt("program_compare"), {"compare"}, None, True),
         ("Derslik doluluğu", "door", _tt("room_usage"), {"rooms"}, None, True),
         ("Raporlar", "printer", _tt("reports"), {"reports"}, None, True),
     ]),

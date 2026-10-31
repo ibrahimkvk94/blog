@@ -14,6 +14,7 @@ from .services import verify_timetable
 from .textsort import natural_key
 
 WEIGHTS = {"gaps": 2, "single_days": 3, "extra_days": 1, "late_days": 1, "unplaced": 4, "hard": 10, "soft": 2}
+LATE_HOUR = 16  # bu saatte ya da sonra başlayan ders saati "geç saat"
 LEVELS = ((3, "iyi", "İyi"), (10, "orta", "Orta"), (None, "kotu", "Kötü"))
 
 
@@ -33,8 +34,18 @@ def _mentions(labels):
     return lambda text: bool(pattern.search(text))
 
 
-def _row(name, sub, by_day, unplaced, hard, soft, periods_per_day, late=False):
-    """by_day: gün → dolu saatler kümesi."""
+def late_periods(school):
+    """Geç saat sayılan ders saatleri (0'dan sıra): saatleri girilmişse 16.00 ve sonrası başlayanlar,
+    girilmemişse günün son iki saati (günde 4 saat ya da daha azsa son saat)."""
+    periods = list(school.periods.order_by("index"))
+    if any(p.start_time for p in periods):
+        return frozenset(p.index for p in periods if p.start_time and p.start_time.hour >= LATE_HOUR)
+    tail = 2 if len(periods) > 4 else 1
+    return frozenset(p.index for p in periods[-tail:])
+
+
+def _row(name, sub, by_day, unplaced, hard, soft, periods_per_day, late=False, late_set=frozenset()):
+    """by_day: gün → dolu saatler kümesi; late_set: geç saat sayılan saatler (yalnızca bilgi, puana girmez)."""
     hours = sum(len(p) for p in by_day.values())
     days = [d for d, p in by_day.items() if p]
     gaps = sum(_gaps(by_day[d]) for d in days)
@@ -49,18 +60,31 @@ def _row(name, sub, by_day, unplaced, hard, soft, periods_per_day, late=False):
     # İyileştirmenin (ders oynatarak) düzeltebileceği kısım: boşluk ve gün sorunları
     fixable = sum(WEIGHTS[k] * parts[k] for k in ("gaps", "single_days", "extra_days", "late_days"))
     level, level_label = _level(score)
+    # Puana girmeyen, karşılaştırma için bilgi: bir günde en çok ders saati ve geç saatlerdeki ders saati
+    max_day = max((len(by_day[d]) for d in days), default=0)
+    late_hours = sum(len(by_day[d] & late_set) for d in days)
     return {"name": name, "sub": sub, "hours": hours, "days": len(days), "max_gaps": max_gaps, **parts,
+            "max_day": max_day, "late_hours": late_hours,
             "score": score, "fixable": fixable, "level": level, "level_label": level_label}
 
 
-def report(timetable, kind="ogretmen"):
-    """Dönüş: {"rows": [...], "summary": {...}}; satırlar en kötüden iyiye."""
+def violations_of(timetable):
+    """Kalite karnesinin saydığı ihlaller: yerleşmeyenler hariç (onlar saat olarak ayrıca sayılır)."""
+    violations, _ = verify_timetable(timetable)
+    return [v for v in violations if v.code != "unplaced"]
+
+
+def report(timetable, kind="ogretmen", violations=None):
+    """Dönüş: {"rows": [...], "summary": {...}}; satırlar en kötüden iyiye.
+
+    violations: violations_of(timetable) önceden hesaplandıysa verilir (aynı programın iki türü tek doğrulamayla)."""
     if kind not in ("ogretmen", "sinif"):
         kind = "ogretmen"
     school = timetable.school
     periods_per_day = max(1, school.periods.count())
-    violations, _ = verify_timetable(timetable)
-    violations = [v for v in violations if v.code != "unplaced"]  # yerleşmeyenler saat olarak ayrıca sayılır
+    late_set = late_periods(school)
+    if violations is None:
+        violations = violations_of(timetable)
     busy = defaultdict(lambda: defaultdict(set))
     unplaced = defaultdict(int)
     cards = timetable.cards.select_related("lesson").prefetch_related("lesson__teachers", "lesson__classes")
@@ -80,7 +104,7 @@ def report(timetable, kind="ogretmen"):
         mine = [v for v in violations if mentions(v.message)]
         sub = " · ".join(filter(None, [obj.department, obj.title])) if kind == "ogretmen" else (obj.short if obj.short != obj.name else "")
         row = _row(name, sub, busy[obj.id], unplaced[obj.id], sum(v.level == "hard" for v in mine),
-                   sum(v.level != "hard" for v in mine), periods_per_day, late=kind == "sinif")
+                   sum(v.level != "hard" for v in mine), periods_per_day, late=kind == "sinif", late_set=late_set)
         row.update(id=obj.id, search=label, issues=[v.message for v in mine][:6])
         rows.append(row)
     rows = [r for r in rows if r["hours"] or r["unplaced"]]

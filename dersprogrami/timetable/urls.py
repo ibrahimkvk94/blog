@@ -104,6 +104,7 @@ urlpatterns = [
     path("program/<int:pk>/raporlar/", views.reports_page, name="reports"),
     path("program/<int:pk>/cozum-merkezi/", resolve.center_view, name="solution_center"),
     path("program/<int:pk>/kalite/", views.quality_page, name="quality"),
+    path("program/<int:pk>/karsilastir/", views.program_compare, name="program_compare"),
     path("program/<int:pk>/bekleyenler/", views.pending_page, name="pending"),
     path("program/<int:pk>/derslik-dolulugu/", views.room_usage, name="room_usage"),
     path("program/<int:pk>/okul-iyilestir/", school_improve.improve_view, name="school_improve"),

@@ -7,6 +7,7 @@
     <a class="btn{% if kind == 'ogretmen' %} btn-primary{% endif %}" href="?tur=ogretmen">Öğretmenler</a>
     <a class="btn{% if kind == 'sinif' %} btn-primary{% endif %}" href="?tur=sinif">Sınıflar</a>
   </div>
+  <a class="btn" href="{% url 'timetable:program_compare' timetable.pk %}">{% include "timetable/icon.html" with name="columns" %} Başka programla karşılaştır</a>
   {% if can.program %}<a class="btn" href="{% url 'timetable:school_improve' timetable.pk %}">{% include "timetable/icon.html" with name="wand" %} Bütün okulu iyileştir</a>{% endif %}
 {% endblock %}
 {% block content %}

@@ -1707,3 +1707,30 @@ html.ribbon-min .ribbon.drop .rb-panels { display: block; position: absolute; le
 .ti-table .input.ti-changed { background: color-mix(in srgb, #facc15 22%, var(--surface, #fff)); border-color: #d4a106; }
 .ti-table .input.ti-bad { border-color: #dc2626; box-shadow: 0 0 0 2px color-mix(in srgb, #dc2626 25%, transparent); }
 .ti-save { position: sticky; bottom: 0; background: var(--bg); padding: 10px 0; z-index: 2; }
+
+/* Program karşılaştırma karnesi */
+.cmp-pick { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; padding: 14px 16px; margin-bottom: 16px; }
+.cmp-side { display: flex; flex-direction: column; gap: 3px; min-width: 220px; }
+.cmp-side .input { min-width: 280px; }
+.cmp-vs { align-self: center; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-3); }
+.cmp-thr { display: inline-flex; align-items: center; gap: 6px; color: var(--text-2); margin-left: auto; }
+.cmp-head { display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; margin-bottom: 16px; background: var(--surface); border: 1px solid var(--border);
+  border-left: 4px solid var(--border-strong); border-radius: var(--radius); box-shadow: var(--shadow); }
+.cmp-head.win { border-left-color: var(--success); }
+.cmp-head.lose { border-left-color: var(--danger-strong); }
+.cmp-head h2 { margin: 0; font-size: 20px; letter-spacing: -.01em; }
+.cmp-head p { margin: 2px 0 0; color: var(--text-2); }
+.cmp-head .alert { margin: 0; }
+:root[data-theme="dark"] .cmp-head .alert { color: var(--text); }
+.cmp-summary td.cmp-win { background: var(--success-soft); color: var(--success); font-weight: 700; }
+.cmp-summary td.cmp-lose { color: var(--text-2); }
+.cmp-tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.cmp-tag.win { background: var(--success-soft); color: var(--success); }
+.cmp-tag.lose { background: var(--danger-soft); color: var(--danger-strong); }
+.cmp-d { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.cmp-d.up { color: var(--danger-strong); }
+.cmp-d.down { color: var(--success); }
+.cmp-d.neutral { color: var(--text-3); }
+.cmp-toolbar { margin-top: 18px; }
+.cmp-cell { line-height: 1.25; }
+[data-cmp-panel][hidden], .cmp-table tr[hidden] { display: none; }
