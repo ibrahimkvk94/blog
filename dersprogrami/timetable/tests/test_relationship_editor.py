@@ -83,3 +83,28 @@ class RelationshipBulkToggleTests(TestCase):
     def test_nothing_selected(self):
         response = self.client.post(self.url, {"action": "kapat"}, follow=True)
         self.assertContains(response, "Önce en az bir ilişki seçin")
+
+
+class DataSortTests(TestCase):
+    """Veri listelerinde ve düzenleme ekranının kayıt listesinde sıralama seçenekleri ve değerleri."""
+
+    def setUp(self):
+        self.school = School.objects.create(name="MYO")
+        self.a = Teacher.objects.create(school=self.school, first_name="Zeki", last_name="Ak", short="ASK Zeki", department="BİL", title="Dr.")
+        self.b = Teacher.objects.create(school=self.school, first_name="Ali", last_name="Er", short="BSB Ali", department="", title="")
+        self.client.force_login(User.objects.create_superuser("admin", "a@x.tr", "pw"))
+
+    def test_list_has_sort_menu_and_values(self):
+        page = self.client.get(reverse("timetable:data_list", args=[self.school.pk, "ogretmenler"]))
+        self.assertContains(page, 'data-sort-store="sort-ogretmenler"')
+        for option in ("Kısa ad (A → Z)", "Bölüm (Z → A)", "Ünvan / rütbe (A → Z)", "Haftalık ders saati (çoktan aza)"):
+            self.assertContains(page, option)
+        self.assertContains(page, 'data-s-kisa="ASK Zeki"')
+        self.assertContains(page, 'data-s-bolum="BİL"')
+        self.assertContains(page, 'data-s-bolum=""')  # boş değer sona gider
+
+    def test_editor_navigator_shares_sort(self):
+        page = self.client.get(reverse("timetable:data_edit", args=[self.school.pk, "ogretmenler", self.a.pk]))
+        self.assertContains(page, 'data-nav-sort data-sort-store="sort-ogretmenler"')
+        self.assertContains(page, 'data-s-unvan="Dr."')
+        self.assertContains(page, "datasort.js")

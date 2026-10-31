@@ -159,9 +159,30 @@
     none.hidden = shown > 0 || !items.length;
   });
   if (search) search.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") { e.preventDefault(); const first = items.find((i) => !i.hidden); if (first) first.click(); }
+    if (e.key === "Enter") { e.preventDefault(); const first = $$("[data-nav-item]", root).find((i) => !i.hidden); if (first) first.click(); }
   });
-  $$(".is-disabled", root).forEach((a) => a.addEventListener("click", (e) => e.preventDefault()));
+  root.addEventListener("click", (e) => {  // sıralama değişince düğmeler etkin/edilgin olabilir: tıklama anında bakılır
+    const link = e.target.closest(".is-disabled");
+    if (link) e.preventDefault();
+  }, true);
+  // Sıralama: kayıt listesi seçilen sıraya dizilir; önceki/sonraki kayıt ve "3 / 40" konumu bu sırayı izler.
+  const sortSelect = $("[data-nav-sort]", root);
+  if (sortSelect && window.DataSort) {
+    const list = $("[data-nav-list]", root);
+    const prev = $("[data-nav-prev]", root), next = $("[data-nav-next]", root), pos = $("[data-nav-pos]", root);
+    const setLink = (a, item) => {
+      if (!a) return;
+      a.setAttribute("href", item ? item.getAttribute("href") : "#");
+      a.classList.toggle("is-disabled", !item);
+    };
+    window.DataSort.bind(sortSelect, list, () => items, (sorted) => {
+      const i = sorted.findIndex((el) => el.classList.contains("active"));
+      if (i < 0) return;
+      setLink(prev, sorted[i - 1]);
+      setLink(next, sorted[i + 1]);
+      if (pos) pos.textContent = (i + 1) + " / " + sorted.length;
+    });
+  }
   const active = $(".rec-item.active", root);
   if (active) {  // yalnızca listeyi kaydır (sayfa yerinde kalsın)
     const list = $("[data-nav-list]", root);

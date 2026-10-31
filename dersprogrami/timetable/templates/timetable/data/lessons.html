@@ -10,6 +10,7 @@
   <input class="input" type="search" placeholder="Ders adı ya da kodu ara…" data-ls-q value="{{ filters.q }}">
   <select class="select" data-ls-class aria-label="Sınıf"><option value="">Tüm sınıflar</option>{% for c in classes %}<option value="{{ c.id }}"{% if filters.sinif == c.id|stringformat:'s' %} selected{% endif %}>{{ c.name }}</option>{% endfor %}</select>
   <select class="select" data-ls-teacher aria-label="Öğretmen"><option value="">Tüm öğretmenler</option>{% for t in teachers %}<option value="{{ t.pk }}"{% if filters.ogretmen == t.pk|stringformat:'s' %} selected{% endif %}>{{ t.first_name }} {{ t.last_name }}</option>{% endfor %}</select>
+  <select class="select" data-ls-sort data-sort-store="sort-dersler" aria-label="Sırala" title="Sınıfların içindeki dersleri sırala">{% for v, l in sort_options %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>
   <span class="subtle small" data-ls-count></span>
   <div class="ls-expand">
     <button type="button" class="btn btn-sm btn-ghost" data-ls-open>Tümünü aç</button>
@@ -56,6 +57,21 @@
   const back = () => location.pathname + location.search;
   const editUrl = (id) => data.edit.replace("/0/", "/" + id + "/") + "?back=" + encodeURIComponent(back());
 
+  // Sıralama (ders düzenleme listesiyle aynı tercih): "anahtar" artan, "-anahtar" azalan; boş değerler sona.
+  const sortSel = document.querySelector("[data-ls-sort]");
+  const collator = new Intl.Collator("tr", { numeric: true, sensitivity: "base" });
+  try { const saved = localStorage.getItem("sort-dersler"); if (saved !== null && [...sortSel.options].some((o) => o.value === saved)) sortSel.value = saved; } catch (e) { /* yok */ }
+  const sortRows = (rows) => {
+    const value = sortSel.value, desc = value.startsWith("-"), key = desc ? value.slice(1) : value;
+    if (!key) return rows;
+    return rows.slice().sort((x, y) => {
+      const a = x[key] == null ? "" : String(x[key]), b = y[key] == null ? "" : String(y[key]);
+      if (a === "" || b === "") return a === b ? 0 : (a === "" ? 1 : -1);
+      const c = typeof x[key] === "number" && typeof y[key] === "number" ? x[key] - y[key] : collator.compare(a, b);
+      return desc ? -c : c;
+    });
+  };
+
   const matches = (r) => {
     const text = norm(q.value.trim());
     return (!text || norm(r.s + " " + r.k).includes(text)) &&
@@ -75,7 +91,7 @@
     let shown = 0, groupsShown = 0;
     const html = data.groups.map((g) => {
       if (classSel.value && String(g.id) !== classSel.value) return "";
-      const rows = g.lessons.map((id) => byId.get(id)).filter(matches);
+      const rows = sortRows(g.lessons.map((id) => byId.get(id)).filter(matches));
       if (filtering && !rows.length) return "";
       groupsShown++;
       shown += rows.length;
@@ -117,6 +133,7 @@
     }
     syncBulk();
   });
+  sortSel.addEventListener("change", () => { try { localStorage.setItem("sort-dersler", sortSel.value); } catch (e) { /* yok */ } render(); });
   [q, classSel, teacherSel].forEach((el) => el.addEventListener("input", () => {
     render();
     const p = new URLSearchParams();

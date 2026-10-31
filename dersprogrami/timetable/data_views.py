@@ -107,6 +107,9 @@ class Entity:
     sort: object = None
     nav_label: object = None
     nav_sub: object = None
+    # Kullanıcının seçebileceği sıralamalar: (anahtar, ad, değer(kayıt, ctx), sayısal mı). Tabloda ve düzenleme
+    # ekranının kayıt listesinde aynı seçenekler; seçim tarayıcıda saklanır (datasort.js).
+    sorts: tuple = ()
 
     @property
     def icon(self):
@@ -144,6 +147,11 @@ ENTITIES = {
             ("Derslik", "Bu adı taşıyan derslerde derslik seçilmemişse kullanılır.", ("classrooms",)),
         )),),
         nav_sub=lambda s, ctx: s.short,
+        sorts=(
+            ("ad", "Ad", lambda s, ctx: s.name, False),
+            ("kisa", "Kısa ad / kod", lambda s, ctx: s.short, False),
+            ("ders", "Ders sayısı", lambda s, ctx: getattr(s, "n_lessons", None), True),
+        ),
         help="Ders adının müsaitliği, bu adı taşıyan tüm dersler için geçerlidir (ör. Beden Eğitimi son saatte olmasın).",
     ),
     "ogretmenler": Entity(
@@ -176,6 +184,14 @@ ENTITIES = {
         sort=lambda t: natural_key(f"{t.first_name} {t.last_name}"),
         nav_label=lambda t, ctx: _teacher_name(t),
         nav_sub=lambda t, ctx: " · ".join(filter(None, [t.department, t.title, _hours((ctx["teacher_loads"].get(t.id) or (0, 0))[0])])),
+        sorts=(
+            ("kisa", "Kısa ad", lambda t, ctx: t.short, False),
+            ("ad", "Ad", lambda t, ctx: f"{t.first_name} {t.last_name}", False),
+            ("soyad", "Soyad", lambda t, ctx: f"{t.last_name} {t.first_name}", False),
+            ("bolum", "Bölüm", lambda t, ctx: t.department, False),
+            ("unvan", "Ünvan / rütbe", lambda t, ctx: t.title, False),
+            ("saat", "Haftalık ders saati", lambda t, ctx: (ctx["teacher_loads"].get(t.id) or (0, 0))[0], True),
+        ),
     ),
     "siniflar": Entity(
         "siniflar", SchoolClass, forms.SchoolClassForm, "Sınıflar", "Sınıf",
@@ -199,6 +215,14 @@ ENTITIES = {
         ),
         sort=lambda c: (c.grade or 0, natural_key(c.name)),
         nav_sub=lambda c, ctx: " · ".join(filter(None, [c.short if c.short != c.name else "", _hours((ctx["class_loads"].get(c.id) or (0, 0))[0])])),
+        sorts=(
+            ("ad", "Ad", lambda c, ctx: c.name, False),
+            ("kisa", "Kısa ad", lambda c, ctx: c.short, False),
+            ("seviye", "Seviye", lambda c, ctx: c.grade, True),
+            ("ogretmen", "Sınıf öğretmeni", lambda c, ctx: c.class_teacher.full_name if c.class_teacher else "", False),
+            ("saat", "Haftalık ders saati", lambda c, ctx: (ctx["class_loads"].get(c.id) or (0, 0))[0], True),
+            ("ogrenci", "Öğrenci sayısı", lambda c, ctx: c.student_count, True),
+        ),
     ),
     "derslikler": Entity(
         "derslikler", Classroom, forms.ClassroomForm, "Derslikler", "Derslik",
@@ -208,10 +232,17 @@ ENTITIES = {
             ("Derslik", "Kapasite, öğrenci sayısı kontrolü için; “aynı anda” birden çok dersin aynı derslikte olabileceği sayıdır.", ("name", "short", "capacity", "max_lessons", "building")),
         )),),
         nav_sub=lambda r, ctx: " · ".join(filter(None, [r.short if r.short != r.name else "", f"{r.capacity} kişi" if r.capacity else ""])),
+        sorts=(
+            ("ad", "Ad", lambda r, ctx: r.name, False),
+            ("kisa", "Kısa ad", lambda r, ctx: r.short, False),
+            ("kapasite", "Kapasite", lambda r, ctx: r.capacity, True),
+            ("bina", "Bina", lambda r, ctx: str(r.building) if r.building_id else "", False),
+        ),
     ),
     "binalar": Entity(
         "binalar", Building, forms.BuildingForm, "Binalar", "Bina",
         [("Ad", lambda b, ctx: b.name)], order=("name",),
+        sorts=(("ad", "Ad", lambda b, ctx: b.name, False),),
     ),
     "kart-iliskileri": Entity(
         "kart-iliskileri", CardRelationship, forms.RelationshipForm, "Kart ilişkileri", "Kart ilişkisi",
@@ -226,6 +257,12 @@ ENTITIES = {
             ("Durum", lambda r, ctx: format_html('<span class="pill {}">{}</span>', "ok" if r.active else "", "Etkin" if r.active else "Kapalı")),
         ],
         order=("name",),
+        sorts=(
+            ("ad", "Ad", lambda r, ctx: r.name, False),
+            ("kosul", "Koşul", lambda r, ctx: r.get_condition_display(), False),
+            ("onem", "Önem", lambda r, ctx: [k for k, _ in r.IMPORTANCE_CHOICES].index(r.importance), True),
+            ("durum", "Durum (önce etkin)", lambda r, ctx: 0 if r.active else 1, True),
+        ),
         help="Seçilen kartlara toplu kural uygular: ör. “her sınıfta sayısal derslerden günde en fazla 2 kart”.",
     ),
 }
@@ -254,19 +291,41 @@ def _sorted(entity, objs):
     return sorted(objs, key=entity.sort or (lambda o: natural_key(str(o))))
 
 
+def _sort_options(sorts):
+    """Sıralama menüsü: (değer, ad); "-anahtar" azalan."""
+    options = [("", "Varsayılan sıra")]
+    for key, label, _, numeric in sorts:
+        options += [(key, f"{label} ({'azdan çoğa' if numeric else 'A → Z'})"),
+                    (f"-{key}", f"{label} ({'çoktan aza' if numeric else 'Z → A'})")]
+    return options
+
+
+def _sort_values(sorts, obj, ctx):
+    """Satırın sıralama değerleri: {anahtar: metin}; boş değer sona gider."""
+    values = {}
+    for key, _, fn, _ in sorts:
+        value = fn(obj, ctx)
+        values[key] = "" if value is None or value == "" else str(value)
+    return values
+
+
 def _navigator(school, entity, current, ctx):
     """Düzenleme ekranının solundaki kayıt listesi ve önceki/sonraki kayıt."""
-    objs = _sorted(entity, entity.model.objects.filter(school=school))
+    qs = entity.model.objects.filter(school=school)
+    if entity.model is Subject:
+        qs = qs.annotate(n_lessons=Count("lesson"))
+    objs = _sorted(entity, qs)
     items = [{
         "id": o.pk,
         "label": entity.nav_label(o, ctx) if entity.nav_label else str(o),
         "sub": entity.nav_sub(o, ctx) if entity.nav_sub else "",
         "url": reverse("timetable:data_edit", args=[school.pk, entity.slug, o.pk]),
         "active": current is not None and o.pk == current.pk,
+        "sort": _sort_values(entity.sorts, o, ctx),
     } for o in objs]
     index = next((i for i, item in enumerate(items) if item["active"]), None)
     return {
-        "items": items,
+        "items": items, "sort_options": _sort_options(entity.sorts), "sort_store": f"sort-{entity.slug}",
         "prev": items[index - 1]["url"] if index else "",
         "next": items[index + 1]["url"] if index is not None and index + 1 < len(items) else "",
         "position": f"{index + 1} / {len(items)}" if index is not None else "",
@@ -332,11 +391,13 @@ def entity_list(request, pk, slug):
     if entity.model is Subject:
         qs = qs.annotate(n_lessons=Count("lesson"))
     ctx = _entity_ctx(school, entity)
-    rows = [{"obj": obj, "cells": [fn(obj, ctx) for _, fn in entity.columns]} for obj in _sorted(entity, qs)]
+    rows = [{"obj": obj, "cells": [fn(obj, ctx) for _, fn in entity.columns], "sort": _sort_values(entity.sorts, obj, ctx)}
+            for obj in _sorted(entity, qs)]
     return render(
         request,
         "timetable/data/list.html",
-        _nav(school, "data", data_nav=slug, entity=entity, headers=[h for h, _ in entity.columns], rows=rows),
+        _nav(school, "data", data_nav=slug, entity=entity, headers=[h for h, _ in entity.columns], rows=rows,
+             sort_options=_sort_options(entity.sorts), sort_store=f"sort-{slug}"),
     )
 
 
@@ -990,6 +1051,7 @@ def lessons(request, pk):
             teachers=teachers, rooms=_sorted(ENTITIES["derslikler"], school.classrooms.all()),
             classes=[g for g in groups if g["id"]], modes=BULK_MODES,
             filters={"sinif": request.GET.get("sinif", ""), "ogretmen": request.GET.get("ogretmen", ""), "q": request.GET.get("q", "")},
+            sort_options=_sort_options(LESSON_SORTS),
         ),
     )
 
@@ -1112,6 +1174,16 @@ def _lesson_sub(lesson):
     return " · ".join(filter(None, [classes, teachers, f"{lesson.periods_per_week} saat"]))
 
 
+# Dersler sayfası ve ders düzenleme listesi için sıralamalar (anahtarlar dersler sayfasının satır alanlarıyla aynı).
+LESSON_SORTS = (
+    ("s", "Ders adı", lambda x, ctx: x.subject.name, False),
+    ("k", "Ders kodu", lambda x, ctx: x.subject.short, False),
+    ("cl", "Sınıf", lambda x, ctx: ", ".join(c.short or c.name for c in x.classes.all()), False),
+    ("t", "Öğretmen", lambda x, ctx: ", ".join(_teacher_name(t) for t in x.teachers.all()), False),
+    ("h", "Haftalık saat", lambda x, ctx: x.periods_per_week, True),
+)
+
+
 def _lesson_navigator(school, current, class_id, back=""):
     """Ders düzenlemede soldaki liste: aynı sınıfın dersleri (sınıf yoksa aynı öğretmenin)."""
     qs = Lesson.objects.filter(school=school).select_related("subject").prefetch_related("classes", "teachers")
@@ -1130,10 +1202,11 @@ def _lesson_navigator(school, current, class_id, back=""):
         "id": x.pk, "label": x.subject.name, "sub": _lesson_sub(x),
         "url": reverse("timetable:lesson_edit", args=[school.pk, x.pk]) + suffix,
         "active": current is not None and x.pk == current.pk,
+        "sort": _sort_values(LESSON_SORTS, x, None),
     } for x in lessons]
     index = next((i for i, item in enumerate(items) if item["active"]), None)
     return {
-        "title": title, "items": items,
+        "title": title, "items": items, "sort_options": _sort_options(LESSON_SORTS), "sort_store": "sort-dersler",
         "prev": items[index - 1]["url"] if index else "",
         "next": items[index + 1]["url"] if index is not None and index + 1 < len(items) else "",
         "position": f"{index + 1} / {len(items)}" if index is not None else "",

@@ -7,6 +7,7 @@
 {% include "timetable/data/subnav.html" %}
 {% if entity.help %}<p class="page-lead">{{ entity.help }}</p>{% endif %}
 {% if rows %}<div class="list-tools"><input class="input" type="search" placeholder="{{ entity.title }} içinde ara…" aria-label="Ara" data-list-search>
+  {% if sort_options|length > 1 %}<select class="select select-sm" data-sort data-sort-target="[data-list] tbody" data-sort-store="{{ sort_store }}" aria-label="Sırala" title="Sırala">{% for v, l in sort_options %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>{% endif %}
   {% if entity.slug == "kart-iliskileri" %}<select class="select select-sm" data-list-state aria-label="Durum"><option value="">Tümü</option><option value="1">Yalnız etkin</option><option value="0">Yalnız kapalı</option></select>{% endif %}
   <span class="subtle small" data-list-count></span></div>{% endif %}
 {% if entity.slug == "kart-iliskileri" and rows %}<form method="post" id="bulk-form">{% csrf_token %}
@@ -23,7 +24,7 @@
       <tbody>
         {% for row in rows %}
           {% url 'timetable:data_edit' school.pk entity.slug row.obj.pk as edit_url %}
-          <tr class="row-link" data-href="{{ edit_url }}"{% if entity.slug == "kart-iliskileri" %} data-active="{{ row.obj.active|yesno:'1,0' }}"{% endif %}>
+          <tr class="row-link" data-href="{{ edit_url }}" data-s-i="{{ forloop.counter0 }}"{% for k, v in row.sort.items %} data-s-{{ k }}="{{ v }}"{% endfor %}{% if entity.slug == "kart-iliskileri" %} data-active="{{ row.obj.active|yesno:'1,0' }}"{% endif %}>
             {% if entity.slug == "kart-iliskileri" %}<td><input type="checkbox" name="sec" value="{{ row.obj.pk }}" form="bulk-form" data-bulk aria-label="Seç"></td>{% endif %}
             {% for cell in row.cells %}<td>{% if forloop.first %}<a href="{{ edit_url }}"><b>{{ cell }}</b></a>{% else %}{{ cell }}{% endif %}</td>{% endfor %}
             <td class="num nowrap">
@@ -45,6 +46,7 @@
 </div>
 {% endblock %}
 {% block scripts %}
+{% load assets %}<script src="{% asset 'timetable/datasort.js' %}"></script>
 <script>
 (function () {
   const table = document.querySelector("[data-list]");

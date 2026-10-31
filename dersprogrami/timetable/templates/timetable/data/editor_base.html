@@ -13,10 +13,11 @@ Kayıt düzenleyici iskeleti: solda aranabilir kayıt listesi, sağda kayıt ba�
       <div><b>{% block nav_title %}{{ navigator.title }}{% endblock %}</b> <span class="rec-count">{{ navigator.items|length }}</span></div>
       <a class="btn btn-sm" href="{{ new_url }}" title="Yeni kayıt">{% include "timetable/icon.html" with name="plus" %} Yeni</a>
     </div>
-    <div class="rec-nav-search"><input class="input input-sm" type="search" placeholder="Ara…" aria-label="Kayıtlarda ara" data-nav-search></div>
+    <div class="rec-nav-search"><input class="input input-sm" type="search" placeholder="Ara…" aria-label="Kayıtlarda ara" data-nav-search>
+      {% if navigator.sort_options|length > 1 %}<select class="select select-sm" data-sort data-nav-sort data-sort-store="{{ navigator.sort_store }}" aria-label="Sırala" title="Sırala">{% for v, l in navigator.sort_options %}<option value="{{ v }}">{{ l }}</option>{% endfor %}</select>{% endif %}</div>
     <div class="rec-nav-list" data-nav-list>
       {% for item in navigator.items %}
-        <a href="{{ item.url }}" class="rec-item{% if item.active %} active{% endif %}" data-nav-item{% if item.active %} aria-current="page"{% endif %}>
+        <a href="{{ item.url }}" class="rec-item{% if item.active %} active{% endif %}" data-nav-item data-s-i="{{ forloop.counter0 }}"{% for k, v in item.sort.items %} data-s-{{ k }}="{{ v }}"{% endfor %}{% if item.active %} aria-current="page"{% endif %}>
           <span class="rec-item-label">{{ item.label }}</span>{% if item.sub %}<span class="rec-item-sub">{{ item.sub }}</span>{% endif %}
         </a>
       {% empty %}<div class="rec-empty">Henüz kayıt yok.</div>{% endfor %}
@@ -36,7 +37,7 @@ Kayıt düzenleyici iskeleti: solda aranabilir kayıt listesi, sağda kayıt ba�
       </div>
       <div class="rec-tools">
         {% block head_actions %}{% endblock %}
-        {% if navigator.position %}<span class="rec-pos">{{ navigator.position }}</span>{% endif %}
+        {% if navigator.position %}<span class="rec-pos" data-nav-pos>{{ navigator.position }}</span>{% endif %}
         {% if navigator.items %}<div class="btn-group">
           <a class="btn btn-sm btn-icon{% if not navigator.prev %} is-disabled{% endif %}" href="{{ navigator.prev|default:'#' }}" data-nav-prev title="Önceki kayıt (Alt+↑)" aria-label="Önceki kayıt">‹</a>
           <a class="btn btn-sm btn-icon{% if not navigator.next %} is-disabled{% endif %}" href="{{ navigator.next|default:'#' }}" data-nav-next title="Sonraki kayıt (Alt+↓)" aria-label="Sonraki kayıt">›</a>
@@ -63,4 +64,4 @@ Kayıt düzenleyici iskeleti: solda aranabilir kayıt listesi, sağda kayıt ba�
   </section>
 </div>
 {% endblock %}
-{% block scripts %}<script src="{% asset 'timetable/data.js' %}"></script><script src="{% asset 'timetable/editor.js' %}"></script>{% endblock %}
+{% block scripts %}<script src="{% asset 'timetable/data.js' %}"></script><script src="{% asset 'timetable/datasort.js' %}"></script><script src="{% asset 'timetable/editor.js' %}"></script>{% endblock %}
