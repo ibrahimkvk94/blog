@@ -1,0 +1,26 @@
+{% if form.non_field_errors %}<div class="alert alert-error">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+<div class="form-grid">
+  {% include "timetable/data/field.html" with field=form.name %}
+  {% include "timetable/data/field.html" with field=form.kind %}
+  {% include "timetable/data/field.html" with field=form.start_date %}
+  {% include "timetable/data/field.html" with field=form.end_date %}
+  {% include "timetable/data/field.html" with field=form.sessions_text %}
+  {% include "timetable/data/field.html" with field=form.exam_minutes %}
+  {% include "timetable/data/field.html" with field=form.max_per_day %}
+  {% include "timetable/data/field.html" with field=form.proctors_per_room %}
+  {% include "timetable/data/field.html" with field=form.capacity_percent %}
+  {% include "timetable/data/field.html" with field=form.default_seats %}
+  {% include "timetable/data/field.html" with field=form.time_limit %}
+  <div class="form-row form-row-wide">
+    <label class="label">{{ form.weekday_list.label }}</label>{{ form.weekday_list }}
+  </div>
+  <div class="form-row form-row-wide{% if form.excluded_text.errors %} has-error{% endif %}">
+    <label class="label" for="{{ form.excluded_text.id_for_label }}">{{ form.excluded_text.label }}</label>{{ form.excluded_text }}
+    <div class="help">{{ form.excluded_text.help_text }}</div>
+  </div>
+  {% include "timetable/data/field.html" with field=form.use_availability %}
+  <div class="form-row form-row-wide">
+    <label class="label">{{ form.rooms.label }}</label>{{ form.rooms }}
+    <div class="help">{{ form.rooms.help_text }} Parantez içinde derslik kapasitesi; sınavda alınan öğrenci bunun “sınav kapasitesi” oranı kadardır.</div>
+  </div>
+</div>

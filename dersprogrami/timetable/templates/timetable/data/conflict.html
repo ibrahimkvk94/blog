@@ -1,0 +1,15 @@
+<div class="alert alert-warning conflict-box" role="alert">
+  {% include "timetable/icon.html" with name="alert" %}
+  <div class="conflict-body">
+    <b>{{ conflict.message }}</b>
+    <p class="small">{{ conflict.hint }}</p>
+    <table class="conflict-table">
+      <thead><tr><th>Alan</th><th>Şu anki kayıtlı değer</th><th>Sizin değeriniz</th></tr></thead>
+      <tbody>{% for f in conflict.fields %}<tr><td>{{ f.label }}</td><td>{{ f.current }}</td><td><b>{{ f.mine }}</b></td></tr>{% endfor %}</tbody>
+    </table>
+    <div class="conflict-actions">
+      <button type="submit" class="btn btn-sm btn-primary" name="_yine_de" value="1">Yine de kaydet</button>
+      <a class="btn btn-sm" href="{{ request.path }}" data-conflict-reload>Güncel hali yükle</a>
+    </div>
+  </div>
+</div>

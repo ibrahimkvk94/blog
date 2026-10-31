@@ -1,0 +1,25 @@
+<section class="fsec fsec-wide">
+  <div class="fsec-head">
+    <div>
+      <h3>{{ availability_title|default:"Müsaitlik" }}</h3>
+      <p>{% if availability_help %}{{ availability_help }} {% endif %}Hücreye tıklayın: uygun → yasak → koşullu (?). Gün ya da saat başlığı tüm satırı/sütunu değiştirir.</p>
+    </div>
+    <div class="legend">
+      <span><i class="lg-ok"></i>Uygun</span><span><i class="lg-no"></i>Yasak</span><span><i class="lg-maybe"></i>Koşullu</span>
+    </div>
+  </div>
+  <div class="fsec-body">
+    <div class="avail" data-availability>
+      {{ availability|json_script:"availability-data" }}
+      <input type="hidden" name="availability" value="">
+      <div class="avail-grid"></div>
+    </div>
+    {% if copy_targets and copy_targets.items %}
+      <details class="copy-avail">
+        <summary>Bu ızgarayı başka {{ copy_targets.label }}lara da uygula <span class="pill" data-copy-summary hidden></span></summary>
+        <p class="subtle small">Seçtikleriniz <b>Kaydet</b>'e basınca bu ızgarayla güncellenir.</p>
+        {% include "timetable/data/target_picker.html" with picker=copy_targets modes=copy_modes default_mode="replace" %}
+      </details>
+    {% endif %}
+  </div>
+</section>

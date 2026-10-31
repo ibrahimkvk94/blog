@@ -1,0 +1,9 @@
+{% load search %}<div class="chips-field" data-chips>
+  {% if widget.searchable %}<input type="search" class="input chip-search" placeholder="Ara…" aria-label="Seçenekleri ara">{% endif %}
+  <div class="chip-list">
+    {% for group, options, index in widget.optgroups %}{% for option in options %}
+      <label class="chip-opt" data-label="{{ option.label|fold }}"{% if option.group_class %} data-class="{{ option.group_class }}"{% endif %}><input type="{{ option.type }}" name="{{ option.name }}" value="{{ option.value|stringformat:'s' }}"{% include "django/forms/widgets/attrs.html" with widget=option %}><span>{{ option.label }}</span></label>
+    {% empty %}<span class="subtle small">Seçenek yok.</span>
+    {% endfor %}{% endfor %}
+  </div>
+</div>

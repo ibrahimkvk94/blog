@@ -1,0 +1,87 @@
+{% extends "timetable/base.html" %}
+{% block title %}Bölümler{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:institution_detail' school.institution_id %}">{{ school.institution }}</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
+{% block heading %}<h1>Bölümler</h1>{% if pending %}<span class="pill warn">{{ pending }} öneri onay bekliyor</span>{% endif %}{% endblock %}
+{% block actions %}
+  <a class="btn" href="?oneriler=1">{% include "timetable/icon.html" with name="sparkles" %} Ders kodlarından öner</a>
+  <a class="btn btn-primary" href="?yeni=1">{% include "timetable/icon.html" with name="plus" %} Yeni bölüm</a>
+{% endblock %}
+{% block content %}
+<p class="page-lead">Bölüm sorumlusu yalnızca kendi bölüm ekranını görür: bölümün derslerinde hangi öğretmenin kaç kısım okutacağını (sınıf seçmeden) ve öğretmenlerin mazeretlerini girip onaya gönderir. Onayladığınız dağılım öğretmen havuzuna yazılır; isterseniz kısımlara hemen ön dağıtım yapılır. Mazeretler <a href="{% url 'timetable:teacher_requests' school.pk %}">Öğretmen istekleri</a> ekranına düşer.</p>
+
+{% if suggestions %}
+  <form method="post" class="panel" style="margin-bottom:18px">{% csrf_token %}<input type="hidden" name="action" value="suggest">
+    <div class="panel-head"><h2>Ders kodlarından önerilen bölümler</h2><button class="btn btn-primary btn-sm">Seçilenleri oluştur</button></div>
+    <div class="panel-body flush table-wrap">
+      <table class="table">
+        <thead><tr><th style="width:28px"></th><th>Bölüm</th><th>Ders adları</th><th>Öğretmenler</th></tr></thead>
+        <tbody>{% for s in suggestions %}
+          <tr><td><input type="checkbox" name="oneri" value="{{ s.name }}"{% if not s.exists %} checked{% else %} disabled{% endif %}></td>
+            <td><b>{{ s.name }}</b>{% if s.exists %} <span class="pill">var</span>{% endif %}</td>
+            <td>{{ s.subjects|length }} <span class="subtle small">{% for x in s.subjects|slice:":6" %}{{ x.short|default:x.name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if s.subjects|length > 6 %} …{% endif %}</span></td>
+            <td>{{ s.teachers|length }} <span class="subtle small">{% for x in s.teachers|slice:":4" %}{{ x.full_name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if s.teachers|length > 4 %} …{% endif %}</span></td></tr>
+        {% endfor %}</tbody>
+      </table>
+    </div>
+  </form>
+{% endif %}
+
+<div class="dept-layout">
+  <nav class="panel dept-list" aria-label="Bölümler">
+    {% for r in rows %}
+      <a href="?bolum={{ r.d.pk }}" class="{% if selected.pk == r.d.pk %}on{% endif %}"><span><b>{{ r.d.name }}</b><small>{{ r.d.subjects.all|length }} ders · {{ r.d.teachers.all|length }} öğretmen{% if r.heads %} · {{ r.heads|join:", " }}{% endif %}</small></span>
+        {% if r.sub %}<span class="pill {% if r.sub.status == 'bekliyor' %}warn{% elif r.sub.status == 'reddedildi' %}error{% endif %}">{{ r.sub.get_status_display }}</span>{% endif %}</a>
+    {% empty %}<div class="empty">Henüz bölüm yok. “Ders kodlarından öner” ile başlayın.</div>{% endfor %}
+  </nav>
+
+  <div class="stack">
+    {% if review %}
+      <section class="panel">
+        <div class="panel-head"><h2>{{ selected.name }} önerisi</h2><span class="subtle small">{{ review.sub.submitted_at|date:"d.m.Y H:i" }}{% if review.sub.updated_by %} · {{ review.sub.updated_by.get_full_name|default:review.sub.updated_by.username }}{% endif %}</span></div>
+        <div class="panel-body">
+          {% if review.sub.message %}<p>“{{ review.sub.message }}”</p>{% endif %}
+          {% if review.new_teachers %}<div class="alert alert-warning">Bölümün tanımladığı yeni öğretmenler: {% for t in review.new_teachers %}<a href="{% url 'timetable:data_edit' school.pk 'ogretmenler' t.pk %}"><b>{{ t.full_name }}</b></a>{% if not forloop.last %}, {% endif %}{% endfor %} — bilgilerini ve müsaitliğini kontrol edin.</div>{% endif %}
+          {% if review.rows %}
+          <table class="table dept-diff">
+            <thead><tr><th>Ders</th><th>Kısım</th><th>Öğretmen: şu an → öneri</th></tr></thead>
+            <tbody>{% for r in review.rows %}
+              <tr><td><b>{{ r.subject.short|default:r.subject.name }}</b><div class="subtle small">{{ r.subject.name }}</div></td>
+                <td>{{ r.total }}/{{ r.sections }} {% if r.state != "ok" %}<span class="pill {% if r.state == 'over' %}error{% else %}warn{% endif %}">{% if r.state == 'over' %}fazla{% else %}eksik{% endif %}</span>{% endif %}</td>
+                <td>{% for l in r.lines %}<div>{{ l.name }}: {{ l.before }} → <span class="{% if l.after > l.before %}up{% elif l.after < l.before %}down{% endif %}">{{ l.after }}</span> kısım</div>{% endfor %}</td></tr>
+            {% endfor %}</tbody>
+          </table>
+          {% else %}<p class="muted">Öneri şu anki dağılımla aynı.</p>{% endif %}
+          <form method="post" style="margin-top:12px">{% csrf_token %}<input type="hidden" name="oneri" value="{{ review.sub.pk }}">
+            <label class="label" for="reply">Yanıt (isteğe bağlı)</label>
+            <textarea class="input" id="reply" name="reply" rows="2"></textarea>
+            <label class="check small"><input type="checkbox" name="dagit" value="1" checked> <span>Onaylayınca kısımlara hemen ön dağıtım yap (programdaki saat çakışmaları önlenir)</span></label>
+            <div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-primary" name="action" value="approve">{% include "timetable/icon.html" with name="check" %} Onayla</button>
+              <button class="btn" name="action" value="reject">Düzeltmeye geri gönder</button></div>
+          </form>
+        </div>
+      </section>
+    {% endif %}
+
+    {% if selected or creating %}
+      <form method="post" class="panel">{% csrf_token %}<input type="hidden" name="action" value="save">{% if selected %}<input type="hidden" name="bolum" value="{{ selected.pk }}">{% endif %}
+        <div class="panel-head"><h2>{% if selected %}{{ selected.name }}{% else %}Yeni bölüm{% endif %}</h2>
+          {% if selected %}<a class="btn btn-sm" href="{% url 'timetable:department_portal' selected.pk %}">Bölüm ekranını aç {% include "timetable/icon.html" with name="arrow-right" %}</a>{% endif %}</div>
+        <div class="panel-body">
+          <div class="form-row"><label class="label" for="d-name">Ad</label><input class="input" id="d-name" name="name" value="{{ selected.name }}" required style="max-width:320px"></div>
+          <div class="form-row"><span class="label">Bölüm sorumluları <span class="subtle">(öğretmen hesabı olmalı)</span></span>
+            <div class="dept-pick">{% for t in teachers %}{% if t.user_id %}<label class="check small"><input type="checkbox" name="heads" value="{{ t.pk }}"{% if t.pk in head_ids %} checked{% endif %}> <span>{{ t.full_name }}</span></label>{% endif %}{% endfor %}
+              {% for t in teachers %}{% if not t.user_id %}<label class="check small"><input type="checkbox" name="heads" value="{{ t.pk }}"> <span>{{ t.full_name }} <span class="subtle">(hesap yok)</span></span></label>{% endif %}{% endfor %}</div></div>
+          <div class="form-row"><span class="label">Ders adları</span>
+            <div class="dept-pick">{% for s in subjects %}<label class="check small"><input type="checkbox" name="subjects" value="{{ s.pk }}"{% if s.pk in chosen_subjects %} checked{% endif %}> <span>{{ s.short|default:s.name }} <span class="subtle">{% if s.short %}{{ s.name }}{% endif %}</span></span></label>{% endfor %}</div></div>
+          <div class="form-row"><span class="label">Öğretmenler</span>
+            <div class="dept-pick">{% for t in teachers %}<label class="check small"><input type="checkbox" name="teachers" value="{{ t.pk }}"{% if t.pk in chosen_teachers %} checked{% endif %}> <span>{{ t.full_name }}</span></label>{% endfor %}</div></div>
+        </div>
+        <div class="form-actions"><div style="display:flex;gap:8px"><button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} Kaydet</button>
+          {% if selected %}<button class="btn btn-danger" name="action" value="delete" onclick="return confirm('Bölüm silinsin mi? Kotalar ve dersler değişmez.')">Sil</button>{% endif %}</div></div>
+      </form>
+    {% elif not review %}
+      {% include "timetable/empty.html" with icon="users" title="Bir bölüm seçin" text="Soldaki listeden bölümü seçin ya da yeni bölüm ekleyin." %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

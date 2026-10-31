@@ -1,0 +1,126 @@
+{% extends "timetable/base.html" %}
+{% load assets %}
+{% block title %}{{ department.name }} bölümü{% endblock %}
+{% block crumbs %}{{ dept_school.institution|default:"" }}{% if dept_school.institution %} / {% endif %}{{ dept_school }}{% endblock %}
+{% block heading %}<h1>{{ department.name }} bölümü</h1>
+  {% if sub %}<span class="pill {% if sub.status == 'bekliyor' %}warn{% elif sub.status == 'reddedildi' %}error{% endif %}">{{ sub.get_status_display }}</span>{% elif last %}<span class="pill ok">Onaylandı {{ last.decided_at|date:"d.m.Y" }}</span>{% endif %}
+{% endblock %}
+{% block content %}
+<nav class="subnav" aria-label="Bölüm">
+  <a href="?sekme=dagilim" class="{% if tab != 'mazeret' %}active{% endif %}">Ders dağılımı</a>
+  <a href="?sekme=mazeret" class="{% if tab == 'mazeret' %}active{% endif %}">Mazeretler</a>
+</nav>
+
+{% if tab == "mazeret" %}
+  <p class="page-lead">Öğretmenin gelemeyeceği saatleri işaretleyip gönderin; program sorumlusu onaylayınca öğretmenin müsaitliğine işlenir.</p>
+  {% if teacher %}
+  <div class="rq-layout">
+    <form method="post" class="panel" id="rq-form">{% csrf_token %}
+      <input type="hidden" name="sekme" value="mazeret"><input type="hidden" name="ogretmen" value="{{ teacher.pk }}">
+      <div class="panel-head">
+        <select class="select select-sm" onchange="location.href='?sekme=mazeret&ogretmen='+this.value" aria-label="Öğretmen">
+          {% for p in people %}<option value="{{ p.pk }}"{% if p.pk == teacher.pk %} selected{% endif %}>{{ p.full_name }}</option>{% endfor %}
+        </select>
+        <div class="legend"><span><i class="lg-ok"></i>Gelebilir</span><span><i class="lg-no"></i>Gelemez</span><span><i class="lg-maybe"></i>Tercih etmez</span><span><i class="lg-changed"></i>İstek</span></div>
+      </div>
+      <div class="panel-body">
+        <p class="subtle small" style="margin-top:0">Hücreye tıklayın: gelebilir → gelemez → tercih etmez. Kalın çerçeveli hücreler kayıtlı müsaitlikten farklı olanlardır. Taralı saatler okul genelinde kapalıdır.</p>
+        {% include "timetable/request_grid.html" with editable=True %}
+        <label class="label" for="rq-reason" style="margin-top:14px">Mazeret / gerekçe</label>
+        <textarea class="input" id="rq-reason" name="reason" rows="2" placeholder="Ör. Salı öğleden sonra lisansüstü dersi var.">{{ pending.reason }}</textarea>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap">
+          <button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} {% if pending %}İsteği güncelle{% else %}Onaya gönder{% endif %}</button>
+          <button type="button" class="btn btn-ghost" data-rq-reset>Değişiklikleri temizle</button>
+          <span class="subtle small" data-rq-count></span>
+        </div>
+      </div>
+    </form>
+    <aside class="panel">
+      <div class="panel-head"><h2>Bekleyen istek</h2></div>
+      <div class="panel-body">
+        {% if pending %}
+          <div class="subtle small">{{ pending.created_at|date:"j F Y H:i" }}{% if pending.requested_by %} · {{ pending.requested_by.get_full_name|default:pending.requested_by.username }}{% endif %}</div>
+          <ul class="rq-items">{% for i in pending_items %}<li><i class="rq-dot st-{{ i.state|default:'free' }}"></i>{{ i.label }} <span class="subtle">{{ i.span }}</span> · <b>{{ i.text }}</b></li>{% endfor %}</ul>
+        {% else %}<p class="muted small" style="margin:0">Bu öğretmen için bekleyen istek yok.</p>{% endif %}
+      </div>
+    </aside>
+  </div>
+  {% else %}{% include "timetable/empty.html" with icon="user" title="Bölümde öğretmen yok" text="Program sorumlusundan bölüme öğretmen eklemesini isteyin." %}{% endif %}
+
+{% else %}
+  <p class="page-lead">Her ders için <b>hangi öğretmenin kaç kısım</b> okutacağını yazın; hangi kısmın kime düşeceğini program kendisi dağıtır. Saatler kısım × haftalık saatten hesaplanır. Bitince <b>Onaya gönder</b>.</p>
+  {% if sub.status == "reddedildi" and sub.reply %}<div class="alert alert-error"><b>Düzeltme istendi:</b> {{ sub.reply }}</div>{% endif %}
+  {% if sub.status == "bekliyor" %}<div class="alert alert-warning">Öneri {{ sub.submitted_at|date:"d.m.Y H:i" }} tarihinde gönderildi ve onay bekliyor. Değiştirmek için geri çekin.</div>{% endif %}
+  {% if last and last.reply and not sub %}<div class="alert alert-success"><b>Program sorumlusunun notu:</b> {{ last.reply }}</div>{% endif %}
+  <form method="post" class="dp-layout" id="dp-form">{% csrf_token %}
+    <div class="stack">
+      {% for r in rows %}
+        <section class="panel dp-subject" data-sections="{{ r.sections }}" data-hours="{{ r.hours }}">
+          <div class="panel-head">
+            <div><h2>{{ r.subject.short|default:r.subject.name }} <span class="subtle small">{% if r.subject.short %}{{ r.subject.name }}{% endif %}</span></h2>
+              <div class="subtle small">{{ r.sections }} kısım × {{ r.hours }} saat{% if r.mixed_hours %} (saatleri farklı kısımlar var){% endif %}</div></div>
+            <span class="pill" data-dp-state></span>
+          </div>
+          <div class="panel-body">
+            <div class="dp-rows" data-dp-rows="{{ r.subject.pk }}">
+              {% for t, n in r.proposal.items %}
+                <div class="dp-row"><select class="select select-sm" name="t-{{ r.subject.pk }}" data-value="{{ t }}"{% if not editable %} disabled{% endif %}></select>
+                  <input class="input input-sm" type="number" min="0" max="{{ r.sections }}" name="n-{{ r.subject.pk }}" value="{{ n }}"{% if not editable %} disabled{% endif %} aria-label="Kısım">
+                  <span class="dp-hours"></span>{% if editable %}<button type="button" class="btn btn-sm btn-ghost" data-dp-remove aria-label="Satırı sil">✕</button>{% endif %}</div>
+              {% endfor %}
+            </div>
+            {% if editable %}<div class="dp-add-row"><button type="button" class="btn btn-sm" data-dp-add="{{ r.subject.pk }}">{% include "timetable/icon.html" with name="plus" %} Öğretmen ekle</button>
+              <button type="button" class="btn btn-sm btn-ghost" data-dp-pick="{{ r.subject.pk }}" data-dp-title="{{ r.subject.short|default:r.subject.name }}">{% include "timetable/icon.html" with name="search" %} Başka bölümden / yeni öğretmen</button></div>{% endif %}
+          </div>
+        </section>
+      {% empty %}
+        {% include "timetable/empty.html" with icon="book" title="Bölüme ders adı atanmamış" text="Program sorumlusundan bölümün derslerini tanımlamasını isteyin." %}
+      {% endfor %}
+    </div>
+    <aside class="stack dp-side">
+      <section class="panel">
+        <div class="panel-head"><h2>Öğretmen yükleri</h2></div>
+        <div class="panel-body flush">
+          <table class="table dp-loads">
+            <thead><tr><th>Öğretmen</th><th class="num" title="Bu bölümden">Bölüm</th><th class="num" title="Başka bölümlerin derslerinden">Diğer</th><th class="num">Toplam</th></tr></thead>
+            <tbody>{% for l in loads %}<tr data-dp-load="{{ l.t.pk }}" data-outside="{{ l.outside }}" data-target="{{ l.target|default:'' }}"><td>{{ l.t.full_name }}{% if l.group %}<div class="subtle small">{{ l.group }}</div>{% endif %}</td><td class="num" data-in>{{ l.inside }}</td><td class="num">{{ l.outside }}</td><td class="num"><b data-total>{{ l.total }}</b>{% if l.target %}<span class="subtle small">/{{ l.target }}</span>{% endif %}</td></tr>{% endfor %}</tbody>
+          </table>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="panel-body">
+          <label class="label" for="dp-message">Program sorumlusuna not</label>
+          <textarea class="input" id="dp-message" name="message" rows="3"{% if not editable %} disabled{% endif %}>{{ sub.message }}</textarea>
+          <p class="subtle small" data-dp-summary></p>
+          {% if editable %}
+            <div class="dp-buttons"><button class="btn" name="action" value="draft">Taslağı kaydet</button>
+              <button class="btn btn-primary" name="action" value="submit">{% include "timetable/icon.html" with name="check" %} Onaya gönder</button></div>
+          {% else %}
+            <button class="btn" name="action" value="withdraw">Geri çek ve düzenle</button>
+          {% endif %}
+        </div>
+      </section>
+    </aside>
+  </form>
+  {% if new_teachers %}<p class="subtle small">Bu öneride tanımladığınız yeni öğretmenler: {% for t in new_teachers %}<b>{{ t.full_name }}</b>{% if not forloop.last %}, {% endif %}{% endfor %}</p>{% endif %}
+  {{ options|json_script:"dp-teachers" }}
+  <dialog class="dp-picker" id="dp-picker">
+    <form method="dialog" class="dp-picker-head"><h2>Öğretmen seç · <span data-dp-picker-title></span></h2><button class="btn btn-sm btn-ghost" aria-label="Kapat">✕</button></form>
+    <input class="input" type="search" placeholder="Ad ya da bölüm ara…" data-dp-search autocomplete="off">
+    <div class="dp-picker-list" data-dp-list></div>
+    <details class="dp-new">
+      <summary>Listede yok mu? Yeni öğretmen tanımla</summary>
+      <div class="dp-new-form">
+        <input class="input input-sm" data-dp-new-name placeholder="Ad Soyad (ör. Ayşe Nur DEMİR)">
+        <input class="input input-sm" data-dp-new-short placeholder="Kısa ad (isteğe bağlı)">
+        <input class="input input-sm" type="email" data-dp-new-email placeholder="E-posta (isteğe bağlı)">
+        <button type="button" class="btn btn-sm btn-primary" data-dp-new-save>Tanımla ve ekle</button>
+      </div>
+      <p class="subtle small">Yeni öğretmen okula ve bölümünüze eklenir; program sorumlusu önerinizde ayrıca görür.</p>
+    </details>
+  </dialog>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if tab == "mazeret" %}<script src="{% asset 'timetable/request_grid.js' %}"></script>{% else %}<script src="{% asset 'timetable/department.js' %}"></script>{% endif %}
+{% endblock %}

@@ -1,0 +1,147 @@
+{% extends "timetable/base.html" %}
+{% block title %}Kurulum sihirbazı{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:institution_detail' school.institution_id %}">{{ school.institution }}</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
+{% block heading %}<h1>Kurulum sihirbazı</h1><span class="pill{% if progress == 100 %} ok{% endif %}">%{{ progress }} tamam</span>{% endblock %}
+{% block content %}
+<div class="sw-layout">
+  <nav class="sw-steps" aria-label="Kurulum adımları">
+    <div class="sw-progress"><i style="width:{{ progress }}%"></i></div>
+    {% for s in steps %}
+      <a href="{{ s.url }}" class="sw-step{% if s.current %} current{% endif %}{% if s.done and s.number %} done{% endif %}">
+        <span class="sw-num">{% if s.done and s.number and not s.current %}{% include "timetable/icon.html" with name="check" %}{% else %}{{ s.number|default:"" }}{% if not s.number %}{% include "timetable/icon.html" with name="sparkles" %}{% endif %}{% endif %}</span>
+        <span class="sw-label"><b>{{ s.title }}</b>{% if s.note %}<small>{{ s.note }}</small>{% endif %}</span>
+      </a>
+    {% endfor %}
+  </nav>
+
+  <section class="panel sw-main">
+    <div class="panel-head">
+      <h2><span class="sw-head-icon">{% include "timetable/icon.html" with name=step.icon %}</span> {% if step.number %}{{ step.number }}. {% endif %}{{ step.title }}</h2>
+      {% if edit_url %}<a class="btn btn-sm" href="{{ edit_url }}">Tümünü düzenle {% include "timetable/icon.html" with name="arrow-right" %}</a>{% endif %}
+    </div>
+    <div class="panel-body">
+
+    {% if step.slug == "baslangic" %}
+      <p class="sw-intro">Bu sihirbaz <b>{{ school }}</b> programını sıfırdan kurmanız için verileri doğru sırayla ister: önce günler ve saatler, sonra ders adları, sınıflar, derslikler ve öğretmenler, en sonda bunları birbirine bağlayan dersler. Her adımda listeleri Excel'den kopyalayıp yapıştırabilirsiniz. İstediğiniz an çıkıp sonra kaldığınız yerden devam edebilirsiniz.</p>
+      <div class="sw-paths">
+        <a class="sw-path primary" href="{{ next.url }}"><span>{% include "timetable/icon.html" with name="sparkles" %}</span><b>Adım adım kur</b><small>Verileri bu sihirbazla, sırayla girin.</small></a>
+        <a class="sw-path" href="{% url 'timetable:excel_import' school.pk %}"><span>{% include "timetable/icon.html" with name="upload" %}</span><b>Excel şablonundan</b><small>Şablonu indirip doldurun, tek seferde yükleyin.</small></a>
+        <a class="sw-path" href="{% url 'timetable:institution_detail' school.institution_id %}"><span>{% include "timetable/icon.html" with name="file-text" %}</span><b>aSc dosyasından ya da başka programdan</b><small>Kurum sayfasından aSc XML içe aktarın ya da önceki dönemi kopyalayın.</small></a>
+      </div>
+      <h3 class="sw-sub">Sıra neden önemli?</h3>
+      <ol class="sw-order">
+        <li><b>Günler ve saatler</b> programın ızgarasıdır; her şey bunun üzerine yerleşir.</li>
+        <li><b>Ders adları, sınıflar, derslikler, öğretmenler</b> birbirinden bağımsız listelerdir.</li>
+        <li><b>Dersler</b> bunları bağlar: “hangi sınıfa, hangi ders, hangi öğretmenle, haftada kaç saat”.</li>
+        <li><b>Kurallar</b> (müsaitlik, ardışık dersler, derslik eşleşmesi) isteğe bağlıdır; ilk program onlarsız da üretilebilir.</li>
+      </ol>
+
+    {% elif step.slug == "program" %}
+      <form method="post" class="sw-form">{% csrf_token %}
+        {% for field in form %}
+          <div class="form-row"><label class="label" for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% if field.help_text %}<div class="subtle small">{{ field.help_text }}</div>{% endif %}{% for e in field.errors %}<div class="error">{{ e }}</div>{% endfor %}</div>
+        {% endfor %}
+        <p class="subtle small">Ad, kurum içinde bu programı ayırt eder (ör. “2026-2027 Güz”, “Gece öğretimi”). Hafta sonu ders yapılıyorsa gün sayısını artırın.</p>
+        <div class="sw-nav"><a class="btn" href="{{ prev.url }}">‹ Geri</a><button class="btn btn-primary">Kaydet ve devam {% include "timetable/icon.html" with name="arrow-right" %}</button></div>
+      </form>
+
+    {% elif step.slug == "saatler" %}
+      <form method="post" class="sw-form">{% csrf_token %}
+        <p class="sw-intro">Ders saatlerini birkaç bilgiyle üretin; ayrıntıları (güne göre farklı saatler, adlar) sonra <a href="{% url 'timetable:school_settings' school.pk %}">Ayarlar ve saatler</a> ekranında düzenleyebilirsiniz.</p>
+        <div class="sw-grid">
+          <label>Günlük ders saati sayısı<input class="input" type="number" name="count" min="1" max="16" value="{{ defaults.count }}"></label>
+          <label>İlk dersin başlangıcı<input class="input" type="time" name="start" value="{{ defaults.start }}"></label>
+          <label>Ders süresi (dk)<input class="input" type="number" name="length" min="10" max="240" value="{{ defaults.length }}"></label>
+          <label>Teneffüs (dk)<input class="input" type="number" name="break" min="0" max="120" value="10"></label>
+          <label>Öğle arası kaçıncı dersten sonra<input class="input" type="number" name="lunch_after" min="0" max="16" value="{{ defaults.lunch_after }}"><small class="subtle">0 = öğle arası yok</small></label>
+          <label>Öğle arası (dk)<input class="input" type="number" name="lunch" min="0" max="180" value="60"></label>
+        </div>
+        {% if periods %}
+          <h3 class="sw-sub">Şu anki saatler</h3>
+          <div class="sw-chips">{% for p in periods %}<span class="sw-chip"><b>{{ p.index|add:1 }}.</b> {{ p.start_time|time:"H:i" }}–{{ p.end_time|time:"H:i" }}{% if p.long_break_after %} · öğle{% endif %}</span>{% endfor %}</div>
+          {% if has_timetables %}<p class="alert alert-warning small">Bu programda üretilmiş sürümler var; saat sayısını azaltırsanız sondaki saatlerdeki kartlar ızgara dışında kalır.</p>{% endif %}
+        {% endif %}
+        <div class="sw-nav"><a class="btn" href="{{ prev.url }}">‹ Geri</a>{% if periods %}<a class="btn btn-ghost" href="{{ next.url }}">Değiştirmeden devam</a>{% endif %}<button class="btn btn-primary">Saatleri oluştur ve devam {% include "timetable/icon.html" with name="arrow-right" %}</button></div>
+      </form>
+
+    {% elif paste %}
+      <p class="sw-intro">{{ paste.help }}</p>
+      <div class="sw-paste">
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="paste">
+          <div class="sw-columns">{% for c in paste.columns %}<span><i>{{ forloop.counter }}</i>{{ c }}</span>{% endfor %}</div>
+          <textarea class="input sw-text" name="text" rows="9" placeholder="{{ paste.example }}" spellcheck="false">{{ draft }}</textarea>
+          <p class="subtle small">Excel'de sütunları bu sırayla seçip kopyalayın ve buraya yapıştırın; ya da her satıra değerleri “;” ile ayırarak yazın. Yalnızca ilk sütun zorunludur. Aynı adla yazılan kayıt güncellenir.</p>
+          <div class="sw-paste-actions">
+            <button class="btn btn-primary">{% include "timetable/icon.html" with name="plus" %} Ekle</button>
+            <button type="button" class="btn btn-ghost" data-example>Örneği doldur</button>
+          </div>
+        </form>
+        <div class="sw-existing">
+          <div class="sw-existing-head"><b>{{ existing|length }}</b> kayıt</div>
+          {% if existing %}
+            <ul class="sw-list">{% for label, sub in existing|slice:":200" %}<li><b>{{ label }}</b>{% if sub %}<small>{{ sub }}</small>{% endif %}</li>{% endfor %}</ul>
+            {% if existing|length > 200 %}<p class="subtle small">… ve {{ existing|length|add:"-200" }} kayıt daha.</p>{% endif %}
+          {% else %}
+            <p class="subtle small sw-none">Henüz kayıt yok. Soldaki kutuya yapıştırın.</p>
+          {% endif %}
+        </div>
+      </div>
+      {% if step.slug == "dersler" %}
+        <div class="sw-tip">{% include "timetable/icon.html" with name="columns" %}<span>Çok sayıda ders için <a href="{% url 'timetable:distribution' school.pk %}">Ders dağıtım çizelgesi</a> (ders × sınıf tablosu) daha hızlıdır; aynı dersi birden çok öğretmen paylaşıyorsa <a href="{% url 'timetable:teacher_assign' school.pk %}">Öğretmen atama</a> ekranındaki havuz, kısımları üretim sırasında dağıtır.</span></div>
+      {% endif %}
+      <div class="sw-nav"><a class="btn" href="{{ prev.url }}">‹ Geri</a><a class="btn btn-primary" href="{{ next.url }}">Devam {% include "timetable/icon.html" with name="arrow-right" %}</a></div>
+
+    {% elif step.slug == "kurallar" %}
+      <p class="sw-intro">İlk programı bu adımı atlayarak da üretebilirsiniz. Kurallar ekledikçe program gerçek ihtiyaçlarınıza yaklaşır.</p>
+      <div class="sw-paths">
+        <a class="sw-path" href="{% url 'timetable:bulk_availability' school.pk %}"><span>{% include "timetable/icon.html" with name="calendar-x" %}</span><b>Müsaitlik</b><small>Öğretmenlerin, sınıfların, dersliklerin gelemediği saatler. {{ unavailable }} öğretmende kısıt var.</small></a>
+        <a class="sw-path" href="{% url 'timetable:relation_wizard' school.pk %}"><span>{% include "timetable/icon.html" with name="link" %}</span><b>Teori + uygulama</b><small>Aynı kodlu teori ve “(U)” derslerini art arda ya da aynı güne bağlar.</small></a>
+        <a class="sw-path" href="{% url 'timetable:data_list' school.pk 'kart-iliskileri' %}"><span>{% include "timetable/icon.html" with name="link" %}</span><b>Kart ilişkileri</b><small>Günde en fazla, farklı günlerde, aynı anda… {{ relations }} ilişki tanımlı.</small></a>
+        <a class="sw-path" href="{% url 'timetable:room_wizard' school.pk %}"><span>{% include "timetable/icon.html" with name="map-pin" %}</span><b>Derslik atama</b><small>Derslere ve ders adlarına varsayılan derslikleri toplu atar.</small></a>
+        <a class="sw-path" href="{% url 'timetable:data_list' school.pk 'ogretmenler' %}"><span>{% include "timetable/icon.html" with name="user" %}</span><b>Öğretmen sınırları</b><small>Günde en fazla ders, haftada en fazla gün ve boşluk.</small></a>
+      </div>
+      <div class="sw-nav"><a class="btn" href="{{ prev.url }}">‹ Geri</a><a class="btn btn-primary" href="{{ next.url }}">Devam {% include "timetable/icon.html" with name="arrow-right" %}</a></div>
+
+    {% elif step.slug == "uret" %}
+      <div class="sw-summary">
+        {% for s in steps|slice:"2:8" %}<a href="{{ s.url }}" class="{% if s.done %}ok{% else %}missing{% endif %}"><span>{% include "timetable/icon.html" with name=s.icon %}</span><b>{{ s.note|default:"eksik" }}</b><small>{{ s.title }}</small></a>{% endfor %}
+      </div>
+      {% if slots %}<p class="subtle small">Toplam <b>{{ hours }}</b> ders saati, haftada <b>{{ slots }}</b> zaman dilimine yerleşecek.</p>{% endif %}
+      {% if issues %}
+        <h3 class="sw-sub">Veri denetimi {% if errors %}<span class="pill failed">{{ errors }} hata</span>{% else %}<span class="pill warn">{{ issues|length }} uyarı</span>{% endif %}</h3>
+        <ul class="issues sw-issues">{% for issue in issues|slice:":12" %}<li class="{{ issue.level }}"><span class="dot"></span>{{ issue.message }}</li>{% endfor %}</ul>
+      {% endif %}
+      {% if errors %}
+        <p class="alert alert-error">Hatalar giderilmeden program üretilemez; ilgili adıma dönüp düzeltin.</p>
+      {% elif not hours %}
+        <p class="alert alert-warning">Henüz ders yok. “Dersler” adımında sınıflara ders ve saat girin.</p>
+      {% else %}
+        <form method="post" action="{% url 'timetable:generate' school.pk %}" class="sw-generate">{% csrf_token %}
+          <input type="hidden" name="name" value="Program {{ timetables|add:1 }}">
+          <div class="choice-cards">
+            <label class="choice"><input type="radio" name="mode" value="relaxed" checked><b>Taslak (önerilen)</b><span>Sığmayan kartlar bekler, kırılan kurallar raporlanır; ilk deneme için en iyisi.</span></label>
+            <label class="choice"><input type="radio" name="mode" value="strict"><b>Katı</b><span>Tüm kurallar sağlanmazsa program üretilmez.</span></label>
+          </div>
+          <label class="label" for="sw-time">Süre sınırı (saniye)</label>
+          <input class="input" id="sw-time" type="number" name="time_limit" value="120" min="5" max="1800" style="max-width:160px">
+          <div class="sw-nav"><a class="btn" href="{{ prev.url }}">‹ Geri</a><button class="btn btn-primary">{% include "timetable/icon.html" with name="play" %} Programı üret</button></div>
+        </form>
+      {% endif %}
+    {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  (function () {
+    const btn = document.querySelector("[data-example]");
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      const area = document.querySelector(".sw-text");
+      if (!area.value.trim() || confirm("Kutudaki metin örnekle değiştirilsin mi?")) area.value = area.placeholder;
+      area.focus();
+    });
+  })();
+</script>
+{% endblock %}

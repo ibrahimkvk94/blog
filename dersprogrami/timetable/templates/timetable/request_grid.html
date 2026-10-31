@@ -1,0 +1,13 @@
+<div class="avail"><table class="avail-table rq-grid{% if editable %} rq-edit{% endif %}">
+  <thead><tr><th></th>{% for p in grid.periods %}<th><span class="av-head" style="cursor:default">{{ p.index|add:1 }}.<small>{{ p.span }}</small></span></th>{% endfor %}</tr></thead>
+  <tbody>
+    {% for row in grid.rows %}
+      <tr><th><span class="av-head av-day" style="cursor:default">{{ row.day }}</span></th>
+        {% for c in row.cells %}
+          <td>{% if c.closed %}<span class="av-cell rq-closed" title="Okul genelinde kapalı saat"></span>
+            {% else %}<button type="button" class="av-cell{% if c.state %} av-{{ c.state }}{% endif %}{% if c.changed %} rq-changed{% endif %}" data-current="{{ c.current }}"{% if not editable %} disabled{% endif %} title="{{ row.day }} {{ c.period|add:1 }}. saat">{% if c.changed and not c.state %}✓{% elif c.state == 'maybe' %}?{% endif %}</button>{% if editable %}<input type="hidden" name="h-{{ c.day }}-{{ c.period }}" value="{{ c.state }}">{% endif %}{% endif %}</td>
+        {% endfor %}
+      </tr>
+    {% endfor %}
+  </tbody>
+</table></div>

@@ -1,0 +1,181 @@
+{% extends "timetable/base.html" %}
+{% block title %}{{ school }}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:institution_detail' school.institution_id %}">{{ school.institution }}</a>{% endblock %}
+{% block heading %}<h1>{{ school }}</h1>{% endblock %}
+{% block actions %}
+  <a class="btn" href="{% url 'timetable:school_settings' school.pk %}">Program ayarları ve saatler</a>
+{% endblock %}
+{% block content %}
+{% if main %}
+{% with st=board.status %}
+<section class="hero{% if st.hard or st.waiting %} hero-bad{% elif st %} hero-ok{% endif %}">
+  <div class="hero-main">
+    <div class="hero-title">
+      <span class="subtle small">Aktif program</span>
+      <h2><a href="{% url 'timetable:timetable_detail' main.pk %}">{{ main.name }}</a></h2>
+      {% if st.published %}<span class="pill ok">Yayında</span>{% else %}<span class="pill warn">Yayında değil</span>{% endif %}
+      {% if can.program and switchable|length > 1 %}
+        <form method="post" action="" class="hero-switch" data-switch>{% csrf_token %}
+          <select class="select select-sm" aria-label="Aktif programı değiştir" onchange="this.form.action=this.value;this.form.submit()">
+            {% for t in switchable %}<option value="{% url 'timetable:activate' t.pk %}"{% if t.pk == main.pk %} selected{% endif %}>{{ t.name }}{% if t.pk == school.active_timetable_id %} · yayında{% endif %}</option>{% endfor %}
+          </select>
+        </form>
+      {% endif %}
+    </div>
+    {% if school.active_timetable_id and school.active_timetable_id != main.pk %}<div class="subtle small">Yayındaki program: <a href="{% url 'timetable:timetable_detail' school.active_timetable_id %}">{{ school.active_timetable.name }}</a> (öğrenciler, öğretmenler, vekâlet ve nöbet bunu kullanır)</div>{% endif %}
+    {% if st %}
+    <div class="hero-stats">
+      <a class="hs{% if st.hard %} bad{% endif %}" href="{% url 'timetable:solution_center' main.pk %}"><b>{{ st.hard }}</b><span>kesin ihlal</span></a>
+      <a class="hs{% if st.soft %} warn{% endif %}" href="{% url 'timetable:quality' main.pk %}"><b>{{ st.soft }}</b><span>tercih ihlali</span></a>
+      <a class="hs{% if st.waiting %} bad{% endif %}" href="{% url 'timetable:pending' main.pk %}"><b>{{ st.waiting }}<small>/{{ st.cards }}</small></b><span>bekleyen kart</span></a>
+      <a class="hs" href="{% url 'timetable:quality' main.pk %}"><b>{{ st.teacher_gaps }}</b><span>öğretmen boşluğu</span></a>
+      <a class="hs" href="{% url 'timetable:quality' main.pk %}"><b>{{ st.class_gaps }}</b><span>kısım boşluğu</span></a>
+    </div>
+    <div class="subtle small">Son değişiklik: {{ st.edited|date:"d.m.Y H:i" }}</div>
+    {% else %}
+    <div class="subtle">{% include "timetable/status_pill.html" with t=main %}</div>
+    {% endif %}
+  </div>
+  <div class="hero-actions">
+    <a class="btn btn-primary" href="{% url 'timetable:timetable_detail' main.pk %}">{% include "timetable/icon.html" with name="grid" %} Ana görünüm</a>
+    {% if can.program %}<a class="btn" href="{% url 'timetable:solution_center' main.pk %}">{% include "timetable/icon.html" with name="wand" %} Çözüm merkezi</a>{% endif %}
+    <a class="btn" href="{% url 'timetable:quality' main.pk %}">{% include "timetable/icon.html" with name="gauge" %} Kalite karnesi</a>
+  </div>
+</section>
+{% endwith %}
+{% endif %}
+
+<div class="board">
+  <div class="panel">
+    <div class="panel-head"><h2>Sıradaki işler</h2>{% if board.next %}<span class="subtle small">{{ board.next|length }} iş</span>{% endif %}</div>
+    <div class="panel-body flush">
+      {% if board.next %}
+      <ul class="todo">
+        {% for n in board.next %}
+          <li class="todo-{{ n.level }}">
+            <span class="todo-icon">{% include "timetable/icon.html" with name=n.icon %}</span>
+            <span class="todo-text">{{ n.text }}</span>
+            <a class="btn btn-sm" href="{{ n.url }}">{{ n.action }} {% include "timetable/icon.html" with name="arrow-right" %}</a>
+          </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+        <div class="empty">{% include "timetable/icon.html" with name="check" %} Şu an bekleyen bir iş yok.</div>
+      {% endif %}
+    </div>
+  </div>
+  {% if board.today %}
+  <div class="panel">
+    <div class="panel-head"><h2>Bugün</h2><span class="subtle small">{{ board.today_label|date:"j F l" }}</span></div>
+    <div class="today">
+      {% for t in board.today %}
+        <a class="today-item" href="{{ t.url }}">
+          <span class="today-icon{% if t.bad %} bad{% endif %}">{% include "timetable/icon.html" with name=t.icon %}</span>
+          <span><b class="{% if t.bad %}bad{% endif %}">{{ t.value }}</b> {{ t.label }}<br><span class="subtle small">{{ t.hint }}</span></span>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<h2 class="section-title">Veriler</h2>
+<div class="tiles">
+  {% for tile in tiles %}
+    <a class="tile tile-link" href="{{ tile.url }}"><div class="k">{{ tile.label }}</div><div class="v{% if tile.bad %} bad{% endif %}">{{ tile.value }}</div>{% if tile.hint %}<div class="h">{{ tile.hint }}</div>{% endif %}</a>
+  {% endfor %}
+</div>
+
+<div class="grid-2">
+  <div class="stack">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Sürümler</h2>
+        <span class="subtle small">{{ timetables|length }} sürüm</span>
+      </div>
+      <div class="panel-body flush">
+        {% if timetables %}
+        <table class="table">
+          <thead><tr><th>Ad</th><th>Durum</th><th>Mod</th><th class="num">Ceza</th><th>Tarih</th></tr></thead>
+          <tbody>
+            {% for t in timetables %}
+              <tr>
+                <td><a href="{% url 'timetable:timetable_detail' t.pk %}"><b>{{ t.name }}</b></a>
+                  {% if main and t.pk == main.pk %}<span class="pill ok">Aktif</span>{% endif %}{% if t.pk == school.active_timetable_id %}<span class="pill">Yayında</span>{% endif %}</td>
+                <td>{% include "timetable/status_pill.html" %}</td>
+                <td class="muted">{{ t.get_mode_display }}</td>
+                <td class="num">{{ t.objective|default_if_none:"–" }}</td>
+                <td class="muted nowrap">{{ t.created_at|date:"d.m.Y H:i" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+          {% include "timetable/empty.html" with icon="grid" title="Henüz program üretilmedi" text="Veriler tamamlanınca sağdaki formdan ilk programı üretin." %}
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="panel" id="veri-denetimi">
+      <div class="panel-head">
+        <h2>Veri denetimi</h2>
+        {% if errors %}<span class="pill failed">{{ errors }} hata</span>{% elif issues %}<span class="pill warn">{{ issues|length }} uyarı</span>{% else %}<span class="pill ok">Sorun yok</span>{% endif %}
+      </div>
+      <div class="panel-body flush">
+        {% if issues %}
+          <ul class="issues">{% for issue in issues %}<li class="{{ issue.level }}"><span class="dot"></span>{{ issue.message }}</li>{% endfor %}</ul>
+        {% else %}
+          <div class="empty">Veride üretimi engelleyen bir sorun bulunmadı.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="uret">
+    <div class="panel-head"><h2>Yeni program üret</h2></div>
+    <form class="panel-body" method="post" action="{% url 'timetable:generate' school.pk %}">
+      {% csrf_token %}
+      <div class="form-row">
+        <label class="label" for="name">Sürüm adı</label>
+        <input class="input" id="name" name="name" value="Program {{ timetables|length|add:1 }}">
+      </div>
+      <div class="form-row">
+        <span class="label">Üretim modu</span>
+        <div class="choice-cards">
+          <label class="choice"><input type="radio" name="mode" value="strict" checked><b>Katı</b><span>Tüm kurallar sağlanır; mümkün değilse üretilmez.</span></label>
+          <label class="choice"><input type="radio" name="mode" value="relaxed"><b>Gevşek (taslak)</b><span>Sığmayan kartlar bekler, kırılan kurallar raporlanır.</span></label>
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="label" for="time_limit">Süre sınırı (saniye)</label>
+        <input class="input" type="number" id="time_limit" name="time_limit" value="60" min="5" max="1800">
+      </div>
+      <div class="form-row">
+        <label class="label" for="base">Başlangıç sürümü</label>
+        <select class="select" id="base" name="base">
+          <option value="">Otomatik: en yakın programdan (son başarılı ya da aSc çözümü) başla (önerilen)</option>
+          <option value="sifir">Tamamen sıfırdan</option>
+          {% for t in timetables %}{% if t.has_grid %}<option value="{{ t.pk }}">{{ t.name }} (kilitli kartlar korunur)</option>{% endif %}{% endfor %}
+        </select>
+      </div>
+      <div class="form-row" id="partial-row" hidden>
+        <span class="label">Yalnızca bunları yeniden yerleştir (hızlı)</span>
+        <p class="subtle small" style="margin:0 0 6px">Seçilen kısımların ya da öğretmenlerin kartları yeniden yerleşir; diğer tüm kartlar başlangıç sürümündeki yerinde sabit kalır. Boş = hepsi.</p>
+        <div class="dialog-row" style="align-items:flex-start">
+          <select class="select" name="only_classes" multiple size="6" title="Kısımlar">{% for c in school.classes.all %}<option value="{{ c.pk }}">{{ c.short|default:c.name }}</option>{% endfor %}</select>
+          <select class="select" name="only_teachers" multiple size="6" title="Öğretmenler">{% for t in school.teachers.all %}<option value="{{ t.pk }}">{{ t.full_name }}</option>{% endfor %}</select>
+        </div>
+      </div>
+      <script>
+        (function () {
+          const base = document.getElementById("base"), row = document.getElementById("partial-row");
+          const sync = () => { row.hidden = !/^\d+$/.test(base.value); };
+          base.addEventListener("change", sync); sync();
+        })();
+      </script>
+      <button class="btn btn-primary" style="width:100%">{% include "timetable/icon.html" with name="play" %} Üretimi başlat</button>
+      <p class="subtle small" style="margin-bottom:0">Üretim arka planda çalışır; sayfadan ayrılabilirsiniz.</p>
+    </form>
+  </div>
+</div>
+{% endblock %}

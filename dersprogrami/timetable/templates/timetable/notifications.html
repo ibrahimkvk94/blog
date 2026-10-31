@@ -1,0 +1,31 @@
+{% extends "timetable/base.html" %}
+{% block title %}Bildirimler{% endblock %}
+{% block heading %}<h1>Bildirimler</h1>{% if unread %}<span class="pill warn">{{ unread }} okunmamış</span>{% endif %}{% endblock %}
+{% block actions %}{% if unread %}<form method="post">{% csrf_token %}<button class="btn" name="action" value="all_read">{% include "timetable/icon.html" with name="check" %} Tümünü okundu say</button></form>{% endif %}{% endblock %}
+{% block content %}
+<p class="page-lead">Size gelen bildirimler: üretimi biten programlar, bölüm önerileri, öğretmen istekleri ve merkezden duyurular. Yenileri ekranın köşesinde anlık olarak da görünür.</p>
+<div class="segmented" style="margin-bottom:12px"><a class="{% if not unread_only %}active{% endif %}" href="?">Tümü</a><a class="{% if unread_only %}active{% endif %}" href="?okunmamis=1">Okunmamış</a></div>
+<div class="panel">
+  {% if page.object_list %}
+  <ul class="ntf-list">
+    {% for n in page.object_list %}
+      <li class="ntf-item ntf-{{ n.level }}{% if not n.read_at %} unread{% endif %}">
+        <span class="ntf-dot" aria-hidden="true"></span>
+        <div class="ntf-text">
+          {% if n.url %}<a href="{% url 'timetable:notification_open' n.pk %}"><b>{{ n.title }}</b></a>{% else %}<b>{{ n.title }}</b>{% endif %}
+          {% if n.body %}<div class="ntf-body">{{ n.body|linebreaksbr }}</div>{% endif %}
+          <div class="subtle small">{{ n.created_at|date:"d.m.Y H:i" }}{% if n.broadcast %} · duyuru{% if n.sender %} · {{ n.sender.get_full_name|default:n.sender.username }}{% endif %}{% endif %}{% if not n.read_at %} · <b>yeni</b>{% endif %}</div>
+        </div>
+      </li>
+    {% endfor %}
+  </ul>
+  {% if page.has_other_pages %}<div class="panel-body" style="display:flex;gap:8px;align-items:center">
+    {% if page.has_previous %}<a class="btn btn-sm" href="?sayfa={{ page.previous_page_number }}{% if unread_only %}&okunmamis=1{% endif %}">‹ Daha yeni</a>{% endif %}
+    <span class="subtle small">{{ page.number }} / {{ page.paginator.num_pages }}</span>
+    {% if page.has_next %}<a class="btn btn-sm" href="?sayfa={{ page.next_page_number }}{% if unread_only %}&okunmamis=1{% endif %}">Daha eski ›</a>{% endif %}
+  </div>{% endif %}
+  {% else %}
+    <div class="empty">{% include "timetable/icon.html" with name="check" %} {% if unread_only %}Okunmamış bildirim yok.{% else %}Henüz bildirim yok.{% endif %}</div>
+  {% endif %}
+</div>
+{% endblock %}

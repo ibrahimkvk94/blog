@@ -1,0 +1,18 @@
+{# Son başarılı programın bugünkü verilerle denetimi. rc = input_diff.recheck(...) #}
+{% if rc %}
+  <div class="recheck">
+    {% if rc.error %}
+      <p class="subtle small">“{{ name }}” bugünkü verilerle denetlenemedi: {{ rc.error }}</p>
+    {% elif rc.total %}
+      <p><b>“{{ name }}” o gün geçerliydi; bugünkü verilerle denetlenince {{ rc.total }} kesin ihlal çıkıyor.</b> Bunlar arada değişen veriyi gösterir:</p>
+      {% for g in rc.groups %}
+        <details class="since-group"{% if forloop.first %} open{% endif %}><summary><b>{{ g.title }}</b> <span class="pill error">{{ g.count }}</span></summary>
+          {% if g.hint %}<p class="diag-hint" style="margin:6px 0 0">{{ g.hint }}</p>{% endif %}
+          <ul>{% for e in g.examples %}<li>{{ e }}</li>{% endfor %}{% if g.count > g.examples|length %}<li class="subtle small">… toplam {{ g.count }}</li>{% endif %}</ul>
+        </details>
+      {% endfor %}
+    {% else %}
+      <p class="muted">“{{ name }}” bugünkü verilerle de kesin kuralların hepsini sağlıyor: o yerleşim bugün de geçerli. Bu durumda neden veri değil, süre ya da arama; o programı <b>başlangıç sürümü</b> seçerek yeniden üretin.</p>
+    {% endif %}
+  </div>
+{% endif %}

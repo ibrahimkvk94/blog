@@ -1,0 +1,302 @@
+{% extends "timetable/base.html" %}
+{% load assets %}
+{% load static %}
+{% block title %}{{ timetable.name }}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:institution_detail' school.institution_id %}">{{ school.institution }}</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
+{% block heading %}
+  <h1>{{ timetable.name }}</h1>
+  {% include "timetable/status_pill.html" with t=timetable %}
+  <span class="pill">{{ timetable.get_mode_display }}</span>
+{% endblock %}
+{% block actions %}
+  {% if timetable.has_grid %}
+    {% if can.program %}
+    <button class="btn" id="btn-repair" title="Bekleyen kartları programa yerleştir">{% include "timetable/icon.html" with name="wand" %} Bekleyenleri yerleştir</button>
+    <div class="dropdown" id="resolve-menu">
+      <button class="btn" type="button" data-toggle="dropdown" id="btn-resolve" title="Kesin ihlalleri en az kartı oynatarak gider (geri alınabilir)">{% include "timetable/icon.html" with name="shield" %} <span data-resolve-label>İhlalleri çöz</span> {% include "timetable/icon.html" with name="chevron" %}</button>
+      <div class="dropdown-menu">
+        <button type="button" data-resolve="40"><b>Hızlı</b><span class="subtle small">yaklaşık 40 sn</span></button>
+        <button type="button" data-resolve="90"><b>Az değişiklik</b><span class="subtle small">yaklaşık 90 sn · daha az ders taşınır</span></button>
+        <div class="subtle small" style="padding:6px 10px 2px;max-width:280px">Kilitli kartlara dokunulmaz. Ortaya çıkan değişiklik “Geri al” ile geri alınabilir.</div>
+      </div>
+    </div>
+    {% endif %}
+    <button class="btn" type="button" id="btn-versions" title="Kayıtlı versiyonlar, geri dönme">{% include "timetable/icon.html" with name="list" %} Versiyonlar</button>
+    <div class="dropdown" id="ops-menu"{% if not can.program %} hidden{% endif %}>
+      <button class="btn" type="button" data-toggle="dropdown">İşlemler {% include "timetable/icon.html" with name="chevron" %}</button>
+      <div class="dropdown-menu">
+        <button type="button" data-op="swap_days">İki günü yer değiştir…</button>
+        <button type="button" data-op="swap_periods">İki ders saatini yer değiştir…</button>
+        <button type="button" data-op="lock_all">Tüm kartları kilitle</button>
+        <button type="button" data-op="unlock_all">Tüm kilitleri aç</button>
+        <button type="button" data-op="unplace_unlocked">Kilitsiz kartları çıkar…</button>
+        <a href="{% url 'timetable:change_report' timetable.pk %}">Değişiklikler ve bildirim</a>
+        <a href="{% url 'timetable:statistics' timetable.pk %}">İstatistikler</a>
+        <a href="{% url 'timetable:reports' timetable.pk %}">Raporlar</a>
+      </div>
+    </div>
+    <div class="dropdown" id="export-menu">
+      <button class="btn" type="button" data-toggle="dropdown">{% include "timetable/icon.html" with name="download" %} Dışa aktar {% include "timetable/icon.html" with name="chevron" %}</button>
+      <div class="dropdown-menu">
+        <a href="{% url 'timetable:export_excel' timetable.pk %}">{% include "timetable/icon.html" with name="download" %} Excel (.xlsx)</a>
+        <a href="{% url 'timetable:export_asc' timetable.pk %}">{% include "timetable/icon.html" with name="download" %} aSc TimeTables XML</a>
+        <a href="{% url 'timetable:print' timetable.pk %}?tur=sinif" target="_blank">{% include "timetable/icon.html" with name="printer" %} Yazdır / PDF – sınıflar</a>
+        <a href="{% url 'timetable:print' timetable.pk %}?tur=ogretmen" target="_blank">{% include "timetable/icon.html" with name="printer" %} Yazdır / PDF – öğretmenler</a>
+        <a href="{% url 'timetable:print' timetable.pk %}?tur=derslik" target="_blank">{% include "timetable/icon.html" with name="printer" %} Yazdır / PDF – derslikler</a>
+        <a href="{% url 'timetable:print' timetable.pk %}?tur=sinif&ozet=1" target="_blank">{% include "timetable/icon.html" with name="printer" %} Özet çizelge – tüm sınıflar</a>
+        <a href="{% url 'timetable:print' timetable.pk %}?tur=ogretmen&ozet=1" target="_blank">{% include "timetable/icon.html" with name="printer" %} Özet çizelge – tüm öğretmenler</a>
+      </div>
+    </div>
+    {% if timetable.pk != school.active_timetable_id and can.yayin %}
+      <form method="post" action="{% url 'timetable:publish' timetable.pk %}" class="publish-form">{% csrf_token %}
+        <button class="btn btn-primary">{% include "timetable/icon.html" with name="star" %} Yayınla</button>
+        {% if school.active_timetable_id %}<label class="check small" title="Programı değişen ve e-postası girilmiş öğretmenlere değişiklik listesi gider"><input type="checkbox" name="notify" value="1" checked> <span>Değişenlere e-posta</span></label>{% endif %}
+      </form>
+    {% endif %}
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+{% if timetable.is_running %}
+  <div class="panel running-card" id="running" data-status-url="{% url 'timetable:api_status' timetable.pk %}">
+    <div class="panel-head"><div style="display:flex;gap:10px;align-items:center"><span class="spinner"></span><h2>Program üretiliyor</h2></div>
+      <form method="post" action="{% url 'timetable:stop' timetable.pk %}">{% csrf_token %}<button class="btn btn-danger btn-sm">{% include "timetable/icon.html" with name="stop" %} Durdur ve en iyisini al</button></form>
+    </div>
+    <div class="panel-body">
+      <div class="progress"><div id="run-bar" style="width:0%"></div></div>
+      <p class="muted small" id="run-text">Veri hazırlanıyor…</p>
+      <div class="running-stats">
+        <div class="tile"><div class="k">Geçen süre</div><div class="v" id="run-elapsed">0 sn</div><div class="h">sınır {{ timetable.time_limit }} sn</div></div>
+        <div class="tile"><div class="k">Bulunan çözüm</div><div class="v" id="run-solutions">0</div></div>
+        <div class="tile"><div class="k">En iyi ceza</div><div class="v" id="run-objective">–</div></div>
+      </div>
+    </div>
+  </div>
+{% elif not timetable.has_grid %}
+  <div class="panel" style="max-width:820px">
+    <div class="panel-head"><h2>Program üretilemedi</h2></div>
+    <div class="panel-body">
+      {% if timetable.report.error %}<div class="alert alert-error">{{ timetable.report.error }}</div>{% endif %}
+      {% if timetable.report.diagnosis %}{% include "timetable/diagnosis.html" with d=timetable.report.diagnosis %}{% endif %}
+      {% include "timetable/changes_since.html" with ch=timetable.report.changes %}{% include "timetable/asc_mismatch.html" with m=timetable.report.asc_mismatch %}
+      {% with c=timetable.report.conflict %}{% if c %}
+        <div class="conflict">
+          {% if c.status == "core" %}
+            <h3>Neden çözülemiyor?</h3>
+            <p class="muted">Aşağıdaki kurallar <b>birlikte</b> sağlanamıyor.{% if c.minimal %} Bunlardan <b>herhangi birini</b> gevşetmek (sınırı artırmak, müsaitliği açmak, ilişkinin önemini düşürmek) bu çakışmayı giderir.{% else %} Liste kısa sürede tam küçültülemedi; bazı kurallar gereksiz olabilir.{% endif %} Düzeltmek için kurala tıklayın.</p>
+            <ol class="conflict-list">
+              {% for rule in c.rules %}<li>{% if rule.url %}<a href="{{ rule.url }}">{{ rule.label }}</a>{% else %}{{ rule.label }}{% endif %}</li>{% endfor %}
+            </ol>
+            <p class="subtle small">Düzeltmeden sonra yeniden üretin. Başka bir çakışma da varsa bir sonraki üretimde o gösterilir.</p>
+          {% elif c.status == "no_rules" %}
+            <h3>Neden çözülemiyor?</h3>
+            <p class="muted">Hiçbir kural gevşetilse bile kartlar sığmıyor: bazı öğretmen, sınıf ya da dersliklerin toplam ders saati, birlikte kullanılabilecek saatleri aşıyor (örneğin aynı öğretmenin ve aynı sınıfın dersleri birbirini kilitliyor). Ders saatlerini ya da öğretmen/derslik atamalarını gözden geçirin.</p>
+          {% elif c.status == "feasible" %}
+            <p class="muted">Kurallar birlikte sağlanabiliyor; sorun süreydi. Süre sınırını artırıp yeniden deneyin.</p>
+          {% else %}
+            <p class="muted">Neden, süre içinde belirlenemedi. Gevşek modda üretmek hangi kuralların kırıldığını gösterir.</p>
+          {% endif %}
+        </div>
+      {% endif %}{% endwith %}
+      {% if timetable.report.issues %}
+        <ul class="issues">{% for issue in timetable.report.issues %}<li class="{{ issue.level }}"><span class="dot"></span>{{ issue.message }}</li>{% endfor %}</ul>
+      {% endif %}
+      <p class="muted">Veriyi düzeltip yeniden deneyin ya da <b>gevşek modda</b> üreterek hangi kuralların sorun çıkardığını görün.</p>
+      <a class="btn" href="{% url 'timetable:school_detail' school.pk %}">Genel bakışa dön</a>
+    </div>
+  </div>
+{% else %}
+  {% if not timetable.report.strict_failed and timetable.report.diagnosis %}
+    <details class="panel diag-banner">
+      <summary><span class="diag-icon">{% include "timetable/icon.html" with name="alert" %}</span>
+        <span><b>Bu taslakta kesin kurallar esnetildi</b>{% if timetable.report.diagnosis.unplaced_hours %} ve {{ timetable.report.diagnosis.unplaced_hours }} ders saati sığmadı{% endif %}. Cezanın kaynağını ve son başarılı üretimden bu yana değişenleri görmek için açın.</span></summary>
+      <div class="panel-body">
+        {% include "timetable/diagnosis.html" with d=timetable.report.diagnosis %}
+        {% include "timetable/changes_since.html" with ch=timetable.report.changes %}{% include "timetable/asc_mismatch.html" with m=timetable.report.asc_mismatch %}
+      </div>
+    </details>
+  {% endif %}
+  {% with sf=timetable.report.strict_failed %}{% if sf %}
+    <details class="panel diag-banner" open>
+      <summary><span class="diag-icon">{% include "timetable/icon.html" with name="alert" %}</span>
+        <span><b>Katı modda program bulunamadı</b> ({% if sf.status == "infeasible" %}bu kurallarla imkânsız{% else %}süre içinde bulunamadı{% endif %}). Aşağıdaki kurallar esnetilerek <b>en yakın taslak</b> üretildi; düzeltip yeniden üretin.</span></summary>
+      <div class="panel-body">
+        {% with c=timetable.report.conflict %}{% if c.status == "core" %}
+          <div class="alert alert-error"><b>Birlikte sağlanamayan kurallar{% if c.minimal %} (herhangi birini gevşetmek yeter){% endif %}:</b>
+            {% for rule in c.rules %}{% if rule.url %}<a href="{{ rule.url }}">{{ rule.label }}</a>{% else %}{{ rule.label }}{% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}</div>
+        {% endif %}{% endwith %}
+        {% include "timetable/diagnosis.html" with d=timetable.report.diagnosis %}
+        {% include "timetable/changes_since.html" with ch=timetable.report.changes %}{% include "timetable/asc_mismatch.html" with m=timetable.report.asc_mismatch %}
+      </div>
+    </details>
+  {% endif %}{% endwith %}
+  {% with h=timetable.report.hint_from %}{% if h %}<p class="subtle small" style="margin:-6px 0 10px">Üretim <a href="{% url 'timetable:timetable_detail' h.id %}">{{ h.name }}</a> programından başlayarak yapıldı{% if h.hard is not None %} (o program bugünkü verilerle {{ h.hard }} kesin ihlalliydi; adaylar arasında en yakını buydu){% endif %}. Kartlar kilitlenmedi; çözücü oradan başlayıp kuralları sağlamayan yerleri onardı.</p>{% endif %}{% endwith %}
+  {% with pools=timetable.report.pools %}{% if pools.pools %}
+    <div class="pool-note">{% include "timetable/icon.html" with name="users" %}
+      <span><b>Öğretmen havuzu</b> bu üretimde kısımları dağıttı{% if pools.changed %} · <b>{{ pools.changed }}</b> kısmın öğretmeni değişti{% endif %}:
+      {% for name, counts in pools.pools.items %}<b>{{ name }}</b> ({% for t, n in counts.items %}{{ t }} {{ n }}{% if not forloop.last %}, {% endif %}{% endfor %}){% if not forloop.last %} · {% endif %}{% endfor %}</span>
+      <a href="{% url 'timetable:teacher_assign' school.pk %}">Öğretmen atama</a></div>
+  {% endif %}{% endwith %}
+  {% if closed_cards %}
+    <details class="panel diag-banner av-banner">
+      <summary><span class="diag-icon">{% include "timetable/icon.html" with name="calendar-x" %}</span>
+        <span><b>{{ closed_cards|length }} ders kapalı saatte</b>: öğretmen, sınıf, derslik ya da dersin müsaitliği bu saatlerde artık kapalı. Listeyi görmek için açın.</span>
+        <a class="btn btn-sm" href="{% url 'timetable:availability_repair' timetable.pk %}">{% if can.program %}{% include "timetable/icon.html" with name="wand" %} Onar…{% else %}Ayrıntılar{% endif %}</a></summary>
+      <div class="panel-body">
+        <ul class="av-alert-list">{% for c in closed_cards|slice:":12" %}<li>{{ c.text }}{% if c.locked %} <span class="pill">kilitli</span>{% endif %}</li>{% endfor %}
+          {% if closed_cards|length > 12 %}<li class="subtle">… ve {{ closed_cards|length|add:"-12" }} ders daha</li>{% endif %}</ul>
+      </div>
+    </details>
+  {% endif %}
+  <div class="tt-toolbar">
+    <div class="left">
+      <label class="search">{% include "timetable/icon.html" with name="search" %}<input class="input" id="row-filter" placeholder="Satır ara…" autocomplete="off"></label>
+      <div class="segmented" id="zoom-switch" title="Yakınlaştırma">
+        <button data-zoom="fit" title="Tüm haftayı ekran genişliğine sığdır">Haftayı sığdır</button><button data-zoom="compact">S</button><button data-zoom="" class="active">M</button><button data-zoom="roomy">L</button>
+      </div>
+      <button class="btn btn-sm" type="button" id="btn-focus" title="Menüleri gizleyip programı tam ekranda göster (Esc ile çık)">⛶ Tam ekran</button>
+      <div class="segmented" title="Geri al (Ctrl+Z) / Yinele (Ctrl+Y)">
+        <button id="btn-undo" disabled>↶ Geri al</button><button id="btn-redo" disabled>Yinele ↷</button>
+      </div>
+      {% if config.versions %}
+        <select class="select select-sm" id="compare-select" title="Başka bir sürümle karşılaştır">
+          <option value="">Karşılaştır…</option>
+          {% for v in config.versions %}<option value="{{ v.id }}">{{ v.name }}</option>{% endfor %}
+        </select>
+      {% endif %}
+      <div class="dropdown" id="view-menu">
+        <button class="btn btn-sm" type="button" data-toggle="dropdown" title="Kartlarda ne yazsın, neye göre renklensin">{% include "timetable/icon.html" with name="layout" %} Kart görünümü {% include "timetable/icon.html" with name="chevron" %}</button>
+        <div class="dropdown-menu dropdown-form">
+          <label>Başlık<select class="select select-sm" data-view="title"><option value="code">Ders kodu</option><option value="name">Ders adı</option></select></label>
+          <label>Alt satır<select class="select select-sm" data-view="line"><option value="auto">Otomatik</option><option value="teachers">Öğretmen</option><option value="classes">Sınıf</option><option value="room">Derslik</option><option value="none">Gösterme</option></select></label>
+          <label>Renk<select class="select select-sm" data-view="color"><option value="subject">Derse göre</option><option value="teacher">Öğretmene göre</option><option value="class">Sınıfa göre</option><option value="room">Dersliğe göre</option><option value="none">Renksiz</option></select></label>
+          <label class="check small"><input type="checkbox" data-view="stripes"> <span>Günleri şeritle ayır</span></label>
+        </div>
+      </div>
+    </div>
+    <div class="right chips" id="stats"></div>
+  </div>
+
+  <div class="preview-bar" id="preview-bar" hidden>
+    <div class="pv-text"><b>Önizleme</b> · <span id="pv-label"></span><div class="subtle small" id="pv-moves"></div></div>
+    <div class="pv-actions">
+      <label class="check small"><input type="checkbox" id="pv-only" checked> <span>Yalnızca etkilenen satırlar</span></label>
+      <button type="button" class="btn btn-sm" id="pv-prev">‹ Önceki</button>
+      <button type="button" class="btn btn-sm" id="pv-next">Sonraki ›</button>
+      <form method="post" action="{% url 'timetable:solution_center' timetable.pk %}" id="pv-apply" onsubmit="return confirm('Bu öneri programa uygulansın mı? (Geri alınabilir)')">{% csrf_token %}
+        <input type="hidden" name="action" value="apply"><input type="hidden" name="oneri" id="pv-index">
+        <button class="btn btn-sm btn-primary">{% include "timetable/icon.html" with name="check" %} Bu öneriyi uygula</button>
+      </form>
+      <a class="btn btn-sm btn-ghost" href="{% url 'timetable:solution_center' timetable.pk %}">Çözüm merkezine dön</a>
+      <a class="btn btn-sm btn-ghost" href="{% url 'timetable:timetable_detail' timetable.pk %}">Önizlemeyi kapat</a>
+    </div>
+  </div>
+  <div class="tt-wrap" id="tt-wrap">
+    <div>
+      <div class="tt-frame">
+        <nav class="tt-side" id="kind-switch" aria-label="Görünüm">
+          <button data-kind="sinif" class="active">Sınıflar</button>
+          <button data-kind="ogretmen">Öğretmenler</button>
+          <button data-kind="derslik">Derslikler</button>
+        </nav>
+        <div class="tt-scroll" id="tt-scroll"><div class="tt-board" id="tt-board"></div></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;gap:12px;margin-top:10px;flex-wrap:wrap">
+        <div class="legend">
+          <span><i class="lg-free"></i>Uygun</span>
+          <span><i class="lg-warn"></i>Koşullu / uyarılı</span>
+          <span><i class="lg-conflict"></i>Çakışma (sorulur)</span>
+          <span><i class="lg-blocked"></i>Kapalı / mazeretli</span>
+        </div>
+        <span class="subtle small">Kartı sürükleyin ya da tıklayıp hücreye tıklayın · Sağ tık: işlemler · Esc: seçimi bırak</span>
+      </div>
+      <div class="panel compare-panel" id="compare-panel" hidden>
+        <div class="panel-head"><h2>Karşılaştırma <span class="pill" id="compare-summary"></span></h2><button class="btn btn-sm btn-ghost" id="compare-close">Kapat</button></div>
+        <div class="panel-body flush table-wrap"><table class="table"><thead><tr><th>Ders</th><th>Seçilen sürümde</th><th>Bu sürümde</th></tr></thead><tbody id="compare-rows"></tbody></table></div>
+      </div>
+      <div class="panel" style="margin-top:14px">
+        <div class="panel-head"><h2>Doğrulama</h2><span id="violation-pill"></span></div>
+        <div class="panel-body flush"><ul class="issues" id="violations"></ul></div>
+      </div>
+      <div class="panel tray" id="tray-panel">
+        <div class="panel-head tray-head">
+          <button type="button" class="tray-toggle" id="tray-toggle" aria-expanded="true" title="Paneli daralt / aç">
+            <h2>Yerleşmeyen kartlar <span class="pill" id="tray-count">0</span></h2><span class="tray-caret" aria-hidden="true">▾</span>
+          </button>
+          <div class="tray-filters" id="tray-filters">
+            <a class="btn btn-sm" href="{% url 'timetable:pending' timetable.pk %}" title="Her bekleyen kartın neden yerleşmediği ve çözüm yolları">Neden yerleşmiyor?</a>
+            <input type="search" class="input input-sm" id="tray-q" placeholder="Ara: ders, sınıf, öğretmen…" aria-label="Yerleşmeyen kartlarda ara">
+            <select class="select input-sm" id="tray-class" aria-label="Sınıfa göre"><option value="">Tüm sınıflar</option></select>
+            <select class="select input-sm" id="tray-teacher" aria-label="Öğretmene göre"><option value="">Tüm öğretmenler</option></select>
+            <select class="select input-sm" id="tray-length" aria-label="Kart uzunluğu"><option value="">Her uzunluk</option></select>
+            <select class="select input-sm" id="tray-sort" aria-label="Sıralama">
+              <option value="">Sıra: ders</option><option value="classes">Sıra: sınıf</option><option value="teachers">Sıra: öğretmen</option><option value="length">Sıra: uzunluk (uzun önce)</option>
+            </select>
+            <label class="check small" title="Üstteki satır aramasıyla görünen sınıf/öğretmen/derslik satırlarının kartları"><input type="checkbox" id="tray-row"> <span>Yalnızca görünen satırlar</span></label>
+            <button type="button" class="btn btn-sm btn-ghost" id="tray-clear" hidden>Süzgeci temizle</button>
+          </div>
+          <span class="subtle small tray-hint">Kartı buraya bırakmak onu programdan çıkarır</span>
+        </div>
+        <div class="tray-body" id="tray"></div>
+      </div>
+    </div>
+    <aside class="panel drawer" id="drawer" hidden></aside>
+  </div>
+{% endif %}
+<dialog class="dialog" id="conflict-dialog">
+  <form method="dialog">
+    <h3>Çakışma var</h3>
+    <p class="muted small" id="conflict-intro" style="margin-top:0"></p>
+    <ul class="conflict-items" id="conflict-items"></ul>
+    <div class="dialog-actions wrap">
+      <button class="btn btn-ghost" value="cancel">Yerleşimi iptal et</button>
+      <button class="btn" value="swap" id="conflict-swap">Yer değiştir</button>
+      <button class="btn" value="ignore">Görmezden gel (çakışsa da yerleştir)</button>
+      <button class="btn btn-primary" value="displace" id="conflict-displace">Çakışan kartları kaldır</button>
+    </div>
+  </form>
+</dialog>
+<dialog class="dialog dialog-wide" id="view-dialog">
+  <div class="dialog-head"><h3 id="view-title"></h3><form method="dialog"><button class="btn btn-sm btn-ghost">Kapat ✕</button></form></div>
+  <div id="view-body"></div>
+</dialog>
+<div class="ctx-menu" id="ctx-menu" hidden></div>
+<dialog class="dialog dialog-wide" id="versions-dialog">
+  <div class="dialog-head"><h3>Versiyonlar · {{ timetable.name }}</h3><form method="dialog"><button class="btn btn-sm btn-ghost">Kapat ✕</button></form></div>
+  <div class="versions-layout">
+    <div>
+      <form class="dialog-row" id="version-save" style="margin-bottom:10px">
+        <input class="input" name="note" placeholder="Not (ör. 14.47 öğretmen değişikliği)" maxlength="200">
+        <button class="btn btn-primary">Versiyon kaydet</button>
+      </form>
+      <div class="versions-list"><table class="table">
+        <thead><tr><th>#</th><th>Oluşturuldu</th><th>Not</th><th>Hazırlayan</th><th class="num">Değişiklik</th><th></th></tr></thead>
+        <tbody id="versions-rows"></tbody>
+      </table></div>
+      <label class="subtle small" style="display:inline-flex;gap:6px;margin-top:8px"><input type="checkbox" id="versions-auto" checked> Otomatik kayıtları göster (<span id="versions-auto-count">0</span>)</label>
+    </div>
+    <div class="versions-preview">
+      <div class="subtle small" style="margin-bottom:6px">Ön izleme</div>
+      <canvas id="version-canvas" width="300" height="400"></canvas>
+      <div class="dialog-actions" id="version-actions" hidden>
+        <button class="btn" type="button" data-vact="open">Ayrı program olarak aç</button>
+        <button class="btn btn-primary" type="button" data-vact="restore">Bu versiyona dön</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+<dialog class="dialog" id="swap-dialog">
+  <form method="dialog">
+    <h3 id="swap-title">Yer değiştir</h3>
+    <div class="dialog-row"><select class="select" id="swap-a"></select><span>↔</span><select class="select" id="swap-b"></select></div>
+    <p class="subtle small" id="swap-help"></p>
+    <div class="dialog-actions"><button class="btn btn-ghost" value="cancel">Vazgeç</button><button class="btn btn-primary" value="ok">Uygula</button></div>
+  </form>
+</dialog>
+{{ config|json_script:"tt-config" }}
+{% endblock %}
+
+{% block scripts %}
+<script src="{% asset 'timetable/grid.js' %}"></script>
+<script src="{% asset 'timetable/versions.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,78 @@
+{% extends "timetable/base.html" %}
+{% block title %}İstatistikler · {{ timetable.name }}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{% url 'timetable:timetable_detail' timetable.pk %}">{{ timetable.name }}</a>{% endblock %}
+{% block heading %}<h1>İstatistikler</h1>{% endblock %}
+{% block actions %}<a class="btn" href="{% url 'timetable:timetable_detail' timetable.pk %}">{% include "timetable/icon.html" with name="grid" %} Ana görünüm</a>{% endblock %}
+{% block content %}
+{% with t=stats.totals %}
+<div class="tiles" style="margin-bottom:18px">
+  <div class="tile"><div class="k">Yerleşen kart</div><div class="v">{{ t.placed }} / {{ t.cards }}</div>{% if t.unplaced %}<div class="h">{{ t.unplaced }} bekliyor</div>{% endif %}</div>
+  <div class="tile"><div class="k">Öğretmen boşluğu</div><div class="v">{{ t.teacher_gaps }}</div><div class="h">haftalık toplam</div></div>
+  <div class="tile"><div class="k">Sınıf boşluğu</div><div class="v">{{ t.class_gaps }}</div><div class="h">sınıfın tamamı için; ana görünüm grupları ayrı sayar</div></div>
+  <div class="tile"><div class="k">Geç başlayan gün</div><div class="v">{{ t.late_starts }}</div><div class="h">sınıf × gün</div></div>
+</div>
+{% endwith %}
+
+<div class="panel">
+  <div class="panel-head"><h2>Öğretmenler</h2><span class="subtle small">Boşluk: gün içinde iki ders arasındaki boş saat · İlk/son: günün ilk/son saatinde dersi olan gün sayısı</span></div>
+  <div class="panel-body flush table-wrap">
+    <table class="table stats-table">
+      <thead><tr><th>Öğretmen</th><th class="num">Saat</th><th class="num">Hedef</th>{% for d in stats.days %}<th class="num">{{ d|slice:":3" }}</th>{% endfor %}<th class="num">Gün</th><th class="num">Boşluk</th><th class="num">En çok boşluk/gün</th><th class="num">İlk saat</th><th class="num">Son saat</th></tr></thead>
+      <tbody>
+        {% for r in stats.teachers %}
+          <tr>
+            <td><a href="{% url 'timetable:data_edit' school.pk 'ogretmenler' r.obj.pk %}">{{ r.name }}</a></td>
+            <td class="num"><b>{{ r.hours }}</b></td>
+            <td class="num">{% if r.target %}<span class="pill {% if r.target_diff == 0 %}ok{% elif r.target_diff < 0 %}warn{% else %}failed{% endif %}">{{ r.target }}{% if r.target_diff %} ({{ r.target_diff|stringformat:"+d" }}){% endif %}</span>{% else %}<span class="subtle">–</span>{% endif %}</td>
+            {% for n in r.per_day %}<td class="num{% if not n %} subtle{% endif %}">{{ n }}</td>{% endfor %}
+            <td class="num">{{ r.days }}</td>
+            <td class="num{% if r.gaps %} warn-text{% endif %}">{{ r.gaps }}</td>
+            <td class="num">{{ r.max_gaps }}</td>
+            <td class="num">{{ r.first }}</td>
+            <td class="num">{{ r.last }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="grid-2" style="margin-top:18px">
+  <div class="panel">
+    <div class="panel-head"><h2>Sınıflar</h2></div>
+    <div class="panel-body flush table-wrap">
+      <table class="table stats-table">
+        <thead><tr><th>Sınıf</th><th class="num">Saat</th>{% for d in stats.days %}<th class="num">{{ d|slice:":3" }}</th>{% endfor %}<th class="num">Boşluk</th><th class="num">Geç başlama</th></tr></thead>
+        <tbody>
+          {% for r in stats.classes %}
+            <tr>
+              <td><a href="{% url 'timetable:data_edit' school.pk 'siniflar' r.obj.pk %}">{{ r.name }}</a></td>
+              <td class="num"><b>{{ r.hours }}</b></td>
+              {% for n in r.per_day %}<td class="num">{{ n }}</td>{% endfor %}
+              <td class="num{% if r.gaps %} warn-text{% endif %}">{{ r.gaps }}</td>
+              <td class="num">{{ r.late }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><h2>Derslikler</h2><span class="subtle small">Doluluk: kullanılan / açık saat</span></div>
+    <div class="panel-body flush table-wrap">
+      <table class="table stats-table">
+        <thead><tr><th>Derslik</th><th class="num">Saat</th><th style="width:40%">Doluluk</th></tr></thead>
+        <tbody>
+          {% for r in stats.rooms %}
+            <tr>
+              <td>{{ r.name }}</td>
+              <td class="num">{{ r.hours }} / {{ r.free }}</td>
+              <td><div class="progress"><div style="width:{{ r.pct }}%"></div></div><span class="subtle small">%{{ r.pct }}</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

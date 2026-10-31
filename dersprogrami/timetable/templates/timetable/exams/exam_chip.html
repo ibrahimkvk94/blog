@@ -1,0 +1,5 @@
+<a class="ex-chip" href="{% url 'timetable:exam_edit' school.pk period.pk pl.exam_id %}" style="--ex-color: {{ pl.exam.subject.color }}">
+  <b>{{ pl.exam.title }}{% if pl.locked %} {% include "timetable/icon.html" with name="lock" %}{% endif %}</b>
+  <span class="ex-chip-classes">{% for c in pl.exam.classes.all %}{{ c.short|default:c.name }}{% if not forloop.last %}, {% endif %}{% endfor %} · {{ pl.exam.student_count }} öğr.{% if pl.exam.duration > 1 %} · {{ pl.exam.duration }} oturum{% endif %}</span>
+  {% for r in pl.rooms.all %}<span class="ex-chip-room">{{ r.classroom }}{% if r.proctors.all %}: {% for t in r.proctors.all %}{{ t.full_name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %} <span class="ex-bad">gözetmen yok</span>{% endif %}</span>{% empty %}<span class="ex-bad">salon yok</span>{% endfor %}
+</a>

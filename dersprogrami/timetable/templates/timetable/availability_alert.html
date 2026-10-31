@@ -1,0 +1,17 @@
+<div class="av-alert" data-av-alert>
+  <div class="av-alert-head"><b>Müsaitlik değişikliği aktif programda {{ count }} dersi kapalı saate düşürdü</b>
+    <span class="subtle small">({{ timetable.name }})</span></div>
+  <ul class="av-alert-list">
+    {% for c in items %}<li>{{ c.text }}{% if c.locked %} <span class="pill warn">kilitli</span>{% endif %}</li>{% endfor %}
+    {% if more %}<li class="subtle">… ve {{ more }} ders daha</li>{% endif %}
+  </ul>
+  <div class="av-alert-actions">
+    {% if can.program %}
+      <form method="post" action="{% url 'timetable:availability_repair' timetable.pk %}" data-av-repair>{% csrf_token %}
+        {% for id in card_ids %}<input type="hidden" name="kart" value="{{ id }}">{% endfor %}
+        <button class="btn btn-sm btn-primary" title="Yalnızca etkilenen dersler (gerekirse komşuları) taşınır; diğer dersler yerinde kalır. Geri alınabilir.">{% include "timetable/icon.html" with name="wand" %} En az değişiklikle onar</button>
+      </form>
+    {% endif %}
+    <a class="btn btn-sm" href="{% url 'timetable:availability_repair' timetable.pk %}">Ayrıntılar</a>
+  </div>
+</div>

@@ -1,0 +1,42 @@
+{% extends "timetable/base.html" %}
+{% block title %}Excel aktarımı{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / Veri{% endblock %}
+{% block heading %}<h1>Excel aktarımı</h1>{% endblock %}
+{% block content %}
+{% include "timetable/data/subnav.html" %}
+{% if errors %}
+  <div class="panel" style="margin-bottom:18px;border-color:#f3c9c3">
+    <div class="panel-head"><h2>Aktarım yapılmadı · {{ errors|length }} hata</h2><span class="subtle small">Hiçbir değişiklik kaydedilmedi. Dosyayı düzeltip yeniden yükleyin.</span></div>
+    <ul class="issues">{% for e in errors %}<li class="error"><span class="dot"></span>{{ e }}</li>{% endfor %}</ul>
+  </div>
+{% endif %}
+<div class="grid-2">
+  <div class="panel">
+    <div class="panel-head"><h2>1. Dosyayı indirin</h2></div>
+    <div class="panel-body">
+      <p class="muted" style="margin-top:0">Okulun mevcut verisi beş sayfalık bir Excel dosyası olarak iner. Boş bir okulda bu dosya doldurulacak şablondur.</p>
+      <a class="btn btn-primary" href="{% url 'timetable:excel_export' school.pk %}">{% include "timetable/icon.html" with name="download" %} Excel dosyasını indir</a>
+      <table class="table" style="margin-top:16px">
+        <thead><tr><th>Sayfa</th><th>Sütunlar</th></tr></thead>
+        <tbody>
+          {% for sheet, headers in sheets.items %}
+            <tr><td class="nowrap"><b>{{ sheet }}</b></td><td class="muted small">{{ headers|join:" · " }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% for sheet, note in notes.items %}<p class="help"><b>{{ sheet }}:</b> {{ note }}</p>{% endfor %}
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-head"><h2>2. Düzenleyip yükleyin</h2></div>
+    <form class="panel-body" method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <p class="muted" style="margin-top:0">Kayıtlar adlarına göre eşleştirilir: var olan kayıt güncellenir, olmayan eklenir. Bir satırda hata varsa hiçbir değişiklik kaydedilmez.</p>
+      <div class="form-row"><label class="label" for="file">Excel dosyası (.xlsx)</label><input class="input" id="file" type="file" name="file" accept=".xlsx" required></div>
+      <div class="form-row form-check"><label class="check"><input type="checkbox" name="delete_missing"> <span>Dosyada olmayan dersleri sil</span></label>
+        <div class="help">İşaretlenirse “Dersler” sayfasında bulunmayan dersler (ve programlardaki kartları) silinir.</div></div>
+      <button class="btn btn-primary">{% include "timetable/icon.html" with name="upload" %} Yükle ve aktar</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

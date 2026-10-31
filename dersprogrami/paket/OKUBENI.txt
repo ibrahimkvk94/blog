@@ -1,0 +1,42 @@
+DERS PROGRAMI - KAPALI AG KURULUMU
+==================================
+
+Bu klasorde programin calismasi icin gereken her sey vardir (Python ve tum paketler dahil).
+Internet baglantisi gerekmez. Windows 10/11 64 bit.
+
+KURULUM (sunucu olacak bilgisayarda, bir kez)
+1. Zip dosyasini kalici bir yere acin, ornek: C:\DersProgrami
+   (Masaustu ya da Indirilenler yerine sabit bir klasor onerilir.)
+2. kurulum.bat dosyasina cift tiklayin. Yonetici kullanici adi ve parolasi sorulur.
+   Guvenlik duvari kuralinin eklenmesi icin sag tiklayip "Yonetici olarak calistir" deyin.
+3. baslat.bat ile programi acin. Pencerede su sekilde bir adres yazar:
+       http://192.168.1.20:8000/
+   Agdaki diger bilgisayarlar tarayiciya bu adresi yazarak baglanir.
+   Pencere acik kaldikca program calisir.
+
+BILGISAYAR ACILINCA KENDILIGINDEN BASLASIN
+- otomatik_baslat.bat dosyasina cift tiklayin (yonetici izni ister).
+  Program oturum acilmasa da arka planda calisir; pencere gorunmez.
+- Kaldirmak icin komut isteminde:  otomatik_baslat.bat kaldir
+
+GUNCELLEME
+1. Yeni DersProgrami-YYYYMMDD.zip dosyasini (acmadan) bu klasore kopyalayin.
+2. guncelle.bat dosyasina cift tiklayin.
+   Once yedek alinir; veritabani (db.sqlite3), ayarlar (.env) ve yedekler korunur.
+
+YEDEK
+- Program acik kaldikca 24 saatte bir kendiliginden yedek alir ("yedekler" klasoru, son 30 yedek).
+- Elle yedek: Merkez paneli > Yedekler > "Simdi yedek al".
+- Geri yukleme: ayni ekranda yedegin yanindaki "Geri yukle"; once mevcut durumun yedegi alinir.
+  Baska bilgisayardan gelen yedek dosyasi da ayni ekrandan yuklenebilir.
+- "yedekler" klasorunu zaman zaman baska bir diske (USB) kopyalayin.
+
+SIK SORULANLAR
+- Diger bilgisayarlar baglanamiyor:
+  * baslat.bat penceresi acik mi (ya da otomatik baslatma kurulu mu)?
+  * Guvenlik duvari kurali: kurulum.bat'i yonetici olarak bir kez daha calistirin.
+  * Adres dogru mu? Sunucu bilgisayarin IP adresi degismis olabilir; ag yoneticisinden
+    sabit IP isteyin.
+- Kapi (8000) baska bir programca kullaniliyor: .env dosyasinda SUNUCU_PORT degerini degistirin
+  ve guvenlik duvari kuralini o kapi icin ekleyin.
+- Sunucu bilgisayarin saati dogru olmali (ders saatleri ve tarihler buna gore gosterilir).

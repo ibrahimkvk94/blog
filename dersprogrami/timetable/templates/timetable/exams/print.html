@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>{{ period.name }} – {{ title }}</title>
+<style>
+  @page { size: A4 {% if kind == "takvim" %}landscape{% else %}portrait{% endif %}; margin: 10mm; }
+  * { box-sizing: border-box; }
+  body { font: 11px/1.35 "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1c2230; margin: 0; background: #eef0f4; }
+  .bar { position: sticky; top: 0; background: #141a2a; color: #fff; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .bar a { color: #c7cbff; margin-right: 12px; }
+  .bar button { background: #4f46e5; color: #fff; border: 0; border-radius: 7px; padding: 8px 14px; font: 600 13px inherit; cursor: pointer; }
+  .page { background: #fff; width: {% if kind == "takvim" %}277mm{% else %}190mm{% endif %}; margin: 16px auto; padding: 10mm 12mm; box-shadow: 0 2px 10px rgba(0,0,0,.08); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #cfd4dd; padding: 4px 6px; vertical-align: top; text-align: left; }
+  th { background: #f4f5f8; }
+  .cal { table-layout: fixed; }
+  .cal th.day { width: 24mm; }
+  .exam { padding: 3px 0; border-bottom: 1px dotted #cfd4dd; page-break-inside: avoid; }
+  .exam:last-child { border-bottom: 0; }
+  .exam b { display: block; }
+  .muted { color: #5b6474; }
+  .block { page-break-inside: avoid; margin-bottom: 8px; }
+  .block h3 { margin: 6px 0 3px; font-size: 12.5px; }
+  .num { text-align: right; width: 14mm; }
+  tr { page-break-inside: avoid; }
+{% include "timetable/print_brand_css.html" %}
+  @media print { body { background: #fff; } .bar { display: none; } .page { box-shadow: none; margin: 0; width: auto; padding: 0; } }
+</style>
+</head>
+<body>
+<div class="bar"><span>
+  <a href="?tur=takvim">Takvim</a><a href="?tur=gozetmenler">Gözetmen listesi</a><a href="?tur=siniflar">Sınıflar</a><a href="?tur=salonlar">Salonlar</a>
+</span><button onclick="window.print()">Yazdır / PDF olarak kaydet</button></div>
+<section class="page">
+  {% include "timetable/print_brand.html" with page_title=title page_info=info %}
+
+  {% if kind == "takvim" %}
+    <table class="cal">
+      <thead><tr><th class="day">Gün</th>{% for t in sessions %}<th>{{ t }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for day in calendar %}
+          <tr><th class="day">{{ day.date|date:"d.m.Y" }}<div class="muted">{{ day.day }}</div></th>
+            {% for cell in day.cells %}<td>{% for pl in cell %}
+              <div class="exam"><b>{{ pl.exam.title }}</b>
+                <span class="muted">{% for c in pl.exam.classes.all %}{{ c.short|default:c.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</span>
+                <div>{% for r in pl.rooms.all %}{{ r.classroom }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+              </div>
+            {% endfor %}</td>{% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+  {% elif kind == "gozetmenler" %}
+    <table>
+      <thead><tr><th>Öğretmen</th><th class="num">Görev</th><th>Tarih / saat · sınav · salon</th><th style="width:28mm">İmza</th></tr></thead>
+      <tbody>
+        {% for t, items in teachers %}
+          <tr><td>{{ t.full_name }}</td><td class="num">{{ items|length }}</td>
+            <td>{% for pl, room in items %}<div>{{ pl.date|date:"d.m.Y D" }} {% include "timetable/exams/time.html" %} · {{ pl.exam.title }} · {{ room.classroom }}</div>{% endfor %}</td><td></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+  {% elif kind == "siniflar" %}
+    {% for c, items in classes %}
+      <div class="block"><h3>{{ c.short|default:c.name }}</h3>
+        <table><thead><tr><th style="width:30mm">Tarih</th><th style="width:22mm">Saat</th><th>Sınav</th><th>Salon</th></tr></thead><tbody>
+          {% for pl, crooms in items %}<tr><td>{{ pl.date|date:"d.m.Y D" }}</td><td>{% include "timetable/exams/time.html" %}</td><td>{{ pl.exam.title }}</td><td>{% for r in crooms %}{{ r.classroom }}{% if not forloop.last %}, {% endif %}{% endfor %}</td></tr>{% endfor %}
+        </tbody></table></div>
+    {% endfor %}
+
+  {% else %}
+    {% for room, items in rooms %}
+      <div class="block"><h3>{{ room }}</h3>
+        <table><thead><tr><th style="width:30mm">Tarih</th><th style="width:22mm">Saat</th><th>Sınav</th><th class="num">Öğrenci</th><th>Gözetmen</th></tr></thead><tbody>
+          {% for pl, r in items %}<tr><td>{{ pl.date|date:"d.m.Y D" }}</td><td>{% include "timetable/exams/time.html" %}</td><td>{{ pl.exam.title }}</td><td class="num">{{ r.seats }}</td><td>{% for t in r.proctors.all %}{{ t.full_name }}{% if not forloop.last %}, {% endif %}{% endfor %}</td></tr>{% endfor %}
+        </tbody></table></div>
+    {% endfor %}
+  {% endif %}
+  {% include "timetable/print_sign.html" %}
+</section>
+</body>
+</html>

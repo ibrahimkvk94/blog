@@ -1,0 +1,58 @@
+{# Üst şerit menü: sekmeler (menü grupları) ve seçili sekmenin sayfaları; sağda program, arama, tema ve kullanıcı. #}
+<header class="ribbon" data-ribbon>
+  <div class="rb-top">
+    <a class="rb-brand" href="{% url 'timetable:school_list' %}" title="Kurumlarım"><span class="brand-mark">{% include "timetable/icon.html" with name="grid" %}</span><span class="rb-brand-name">Ders Programı</span></a>
+    <nav class="rb-tabs" role="tablist" aria-label="Menü">
+      {% if groups %}{% for g in groups %}<button type="button" role="tab" class="rb-tab{% if g.key == current %} on{% endif %}" data-rb-tab="{{ g.key }}" aria-selected="{% if g.key == current %}true{% else %}false{% endif %}">{{ g.title }}{% if g.badge %} <span class="nav-badge">{{ g.badge }}</span>{% endif %}</button>{% endfor %}
+      {% else %}<button type="button" role="tab" class="rb-tab on" data-rb-tab="genel" aria-selected="true">Genel</button>{% endif %}
+    </nav>
+    <div class="rb-tools">
+      {% if school %}
+        {% if sibling_programs and sibling_programs|length > 1 %}
+          <select class="rb-program" aria-label="Program değiştir" title="{{ school.institution }}" onchange="location.href=this.value">
+            {% for p in sibling_programs %}<option value="{% url 'timetable:school_detail' p.pk %}"{% if p.pk == school.pk %} selected{% endif %}>{{ p.name }}</option>{% endfor %}
+          </select>
+        {% else %}<a class="rb-program-name" href="{% url 'timetable:school_detail' school.pk %}" title="{{ school.institution }}">{{ school }}</a>{% endif %}
+      {% endif %}
+      <button type="button" class="rb-icon" data-palette-open title="Hızlı git ve ara (Ctrl+K)" aria-label="Ara">{% include "timetable/icon.html" with name="search" %}</button>
+      <button type="button" class="rb-icon" data-theme-toggle title="Açık / koyu tema" aria-label="Açık / koyu tema"><span class="i-moon">{% include "timetable/icon.html" with name="moon" %}</span><span class="i-sun">{% include "timetable/icon.html" with name="sun" %}</span></button>
+      <button type="button" class="rb-icon" data-rb-min title="Şeridi daralt / genişlet" aria-label="Şeridi daralt / genişlet"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button>
+      <div class="ntf-bell" data-ntf>
+        <button type="button" class="rb-icon" data-ntf-toggle title="Bildirimler" aria-label="Bildirimler" aria-expanded="false">{% include "timetable/icon.html" with name="bell" %}<span class="ntf-badge" data-ntf-count hidden></span></button>
+        <div class="ntf-panel" data-ntf-panel hidden>
+          <div class="ntf-panel-head"><b>Bildirimler</b><button type="button" class="btn btn-sm btn-ghost" data-ntf-all>Tümünü okundu say</button></div>
+          <div class="ntf-panel-list" data-ntf-items><div class="empty small">Yükleniyor…</div></div>
+          <a class="ntf-panel-foot" href="{% url 'timetable:notifications' %}">Tüm bildirimler</a>
+        </div>
+      </div>
+      <details class="rb-user">
+        <summary title="{% firstof user.get_full_name user.username %}">{% include "timetable/icon.html" with name="user" %}<span>{% firstof user.get_full_name user.username %}</span></summary>
+        <div class="rb-menu">
+          <a href="{% url 'timetable:account' %}">Hesabım</a>
+          <a href="{% url 'timetable:notifications' %}">Bildirimler</a>
+          {% if has_teacher_profile %}<a href="{% url 'timetable:my_timetable' %}">Programım</a><a href="{% url 'timetable:my_requests' %}">İsteklerim</a>{% endif %}
+          {% if user.is_superuser %}<a href="{% url 'timetable:central' %}">Merkez paneli</a>{% endif %}
+          <button type="button" data-layout-side>Sol menüye geç</button>
+          <button type="button" onclick="document.getElementById('logout-form').submit()">Çıkış</button>
+        </div>
+      </details>
+    </div>
+  </div>
+  <div class="rb-panels">
+    {% if groups %}
+      {% for g in groups %}<div class="rb-panel" data-rb-panel="{{ g.key }}" role="tabpanel"{% if g.key != current %} hidden{% endif %}>
+        {% for i in g.items %}<a href="{{ i.url }}" class="rb-btn{% if i.active %} on{% endif %}" title="{{ i.label }}">{% include "timetable/icon.html" with name=i.icon %}<span>{{ i.label }}</span>{% if i.badge %}<span class="nav-badge">{{ i.badge }}</span>{% endif %}</a>{% endfor %}
+      </div>{% endfor %}
+    {% else %}
+      <div class="rb-panel" data-rb-panel="genel" role="tabpanel">
+        <a href="{% url 'timetable:school_list' %}" class="rb-btn{% if not nav or nav == 'institution' %} on{% endif %}">{% include "timetable/icon.html" with name="building" %}<span>Kurumlarım</span></a>
+        {% if institution %}<a href="{% url 'timetable:institution_users' institution.pk %}" class="rb-btn{% if nav == 'users' %} on{% endif %}">{% include "timetable/icon.html" with name="users" %}<span>Kurum kullanıcıları</span></a>{% endif %}
+        {% if user.is_superuser %}<a href="{% url 'timetable:central' %}" class="rb-btn{% if nav == 'central' %} on{% endif %}">{% include "timetable/icon.html" with name="shield" %}<span>Merkez paneli</span></a>{% endif %}
+        {% for d in my_departments %}<a href="{% url 'timetable:department_portal' d.pk %}" class="rb-btn{% if department.pk == d.pk %} on{% endif %}">{% include "timetable/icon.html" with name="users" %}<span>{{ d.name }} bölümü</span></a>{% endfor %}
+        {% if has_teacher_profile %}<a href="{% url 'timetable:my_timetable' %}" class="rb-btn{% if nav == 'my_timetable' %} on{% endif %}">{% include "timetable/icon.html" with name="grid" %}<span>Programım</span></a>
+        <a href="{% url 'timetable:my_requests' %}" class="rb-btn{% if nav == 'my_requests' %} on{% endif %}">{% include "timetable/icon.html" with name="calendar" %}<span>İsteklerim</span></a>{% endif %}
+        <a href="{% url 'timetable:account' %}" class="rb-btn{% if nav == 'account' %} on{% endif %}">{% include "timetable/icon.html" with name="user" %}<span>Hesabım</span></a>
+      </div>
+    {% endif %}
+  </div>
+</header>

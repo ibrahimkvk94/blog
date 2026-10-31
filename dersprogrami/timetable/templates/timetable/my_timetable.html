@@ -1,0 +1,82 @@
+{% extends "timetable/base.html" %}
+{% block title %}Programım{% endblock %}
+{% block heading %}<h1>Programım</h1>{% if teacher %}<span class="pill">{{ grid.hours }} saat / hafta</span>{% endif %}{% endblock %}
+{% block actions %}{% if teacher %}<a class="btn" href="{% url 'timetable:my_requests' %}?ogretmen={{ teacher.pk }}">{% include "timetable/icon.html" with name="calendar" %} Gelemeyeceğim saatleri bildir</a>{% endif %}{% endblock %}
+{% block content %}
+{% if not teachers %}
+  <div class="panel panel-body"><b>Hesabınız bir öğretmen kartına bağlı değil.</b>
+    <p class="muted" style="margin-bottom:0">Program sorumlusundan, öğretmen kartınızdaki “Kullanıcı hesabı” alanına bu hesabı ({{ user.username }}) seçmesini isteyin.</p></div>
+{% else %}
+{% if teachers|length > 1 %}
+  <nav class="subnav" aria-label="Programlar">{% for t in teachers %}<a href="?ogretmen={{ t.pk }}" class="{% if t.pk == teacher.pk %}active{% endif %}">{{ t.school.name }}</a>{% endfor %}</nav>
+{% endif %}
+<div class="mt-layout">
+  <section class="panel">
+    <div class="panel-head"><h2>{{ teacher.full_name }} · {{ teacher.school.name }}</h2><span class="subtle small">{% if timetable %}{{ timetable.name }}{% if teacher.school.active_timetable_id == timetable.pk %} (yayında){% endif %}{% else %}henüz program yok{% endif %}</span></div>
+    <div class="panel-body flush table-wrap">
+      <table class="mt-grid">
+        <thead><tr><th></th>{% for d in grid.days %}<th>{{ d }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for row in grid.rows %}
+            <tr><th>{{ row.period.index|add:1 }}.<span>{{ row.span }}</span></th>
+              {% for cell in row.cells %}<td>{% for c in cell %}<div class="mt-card"><b>{{ c.subject }}</b><span>{{ c.classes }}</span>{% if c.room %}<small>{{ c.room }}</small>{% endif %}</div>{% endfor %}</td>{% endfor %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <aside class="mt-side">
+    <section class="panel">
+      <div class="panel-head"><h2>Bugün</h2></div>
+      <div class="panel-body">
+        {% for e in upcoming.today %}<div class="mt-event mt-{{ e.kind }}"><span class="mt-time">{% if e.start %}{{ e.start|time:"H:i" }}{% else %}tüm gün{% endif %}</span><span><b>{{ e.title }}</b>{% if e.location %}<small>{{ e.location }}</small>{% endif %}</span></div>
+        {% empty %}<p class="muted small" style="margin:0">Bugün dersiniz yok.</p>{% endfor %}
+      </div>
+    </section>
+    <section class="panel" style="margin-top:16px">
+      <div class="panel-head"><h2>Önümüzdeki 14 gün</h2><span class="subtle small">izin ve vekâletler</span></div>
+      <div class="panel-body">
+        {% for e in upcoming.special %}<div class="mt-event mt-{{ e.kind }}"><span class="mt-time">{{ e.date|date:"j M D" }}{% if e.start %}<br>{{ e.start|time:"H:i" }}{% endif %}</span><span><b>{{ e.title }}</b><small>{{ e.detail }}</small></span></div>
+        {% empty %}<p class="muted small" style="margin:0">Olağan dışı bir şey yok.</p>{% endfor %}
+      </div>
+    </section>
+    <section class="panel" style="margin-top:16px">
+      <div class="panel-head"><h2>Telefon takvimi</h2></div>
+      <div class="panel-body">
+        {% if ics_url %}
+          <p class="small" style="margin-top:0">Bu bağlantıya bir kez abone olun; dersleriniz, vekâletleriniz ve nöbetleriniz telefonunuzun takviminde görünür ve program değişince kendiliğinden güncellenir.</p>
+          <div class="mt-link"><input class="input input-sm" readonly value="{{ ics_url }}" data-mt-url><button type="button" class="btn btn-sm" data-mt-copy>Kopyala</button></div>
+          <div class="mt-howto">
+            <a class="btn btn-primary btn-sm" href="{{ webcal_url }}">iPhone / Mac: takvime ekle</a>
+            <details><summary class="small">Google Takvim / Android</summary><p class="small subtle">Bilgisayardan Google Takvim → sol menüde “Diğer takvimler” yanındaki + → “URL ile” → bağlantıyı yapıştırın. Telefondaki Google Takvim birkaç dakika içinde eşitler.</p></details>
+            <details><summary class="small">Outlook</summary><p class="small subtle">Takvim → Takvim ekle → İnternetten abone ol → bağlantıyı yapıştırın.</p></details>
+          </div>
+          <form method="post" style="margin-top:10px">{% csrf_token %}<input type="hidden" name="ogretmen" value="{{ teacher.pk }}"><input type="hidden" name="action" value="renew">
+            <button class="btn btn-ghost btn-sm" onclick="return confirm('Bağlantı yenilensin mi? Eski bağlantıya abone olunan takvimler güncellenmez.')">Bağlantıyı yenile</button>
+            <span class="subtle small">Bağlantı başkasının eline geçtiyse.</span></form>
+        {% else %}
+          <p class="small" style="margin-top:0">Derslerinizi telefonunuzun takviminde görmek için size özel bir abonelik bağlantısı oluşturun.</p>
+          <form method="post">{% csrf_token %}<input type="hidden" name="ogretmen" value="{{ teacher.pk }}"><input type="hidden" name="action" value="create">
+            <button class="btn btn-primary btn-sm">{% include "timetable/icon.html" with name="calendar" %} Takvim bağlantısı oluştur</button></form>
+        {% endif %}
+      </div>
+    </section>
+  </aside>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const btn = document.querySelector("[data-mt-copy]");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    const input = document.querySelector("[data-mt-url]");
+    try { await navigator.clipboard.writeText(input.value); } catch (e) { input.select(); document.execCommand("copy"); }
+    btn.textContent = "Kopyalandı";
+    setTimeout(() => { btn.textContent = "Kopyala"; }, 1500);
+  });
+})();
+</script>
+{% endblock %}

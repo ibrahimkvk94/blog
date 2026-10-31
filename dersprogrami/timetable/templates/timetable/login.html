@@ -1,0 +1,28 @@
+{% load assets %}{% load static %}<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Giriş · Ders Programı</title>
+  <link href="{% asset 'timetable/app.css' %}" rel="stylesheet">
+  {% include "timetable/theme_init.html" %}
+</head>
+<body class="login-page">
+  <main class="login-card panel">
+    <div class="brand login-brand"><span class="brand-mark">{% include "timetable/icon.html" with name="grid" %}</span> Ders Programı</div>
+    <h1>Giriş yap</h1>
+    {% if request.GET.geri_yuklendi %}<div class="alert alert-success">Veriler “{{ request.GET.geri_yuklendi }}” yedeğinden geri yüklendi; lütfen yeniden giriş yapın (yedekteki kullanıcılar geçerlidir). Önceki hal “{{ request.GET.guvenlik }}” olarak yedeklendi.</div>{% endif %}
+    {% if form.errors %}<div class="alert alert-error">Kullanıcı adı ya da parola hatalı.</div>{% endif %}
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+      <label class="label" for="id_username">Kullanıcı adı</label>
+      <input class="input" type="text" name="username" id="id_username" autofocus autocomplete="username" required value="{{ form.username.value|default:'' }}">
+      <label class="label" for="id_password">Parola</label>
+      <input class="input" type="password" name="password" id="id_password" autocomplete="current-password" required>
+      <button class="btn btn-primary" style="width:100%;margin-top:16px;justify-content:center">Giriş</button>
+    </form>
+    <p class="subtle small" style="margin-bottom:0"><a href="{% url 'timetable:password_forgot' %}">Parolamı unuttum</a> · Hesabınızı okul yöneticiniz ya da merkez açar.</p>
+  </main>
+</body>
+</html>

@@ -1,0 +1,53 @@
+{% extends "timetable/base.html" %}
+{% load assets %}
+{% block title %}Sınav programı{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:institution_detail' school.institution_id %}">{{ school.institution }}</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
+{% block heading %}<h1>Sınav programı</h1>{% endblock %}
+{% block actions %}
+  {% if can.veri and periods %}<a class="btn btn-primary" href="#yeni-donem" onclick="document.getElementById('yeni-donem').open = true">{% include "timetable/icon.html" with name="plus" %} Yeni sınav dönemi</a>{% endif %}
+{% endblock %}
+{% block content %}
+<p class="page-lead">Vize, final ve bütünleme programları: sınavlar bu programın derslerinden oluşturulur, aynı ders adının kısımları ortak sınavda birleşir. Program; sınıf çakışması, salon kapasitesi, gözetmen sayısı ve müsaitliği gözetilerek otomatik yerleştirilir, sonra elle düzenlenebilir.</p>
+
+{% if periods %}
+<div class="panel" style="margin-bottom:18px">
+  <div class="panel-head"><h2>Sınav dönemleri</h2></div>
+  <div class="panel-body flush table-wrap">
+    <table class="table">
+      <thead><tr><th>Dönem</th><th>Tarih</th><th class="num">Gün × oturum</th><th class="num">Sınav</th><th class="num">Yerleşen</th><th>Durum</th><th></th></tr></thead>
+      <tbody>
+        {% for row in periods %}{% with p=row.period %}
+          <tr>
+            <td><a href="{% url 'timetable:exam_period' school.pk p.pk %}"><b>{{ p.name }}</b></a><div class="subtle small">{{ p.get_kind_display }}</div></td>
+            <td class="nowrap">{{ p.start_date|date:"d.m.Y" }} – {{ p.end_date|date:"d.m.Y" }}</td>
+            <td class="num">{{ row.days }} × {{ p.session_times|length }}</td>
+            <td class="num">{{ row.exams }}</td>
+            <td class="num">{{ row.placed }}</td>
+            <td>{% include "timetable/exams/status.html" with period=p %}</td>
+            <td class="nowrap" style="text-align:right">
+              <a class="btn btn-sm" href="{% url 'timetable:exam_period' school.pk p.pk %}">Sınavlar</a>
+              <a class="btn btn-sm" href="{% url 'timetable:exam_results' school.pk p.pk %}">{% include "timetable/icon.html" with name="calendar" %} Program</a>
+            </td>
+          </tr>
+        {% endwith %}{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if can.veri %}
+<details class="panel" id="yeni-donem"{% if show_form %} open{% endif %}>
+  <summary class="panel-head"><h2>{% include "timetable/icon.html" with name="plus" %} Yeni sınav dönemi</h2></summary>
+  <div class="panel-body">
+    <form method="post">{% csrf_token %}
+      {% include "timetable/exams/period_form.html" %}
+      <div class="form-actions"><button class="btn btn-primary">Oluştur</button></div>
+    </form>
+  </div>
+</details>
+{% elif not periods %}
+  <div class="empty-state"><p>Henüz sınav dönemi yok.</p></div>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="{% asset 'timetable/data.js' %}"></script>{% endblock %}

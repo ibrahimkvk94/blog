@@ -1,0 +1,62 @@
+{% extends "timetable/base.html" %}
+{% block title %}Yedekler{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:central' %}">Merkez paneli</a>{% endblock %}
+{% block heading %}<h1>Yedekler</h1>{% endblock %}
+{% block actions %}<form method="post">{% csrf_token %}<button class="btn btn-primary">{% include "timetable/icon.html" with name="download" %} Şimdi yedek al</button></form>{% endblock %}
+{% block content %}
+<p class="page-lead">Yedek tüm kurumları, programları, sürümleri ve kullanıcıları içerir. Sunucu çalışırken 24 saatte bir otomatik yedek alınır; son {{ keep }} yedek saklanır. Yedekleri ara sıra indirip başka bir diskte de saklayın.</p>
+<div class="panel">
+  <div class="panel-body flush table-wrap">
+    <table class="table">
+      <thead><tr><th>Yedek</th><th>Tarih</th><th class="num">Boyut</th><th></th></tr></thead>
+      <tbody>
+        {% for b in items %}
+          <tr><td><b>{{ b.name }}</b></td><td>{{ b.created|date:"d.m.Y H:i" }}</td><td class="num">{{ b.size|filesizeformat }}</td>
+            <td style="display:flex;gap:6px;justify-content:flex-end"><a class="btn btn-sm" href="?indir={{ b.name }}">İndir</a>
+              <button type="button" class="btn btn-sm" data-restore="{{ b.name }}" data-date="{{ b.created|date:'d.m.Y H:i' }}">Geri yükle</button>
+              <form method="post" onsubmit="return confirm('Yedek silinsin mi?')">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="name" value="{{ b.name }}"><button class="btn btn-sm btn-ghost">Sil</button></form></td></tr>
+        {% empty %}<tr><td colspan="4" class="subtle">Henüz yedek yok.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="grid-2" style="margin-top:14px">
+  <form method="post" class="panel" id="restore-form" hidden>
+    {% csrf_token %}<input type="hidden" name="action" value="restore"><input type="hidden" name="name">
+    <div class="panel-head"><h2>Geri yükle: <span data-restore-name></span></h2></div>
+    <div class="panel-body">
+      <div class="alert alert-warning">Tüm veriler bu yedekteki haline döner; yedekten sonra yapılan değişiklikler kaybolur. Önce mevcut durumun yedeği otomatik alınır, gerekirse ona geri dönebilirsiniz. İşlemden sonra herkes yeniden giriş yapar.</div>
+      <label class="label" for="restore-confirm">Onaylamak için <b>GERİ YÜKLE</b> yazın</label>
+      <div class="dialog-row"><input class="input" id="restore-confirm" name="onay" autocomplete="off" placeholder="GERİ YÜKLE"><button class="btn btn-danger" data-restore-go disabled>Geri yükle</button><button type="button" class="btn btn-ghost" data-restore-cancel>Vazgeç</button></div>
+    </div>
+  </form>
+  <form method="post" enctype="multipart/form-data" class="panel">
+    {% csrf_token %}<input type="hidden" name="action" value="upload">
+    <div class="panel-head"><h2>Başka bilgisayardan yedek yükle</h2></div>
+    <div class="panel-body">
+      <p class="page-lead">İndirdiğiniz bir yedek dosyasını (<code>yedek-….json.gz</code>) buraya yükleyin; listeye eklenir, sonra “Geri yükle” ile kullanabilirsiniz.</p>
+      <div class="dialog-row"><input class="input" type="file" name="dosya" accept=".gz" required><button class="btn">Yükle</button></div>
+      <p class="subtle small" style="margin-bottom:0">Yedek klasörü: {{ dir }}</p>
+    </div>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const form = document.getElementById("restore-form");
+  const input = document.getElementById("restore-confirm");
+  const go = form.querySelector("[data-restore-go]");
+  document.querySelectorAll("[data-restore]").forEach((b) => b.addEventListener("click", () => {
+    form.hidden = false;
+    form.elements.name.value = b.dataset.restore;
+    form.querySelector("[data-restore-name]").textContent = b.dataset.date + " yedeği";
+    input.value = ""; go.disabled = true; input.focus();
+    form.scrollIntoView({ behavior: "smooth", block: "center" });
+  }));
+  input.addEventListener("input", () => { go.disabled = input.value.trim().toLocaleUpperCase("tr") !== "GERİ YÜKLE"; });
+  form.querySelector("[data-restore-cancel]").addEventListener("click", () => { form.hidden = true; });
+  form.addEventListener("submit", () => { go.disabled = true; go.textContent = "Geri yükleniyor…"; });
+})();
+</script>
+{% endblock %}

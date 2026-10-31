@@ -1,0 +1,2016 @@
+"""Veri giriş ekranları: okul ve ders saatleri, ders adları, öğretmenler, sınıflar, derslikler,
+binalar, dersler (liste, form, sınıf ders tablosu) ve kart ilişkileri."""
+
+import datetime
+import json
+from urllib.parse import urlencode
+from collections import defaultdict
+from dataclasses import dataclass, field
+
+from django.contrib import messages
+from django.db import transaction
+from django.db.models import Count, Q
+from django.http import Http404, HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils.html import format_html
+from django.views.decorators.http import require_POST
+
+from . import availability_repair, forms, importer
+from .textsort import natural_key
+from .models import (
+    Availability,
+    Building,
+    CardRelationship,
+    Classroom,
+    Division,
+    Group,
+    Lesson,
+    Period,
+    School,
+    SchoolClass,
+    Subject,
+    Teacher,
+    TeacherQuota,
+    Timetable,
+)
+from .views import _nav
+
+# --- yardımcılar -------------------------------------------------------------------------------
+
+
+def loads(school):
+    """Öğretmen ve sınıf yükleri: (haftalık saat, uygun hücre sayısı)."""
+    from .problem_cache import school_problem
+
+    problem = school_problem(school)
+    teacher = defaultdict(int)
+    atom = defaultdict(int)
+    for card in problem.cards:
+        for t in card.teachers:
+            teacher[t] += card.length
+        for a in card.atoms:
+            atom[a] += card.length
+    classes = defaultdict(int)
+    for atom_id, hours in atom.items():
+        class_id = int(atom_id.split("|")[0])
+        classes[class_id] = max(classes[class_id], hours)
+    cells = problem.days * problem.periods
+    return (
+        {t: (h, problem.teacher_available.get(t, cells)) for t, h in teacher.items()},
+        {c: (h, next((problem.atom_available[a] for a in problem.atom_available if a.startswith(f"{c}|")), cells)) for c, h in classes.items()},
+    )
+
+
+def _load_badge(value):
+    if not value:
+        return format_html('<span class="subtle">–</span>')
+    hours, free = value
+    css = "failed" if hours > free else "ok" if hours else ""
+    return format_html('<span class="pill {}">{} / {} saat</span>', css, hours, free)
+
+
+def _target_badge(teacher, ctx):
+    """Öğretmenin ders yükü hedefine göre eksik/fazla saat."""
+    if not teacher.target_periods:
+        return format_html('<span class="subtle">–</span>')
+    hours = (ctx["teacher_loads"].get(teacher.id) or (0, 0))[0]
+    diff = hours - teacher.target_periods
+    if diff == 0:
+        return format_html('<span class="pill ok">{} saat ✓</span>', teacher.target_periods)
+    css = "warn" if diff < 0 else "failed"
+    return format_html('<span class="pill {}">{} saat ({})</span>', css, teacher.target_periods, f"{diff:+d}")
+
+
+def _teacher_name(t):
+    return f"{t.first_name} {t.last_name}"
+
+
+# --- genel kayıt tanımları ---------------------------------------------------------------------
+
+
+@dataclass
+class Entity:
+    slug: str
+    model: type
+    form: type
+    title: str
+    singular: str
+    columns: list
+    availability: str | None = None
+    order: tuple = ()
+    help: str = ""
+    prefetch: tuple = field(default_factory=tuple)
+    # Düzenleme ekranı: sekmeler → bölümler → alanlar. Tanımsız alanlar ilk bölüme eklenir.
+    tabs: tuple = ()
+    # Liste ve gezinme: doğal sıralama anahtarı, gezinme satırının adı ve alt bilgisi
+    sort: object = None
+    nav_label: object = None
+    nav_sub: object = None
+    # Kullanıcının seçebileceği sıralamalar: (anahtar, ad, değer(kayıt, ctx), sayısal mı). Tabloda ve düzenleme
+    # ekranının kayıt listesinde aynı seçenekler; seçim tarayıcıda saklanır (datasort.js).
+    sorts: tuple = ()
+
+    @property
+    def icon(self):
+        return {"siniflar": "layers", "ogretmenler": "user", "ders-adlari": "book", "derslikler": "building",
+                "binalar": "building", "kart-iliskileri": "link"}.get(self.slug, "list")
+
+
+def _divisions_cell(cls):
+    divisions = list(cls.divisions.all())
+    if not divisions:
+        return format_html('<span class="subtle">–</span>')
+    full = "; ".join(f"{d.name}: {', '.join(g.name for g in d.groups.all())}" for d in divisions)
+    groups = sum(len(d.groups.all()) for d in divisions)
+    return format_html('<span title="{}">{} bölünme · {} grup</span>', full, len(divisions), groups)
+
+
+def _hours(n):
+    return f"{n} saat" if n else ""
+
+
+def _swatch(subject, ctx=None):
+    return format_html('<span class="swatch" style="background:{}"></span> {}', subject.color, subject.name)
+
+
+ENTITIES = {
+    "ders-adlari": Entity(
+        "ders-adlari", Subject, forms.SubjectForm, "Ders adları", "Ders adı",
+        [
+            ("Ad", _swatch), ("Kısa ad", lambda s, ctx: s.short), ("Ders sayısı", lambda s, ctx: s.n_lessons),
+            ("Varsayılan derslik", lambda s, ctx: ", ".join(str(r) for r in s.classrooms.all()) or "–"),
+        ],
+        availability="subject", order=("name",), prefetch=("classrooms",),
+        tabs=(("genel", "Genel", (
+            ("Ders adı", "Programda ve çıktılarda görünen ad, kısa ad ve renk.", ("name", "short", "color")),
+            ("Derslik", "Bu adı taşıyan derslerde derslik seçilmemişse kullanılır.", ("classrooms",)),
+        )),),
+        nav_sub=lambda s, ctx: s.short,
+        sorts=(
+            ("ad", "Ad", lambda s, ctx: s.name, False),
+            ("kisa", "Kısa ad / kod", lambda s, ctx: s.short, False),
+            ("ders", "Ders sayısı", lambda s, ctx: getattr(s, "n_lessons", None), True),
+        ),
+        help="Ders adının müsaitliği, bu adı taşıyan tüm dersler için geçerlidir (ör. Beden Eğitimi son saatte olmasın).",
+    ),
+    "ogretmenler": Entity(
+        "ogretmenler", Teacher, forms.TeacherForm, "Öğretmenler", "Öğretmen",
+        [
+            ("Ad soyad", lambda t, ctx: _teacher_name(t)),
+            ("Kısa ad", lambda t, ctx: t.short),
+            ("Haftalık yük", lambda t, ctx: _load_badge(ctx["teacher_loads"].get(t.id))),
+            ("Hedef yük", _target_badge),
+            ("Branş", lambda t, ctx: t.branch or "–"),
+            ("Sınırlar", lambda t, ctx: " · ".join(filter(None, [
+                f"günde ≤{t.max_periods_per_day}" if t.max_periods_per_day else "",
+                f"haftada ≤{t.max_days_per_week} gün" if t.max_days_per_week else "",
+                f"boşluk ≤{t.max_gaps_per_week}/hafta" if t.max_gaps_per_week is not None else "",
+            ])) or "–"),
+        ],
+        availability="teacher", order=("last_name", "first_name"), prefetch=("subjects",),
+        tabs=(
+            ("genel", "Genel", (
+                ("Kimlik", "Ad, kısa ad ve raporlarda adın önüne yazılabilen künye.", ("first_name", "last_name", "short", "department", "title", "branch")),
+                ("Görev", "Ders yükü hedefi, okutabildiği dersler ve öğretmenin dersliği.", ("target_periods", "home_classroom", "subjects")),
+                ("İletişim ve hesap", "Bildirimler, ÜYBS aktarımı ve öğretmenin kendi kullanıcı hesabı (istek formu için).", ("email", "tc_no", "user")),
+            )),
+            ("kisitlar", "Kısıtlar", (
+                ("Günlük", "Boş bırakılan alan sınır koymaz.", ("max_periods_per_day", "min_periods_per_day", "max_consecutive", "max_gaps_per_day")),
+                ("Haftalık", "", ("max_days_per_week", "max_gaps_per_week")),
+                ("Nöbet", "", ("duty_exempt", "max_duties")),
+            )),
+        ),
+        sort=lambda t: natural_key(f"{t.first_name} {t.last_name}"),
+        nav_label=lambda t, ctx: _teacher_name(t),
+        nav_sub=lambda t, ctx: " · ".join(filter(None, [t.department, t.title, _hours((ctx["teacher_loads"].get(t.id) or (0, 0))[0])])),
+        sorts=(
+            ("kisa", "Kısa ad", lambda t, ctx: t.short, False),
+            ("ad", "Ad", lambda t, ctx: f"{t.first_name} {t.last_name}", False),
+            ("soyad", "Soyad", lambda t, ctx: f"{t.last_name} {t.first_name}", False),
+            ("bolum", "Bölüm", lambda t, ctx: t.department, False),
+            ("unvan", "Ünvan / rütbe", lambda t, ctx: t.title, False),
+            ("brans", "Branş", lambda t, ctx: t.branch, False),
+            ("saat", "Haftalık ders saati", lambda t, ctx: (ctx["teacher_loads"].get(t.id) or (0, 0))[0], True),
+        ),
+    ),
+    "siniflar": Entity(
+        "siniflar", SchoolClass, forms.SchoolClassForm, "Sınıflar", "Sınıf",
+        [
+            ("Sınıf", lambda c, ctx: c.name + (f" ({c.short})" if c.short else "")),
+            ("Seviye", lambda c, ctx: c.grade or "–"),
+            ("Sınıf öğretmeni", lambda c, ctx: c.class_teacher.full_name if c.class_teacher else "–"),
+            ("Sınıf dersliği", lambda c, ctx: c.home_classroom or "–"),
+            ("Bölünmeler", lambda c, ctx: _divisions_cell(c)),
+            ("Haftalık yük", lambda c, ctx: _load_badge(ctx["class_loads"].get(c.id))),
+        ],
+        availability="school_class", order=("grade", "sort_key", "name"), prefetch=("divisions__groups", "class_teacher"),
+        tabs=(
+            ("genel", "Genel", (
+                ("Kimlik", "Uzun ad çıktılarda, kısa ad ana görünümde kullanılır.", ("name", "short", "grade", "uybs_no")),
+                ("Sınıf", "Sınıf öğretmeni, sınıfın dersliği ve öğrenci sayısı.", ("class_teacher", "home_classroom", "student_count")),
+            )),
+            ("kisitlar", "Kısıtlar", (
+                ("Günlük ders sayısı", "Boş bırakılan alan sınır koymaz.", ("min_periods_per_day", "max_periods_per_day")),
+            )),
+        ),
+        sort=lambda c: (c.grade or 0, natural_key(c.name)),
+        nav_sub=lambda c, ctx: " · ".join(filter(None, [c.short if c.short != c.name else "", _hours((ctx["class_loads"].get(c.id) or (0, 0))[0])])),
+        sorts=(
+            ("ad", "Ad", lambda c, ctx: c.name, False),
+            ("kisa", "Kısa ad", lambda c, ctx: c.short, False),
+            ("seviye", "Seviye", lambda c, ctx: c.grade, True),
+            ("ogretmen", "Sınıf öğretmeni", lambda c, ctx: c.class_teacher.full_name if c.class_teacher else "", False),
+            ("saat", "Haftalık ders saati", lambda c, ctx: (ctx["class_loads"].get(c.id) or (0, 0))[0], True),
+            ("ogrenci", "Öğrenci sayısı", lambda c, ctx: c.student_count, True),
+        ),
+    ),
+    "derslikler": Entity(
+        "derslikler", Classroom, forms.ClassroomForm, "Derslikler", "Derslik",
+        [("Ad", lambda r, ctx: r.name), ("Kısa ad", lambda r, ctx: r.short), ("Kapasite", lambda r, ctx: r.capacity or "–"), ("Aynı anda", lambda r, ctx: r.max_lessons if r.max_lessons > 1 else "–"), ("Bina", lambda r, ctx: r.building or "–")],
+        availability="classroom", order=("name",),
+        tabs=(("genel", "Genel", (
+            ("Derslik", "Kapasite, öğrenci sayısı kontrolü için; “aynı anda” birden çok dersin aynı derslikte olabileceği sayıdır.", ("name", "short", "capacity", "max_lessons", "building")),
+        )),),
+        nav_sub=lambda r, ctx: " · ".join(filter(None, [r.short if r.short != r.name else "", f"{r.capacity} kişi" if r.capacity else ""])),
+        sorts=(
+            ("ad", "Ad", lambda r, ctx: r.name, False),
+            ("kisa", "Kısa ad", lambda r, ctx: r.short, False),
+            ("kapasite", "Kapasite", lambda r, ctx: r.capacity, True),
+            ("bina", "Bina", lambda r, ctx: str(r.building) if r.building_id else "", False),
+        ),
+    ),
+    "binalar": Entity(
+        "binalar", Building, forms.BuildingForm, "Binalar", "Bina",
+        [("Ad", lambda b, ctx: b.name)], order=("name",),
+        sorts=(("ad", "Ad", lambda b, ctx: b.name, False),),
+    ),
+    "kart-iliskileri": Entity(
+        "kart-iliskileri", CardRelationship, forms.RelationshipForm, "Kart ilişkileri", "Kart ilişkisi",
+        [
+            ("Ad", lambda r, ctx: r.name),
+            ("Koşul", lambda r, ctx: r.get_condition_display()
+                + (f" · N={r.param}" if r.condition in r.USES_N else "")
+                + (f" (istisna {r.param_max})" if r.param_max and r.condition in r.SOFT_TARGET else "")
+                + (f" · {len(r.time_map)} saat işaretli" if r.condition in r.USES_MAP and r.time_map else "")),
+            ("Uygula", lambda r, ctx: r.get_apply_to_display()),
+            ("Önem", lambda r, ctx: r.get_importance_display()),
+            ("Durum", lambda r, ctx: format_html('<span class="pill {}">{}</span>', "ok" if r.active else "", "Etkin" if r.active else "Kapalı")),
+        ],
+        order=("name",),
+        sorts=(
+            ("ad", "Ad", lambda r, ctx: r.name, False),
+            ("kosul", "Koşul", lambda r, ctx: r.get_condition_display(), False),
+            ("onem", "Önem", lambda r, ctx: [k for k, _ in r.IMPORTANCE_CHOICES].index(r.importance), True),
+            ("durum", "Durum (önce etkin)", lambda r, ctx: 0 if r.active else 1, True),
+        ),
+        help="Seçilen kartlara toplu kural uygular: ör. “her sınıfta sayısal derslerden günde en fazla 2 kart”.",
+    ),
+}
+
+
+def _entity(slug):
+    try:
+        return ENTITIES[slug]
+    except KeyError:
+        raise Http404
+
+
+def _school(pk):
+    return get_object_or_404(School, pk=pk)
+
+
+def _entity_ctx(school, entity):
+    ctx = {}
+    if entity.model in (Teacher, SchoolClass):
+        ctx["teacher_loads"], ctx["class_loads"] = loads(school)
+    return ctx
+
+
+def _sorted(entity, objs):
+    """Doğal sıralama (1, 2, … 10; Türkçe harf sırası)."""
+    return sorted(objs, key=entity.sort or (lambda o: natural_key(str(o))))
+
+
+def _sort_options(sorts):
+    """Sıralama menüsü: (değer, ad); "-anahtar" azalan."""
+    options = [("", "Varsayılan sıra")]
+    for key, label, _, numeric in sorts:
+        options += [(key, f"{label} ({'azdan çoğa' if numeric else 'A → Z'})"),
+                    (f"-{key}", f"{label} ({'çoktan aza' if numeric else 'Z → A'})")]
+    return options
+
+
+def _sort_values(sorts, obj, ctx):
+    """Satırın sıralama değerleri: {anahtar: metin}; boş değer sona gider."""
+    values = {}
+    for key, _, fn, _ in sorts:
+        value = fn(obj, ctx)
+        values[key] = "" if value is None or value == "" else str(value)
+    return values
+
+
+def _navigator(school, entity, current, ctx):
+    """Düzenleme ekranının solundaki kayıt listesi ve önceki/sonraki kayıt."""
+    qs = entity.model.objects.filter(school=school)
+    if entity.model is Subject:
+        qs = qs.annotate(n_lessons=Count("lesson"))
+    objs = _sorted(entity, qs)
+    items = [{
+        "id": o.pk,
+        "label": entity.nav_label(o, ctx) if entity.nav_label else str(o),
+        "sub": entity.nav_sub(o, ctx) if entity.nav_sub else "",
+        "url": reverse("timetable:data_edit", args=[school.pk, entity.slug, o.pk]),
+        "active": current is not None and o.pk == current.pk,
+        "sort": _sort_values(entity.sorts, o, ctx),
+    } for o in objs]
+    index = next((i for i, item in enumerate(items) if item["active"]), None)
+    return {
+        "items": items, "sort_options": _sort_options(entity.sorts), "sort_store": f"sort-{entity.slug}",
+        "prev": items[index - 1]["url"] if index else "",
+        "next": items[index + 1]["url"] if index is not None and index + 1 < len(items) else "",
+        "position": f"{index + 1} / {len(items)}" if index is not None else "",
+    }
+
+
+def _tabs(tab_specs, form, extra=()):
+    """Sekme → bölüm → alan yapısı; tanımsız alanlar ilk bölüme eklenir. extra: alansız sekmeler."""
+    names = list(form.fields)
+    used = {f for _, _, sections in tab_specs for _, _, fields in sections for f in fields}
+    tabs = []
+    for key, title, sections in tab_specs or (("genel", "Genel", (("", "", ()),)),):
+        tab = {"key": key, "title": title, "sections": [], "errors": False}
+        for heading, help_text, fields in sections:
+            bound = [form[f] for f in fields if f in form.fields]
+            tab["sections"].append({"title": heading, "help": help_text, "fields": bound})
+            tab["errors"] |= any(b.errors for b in bound)
+        tabs.append(tab)
+    rest = [form[f] for f in names if f not in used]
+    if rest:
+        tabs[0]["sections"][0]["fields"] = list(tabs[0]["sections"][0]["fields"]) + rest
+        tabs[0]["errors"] |= any(b.errors for b in rest)
+    for key, title in extra:
+        tabs.append({"key": key, "title": title, "sections": None, "errors": False})
+    return tabs
+
+
+def _wants_json(request):
+    return request.headers.get("X-Requested-With") == "fetch"
+
+
+def _form_errors(form):
+    return JsonResponse({
+        "ok": False,
+        "message": "Kaydedilemedi: işaretli alanları düzeltin.",
+        "errors": {name: [str(e) for e in errs] for name, errs in form.errors.items() if name != "__all__"},
+        "non_field": [str(e) for e in form.non_field_errors()],
+    }, status=400)
+
+
+def _bulk_relationships(request, school):
+    """Kart ilişkilerini toplu açar / kapatır."""
+    ids = [int(i) for i in request.POST.getlist("sec") if i.isdigit()]
+    active = request.POST.get("action") == "ac"
+    if not ids:
+        messages.error(request, "Önce en az bir ilişki seçin.")
+        return
+    chosen = CardRelationship.objects.filter(school=school, pk__in=ids)
+    changing = list(chosen.exclude(active=active).order_by("name").values_list("name", flat=True))
+    chosen.update(active=active)
+    same = chosen.count() - len(changing)
+    names = ", ".join(changing[:10]) + (f" … (+{len(changing) - 10})" if len(changing) > 10 else "")
+    messages.success(request, f"{len(changing)} ilişki {'açıldı' if active else 'kapatıldı'}" + (f": {names}." if names else ".")
+                     + (f" {same} ilişki zaten {'açıktı' if active else 'kapalıydı'}." if same else ""))
+
+
+def entity_list(request, pk, slug):
+    school, entity = _school(pk), _entity(slug)
+    if request.method == "POST" and entity.model is CardRelationship and request.POST.get("action") in ("ac", "kapat"):
+        _bulk_relationships(request, school)
+        return redirect(request.get_full_path())
+    qs = entity.model.objects.filter(school=school).order_by(*entity.order).prefetch_related(*entity.prefetch)
+    if entity.model is Subject:
+        qs = qs.annotate(n_lessons=Count("lesson"))
+    ctx = _entity_ctx(school, entity)
+    rows = [{"obj": obj, "cells": [fn(obj, ctx) for _, fn in entity.columns], "sort": _sort_values(entity.sorts, obj, ctx)}
+            for obj in _sorted(entity, qs)]
+    return render(
+        request,
+        "timetable/data/list.html",
+        _nav(school, "data", data_nav=slug, entity=entity, headers=[h for h, _ in entity.columns], rows=rows,
+             sort_options=_sort_options(entity.sorts), sort_store=f"sort-{slug}"),
+    )
+
+
+def _alert_message(request, alert):
+    """Müsaitlik değişikliği aktif programda dersleri kapalı saate düşürdüyse uyarı (onar düğmesiyle)."""
+    if alert:
+        from django.utils.safestring import mark_safe
+
+        messages.warning(request, mark_safe(alert))
+
+
+def _availability_qs(school, field, obj):
+    """field == "school": hedefsiz (okul geneli) kayıtlar."""
+    if field == "school":
+        return Availability.objects.filter(school=school, **{f"{f}__isnull": True for f in Availability.TARGET_FIELDS})
+    return Availability.objects.filter(**{field: obj})
+
+
+def _availability_grid(school, field, obj):
+    states = {}
+    if obj is not None:
+        for a in _availability_qs(school, field, obj):
+            states[f"{a.day}-{a.period}"] = a.state
+    return {
+        "days": school.day_names,
+        "periods": [{"name": p.name, "start": p.start_time.strftime("%H:%M") if p.start_time else ""} for p in school.periods.all()],
+        "states": states,
+    }
+
+
+def _save_availability(school, field, obj, raw):
+    if raw is None:  # formda ızgara yoksa mevcut kayıtlar korunur
+        return
+    try:
+        states = json.loads(raw or "{}")
+    except json.JSONDecodeError:
+        return
+    _availability_qs(school, field, obj).delete()
+    target = {} if field == "school" else {field: obj}
+    rows = []
+    for key, state in states.items():
+        if state not in (Availability.NO, Availability.MAYBE):
+            continue
+        try:
+            day, period = (int(x) for x in key.split("-"))
+        except ValueError:
+            continue
+        if day < school.days_per_week and period < school.periods.count():
+            rows.append(Availability(school=school, day=day, period=period, state=state, **target))
+    Availability.objects.bulk_create(rows)
+
+
+# --- müsaitliği birden çok kayda uygulama ---------------------------------------------------------
+
+AVAILABILITY_KINDS = {
+    "sinif": ("school_class", SchoolClass, "Sınıflar", "sınıf"),
+    "ogretmen": ("teacher", Teacher, "Öğretmenler", "öğretmen"),
+    "derslik": ("classroom", Classroom, "Derslikler", "derslik"),
+    "ders-adi": ("subject", Subject, "Ders adları", "ders adı"),
+}
+MODES = {
+    "replace": "Aynısı olsun (seçilenlerin müsaitliği bu ızgarayla değişir)",
+    "close": "İşaretlileri ekle (yalnızca işaretli hücreler kapanır/koşullu olur, diğerleri korunur)",
+    "open": "İşaretlileri aç (işaretli hücrelerdeki kapatmalar kaldırılır)",
+}
+
+
+def _parse_states(school, raw):
+    try:
+        states = json.loads(raw or "{}")
+    except json.JSONDecodeError:
+        return {}
+    out, periods = {}, school.periods.count()
+    for key, state in states.items():
+        try:
+            day, period = (int(x) for x in key.split("-"))
+        except ValueError:
+            continue
+        if state in (Availability.NO, Availability.MAYBE) and day < school.days_per_week and period < periods:
+            out[(day, period)] = state
+    return out
+
+
+def apply_availability(school, field, objs, states, mode="replace"):
+    """Aynı ızgarayı birden çok kayda uygular. Dönüş: değişen kayıt sayısı."""
+    for obj in objs:
+        qs = Availability.objects.filter(**{field: obj})
+        if mode == "replace":
+            qs.delete()
+        elif states:
+            qs.filter(_cells_q(states)).delete()
+        if mode != "open":
+            Availability.objects.bulk_create(
+                Availability(school=school, day=d, period=p, state=st, **{field: obj}) for (d, p), st in states.items()
+            )
+    return len(objs)
+
+
+def _cells_q(states):
+    from django.db.models import Q
+
+    q = Q(pk__in=[])
+    for d, p in states:
+        q |= Q(day=d, period=p)
+    return q
+
+
+def _copy_targets(school, field, obj):
+    """Izgara altındaki "diğerlerine de uygula" listesi: aynı türdeki diğer kayıtlar, gruplarıyla."""
+    kind = next((k for k, v in AVAILABILITY_KINDS.items() if v[0] == field), None)
+    if kind is None:
+        return None
+    model = AVAILABILITY_KINDS[kind][1]
+    items = []
+    for o in model.objects.filter(school=school).exclude(pk=getattr(obj, "pk", None)):
+        items.append({"id": o.pk, "name": _target_name(o), "group": _target_group(o)})
+    return {"kind": kind, "label": AVAILABILITY_KINDS[kind][3], "items": items,
+            "groups": sorted({i["group"] for i in items if i["group"]})}
+
+
+def _target_name(o):
+    if isinstance(o, Teacher):
+        return o.full_name
+    if isinstance(o, SchoolClass):
+        return o.short or o.name
+    return str(o)
+
+
+def _target_group(o):
+    """Hızlı seçim kümesi: sınıfta kısa adın harf kısmı (1SVN → SVN), derslikte bina, ders adında kod öneki."""
+    import re
+
+    if isinstance(o, SchoolClass):
+        m = re.search(r"[^\d\W]+", o.short or "", re.UNICODE)
+        return m[0] if m else (str(o.grade) if o.grade else "")
+    if isinstance(o, Classroom):
+        return str(o.building) if o.building_id else ""
+    if isinstance(o, Subject):
+        return (o.short or "")[:3]
+    return ""
+
+
+def _apply_copies(request, school, field, raw):
+    ids = [int(x) for x in request.POST.getlist("copy_to") if x.isdigit()]
+    if not ids:
+        return 0
+    kind = next(k for k, v in AVAILABILITY_KINDS.items() if v[0] == field)
+    objs = list(AVAILABILITY_KINDS[kind][1].objects.filter(school=school, pk__in=ids))
+    mode = request.POST.get("copy_mode") if request.POST.get("copy_mode") in MODES else "replace"
+    return apply_availability(school, field, objs, _parse_states(school, raw), mode)
+
+
+def bulk_availability(request, pk):
+    """Toplu müsaitlik: seçilen sınıflar/öğretmenler/dersliklerde aynı saatleri birlikte kapat ya da aç."""
+    school = _school(pk)
+    kind = request.GET.get("tur") or request.POST.get("tur") or "sinif"
+    if kind not in AVAILABILITY_KINDS:
+        kind = "sinif"
+    field, model, title, singular = AVAILABILITY_KINDS[kind]
+    if request.method == "POST":
+        ids = [int(x) for x in request.POST.getlist("copy_to") if x.isdigit()]
+        objs = list(model.objects.filter(school=school, pk__in=ids))
+        mode = request.POST.get("copy_mode") if request.POST.get("copy_mode") in MODES else "close"
+        states = _parse_states(school, request.POST.get("availability"))
+        if not objs:
+            messages.error(request, f"Önce en az bir {singular} seçin.")
+        elif mode != "replace" and not states:
+            messages.error(request, "Izgarada en az bir hücre işaretleyin.")
+        else:
+            watch = availability_repair.Watch(school, [(field, o.pk) for o in objs])
+            with transaction.atomic():
+                n = apply_availability(school, field, objs, states, mode)
+            verb = {"replace": "müsaitliği değiştirildi", "close": "işaretli saatleri kapatıldı", "open": "işaretli saatleri açıldı"}[mode]
+            messages.success(request, f"{n} {singular} için {verb}.")
+            availability_repair.notify(request, watch)
+        return redirect(f"{reverse('timetable:bulk_availability', args=[school.pk])}?tur={kind}")
+    source = None
+    source_id = request.GET.get("kaynak")
+    if source_id and source_id.isdigit():
+        source = model.objects.filter(school=school, pk=source_id).first()
+    grid = _availability_grid(school, field, source)
+    targets = _copy_targets(school, field, None)
+    return render(request, "timetable/data/bulk_availability.html", _nav(
+        school, "data", data_nav="toplu-musaitlik", kind=kind, kinds={k: v[2] for k, v in AVAILABILITY_KINDS.items()},
+        availability=grid, targets=targets, source=source, modes=MODES, singular=singular,
+        sources=targets["items"],
+    ))
+
+
+def _division_rows(cls):
+    if cls is None:
+        return []
+    return [
+        {"id": d.id, "name": d.name, "groups": [{"id": g.id, "name": g.name} for g in d.groups.all()]}
+        for d in cls.divisions.prefetch_related("groups")
+    ]
+
+
+def _save_divisions(cls, raw):
+    """Bölünme/grup düzenleyicisinden gelen JSON'u kaydeder; kimliği korunan gruplar derslerde kalır."""
+    try:
+        rows = json.loads(raw or "[]")
+    except json.JSONDecodeError:
+        return
+    existing = {d.id: d for d in cls.divisions.prefetch_related("groups")}
+    kept = set()
+    for row in rows:
+        names = [g.get("name", "").strip() for g in row.get("groups", [])]
+        if not row.get("name", "").strip() or len([n for n in names if n]) < 2:
+            continue  # bölünme sınıfı en az iki gruba ayırmalı
+        division = existing.get(row.get("id"))
+        if division is None:
+            division = Division.objects.create(school_class=cls, name=row["name"].strip())
+        elif division.name != row["name"].strip():
+            division.name = row["name"].strip()
+            division.save(update_fields=["name"])
+        kept.add(division.id)
+        groups = {g.id: g for g in division.groups.all()}
+        kept_groups = set()
+        for item in row.get("groups", []):
+            name = item.get("name", "").strip()
+            if not name:
+                continue
+            group = groups.get(item.get("id"))
+            if group is None:
+                group = Group.objects.create(division=division, name=name)
+            elif group.name != name:
+                group.name = name
+                group.save(update_fields=["name"])
+            kept_groups.add(group.id)
+        Group.objects.filter(division=division).exclude(id__in=kept_groups).delete()
+    Division.objects.filter(school_class=cls).exclude(id__in=kept).delete()
+
+
+# --- eşzamanlı düzenleme: "siz düzenlerken değişti" uyarısı ---------------------------------------
+
+AVAILABILITY_KEY, DIVISIONS_KEY = "__musaitlik", "__bolunmeler"
+
+
+def _availability_canon(states):
+    """{"gün-saat": durum} → karşılaştırılabilir metin (yalnızca kapalı / koşullu saatler)."""
+    return json.dumps(sorted(f"{k}:{v}" for k, v in states.items() if v in (Availability.NO, Availability.MAYBE)))
+
+
+def _divisions_canon(rows):
+    """[(bölünme, [gruplar])] → karşılaştırılabilir metin; _save_divisions'ın kaydetmediği satırlar atlanır."""
+    kept = []
+    for name, groups in rows:
+        names = sorted(g.strip() for g in groups if g and g.strip())
+        if name and name.strip() and len(names) >= 2:
+            kept.append([name.strip(), names])
+    return json.dumps(sorted(kept), ensure_ascii=False)
+
+
+def _posted_divisions(raw):
+    try:
+        rows = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    return _divisions_canon([(r.get("name", ""), [g.get("name", "") for g in r.get("groups", [])]) for r in rows if isinstance(r, dict)])
+
+
+def _posted_availability(raw):
+    try:
+        states = json.loads(raw or "{}")
+    except (TypeError, ValueError):
+        return None
+    return _availability_canon(states) if isinstance(states, dict) else None
+
+
+def _record_values(school, entity, obj, form):
+    """Kaydın şu anki hali (alan → karşılaştırılabilir metin): form alanları, müsaitlik ve bölünmeler."""
+    from .concurrency import normalize
+
+    values = {name: normalize(form[name].initial) for name in form.fields}
+    if entity.availability:
+        values[AVAILABILITY_KEY] = _availability_canon(_availability_grid(school, entity.availability, obj)["states"])
+    if entity.model is SchoolClass:
+        values[DIVISIONS_KEY] = _divisions_canon([(d["name"], [g["name"] for g in d["groups"]]) for d in _division_rows(obj)])
+    return values
+
+
+def _display(field, value):
+    """Alan değerinin okunur hali (seçimlerde adlar)."""
+    if value is None or value == "" or value == [] or value == ():
+        return "—"
+    if isinstance(value, bool):
+        return "Evet" if value else "Hayır"
+    many = isinstance(value, (list, tuple, set)) or hasattr(value, "model")
+    items = list(value) if many else [value]
+    if hasattr(field, "queryset"):
+        ids = [getattr(v, "pk", v) for v in items]
+        names = [str(o) for o in field.queryset.filter(pk__in=[i for i in ids if str(i).isdigit()])]
+        text = ", ".join(sorted(names, key=natural_key))
+    elif getattr(field, "choices", None):
+        flat = {}
+        for k, v in field.choices:
+            for k2, v2 in (v if isinstance(v, (list, tuple)) else [(k, v)]):
+                flat[str(k2)] = v2
+        text = ", ".join(str(flat.get(str(i), i)) for i in items)
+    else:
+        text = ", ".join(str(i) for i in items)
+    return (text[:200] + "…" if len(text) > 200 else text) or "—"
+
+
+def _cell_count(canon):
+    n = len(json.loads(canon))
+    return f"{n} kapalı / koşullu saat" if n else "tümü açık"
+
+
+def _record_conflict(request, school, entity, obj, form):
+    """Kayıt bu sayfa açıldıktan sonra değiştiyse ve kullanıcı o alanlara farklı değer kaydetmek istiyorsa:
+    {"message", "fields": [{"label", "current", "mine"}]}; yoksa None. "Yine de kaydet" (FORCE_FIELD) denetimi atlar."""
+    from . import concurrency
+    from .models import AuditLog
+
+    token = concurrency.read_token(request.POST.get(concurrency.STATE_FIELD))
+    if obj is None or token is None or request.POST.get(concurrency.FORCE_FIELD):
+        return None
+    current = _record_values(school, entity, obj, form)
+    changed = concurrency.changed_fields(token, current)
+    if not changed:
+        return None
+    shown = {n: _display(form.fields[n], form[n].initial) for n in changed if n in form.fields}  # is_valid öncesi
+    valid = form.is_valid()
+    rows = []
+    for name in changed:
+        if name == AVAILABILITY_KEY:
+            mine = _posted_availability(request.POST.get("availability")) if "availability" in request.POST else None
+            if mine is not None and mine != current[name]:
+                rows.append({"label": "Müsaitlik", "current": _cell_count(current[name]), "mine": _cell_count(mine)})
+        elif name == DIVISIONS_KEY:
+            mine = _posted_divisions(request.POST.get("divisions")) if request.POST.get("divisions") else None
+            if mine is not None and mine != current[name]:
+                fmt = lambda c: "; ".join(f"{d}: {', '.join(g)}" for d, g in json.loads(c)) or "—"  # noqa: E731
+                rows.append({"label": "Bölünmeler", "current": fmt(current[name]), "mine": fmt(mine)})
+        elif name in form.fields:
+            mine = form.cleaned_data.get(name) if valid else form[name].value()
+            if concurrency.normalize(mine) != current[name]:
+                rows.append({"label": form.fields[name].label or name, "current": shown[name], "mine": _display(form.fields[name], mine)})
+    if not rows:
+        return None
+    by = []
+    if token["t"] is not None:
+        logs = (AuditLog.objects.filter(path=request.path, created_at__gte=token["t"]).exclude(user=request.user)
+                .select_related("user").order_by("created_at"))
+        for log in logs:
+            name = concurrency.short_name(log.user) if log.user else log.username
+            if name and name not in by:
+                by.append(name)
+    who = f"{' ve '.join(by)} tarafından " if by else ""
+    return {
+        "message": f"Bu kayıt siz düzenlerken {who}değiştirildi; değişikliğiniz kaydedilmedi.",
+        "hint": "Aşağıdaki alanlarda şu anki kayıtlı değer sizinkinden farklı. “Yine de kaydet” sizin değerlerinizi yazar; "
+                "“Güncel hali yükle” sayfayı kayıtlı haliyle yeniden açar (değişiklikleriniz silinir).",
+        "fields": rows,
+    }
+
+
+def _state_token(school, entity, obj):
+    """Kaydedilmiş halin yeni durum belirteci (kayıttan sonra sayfa yenilenmeden yine kaydedilebilsin)."""
+    from .concurrency import make_token
+
+    fresh = entity.model.objects.get(pk=obj.pk)
+    return make_token(_record_values(school, entity, fresh, entity.form(instance=fresh, school=school)))
+
+
+def entity_edit(request, pk, slug, obj_id=None):
+    from . import concurrency
+    from django.template.loader import render_to_string
+
+    school, entity = _school(pk), _entity(slug)
+    obj = get_object_or_404(entity.model, pk=obj_id, school=school) if obj_id else None
+    form = entity.form(request.POST or None, instance=obj, school=school)
+    conflict = _record_conflict(request, school, entity, obj, form) if request.method == "POST" else None
+    if conflict and _wants_json(request):
+        return JsonResponse({"ok": False, "conflict": True, "message": conflict["message"],
+                             "html": render_to_string("timetable/data/conflict.html", {"conflict": conflict}, request)}, status=409)
+    if request.method == "POST" and not conflict and form.is_valid():
+        created = obj is None
+        watch = None
+        if entity.availability and obj is not None and request.POST.get("availability") is not None:
+            # Kayıttan önce: aktif programda bu kayıtların hangi dersleri zaten kapalı saatteydi
+            copy_ids = [int(x) for x in request.POST.getlist("copy_to") if x.isdigit()]
+            watch = availability_repair.Watch(school, [(entity.availability, obj.pk)] + [(entity.availability, i) for i in copy_ids])
+        with transaction.atomic():
+            obj = form.save()
+            copied = 0
+            if entity.availability:
+                _save_availability(school, entity.availability, obj, request.POST.get("availability"))
+                copied = _apply_copies(request, school, entity.availability, request.POST.get("availability"))
+            new_divisions = False
+            if entity.model is SchoolClass:
+                new_divisions = _has_new_divisions(request.POST.get("divisions"))
+                _save_divisions(obj, request.POST.get("divisions"))
+        message = f"{entity.singular} kaydedildi: {obj}" + (f" · müsaitlik {copied} kayda daha uygulandı." if copied else "")
+        url = reverse("timetable:data_edit", args=[school.pk, slug, obj.pk])
+        new_url = reverse("timetable:data_new", args=[school.pk, slug])
+        alert = watch.report(request) if watch else ""
+        if _wants_json(request):
+            # Sayfadan çıkmadan kaydet. Yeni kayıt ya da yeni bölünme (kimlik aldı) varsa sayfa kendi adresine yenilenir.
+            if created or new_divisions:
+                messages.success(request, message)
+                _alert_message(request, alert)
+            ctx = _entity_ctx(school, entity)
+            return JsonResponse({
+                "ok": True, "message": message, "url": url, "reload": created or new_divisions, "alert": alert,
+                "next": new_url if request.POST.get("next") == "new" else "",
+                "title": entity.nav_label(obj, ctx) if entity.nav_label else str(obj),
+                "sub": entity.nav_sub(obj, ctx) if entity.nav_sub else "",
+                "state": _state_token(school, entity, obj),
+            })
+        messages.success(request, message)
+        _alert_message(request, alert)
+        return redirect(new_url if request.POST.get("next") == "new" else url)
+    if request.method == "POST" and _wants_json(request):
+        return _form_errors(form)
+    if obj is not None:
+        # Çakışmada eski belirteç kalır: yeniden "Kaydet" yine uyarır, "Yine de kaydet" yazar.
+        record_state = request.POST.get(concurrency.STATE_FIELD, "") if conflict else concurrency.make_token(
+            _record_values(school, entity, obj, form))
+        presence = {"key": f"kayit:{slug}:{obj.pk}", "url": reverse("timetable:api_presence", args=[school.pk]),
+                    "editing": "veri" in getattr(request, "school_perms", set())}
+    else:
+        record_state, presence = "", None
+
+    impact = ""
+    if obj is not None:
+        impact = _delete_impact(obj)
+    ctx = _entity_ctx(school, entity)
+    extra = []
+    if entity.model is SchoolClass:
+        extra.append(("bolunmeler", "Bölünmeler"))
+    if entity.availability:
+        extra.append(("musaitlik", "Müsaitlik"))
+    relationship = entity.model is CardRelationship
+    return render(
+        request,
+        "timetable/data/relationship_form.html" if relationship else "timetable/data/form.html",
+        _nav(
+            school,
+            "data",
+            data_nav=slug,
+            entity=entity,
+            obj=obj,
+            form=form,
+            picker=_relationship_picker(school, form) if relationship else None,
+            impact=impact,
+            availability=_availability_grid(school, entity.availability, obj) if entity.availability else None,
+            copy_targets=_copy_targets(school, entity.availability, obj) if entity.availability else None,
+            copy_modes=MODES,
+            divisions=_division_rows(obj) if entity.model is SchoolClass else None,
+            other_classes=school.classes.exclude(pk=obj.pk) if obj is not None and entity.model is SchoolClass else None,
+            tabs=_tabs(entity.tabs, form, extra),
+            form_id="entity-form",
+            navigator=_navigator(school, entity, obj, ctx),
+            record_sub=(entity.nav_sub(obj, ctx) if entity.nav_sub and obj is not None else ""),
+            list_url=reverse("timetable:data_list", args=[school.pk, slug]),
+            new_url=reverse("timetable:data_new", args=[school.pk, slug]),
+            record_state=record_state,
+            conflict=conflict,
+            presence=presence,
+        ),
+        status=409 if conflict else 200,  # kaydedilmedi: işlem günlüğüne "düzenledi" yazılmaz
+    )
+
+
+def _relationship_picker(school, form):
+    """Kart ilişkisi düzenleyicisinin seçici verileri: ders adları ve kısımları (teori/uygulama rozetiyle),
+    bölüme göre gruplu sınıf/öğretmen/derslikler ve formdaki seçimler."""
+    import re
+
+    from .rooms_wizard import PRACTICAL
+
+    letters = re.compile(r"[^\W\d_]+", re.UNICODE)
+
+    def prefix(text):
+        m = letters.search(text or "")
+        return m.group(0).upper() if m else "Diğer"
+
+    lessons = defaultdict(list)
+    for lesson in Lesson.objects.filter(school=school).prefetch_related("classes", "teachers"):
+        classes = sorted((c.short or c.name for c in lesson.classes.all()), key=natural_key)
+        lessons[lesson.subject_id].append({
+            "id": lesson.id, "classes": ", ".join(classes) or "Sınıfsız",
+            "teachers": ", ".join(t.full_name for t in lesson.teachers.all()) or "öğretmensiz",
+            "hours": lesson.periods_per_week, "blocks": lesson.card_length,
+        })
+    subjects = list(school.subjects.all())
+    practical = {s.id for s in subjects if PRACTICAL.search(s.name or "")}
+    by_code = defaultdict(set)
+    for s in subjects:
+        by_code[(s.short or "").strip().upper()].add(s.id in practical)
+    subject_rows = []
+    for s in sorted(subjects, key=lambda s: (natural_key(s.short or s.name), natural_key(s.name))):
+        code = (s.short or "").strip()
+        kind = "U" if s.id in practical else ("T" if code and True in by_code[code.upper()] else "")
+        subject_rows.append({"id": s.id, "code": code, "name": s.name, "kind": kind,
+                             "lessons": sorted(lessons.get(s.id, []), key=lambda l: natural_key(l["classes"]))})
+    classes = [{"id": c.id, "name": c.short or c.name, "full": c.name, "group": prefix(c.short or c.name)}
+               for c in sorted(school.classes.all(), key=lambda c: natural_key(c.short or c.name))]
+    teachers = [{"id": t.id, "name": t.full_name, "full": " ".join(filter(None, [t.title, t.full_name])),
+                 "group": t.department or "Bölümü girilmemiş"}
+                for t in sorted(school.teachers.all(), key=lambda t: natural_key(t.full_name))]
+    rooms = [{"id": r.id, "name": r.name, "full": r.name, "group": r.building.name if r.building_id else prefix(r.name.split("-")[0])}
+             for r in sorted(school.classrooms.select_related("building"), key=lambda r: natural_key(r.name))]
+
+    def selected(name):
+        value = form[name].value() or []
+        return [int(v) for v in value if str(v).isdigit()]
+
+    return {
+        "subjects": subject_rows, "classes": classes, "teachers": teachers, "rooms": rooms,
+        "selected": {n: selected(n) for n in ("subjects", "lessons", "subjects_b", "lessons_b", "classes", "teachers", "classrooms")},
+    }
+
+
+def _has_new_divisions(raw):
+    try:
+        rows = json.loads(raw or "[]")
+    except json.JSONDecodeError:
+        return False
+    return any(not row.get("id") or any(not g.get("id") for g in row.get("groups", [])) for row in rows if isinstance(row, dict))
+
+
+@require_POST
+def copy_divisions(request, pk, class_id):
+    """Sınıfın bölünme ve gruplarını seçilen sınıflara kopyalar (aSc 9.9). Hedefin bölünmeleri değişir."""
+    school = _school(pk)
+    source = get_object_or_404(SchoolClass, pk=class_id, school=school)
+    targets = SchoolClass.objects.filter(school=school, pk__in=request.POST.getlist("targets")).exclude(pk=source.pk)
+    rows = _division_rows(source)
+    with transaction.atomic():
+        for target in targets:
+            existing = {d.name: d for d in target.divisions.prefetch_related("groups")}
+            for row in rows:
+                division = existing.pop(row["name"], None) or Division.objects.create(school_class=target, name=row["name"])
+                names = [g["name"] for g in row["groups"]]
+                division.groups.exclude(name__in=names).delete()
+                have = set(division.groups.values_list("name", flat=True))
+                Group.objects.bulk_create([Group(division=division, name=n) for n in names if n not in have])
+            for division in existing.values():
+                division.delete()
+    if targets:
+        messages.success(request, f"Bölünmeler {len(targets)} sınıfa kopyalandı: {', '.join(t.name for t in targets)}.")
+    else:
+        messages.error(request, "Hedef sınıf seçilmedi.")
+    return redirect("timetable:data_edit", pk=school.pk, slug="siniflar", obj_id=source.pk)
+
+
+def _delete_impact(obj):
+    if isinstance(obj, Subject):
+        n = Lesson.objects.filter(subject=obj).count()
+        return f"Bu ders adını kullanan {n} ders de silinecek." if n else ""
+    if isinstance(obj, SchoolClass):
+        n = Lesson.objects.annotate(nc=Count("classes")).filter(classes=obj, nc=1).count()
+        return f"Yalnızca bu sınıfa ait {n} ders de silinecek." if n else ""
+    if isinstance(obj, Teacher):
+        n = obj.lessons.count()
+        return f"Öğretmen {n} dersten çıkarılacak." if n else ""
+    return ""
+
+
+@require_POST
+def entity_delete(request, pk, slug, obj_id):
+    school, entity = _school(pk), _entity(slug)
+    obj = get_object_or_404(entity.model, pk=obj_id, school=school)
+    with transaction.atomic():
+        if isinstance(obj, SchoolClass):
+            Lesson.objects.annotate(nc=Count("classes")).filter(classes=obj, nc=1).delete()
+        name = str(obj)
+        obj.delete()
+    messages.success(request, f"{entity.singular} silindi: {name}")
+    return redirect("timetable:data_list", pk=school.pk, slug=slug)
+
+
+# --- okul ve ders saatleri ---------------------------------------------------------------------
+
+
+def default_periods(school, count=8, start=datetime.time(8, 30), length=40, short_break=10, lunch_after=5, lunch=50):
+    current = datetime.datetime.combine(datetime.date.today(), start)
+    for i in range(count):
+        end = current + datetime.timedelta(minutes=length)
+        Period.objects.create(school=school, index=i, name=f"{i + 1}. saat", start_time=current.time(), end_time=end.time())
+        current = end + datetime.timedelta(minutes=lunch if i + 1 == lunch_after else short_break)
+
+
+def school_create(request):
+    form = forms.SchoolForm(request.POST or None, initial={"days_per_week": 5})
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            school = form.save()
+            default_periods(school)
+        messages.success(request, "Okul oluşturuldu. Kurulum sihirbazı verileri adım adım ister.")
+        return redirect("timetable:setup_wizard_start", pk=school.pk)
+    return render(request, "timetable/data/settings.html", {"form": form, "formset": None, "creating": True})
+
+
+def _day_time_grid(school):
+    """Ayarlar ekranı: kayıtlı her ders saati için günlere göre saat kutuları (boş = varsayılan)."""
+    days = school.day_names
+    rows = []
+    for p in school.periods.all():
+        times = p.day_times or {}
+        rows.append({
+            "pk": p.pk, "index": p.index + 1,
+            "default": [f"{p.start_time:%H:%M}" if p.start_time else "", f"{p.end_time:%H:%M}" if p.end_time else ""],
+            "cells": [{"day": d, "start": (times.get(str(d)) or ["", ""])[0], "end": (times.get(str(d)) or ["", ""])[1]} for d in range(len(days))],
+        })
+    return {"days": days, "rows": rows}
+
+
+def _parse_day_times(school, post):
+    """Formdaki gün saatleri → {dönem pk: {gün: [başlangıç, bitiş]}}, hatalar {alan adı: [ileti]}.
+    Varsayılanla aynı ya da iki kutusu boş gün kaydedilmez."""
+    result, errors = {}, {}
+    days = school.day_names
+    for p in school.periods.all():
+        times = {}
+        for d in range(len(days)):
+            names = (f"gs-{p.pk}-{d}-start", f"gs-{p.pk}-{d}-end")
+            raw = [(post.get(n) or "").strip() for n in names]
+            if not any(raw):
+                continue
+            label = f"{days[d]} {p.index + 1}. saat"
+            try:
+                start, end = (datetime.time.fromisoformat(x) for x in raw)
+            except ValueError:
+                errors[names[0] if not raw[0] or ":" not in raw[0] else names[1]] = [f"{label}: başlangıç ve bitişi 08:20 biçiminde yazın."]
+                continue
+            if end <= start:
+                errors[names[1]] = [f"{label}: bitiş başlangıçtan sonra olmalı."]
+                continue
+            if (start, end) != (p.start_time, p.end_time):
+                times[str(d)] = [f"{start:%H:%M}", f"{end:%H:%M}"]
+        result[p.pk] = times
+    return result, errors
+
+
+def _school_sub(school):
+    return f"{school.days_per_week} gün × {school.periods.count()} ders saati"
+
+
+def room_wizard(request, pk):
+    """Derslik atama sihirbazı (rooms_wizard.py)."""
+    from . import rooms_wizard
+
+    school = _school(pk)
+    if request.method == "POST":
+        before = len(rooms_wizard.roomless(school))
+        n_classes, n_subjects = rooms_wizard.apply(school, request.POST)
+        after = len(rooms_wizard.roomless(school))
+        messages.success(request, f"{n_classes} sınıfa derslik, {n_subjects} ders adına varsayılan derslik atandı. "
+                                  f"Dersliği belirsiz ders: {before} → {after}.")
+        return redirect("timetable:room_wizard", pk=school.pk)
+    return render(request, "timetable/data/room_wizard.html", _nav(
+        school, "data", data_nav="derslik-atama", data=rooms_wizard.analyze(school)))
+
+
+def school_settings(request, pk):
+    school = _school(pk)
+    form = forms.SchoolForm(request.POST or None, instance=school)
+    formset = forms.PeriodFormSet(request.POST or None, queryset=school.periods.all(), prefix="periods")
+    ajax = _wants_json(request)
+    day_times, day_errors = _parse_day_times(school, request.POST) if request.method == "POST" else ({}, {})
+    if request.method == "POST" and day_errors:
+        if ajax:
+            return JsonResponse({"ok": False, "message": "Günlere göre saatlerde hata var.", "errors": day_errors,
+                                 "non_field": [m for msgs in day_errors.values() for m in msgs]}, status=400)
+        for msgs in day_errors.values():
+            messages.error(request, msgs[0])
+    if request.method == "POST" and not day_errors and form.is_valid() and formset.is_valid():
+        kept = [f for f in formset.forms if f.has_changed() or f.instance.pk]
+        kept = [f for f in kept if not (formset.can_delete and formset._should_delete_form(f))]
+        structure_changed = bool(formset.deleted_forms) or any(not f.instance.pk for f in kept)
+        if not kept:
+            if ajax:
+                return JsonResponse({"ok": False, "message": "En az bir ders saati olmalı.", "errors": {}, "non_field": ["En az bir ders saati olmalı."]}, status=400)
+            messages.error(request, "En az bir ders saati olmalı.")
+        else:
+            watch = availability_repair.Watch(school, [("school", None)]) if request.POST.get("availability") is not None else None
+            with transaction.atomic():
+                form.save()
+                _save_availability(school, "school", school, request.POST.get("availability"))
+                for f in formset.deleted_forms:
+                    if f.instance.pk:
+                        f.instance.delete()
+                # Sıra numaraları çakışmasın diye önce geçici değer, sonra gerçek sıra.
+                for i, f in enumerate(kept):
+                    if f.instance.pk:
+                        Period.objects.filter(pk=f.instance.pk).update(index=1000 + i)
+                for i, f in enumerate(kept):
+                    period = f.save(commit=False)
+                    period.school = school
+                    period.index = i
+                    if not period.name:
+                        period.name = f"{i + 1}. saat"
+                    if period.pk in day_times:
+                        period.day_times = day_times[period.pk]
+                    period.save()
+            message = "Program ayarları ve ders saatleri kaydedildi."
+            alert = watch.report(request) if watch else ""
+            if ajax:
+                # Saat eklendi/silindiyse satırlar yeni kimlik ve sırayla yeniden açılmalı.
+                if structure_changed:
+                    messages.success(request, message)
+                    _alert_message(request, alert)
+                return JsonResponse({"ok": True, "message": message, "reload": structure_changed, "alert": alert,
+                                     "url": reverse("timetable:school_settings", args=[school.pk]),
+                                     "title": school.name, "sub": _school_sub(school)})
+            messages.success(request, message)
+            _alert_message(request, alert)
+            return redirect("timetable:school_settings", pk=school.pk)
+    if request.method == "POST" and ajax:
+        errors = {name: [str(e) for e in errs] for name, errs in form.errors.items() if name != "__all__"}
+        non_field = [str(e) for e in form.non_field_errors()] + [str(e) for e in formset.non_form_errors()]
+        for f in formset.forms:
+            for name, errs in f.errors.items():
+                if name == "__all__":
+                    row = int(f.prefix.split("-")[-1]) + 1 if f.prefix and f.prefix.split("-")[-1].isdigit() else ""
+                    non_field += [f"{row}. saat: {e}" for e in errs]
+                else:
+                    errors[f.add_prefix(name)] = [str(e) for e in errs]
+        return JsonResponse({"ok": False, "message": "Kaydedilemedi: işaretli alanları düzeltin.", "errors": errors, "non_field": non_field}, status=400)
+    tab_specs = (("program", "Program", (
+        ("Program", "Programın adı, haftalık gün sayısı ve hafta/dönem döngüsü.", ("name", "days_per_week", "weeks_count", "terms_count")),
+        ("Birlikte çalışan programlar", "Bu programların yayındaki programında dolu olan öğretmen ve derslik saatleri burada kapalı sayılır.", ("linked_programs",)),
+    )),)
+    return render(
+        request,
+        "timetable/data/settings_editor.html",
+        _nav(
+            school, "data", data_nav="okul", form=form, formset=formset, creating=False, form_id="settings-form",
+            tabs=_tabs(tab_specs, form, (("saatler", "Ders saatleri"), ("kapali", "Kapalı saatler"))),
+            record_sub=_school_sub(school), navigator={}, day_grid=_day_time_grid(school),
+            availability=_availability_grid(school, "school", school),
+            availability_title="Okul geneli kapalı saatler",
+            availability_help="Burada kapatılan saatlere hiçbir ders konmaz (ör. Cuma 6. saatten sonra ders yok, "
+            "toplantı günü son saat boş). Koşullu (?) saatlere mümkünse ders konmaz.",
+        ),
+    )
+
+
+# --- dersler -----------------------------------------------------------------------------------
+
+
+def _lesson_rows(lessons):
+    rows = []
+    for lesson in lessons:
+        lengths = lesson.card_lengths()
+        pattern = "+".join(str(n) for n in lengths) if len(lengths) > 1 and lesson.card_length > 1 else ""
+        rows.append(
+            {
+                "lesson": lesson,
+                "classes": ", ".join(c.name for c in lesson.classes.all()),
+                "groups": ", ".join(sorted({g.name for g in lesson.groups.all()})),
+                "teachers": ", ".join(_teacher_name(t) for t in lesson.teachers.all()),
+                "rooms": ", ".join(str(r) for r in lesson.classrooms.all()),
+                "pattern": pattern,
+            }
+        )
+    return rows
+
+
+BULK_MODES = {"replace": "yerine koy", "add": "ekle", "remove": "çıkar"}
+
+
+def lessons(request, pk):
+    """Dersler: sınıfa göre gruplu ve katlanır liste (satırları tarayıcı çizer), arama/süzgeç ve
+    seçili derslerde toplu düzenleme (öğretmen, derslik, haftalık saat, kart uzunluğu, günde en fazla, sil)."""
+    school = _school(pk)
+    if request.method == "POST":
+        message, level = _lesson_bulk(school, request.POST)
+        getattr(messages, level)(request, message)
+        return redirect(reverse("timetable:lessons", args=[school.pk]) + ("?" + request.POST.get("query", "") if request.POST.get("query") else ""))
+    # İlişkiler ara tablolardan kimlik olarak okunur (binlerce dersin her biri için nesne kurmadan).
+    qs = Lesson.objects.filter(school=school).select_related("subject").only(
+        "id", "periods_per_week", "card_length", "split", "max_per_day", "subject__name", "subject__short", "subject__color")
+    links = defaultdict(lambda: defaultdict(list))
+    for name, model_field in (("classes", "schoolclass_id"), ("teachers", "teacher_id"), ("classrooms", "classroom_id"), ("groups", "group_id")):
+        through = getattr(Lesson, name).through
+        for lesson_id, target in through.objects.filter(lesson__school=school).values_list("lesson_id", model_field):
+            links[name][lesson_id].append(target)
+    class_names = {c.pk: c.short or c.name for c in school.classes.all()}
+    teacher_names = {t.pk: _teacher_name(t) for t in school.teachers.all()}
+    room_names_ = {r.pk: str(r) for r in school.classrooms.all()}
+    group_names = dict(Group.objects.filter(division__school_class__school=school).values_list("pk", "name"))
+    teacher_loads, class_loads = loads(school)
+    cells = school.days_per_week * school.periods.count()
+    rows, by_class, loose = [], defaultdict(list), []
+    for lesson in sorted(qs, key=lambda x: (natural_key(x.subject.name), x.pk)):
+        lengths = lesson.card_lengths()
+        classes = links["classes"].get(lesson.pk, [])
+        teachers = links["teachers"].get(lesson.pk, [])
+        rows.append({
+            "id": lesson.pk, "s": lesson.subject.name, "k": lesson.subject.short or "", "c": lesson.subject.color,
+            "cl": ", ".join(class_names[c] for c in classes if c in class_names), "ci": classes,
+            "g": ", ".join(sorted({group_names.get(g, "") for g in links["groups"].get(lesson.pk, [])})),
+            "t": ", ".join(teacher_names[t] for t in teachers if t in teacher_names), "ti": teachers,
+            "r": ", ".join(room_names_[r] for r in links["classrooms"].get(lesson.pk, []) if r in room_names_),
+            "h": lesson.periods_per_week, "p": "+".join(map(str, lengths)) if len(lengths) > 1 and lesson.card_length > 1 else "",
+            "m": lesson.max_per_day or "",
+        })
+        for c in classes:
+            by_class[c].append(lesson.pk)
+        if not classes:
+            loose.append(lesson.pk)
+    groups = [{
+        "id": c.pk, "name": c.name, "short": c.short if c.short != c.name else "",
+        "hours": class_loads.get(c.pk, (0, cells))[0], "cap": class_loads.get(c.pk, (0, cells))[1],
+        "lessons": by_class.get(c.pk, []),
+        "table": reverse("timetable:class_lessons", args=[school.pk, c.pk]),
+        "new": reverse("timetable:lesson_new", args=[school.pk]) + f"?sinif={c.pk}",
+    } for c in _sorted(ENTITIES["siniflar"], school.classes.all())]
+    if loose:
+        groups.append({"id": 0, "name": "Sınıfsız dersler", "short": "toplantı, hazırlık", "hours": sum(r["h"] for r in rows if not r["ci"]),
+                       "cap": 0, "lessons": loose, "table": "", "new": reverse("timetable:lesson_new", args=[school.pk])})
+    teachers = _sorted(ENTITIES["ogretmenler"], school.teachers.all())
+    return render(
+        request,
+        "timetable/data/lessons.html",
+        _nav(
+            school, "data", data_nav="dersler",
+            payload={"rows": rows, "groups": groups, "edit": reverse("timetable:lesson_edit", args=[school.pk, 0])},
+            count=len(rows), total=sum(r["h"] for r in rows),
+            teachers=teachers, rooms=_sorted(ENTITIES["derslikler"], school.classrooms.all()),
+            classes=[g for g in groups if g["id"]], modes=BULK_MODES,
+            filters={"sinif": request.GET.get("sinif", ""), "ogretmen": request.GET.get("ogretmen", ""), "q": request.GET.get("q", "")},
+            sort_options=_sort_options(LESSON_SORTS),
+        ),
+    )
+
+
+def _lesson_bulk(school, post):
+    """Seçili derslere toplu değişiklik. Dönüş: (ileti, messages düzeyi)."""
+    ids = [int(x) for x in post.getlist("ders") if x.isdigit()]
+    lessons = list(Lesson.objects.filter(school=school, pk__in=ids))
+    if not lessons:
+        return "Önce ders seçin.", "error"
+    action, mode = post.get("islem"), post.get("mod") if post.get("mod") in BULK_MODES else "replace"
+    n = len(lessons)
+    with transaction.atomic():
+        if action in ("ogretmen", "derslik"):
+            model, attr = (Teacher, "teachers") if action == "ogretmen" else (Classroom, "classrooms")
+            chosen = list(model.objects.filter(school=school, pk__in=[int(x) for x in post.getlist("deger") if x.isdigit()]))
+            if not chosen and mode != "replace":
+                return "Eklenecek ya da çıkarılacak kaydı seçin.", "error"
+            for lesson in lessons:
+                getattr(lesson, attr).set(chosen) if mode == "replace" else (
+                    getattr(lesson, attr).add(*chosen) if mode == "add" else getattr(lesson, attr).remove(*chosen))
+            what = ", ".join(str(c) if action == "derslik" else _teacher_name(c) for c in chosen) or "boş"
+            return f"{n} derste {'öğretmen' if action == 'ogretmen' else 'derslik'} {BULK_MODES[mode]}: {what}.", "success"
+        if action in ("saat", "uzunluk", "gunde"):
+            raw = (post.get("sayi") or "").strip()
+            if action == "gunde" and raw == "":
+                value = None
+            elif raw.isdigit() and 1 <= int(raw) <= (40 if action == "saat" else 8):
+                value = int(raw)
+            else:
+                return "Geçerli bir sayı girin.", "error"
+            field = {"saat": "periods_per_week", "uzunluk": "card_length", "gunde": "max_per_day"}[action]
+            for lesson in lessons:
+                setattr(lesson, field, value)
+                if action in ("saat", "uzunluk"):
+                    lesson.split = ""  # dağılım eski saate göreydi
+            Lesson.objects.bulk_update(lessons, [field, "split"] if action in ("saat", "uzunluk") else [field])
+            from .problem_cache import invalidate
+
+            invalidate()  # bulk_update sinyal göndermez
+            label = {"saat": "haftalık saat", "uzunluk": "kart uzunluğu", "gunde": "günde en fazla kart"}[action]
+            return f"{n} derste {label}: {value if value is not None else 'sınırsız'}.", "success"
+        if action == "sil":
+            for lesson in lessons:
+                lesson.delete()
+            return f"{n} ders silindi (programlardaki kartlarıyla).", "success"
+    return "Bilinmeyen işlem.", "error"
+
+
+def _teacher_hints(school):
+    """Ders formunda öğretmen önerisi için: ders adını okutanlar, branşı uyanlar ve haftalık yükler."""
+    teaching, loads, branch = defaultdict(set), defaultdict(int), defaultdict(list)
+    for lesson in Lesson.objects.filter(school=school).prefetch_related("teachers"):
+        for t in lesson.teachers.all():
+            teaching[lesson.subject_id].add(t.id)
+            loads[t.id] += lesson.periods_per_week
+    for teacher_id, subject_id in Teacher.subjects.through.objects.filter(teacher__school=school).values_list("teacher_id", "subject_id"):
+        branch[subject_id].append(teacher_id)
+    return {"teaching": {k: sorted(v) for k, v in teaching.items()}, "branch": dict(branch), "loads": dict(loads)}
+
+
+def lesson_edit(request, pk, lesson_id=None):
+    school = _school(pk)
+    lesson = get_object_or_404(Lesson, pk=lesson_id, school=school) if lesson_id else None
+    initial = {}
+    if lesson is None and request.GET.get("sinif"):
+        initial["classes"] = [request.GET["sinif"]]
+    form = forms.LessonForm(request.POST or None, instance=lesson, school=school, initial=initial)
+    if request.method == "POST" and form.is_valid():
+        created = lesson is None
+        watch = None
+        if lesson is not None and request.POST.get("availability") is not None:
+            watch = availability_repair.Watch(school, [("lesson", lesson.pk)])
+        with transaction.atomic():
+            lesson = form.save()
+            _save_availability(school, "lesson", lesson, request.POST.get("availability"))
+        alert = watch.report(request) if watch else ""
+        message = f"Ders kaydedildi: {lesson}"
+        url = reverse("timetable:lesson_edit", args=[school.pk, lesson.pk])
+        back = request.POST.get("back") or ""
+        if back.startswith("/"):
+            url += "?" + urlencode({"back": back})
+        new_url = reverse("timetable:lesson_new", args=[school.pk]) + "?" + "&".join(f"sinif={c.pk}" for c in lesson.classes.all()[:1])
+        if _wants_json(request):
+            if created:
+                messages.success(request, message)
+            return JsonResponse({
+                "ok": True, "message": message, "url": url, "reload": created, "alert": alert,
+                "next": new_url if request.POST.get("next") == "new" else "",
+                "title": lesson.subject.name, "sub": _lesson_sub(lesson),
+            })
+        messages.success(request, message)
+        _alert_message(request, alert)
+        return redirect(new_url if request.POST.get("next") == "new" else url)
+    if request.method == "POST" and _wants_json(request):
+        return _form_errors(form)
+    class_id = (lesson.classes.values_list("pk", flat=True).first() if lesson else None) or request.GET.get("sinif")
+    return render(
+        request,
+        "timetable/data/lesson_form.html",
+        _nav(
+            school,
+            "data",
+            data_nav="dersler",
+            form=form,
+            lesson=lesson,
+            back=request.GET.get("back", ""),
+            teacher_hints=_teacher_hints(school),
+            availability=_availability_grid(school, "lesson", lesson),
+            availability_help="Bu ders yalnızca bu dersin kartları için geçerlidir; öğretmen ve sınıf müsaitliğiyle birlikte uygulanır.",
+            tabs=[{"key": "ders", "title": "Ders", "errors": any(form[f].errors for f in form.fields)},
+                  {"key": "musaitlik", "title": "Müsaitlik", "errors": False}],
+            navigator=_lesson_navigator(school, lesson, class_id, back=request.GET.get("back", "")),
+            form_id="lesson-form",
+            record_sub=_lesson_sub(lesson) if lesson else "",
+            list_url=request.GET.get("back") if request.GET.get("back", "").startswith("/") else reverse("timetable:lessons", args=[school.pk]),
+            new_url=reverse("timetable:lesson_new", args=[school.pk]) + (f"?sinif={class_id}" if class_id else ""),
+        ),
+    )
+
+
+def _lesson_sub(lesson):
+    teachers = ", ".join(_teacher_name(t) for t in lesson.teachers.all())
+    classes = ", ".join(c.short or c.name for c in lesson.classes.all())
+    return " · ".join(filter(None, [classes, teachers, f"{lesson.periods_per_week} saat"]))
+
+
+# Dersler sayfası ve ders düzenleme listesi için sıralamalar (anahtarlar dersler sayfasının satır alanlarıyla aynı).
+LESSON_SORTS = (
+    ("s", "Ders adı", lambda x, ctx: x.subject.name, False),
+    ("k", "Ders kodu", lambda x, ctx: x.subject.short, False),
+    ("cl", "Sınıf", lambda x, ctx: ", ".join(c.short or c.name for c in x.classes.all()), False),
+    ("t", "Öğretmen", lambda x, ctx: ", ".join(_teacher_name(t) for t in x.teachers.all()), False),
+    ("h", "Haftalık saat", lambda x, ctx: x.periods_per_week, True),
+)
+
+
+def _lesson_navigator(school, current, class_id, back=""):
+    """Ders düzenlemede soldaki liste: aynı sınıfın dersleri (sınıf yoksa aynı öğretmenin)."""
+    qs = Lesson.objects.filter(school=school).select_related("subject").prefetch_related("classes", "teachers")
+    title = "Dersler"
+    cls = SchoolClass.objects.filter(school=school, pk=class_id).first() if str(class_id or "").isdigit() else None
+    if cls is not None:
+        qs, title = qs.filter(classes=cls), f"{cls.short or cls.name} dersleri"
+    elif current is not None and current.teachers.exists():
+        teacher = current.teachers.first()
+        qs, title = qs.filter(teachers=teacher), f"{_teacher_name(teacher)} dersleri"
+    else:
+        qs = qs.none()
+    suffix = "?" + urlencode({"back": back}) if back.startswith("/") else ""
+    lessons = sorted(qs.distinct(), key=lambda x: (natural_key(x.subject.name), x.pk))
+    items = [{
+        "id": x.pk, "label": x.subject.name, "sub": _lesson_sub(x),
+        "url": reverse("timetable:lesson_edit", args=[school.pk, x.pk]) + suffix,
+        "active": current is not None and x.pk == current.pk,
+        "sort": _sort_values(LESSON_SORTS, x, None),
+    } for x in lessons]
+    index = next((i for i, item in enumerate(items) if item["active"]), None)
+    return {
+        "title": title, "items": items, "sort_options": _sort_options(LESSON_SORTS), "sort_store": "sort-dersler",
+        "prev": items[index - 1]["url"] if index else "",
+        "next": items[index + 1]["url"] if index is not None and index + 1 < len(items) else "",
+        "position": f"{index + 1} / {len(items)}" if index is not None else "",
+    }
+
+
+@require_POST
+def lesson_delete(request, pk, lesson_id):
+    school = _school(pk)
+    lesson = get_object_or_404(Lesson, pk=lesson_id, school=school)
+    name = str(lesson)
+    lesson.delete()
+    messages.success(request, f"Ders silindi: {name}")
+    back = request.POST.get("back") or ""
+    return redirect(back if back.startswith("/") else reverse("timetable:lessons", args=[school.pk]))
+
+
+def _is_simple(lesson):
+    return lesson.classes.count() == 1 and not lesson.groups.exists() and lesson.teachers.count() <= 1 and lesson.classrooms.count() <= 1
+
+
+def class_lessons(request, pk, class_id):
+    """Bir sınıfın tek öğretmenli, grupsuz derslerini tek tabloda hızlıca girme."""
+    school = _school(pk)
+    cls = get_object_or_404(SchoolClass, pk=class_id, school=school)
+    subjects = list(school.subjects.order_by("name"))
+    class_lessons_qs = list(
+        Lesson.objects.filter(classes=cls).select_related("subject").prefetch_related("classes", "groups", "teachers", "classrooms")
+    )
+    simple = {}
+    others = []
+    for lesson in class_lessons_qs:
+        if _is_simple(lesson) and lesson.subject_id not in simple:
+            simple[lesson.subject_id] = lesson
+        else:
+            others.append(lesson)
+
+    if request.method == "POST":
+        teachers = {t.id: t for t in school.teachers.all()}
+        rooms = {r.id: r for r in school.classrooms.all()}
+        created = updated = deleted = 0
+        with transaction.atomic():
+            for subject in subjects:
+                raw = request.POST.get(f"hours-{subject.id}", "").strip()
+                hours = int(raw) if raw.isdigit() else 0
+                lesson = simple.get(subject.id)
+                if hours <= 0:
+                    if lesson is not None:
+                        lesson.delete()
+                        deleted += 1
+                    continue
+                length = request.POST.get(f"length-{subject.id}", "1")
+                length = int(length) if length.isdigit() and 1 <= int(length) <= 4 else 1
+                teacher = teachers.get(int(request.POST.get(f"teacher-{subject.id}") or 0))
+                room = rooms.get(int(request.POST.get(f"room-{subject.id}") or 0))
+                if lesson is None:
+                    lesson = Lesson.objects.create(school=school, subject=subject, periods_per_week=hours, card_length=length)
+                    lesson.classes.set([cls])
+                    created += 1
+                else:
+                    lesson.periods_per_week, lesson.card_length = hours, length
+                    lesson.save(update_fields=["periods_per_week", "card_length"])
+                    updated += 1
+                lesson.teachers.set([teacher] if teacher else [])
+                lesson.classrooms.set([room] if room else [])
+        messages.success(request, f"{cls} ders tablosu kaydedildi: {created} yeni, {updated} güncellenen, {deleted} silinen ders.")
+        return redirect("timetable:class_lessons", pk=school.pk, class_id=cls.pk)
+
+    other_by_subject = defaultdict(int)
+    for lesson in others:
+        other_by_subject[lesson.subject_id] += lesson.periods_per_week
+    rows = []
+    for subject in subjects:
+        lesson = simple.get(subject.id)
+        rows.append(
+            {
+                "subject": subject,
+                "other_hours": other_by_subject.get(subject.id, 0),
+                "hours": lesson.periods_per_week if lesson else "",
+                "length": lesson.card_length if lesson else 1,
+                "teacher": (lesson.teachers.first().id if lesson and lesson.teachers.exists() else None),
+                "room": (lesson.classrooms.first().id if lesson and lesson.classrooms.exists() else None),
+            }
+        )
+    # Başka sınıftan kopyalamak için diğer sınıfların basit dersleri: {sınıf: {ders adı: [saat, uzunluk]}}
+    copy_source = defaultdict(dict)
+    for lesson in Lesson.objects.filter(school=school).prefetch_related("classes", "groups", "teachers", "classrooms"):
+        if _is_simple(lesson):
+            copy_source[lesson.classes.first().id].setdefault(lesson.subject_id, [lesson.periods_per_week, lesson.card_length])
+    other_hours = sum(lesson.periods_per_week for lesson in others)
+    # Toplam yükte grup dersleri bir kez sayılsın: gerçek sınıf yükünden tek öğretmenli dersleri düş.
+    class_total = loads(school)[1].get(cls.pk, (0, 0))[0]
+    other_effective = max(0, class_total - sum(lesson.periods_per_week for lesson in simple.values()))
+    return render(
+        request,
+        "timetable/data/class_lessons.html",
+        _nav(
+            school,
+            "data",
+            data_nav="dersler",
+            cls=cls,
+            rows=rows,
+            others=_lesson_rows(others),
+            other_hours=other_hours,
+            other_effective=other_effective,
+            classes=[c for c in school.classes.all() if c.pk != cls.pk],
+            all_classes=list(school.classes.all()),
+            teachers=list(school.teachers.all()),
+            rooms=list(school.classrooms.all()),
+            capacity=school.days_per_week * school.periods.count(),
+            copy_source={str(k): v for k, v in copy_source.items() if k != cls.pk},
+        ),
+    )
+
+
+# --- Excel aktarımı ----------------------------------------------------------------------------
+
+
+def excel_import(request, pk):
+    school = _school(pk)
+    result = errors = None
+    if request.method == "POST":
+        upload = request.FILES.get("file")
+        if not upload:
+            errors = ["Dosya seçilmedi."]
+        elif upload.size > 10 * 1024 * 1024:
+            errors = ["Dosya çok büyük (en fazla 10 MB)."]
+        else:
+            try:
+                result = importer.import_workbook(school, upload.read(), delete_missing_lessons=request.POST.get("delete_missing") == "on")
+            except importer.ImportFailed as exc:
+                errors = exc.errors
+        if result is not None:
+            summary = ", ".join(
+                f"{title}: " + ", ".join(f"{n} {label}" for label, n in counts.items() if n) for title, counts in result.items()
+            )
+            messages.success(request, "Excel aktarıldı. " + (summary or "Değişiklik yok."))
+            return redirect("timetable:excel_import", pk=school.pk)
+    return render(
+        request,
+        "timetable/data/excel.html",
+        _nav(school, "data", data_nav="excel", errors=errors, sheets=importer.SHEETS, notes=importer.NOTES),
+    )
+
+
+def excel_export(request, pk):
+    school = _school(pk)
+    response = HttpResponse(
+        importer.export_workbook(school), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = f'attachment; filename="okul-verisi-{school.pk}.xlsx"'
+    return response
+
+
+# --- ders dağıtım çizelgesi (toplu öğretmen/ders ataması) ---------------------------------------
+
+
+def _simple_lessons(school):
+    """(ders adı, sınıf) → basit ders; basit olmayanlar (gruplu/birleşik/çok öğretmenli) ayrı sayılır."""
+    simple, complex_hours = {}, defaultdict(int)
+    lessons = Lesson.objects.filter(school=school).prefetch_related("classes", "groups", "teachers", "classrooms")
+    for lesson in lessons:
+        classes = list(lesson.classes.all())
+        if len(classes) == 1 and not lesson.groups.all() and len(lesson.teachers.all()) <= 1 and len(lesson.classrooms.all()) <= 1:
+            key = (lesson.subject_id, classes[0].id)
+            if key not in simple:
+                simple[key] = lesson
+                continue
+        for cls in classes:
+            complex_hours[(lesson.subject_id, cls.id)] += lesson.periods_per_week
+    return simple, complex_hours
+
+
+def _teacher_loads_all(school):
+    loads_ = defaultdict(int)
+    for lesson in Lesson.objects.filter(school=school).prefetch_related("teachers"):
+        for teacher in lesson.teachers.all():
+            loads_[teacher.id] += lesson.periods_per_week
+    return loads_
+
+
+def distribution(request, pk):
+    school = _school(pk)
+    simple, complex_hours = _simple_lessons(school)
+    loads_all = _teacher_loads_all(school)
+    simple_by_teacher = defaultdict(int)
+    for lesson in simple.values():
+        for teacher in lesson.teachers.all():
+            simple_by_teacher[teacher.id] += lesson.periods_per_week
+    classes = list(school.classes.all())
+    data = {
+        "subjects": [{"id": s.id, "name": s.name, "short": s.short or s.name[:4], "color": s.color} for s in school.subjects.order_by("name")],
+        "classes": [{"id": c.id, "name": c.name, "grade": c.grade} for c in classes],
+        "teachers": [
+            {
+                "id": t.id,
+                "name": t.full_name,
+                "short": t.short or t.full_name,
+                # Matris dışındaki (gruplu/birleşik) derslerden gelen sabit yük:
+                "fixed": loads_all.get(t.id, 0) - simple_by_teacher.get(t.id, 0),
+                "target": t.target_periods,
+                "subjects": [s.id for s in t.subjects.all()],
+            }
+            for t in school.teachers.prefetch_related("subjects")
+        ],
+        "cells": {
+            f"{subject_id}-{class_id}": {
+                "hours": lesson.periods_per_week,
+                "length": lesson.card_length,
+                "teacher": next((t.id for t in lesson.teachers.all()), None),
+            }
+            for (subject_id, class_id), lesson in simple.items()
+        },
+        "complex": {f"{s}-{c}": h for (s, c), h in complex_hours.items()},
+        "capacity": school.days_per_week * school.periods.count(),
+        "saveUrl": reverse("timetable:distribution_save", args=[school.pk]),
+        "classUrl": reverse("timetable:class_lessons", args=[school.pk, 0]),
+    }
+    return render(request, "timetable/data/distribution.html", _nav(school, "data", data_nav="dagitim", data=data))
+
+
+@require_POST
+def distribution_save(request, pk):
+    school = _school(pk)
+    try:
+        cells = json.loads(request.body or b"{}").get("cells", [])
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "message": "Geçersiz istek."}, status=400)
+    subjects = {s.id: s for s in school.subjects.all()}
+    classes = {c.id: c for c in school.classes.all()}
+    teachers = {t.id: t for t in school.teachers.all()}
+    simple, _ = _simple_lessons(school)
+    counts = defaultdict(int)
+    with transaction.atomic():
+        for cell in cells:
+            subject = subjects.get(cell.get("subject"))
+            cls = classes.get(cell.get("class"))
+            if subject is None or cls is None:
+                continue
+            try:
+                hours = max(0, int(cell.get("hours") or 0))
+                length = min(4, max(1, int(cell.get("length") or 1)))
+            except (TypeError, ValueError):
+                continue
+            teacher = teachers.get(cell.get("teacher"))
+            lesson = simple.get((subject.id, cls.id))
+            if hours == 0:
+                if lesson is not None:
+                    lesson.delete()
+                    counts["silinen"] += 1
+                continue
+            if lesson is None:
+                lesson = Lesson.objects.create(school=school, subject=subject, periods_per_week=hours, card_length=length)
+                lesson.classes.set([cls])
+                counts["eklenen"] += 1
+            else:
+                lesson.periods_per_week, lesson.card_length = hours, length
+                lesson.save(update_fields=["periods_per_week", "card_length"])
+                counts["güncellenen"] += 1
+            lesson.teachers.set([teacher] if teacher else [])
+    summary = ", ".join(f"{n} {label}" for label, n in counts.items()) or "değişiklik yok"
+    return JsonResponse({"ok": True, "message": f"Ders dağıtımı kaydedildi: {summary}.", "counts": counts})
+
+
+def _split_classes(text, known):
+    """"9-A, 9-B" / "9-A 9-B" / "Hazırlık 1" gibi yazımları sınıf adlarına ayırır (known: küçük harfli adlar)."""
+    import re
+
+    result = []
+    for part in re.split(r"[,;/]+", str(text or "")):
+        part = part.strip()
+        if not part:
+            continue
+        if part.casefold() in known:
+            result.append(part)
+        else:
+            result.extend(token for token in part.split() if token)
+    return result
+
+
+@require_POST
+def distribution_paste(request, pk):
+    """Excel'den yapıştırılan "Öğretmen | Ders | Sınıflar | Saat | Blok" satırlarını önizler ya da uygular."""
+    school = _school(pk)
+    try:
+        body = json.loads(request.body or b"{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "message": "Geçersiz istek."}, status=400)
+    apply = body.get("apply") is True
+    text = str(body.get("text") or "")
+
+    def key(value):
+        return str(value or "").strip().casefold()
+
+    teachers = {}
+    for t in school.teachers.all():
+        teachers[key(t.full_name)] = t
+        if t.short:
+            teachers.setdefault(key(t.short), t)
+    subjects = {}
+    for s in school.subjects.all():
+        subjects[key(s.name)] = s
+        if s.short:
+            subjects.setdefault(key(s.short), s)
+    classes = {key(c.name): c for c in school.classes.all()}
+
+    rows, new_teachers, new_subjects = [], {}, {}
+    for number, line in enumerate(text.splitlines(), start=1):
+        if not line.strip():
+            continue
+        parts = [p.strip() for p in (line.split("\t") if "\t" in line else line.split(";"))]
+        parts += [""] * (5 - len(parts))
+        teacher_name, subject_name, class_text, hours_text, length_text = parts[:5]
+        if number == 1 and key(teacher_name) in ("öğretmen", "ogretmen") and not hours_text.strip().isdigit():
+            continue  # başlık satırı
+        row = {"line": number, "teacher": teacher_name, "subject": subject_name, "classes": [], "hours": hours_text, "length": length_text or "1", "notes": [], "errors": []}
+        if not hours_text.strip().isdigit() or int(hours_text) < 1:
+            row["errors"].append("haftalık saat sayı olmalı")
+        if length_text.strip() and (not length_text.strip().isdigit() or not 1 <= int(length_text) <= 4):
+            row["errors"].append("blok 1–4 arası olmalı")
+        if teacher_name and key(teacher_name) not in teachers:
+            if len(teacher_name.split()) < 2:
+                row["errors"].append(f"“{teacher_name}” öğretmeni yok (yeni öğretmen için ad ve soyad yazın)")
+            else:
+                new_teachers[key(teacher_name)] = teacher_name
+                row["notes"].append("yeni öğretmen")
+        if not subject_name:
+            row["errors"].append("ders adı boş")
+        elif key(subject_name) not in subjects:
+            new_subjects[key(subject_name)] = subject_name
+            row["notes"].append("yeni ders adı")
+        for name in _split_classes(class_text, classes):
+            if key(name) in classes:
+                row["classes"].append(classes[key(name)].name)
+            else:
+                row["errors"].append(f"“{name}” sınıfı yok")
+        if not class_text.strip():
+            row["errors"].append("sınıf boş")
+        rows.append(row)
+
+    errors = sum(1 for r in rows if r["errors"])
+    if not apply or errors or not rows:
+        return JsonResponse({"ok": True, "applied": False, "rows": rows, "errors": errors})
+
+    counts = defaultdict(int)
+    with transaction.atomic():
+        palette = ["#dfe7fd", "#fde2e4", "#e2ece9", "#fff1e6", "#e9f5db", "#f0efeb", "#cddafd", "#fad2e1"]
+        for i, (k, name) in enumerate(new_subjects.items()):
+            subjects[k] = Subject.objects.create(school=school, name=name, color=palette[i % len(palette)])
+            counts["yeni ders adı"] += 1
+        for k, name in new_teachers.items():
+            first, _, last = name.rpartition(" ")
+            teachers[k] = Teacher.objects.create(school=school, first_name=first, last_name=last)
+            counts["yeni öğretmen"] += 1
+        simple, _ = _simple_lessons(school)
+        for row in rows:
+            subject = subjects[key(row["subject"])]
+            teacher = teachers.get(key(row["teacher"])) if row["teacher"] else None
+            hours, length = int(row["hours"]), int(row["length"] or 1)
+            for class_name in row["classes"]:
+                cls = classes[key(class_name)]
+                lesson = simple.get((subject.id, cls.id))
+                if lesson is None:
+                    lesson = Lesson.objects.create(school=school, subject=subject, periods_per_week=hours, card_length=length)
+                    lesson.classes.set([cls])
+                    simple[(subject.id, cls.id)] = lesson
+                    counts["yeni ders"] += 1
+                else:
+                    lesson.periods_per_week, lesson.card_length = hours, length
+                    lesson.save(update_fields=["periods_per_week", "card_length"])
+                    counts["güncellenen ders"] += 1
+                lesson.teachers.set([teacher] if teacher else [])
+    summary = ", ".join(f"{n} {label}" for label, n in counts.items())
+    messages.success(request, f"Yapıştırılan dağıtım aktarıldı: {summary}.")
+    return JsonResponse({"ok": True, "applied": True, "message": summary})
+
+
+def teacher_assign(request, pk):
+    """Öğretmen atama: bir ders adının tüm kısımları alt alta, her birine tek öğretmen seçimi."""
+    school = _school(pk)
+    lessons = list(Lesson.objects.filter(school=school).select_related("subject")
+                   .prefetch_related("classes", "groups__division__school_class", "teachers"))
+    by_subject = defaultdict(list)
+    for lesson in lessons:
+        by_subject[lesson.subject_id].append(lesson)
+    subjects = sorted((s for s in school.subjects.all() if s.id in by_subject), key=lambda s: natural_key(s.name))
+    selected_id = request.POST.get("ders") or request.GET.get("ders")
+    subject = next((s for s in subjects if str(s.id) == str(selected_id)), None)
+    if subject is None:  # öğretmeni eksik ilk ders adı, yoksa ilki
+        subject = next((s for s in subjects if any(not l.teachers.all() for l in by_subject[s.id])), subjects[0] if subjects else None)
+    teachers = {t.id: t for t in school.teachers.all()}
+    proposed, notes, quota_rows = {}, [], None
+    action = request.POST.get("action") if request.method == "POST" else None
+    back = redirect(reverse("timetable:teacher_assign", args=[school.pk]) + f"?ders={subject.pk}") if subject else None
+    if action in ("distribute", "save_quotas") and subject is not None:
+        from . import bulk_assign
+
+        quotas = defaultdict(int)
+        for t, n in zip(request.POST.getlist("kota-ogretmen"), request.POST.getlist("kota-sayi")):
+            if t.isdigit() and int(t) in teachers and n.strip().isdigit():
+                quotas[int(t)] += int(n)
+        quotas = {t: n for t, n in quotas.items() if n > 0}
+        quota_rows = [{"teacher": t, "count": n} for t, n in quotas.items()]
+        if action == "save_quotas":
+            with transaction.atomic():
+                TeacherQuota.objects.filter(school=school, subject=subject).delete()
+                TeacherQuota.objects.bulk_create(TeacherQuota(school=school, subject=subject, teacher_id=t, count=n) for t, n in quotas.items())
+            status = bulk_assign.pool_status(by_subject[subject.id], quotas)
+            if quotas and status["ok"]:
+                messages.success(request, f"{subject.name}: öğretmen havuzu kaydedildi. Üretimde kilitsiz {status['free']} kısmın "
+                                          "öğretmenini çözücü kotalara göre seçecek.")
+            elif quotas:
+                messages.warning(request, f"Kotalar kaydedildi ama tutmuyor: {status['message']} Düzeltilmezse üretim başlamaz.")
+            else:
+                messages.info(request, f"{subject.name}: öğretmen havuzu kaldırıldı; kısımlar atanan öğretmenleriyle kalır.")
+            return back
+        try:
+            proposed, notes = bulk_assign.distribute(school, by_subject[subject.id], quotas,
+                                                     use_timetable=request.POST.get("program") == "1")
+        except bulk_assign.DistributeError as exc:
+            messages.error(request, str(exc))
+    elif action == "save" and subject is not None:
+        changed = 0
+        with transaction.atomic():
+            for lesson in by_subject[subject.id]:
+                key = f"ogretmen-{lesson.pk}"
+                if key not in request.POST:
+                    continue
+                current = [t.id for t in lesson.teachers.all()]
+                new = []  # bir kısımda birden çok öğretmen olabilir (ör. uygulamada iki hoca); sıra korunur
+                for value in request.POST.getlist(key):
+                    if value.isdigit() and int(value) in teachers and int(value) not in new:
+                        new.append(int(value))
+                locked = f"kilit-{lesson.pk}" in request.POST
+                if sorted(new) != sorted(current) or locked != lesson.teacher_locked:
+                    lesson.teachers.set(new)
+                    if locked != lesson.teacher_locked:
+                        lesson.teacher_locked = locked
+                        lesson.save(update_fields=["teacher_locked"])
+                    changed += 1
+        messages.success(request, f"{subject.name}: {changed} kısım güncellendi." if changed else "Değişiklik yok.")
+        return back
+    loads = defaultdict(int)
+    for lesson in lessons:
+        for t in lesson.teachers.all():
+            loads[t.id] += lesson.periods_per_week
+    subject_rows = [{"s": s, "count": len(by_subject[s.id]), "missing": sum(1 for l in by_subject[s.id] if not l.teachers.all())}
+                    for s in subjects]
+    rows, teaching = [], set()
+    if subject is not None:
+        for lesson in sorted(by_subject[subject.id], key=lambda l: natural_key(", ".join(c.name for c in l.classes.all()) or "~")):
+            ids = [t.id for t in lesson.teachers.all()]
+            teaching.update(ids)
+            rows.append({"lesson": lesson, "teacher_ids": ids, "multi": len(ids) > 1, "locked": lesson.teacher_locked,
+                         "classes": ", ".join(c.short or c.name for c in lesson.classes.all()) or "Sınıfsız",
+                         "groups": ", ".join(g.name for g in lesson.groups.all()),
+                         "teachers": ", ".join(t.full_name for t in lesson.teachers.all())})
+    saved = {q.teacher_id: q.count for q in TeacherQuota.objects.filter(school=school, subject=subject)} if subject else {}
+    if subject is not None and quota_rows is None:  # kota tablosunun başlangıcı: kayıtlı kotalar, yoksa şu anki dağılım
+        counts = saved or defaultdict(int)
+        if not saved:
+            for r in rows:
+                if not r["multi"] and r["teacher_ids"]:
+                    counts[r["teacher_ids"][0]] += 1
+        quota_rows = [{"teacher": t, "count": n} for t, n in sorted(counts.items(), key=lambda kv: -kv[1])]
+    pool = None
+    if saved:
+        from . import bulk_assign
+
+        pool = bulk_assign.pool_status(by_subject[subject.id], saved)
+    for r in rows:
+        r["proposed"] = proposed.get(r["lesson"].id)
+    branch = set(subject.qualified_teachers.values_list("id", flat=True)) if subject else set()
+    order = sorted(teachers.values(), key=lambda t: natural_key(t.full_name))
+    options = {
+        "teaching": [t for t in order if t.id in teaching],
+        "branch": [t for t in order if t.id in branch and t.id not in teaching],
+        "others": [t for t in order if t.id not in teaching and t.id not in branch],
+    }
+    return render(request, "timetable/data/teacher_assign.html", _nav(
+        school, "data", data_nav="ogretmen-atama", subject=subject, subject_rows=subject_rows, rows=rows,
+        quota_rows=quota_rows or [], notes=notes, pool=pool, distributable=sum(1 for r in rows if not r["multi"]),
+        use_program=request.POST.get("program", "1") == "1",
+        options_json={k: [{"id": t.id, "name": t.full_name, "load": loads.get(t.id, 0)} for t in v] for k, v in options.items()}))
+
+
+def relation_wizard(request, pk):
+    """Teori + uygulama ilişki sihirbazı (relation_wizard.py)."""
+    from . import relation_wizard as rw
+
+    school = _school(pk)
+    if request.method == "POST":
+        keys = request.POST.getlist("cift")
+        if not keys:
+            messages.error(request, "Önce tablodan çift seçin.")
+        else:
+            try:
+                result = rw.apply(school, keys, request.POST.get("kosul"), request.POST.get("onem", CardRelationship.STRICT),
+                                  request.POST.get("islem", "create"))
+            except ValueError as exc:
+                messages.error(request, str(exc))
+            else:
+                messages.success(request, f"{result['created']} ilişki oluşturuldu, {result['updated']} güncellendi, {result['removed']} silindi.")
+        return redirect(reverse("timetable:relation_wizard", args=[school.pk]) + (f"?durum={request.POST.get('durum')}" if request.POST.get("durum") else ""))
+    return render(request, "timetable/data/relation_wizard.html", _nav(
+        school, "data", data_nav="kart-iliskileri", data=rw.analyze(school), conditions=rw.CONDITIONS,
+        importances=CardRelationship.IMPORTANCE_CHOICES, status=request.GET.get("durum", "")))
+
+
+def _relation_signature(rel):
+    """Aynı kartlara aynı kuralı koyan ilişkiler aynı imzayı alır. Seçilen ders kendi ders adını temsil ettiğinden
+    (solver/builder.py) ör. aSc'den kısım kısım gelmiş "TBE201 → SBE201 (1SVN)" ve "(2SVN)" kuralları kopyadır;
+    yalnızca farklı sınıfların dersleri birbirine bağlanmışsa (ör. iki sınıf aynı anda) dersler ayrı sayılır."""
+    ids = lambda qs: tuple(sorted(x.pk for x in qs.all()))  # noqa: E731
+
+    def side(lessons, subjects):
+        lessons = list(lessons.all())
+        if len({tuple(sorted(c.pk for c in l.classes.all())) for l in lessons}) > 1 and rel.condition in rel.PAIRED:
+            return ("dersler", tuple(l.pk for l in lessons))
+        ordered = list(dict.fromkeys([l.subject_id for l in lessons]))
+        rest = sorted(s.pk for s in subjects.all() if s.pk not in ordered)
+        return tuple(ordered if rel.condition in rel.PAIRED else sorted(ordered)) + tuple(rest)
+
+    return (rel.condition, rel.param, rel.param_max, rel.apply_to, rel.card_length, side(rel.lessons, rel.subjects),
+            side(rel.lessons_b, rel.subjects_b), ids(rel.classes), ids(rel.teachers), ids(rel.classrooms),
+            tuple(sorted(rel.time_map or [])), tuple(sorted(rel.time_map_b or [])))
+
+
+def relation_audit(request, pk):
+    """İlişki denetimi: her kartın ilişkisinin eşleştiği kart sayısı, programdaki ihlalleri, boşa çalışan ve kopya
+    kurallar; toplu etkinleştirme, kapatma ve silme."""
+    from .problem_cache import problem_for, school_problem
+    from .services import placements_of
+    from .solver.validate import validate
+
+    school = _school(pk)
+    if request.method == "POST":
+        ids = [int(x) for x in request.POST.getlist("iliski") if x.isdigit()]
+        qs = school.relationships.filter(pk__in=ids)
+        action = request.POST.get("islem")
+        if not ids:
+            messages.error(request, "Önce tablodan ilişki seçin.")
+        elif action == "enable":
+            messages.success(request, f"{qs.update(active=True)} ilişki etkinleştirildi.")
+        elif action == "disable":
+            messages.success(request, f"{qs.update(active=False)} ilişki kapatıldı.")
+        elif action == "soften":
+            n = qs.filter(importance=CardRelationship.STRICT).update(importance=CardRelationship.HIGH)
+            messages.success(request, f"{n} ilişki kesinden “yüksek” öneme (tercih) çevrildi: üretim artık bunlar yüzünden "
+                                      "durmaz, mümkün olduğunca sağlamaya çalışır.")
+        elif action == "delete":
+            n = qs.count()
+            qs.delete()
+            messages.success(request, f"{n} ilişki silindi.")
+        return redirect(reverse("timetable:relation_audit", args=[school.pk]) + (f"?durum={request.POST.get('durum')}" if request.POST.get("durum") else ""))
+
+    timetable = school.current_timetable()
+    problem = problem_for(timetable) if timetable else school_problem(school)
+    cards, violations = defaultdict(set), defaultdict(list)
+    for spec in problem.relationships:
+        for group in list(spec.groups) + list(spec.groups_b or []):
+            cards[spec.id].update(group)
+    if timetable is not None:
+        for v in validate(problem, placements_of(problem, timetable))[0]:
+            if v.ref is not None:
+                violations[v.ref].append(v.message)
+    from .input_diff import asc_mismatches
+
+    asc_tt, asc_violations = asc_mismatches(school)
+    rels = list(school.relationships.prefetch_related("lessons__subject", "lessons__classes", "subjects", "lessons_b__classes", "subjects_b",
+                                                      "classes", "teachers", "classrooms"))
+    by_signature = defaultdict(list)
+    for rel in rels:
+        by_signature[_relation_signature(rel)].append(rel.pk)
+    rows = []
+    for rel in sorted(rels, key=lambda r: natural_key(r.name)):
+        n_cards = len(cards.get(rel.pk, ()))
+        twins = [x for x in by_signature[_relation_signature(rel)] if x != rel.pk]
+        flags = []
+        if not rel.active:
+            flags.append("closed")
+        elif rel.condition not in rel.STUDENT and n_cards == 0 and not twins:
+            flags.append("empty")
+        if violations.get(rel.pk):
+            flags.append("violated")
+        if twins:
+            flags.append("duplicate")
+        if rel.active and asc_violations.get(rel.pk):
+            flags.append("asc")
+        target = [s.short or s.name for s in rel.subjects.all()]
+        target += [f"{l.subject.short or l.subject.name} ({', '.join(c.short or c.name for c in l.classes.all())})" for l in rel.lessons.all()]
+        rows.append({"rel": rel, "cards": n_cards, "violations": violations.get(rel.pk, []), "flags": flags,
+                     "asc_violations": asc_violations.get(rel.pk, []),
+                     "twins": twins, "keep": not twins or rel.pk == min([rel.pk] + twins),
+                     "target": ", ".join(target[:3]) + (f" +{len(target) - 3}" if len(target) > 3 else "") or "tüm dersler",
+                     "filters": ", ".join(filter(None, [f"{rel.classes.count()} sınıf" if rel.classes.all() else "",
+                                                        f"{rel.teachers.count()} öğretmen" if rel.teachers.all() else ""]))})
+    counts = {k: sum(1 for r in rows if k in r["flags"]) for k in ("violated", "empty", "duplicate", "closed", "asc")}
+    conditions = sorted({(r["rel"].condition, r["rel"].get_condition_display()) for r in rows}, key=lambda c: c[1])
+    return render(request, "timetable/data/relation_audit.html", _nav(
+        school, "data", data_nav="kart-iliskileri", rows=rows, counts=counts, total=len(rows), timetable=timetable,
+        conditions=conditions, status=request.GET.get("durum", ""), asc_tt=asc_tt))
+
+
+def availability_import(request, pk):
+    """aSc öğretmen listesindeki "Zaman Tablosu" ızgaralarından öğretmen müsaitliklerini aktarır (ön izlemeyle)."""
+    from . import asc_availability
+
+    school = _school(pk)
+    text = request.POST.get("text", "") if request.method == "POST" else ""
+    items = asc_availability.plan(school, asc_availability.parse(text)) if text else []
+    if request.method == "POST" and request.POST.get("action") == "import" and items:
+        chosen = {int(i) for i in request.POST.getlist("sec") if i.isdigit()}
+        watch = availability_repair.Watch(school, [("teacher", it["teacher"].pk) for it in items
+                                                   if it["index"] in chosen and it["teacher"] and not it["error"]])
+        with transaction.atomic():
+            n = asc_availability.apply(school, [it for it in items if it["index"] in chosen])
+        names = ", ".join(it["teacher"].full_name for it in items if it["index"] in chosen and it["teacher"] and not it["error"])
+        messages.success(request, f"{n} öğretmenin müsaitliği aSc'den aktarıldı" + (f": {names[:300]}." if names else "."))
+        availability_repair.notify(request, watch)
+        return redirect(f"{reverse('timetable:bulk_availability', args=[school.pk])}?tur=ogretmen")
+    return render(request, "timetable/data/availability_import.html", _nav(
+        school, "data", data_nav="toplu-musaitlik", text=text, items=items,
+        ok_count=sum(1 for it in items if not it["error"]), periods=range(1, school.periods.count() + 1),
+        days=school.day_names[:school.days_per_week],
+    ))
