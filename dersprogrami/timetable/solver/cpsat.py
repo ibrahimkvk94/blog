@@ -835,7 +835,7 @@ class _FirstSolution(cp_model.CpSolverSolutionCallback):
 
 # İki aşamalı arama bu kart sayısından itibaren kullanılır (küçük programlarda gerek yok).
 TWO_PHASE_MIN_CARDS = 150
-PHASE1_SHARE = 0.2  # doğrudan geçerli program aramanın süre payı; tıkanırsa taslak + turlu onarım devralır
+PHASE1_SHARE = 0.1  # doğrudan geçerli program aramanın süre payı; tıkanırsa taslak + turlu onarım devralır
 REPAIR_UNTIL = 0.9  # taslak turları en geç bu paya kadar sürer; ihlaller önce sıfırlanır, kalite sonra
 FIX_UNTIL = 0.95
 
@@ -1121,6 +1121,50 @@ class _DraftRound(cp_model.CpSolverSolutionCallback):
             self.StopSearch()
 
 
+def _violation_neighbourhood(problem, relaxed, solver):
+    """Taslakta ihlal edilen kesin kuralların kartları + aynı gün aynı öğretmen, sınıf ya da dersliği paylaşan kartlar."""
+    value = lambda v: v if isinstance(v, int) else solver.Value(v)  # noqa: E731
+    seeds = set()
+    by_teacher, by_class, by_lesson = {}, {}, {}
+    for card in problem.cards:
+        by_lesson.setdefault(card.lesson_id, []).append(card.key)
+        for t in card.teachers:
+            by_teacher.setdefault(t, []).append(card.key)
+        for atom in card.atoms:
+            by_class.setdefault(problem.atom_class(atom), []).append(card.key)
+    for rule, _label, expr in relaxed.relaxed_slacks:
+        if not value(expr) or not isinstance(rule, tuple):
+            continue
+        kind, ref = rule[0], rule[1]
+        if kind == "rel" and ref < len(problem.relationships):
+            spec = problem.relationships[ref]
+            seeds.update(k for group in list(spec.groups) + list(spec.groups_b) for k in group)
+        elif kind == "spread":
+            seeds.update(by_lesson.get(ref, ()))
+        elif kind.startswith("teacher"):
+            seeds.update(by_teacher.get(ref, ()))
+        elif kind.startswith("class"):
+            seeds.update(by_class.get(ref, ()))
+    day_of = {}
+    for key, slots in relaxed.x.items():
+        day_of[key] = next((slot[0] for slot, var in slots.items() if value(var)), None)
+    rooms_of = {key: {r for r, var in relaxed.y.get(key, {}).items() if value(var)} for key in relaxed.x}
+    resources = {}
+    for card in problem.cards:
+        res = {("t", t) for t in card.teachers} | {("c", problem.atom_class(a)) for a in card.atoms}
+        res |= {("r", r) for r in rooms_of.get(card.key, ())}
+        for item in res:
+            resources.setdefault((item, day_of.get(card.key)), set()).add(card.key)
+    loose = set(seeds)
+    for key in seeds:
+        card = problem.cards[key]
+        res = {("t", t) for t in card.teachers} | {("c", problem.atom_class(a)) for a in card.atoms}
+        res |= {("r", r) for r in rooms_of.get(key, ())}
+        for item in res:
+            loose |= resources.get((item, day_of.get(key)), set())
+    return loose
+
+
 def _relaxed_solution(problem, relaxed, solver, violations):
     """En iyi taslak turunun çözücüsünden kaydedilebilir gevşek Solution: yerleşim ve esnetilen kurallar."""
     value = lambda v: v if isinstance(v, int) else solver.Value(v)  # noqa: E731
@@ -1187,10 +1231,25 @@ def _repair_search(problem, builder, model, time_limit, started, workers, seed, 
         draft.parameters.random_seed = round_seed
         if best is not None:
             relaxed_model.ClearHints()
-            for index, v in enumerate(best[1]):
-                relaxed_model.AddHint(relaxed_model.GetIntVarFromProtoIndex(index), v)
-            # İlerleyen taslak yerel aramayla (LNS) iyileştirilir; tıkandıysa tam arama farklı yönlere bakar.
-            draft.parameters.use_lns_only = stalls == 0
+            if stalls == 0:
+                # İlerleyen taslak yerel aramayla (LNS) iyileştirilir: tam çözüm ipucu, küçük parçalar yeniden kurulur.
+                for index, v in enumerate(best[1]):
+                    relaxed_model.AddHint(relaxed_model.GetIntVarFromProtoIndex(index), v)
+                draft.parameters.use_lns_only = True
+            else:
+                # Tıkandı: ihlal edilen kuralların kartları ve aynı gün aynı öğretmen / sınıf / dersliği paylaşan
+                # komşuları ipucundan çıkarılır; geri kalanların yalnızca yeri ipucu olur ve tam arama yapılır.
+                # Sorunlu bölge baştan kurulur, iyi kısımlar korunur (gerçek veride sıçramalar bu turlarda oldu).
+                loose = _violation_neighbourhood(problem, relaxed, best[2])
+                for key, slots in relaxed.x.items():
+                    if key in loose:
+                        continue
+                    for slot, var in slots.items():
+                        if not isinstance(var, int):
+                            relaxed_model.AddHint(var, best[2].Value(var))
+                    for room, var in relaxed.y.get(key, {}).items():
+                        if not isinstance(var, int):
+                            relaxed_model.AddHint(var, best[2].Value(var))
         if stop_handle is not None:
             stop_handle.attach(draft)
         status = draft.Solve(relaxed_model, _DraftRound(on_progress, round_no, best[0] if best else None))
