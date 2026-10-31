@@ -195,14 +195,10 @@ def build(data):
         rows = [[r["place"].name] + [", ".join(d.teacher.full_name for d in c["duties"]) for c in r["cells"]] for r in duty["rows"]]
         _table(ws, row, ["Nöbet yeri"] + list(duty["days"]), rows, [20] + [26] * len(duty["days"]))
     elif kind == "uybs":
-        ws = _sheet(wb, "ÜYBS")
-        info = f"{o['hafta_tarih']:%d.%m.%Y} haftası · " if o["hafta_tarih"] else ""
-        row = _header(ws, o["baslik"] or "ÜYBS aktarım listesi", info + subtitle)
-        headers = ["Kısım", "Kısım adı", "Ders kodu", "Ders", "Grup", "Öğretmen", "Gün", "Tarih", "Saat", "Saat aralığı", "Sıra", "ÜYBS ref", "Derslik"]
-        rows = [[r["class"], r["class_name"], r["code"], r["subject"], r["groups"], r["teachers"], r["day"],
-                 r["date"].strftime("%d.%m.%Y") if r["date"] else "", r["period"], r["time"], r["ordinal"], r["ref"], r["room"]]
-                for r in data["uybs_rows"]]
-        _table(ws, row, headers, rows, [9, 14, 11, 34, 14, 26, 11, 11, 6, 13, 6, 12, 16])
+        # ÜYBS'ye yüklenecek dosya: şablonun kendisi (UYBS_Ders_Aktarim sayfası); başlık ve imza satırı eklenmez.
+        from . import uybs
+
+        return uybs.template_xlsx(school, data["uybs_rows"])
     if kind not in ("bireysel", "carsaf", "carsaf_gun") and wb.worksheets:
         ws = wb.worksheets[-1]
         _sign(ws, ws.max_row, o["imza"], ws.max_column)

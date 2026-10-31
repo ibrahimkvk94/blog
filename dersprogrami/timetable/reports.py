@@ -408,5 +408,6 @@ def _uybs(timetable, o, cards, periods, days):
 
     ids = o["secim"] if o["varlik"] == "sinif" else None
     rows, archive = uybs.week_rows(timetable, o["hafta_tarih"], ids, substitutions=o["vekalet"] == "1")
+    headers, table = uybs.template_table(timetable.school, rows)
     return {"uybs_rows": rows, "uybs_missing": sum(1 for r in rows if not r["ref"]), "uybs_archive": archive,
-            "uybs_subs": sum(1 for r in rows if r.get("sub"))}
+            "uybs_subs": sum(1 for r in rows if r.get("sub")), "uybs_headers": headers, "uybs_table": table}

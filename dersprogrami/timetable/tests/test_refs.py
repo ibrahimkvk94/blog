@@ -82,11 +82,9 @@ class RefTests(TestCase):
         self.assertContains(report, "02.11.2026")  # Çarşamba verildi, Pazartesi'ye çekildi
         self.assertContains(report, "<b>1001</b>")
         xlsx = self.client.get(reverse("timetable:report_excel", args=[self.timetable.pk]) + "?tur=uybs&hafta=2026-11-02")
-        ws = load_workbook(BytesIO(xlsx.content)).active
-        values = [[c.value for c in row] for row in ws.iter_rows(min_row=5, max_row=6)]
-        self.assertEqual(values[0][0], "1SVN")
-        self.assertEqual(values[0][11], "1001")
-        self.assertEqual(values[1][11], "1002")
+        ws = load_workbook(BytesIO(xlsx.content)).active  # Raporlar'daki Excel de ÜYBS şablonu biçiminde
+        self.assertEqual((ws.title, ws["A1"].value, ws["C1"].value), ("UYBS_Ders_Aktarim", "ÜYBS REF", "DERS KODU"))
+        self.assertEqual([ws["A2"].value, ws["A3"].value], [1001, 1002])
 
     def test_every_report_type_exports_to_excel(self):
         user = User.objects.create_superuser("excel2", password="parola-123456")

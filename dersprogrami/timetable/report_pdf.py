@@ -258,12 +258,17 @@ def build(data):
             ["Nöbet yeri"] + list(duty["days"]), rows, [20] + [26] * len(duty["days"]), width, size)
     elif kind == "uybs":
         info = f"{o['hafta_tarih']:%d.%m.%Y} haftası · " if o["hafta_tarih"] else ""
-        headers = ["Kısım", "Kısım adı", "Ders kodu", "Ders", "Grup", "Öğretmen", "Gün", "Tarih", "Saat", "Saat aralığı", "Sıra", "ÜYBS ref", "Derslik"]
-        rows = [[r["class"], r["class_name"], r["code"], r["subject"], r["groups"], r["teachers"], r["day"],
-                 r["date"].strftime("%d.%m.%Y") if r["date"] else "", r["period"], r["time"], r["ordinal"], r["ref"], r["room"]]
-                for r in data["uybs_rows"]]
+        # ÜYBS şablonunun sütunları (UYBS_Ders_Aktarim); uzun başlıklar kısaltılır.
+        short = {"GÜN\nPazartesi 0\n...\nCuma 4": "GÜN (Pzt 0 … Cum 4)",
+                 "U / ORTAK\n(DERS ADI İÇİNDE (U) İFADESİ VARSA 1 YOKSA 0)": "U / ORTAK",
+                 "DERS KODUNUN SOLDAN İLK 3 HARFİ": "KOD İLK 3",
+                 "ÖĞRETİM ELEMANI 2 TC\n(Birden fazla öğretmen giriyorsa 2. öğretim elemanı Tc. buraya)": "ÖĞRETİM ELEMANI 2 TC."}
+        headers = [short.get(h, h) for h in data["uybs_headers"]]
+        widths = {"ÜYBS REF": 9, "KISIM NO": 6, "DERS KODU": 9, "GÜN (Pzt 0 … Cum 4)": 8, "BAŞLANGIÇ": 7, "BİTİŞ": 7,
+                  "KSM YAZACAK": 7, "U / ORTAK": 6, "HEP 1": 5, "KOD İLK 3": 6, "HEP 11": 5,
+                  "ÖĞRETİM ELEMANI 1 TC.": 11, "ÖĞRETİM ELEMANI 2 TC.": 11}
         story = _header(o["baslik"] or "ÜYBS aktarım listesi", info + subtitle) + _table(
-            headers, rows, [9, 14, 11, 34, 14, 26, 11, 11, 6, 13, 6, 12, 16], width, min(size, 7))
+            headers, [[str(c) for c in r] for r in data["uybs_table"]], [widths.get(h, 7) for h in headers], width, min(size, 7))
     if not story:
         story = _header(o["baslik"] or data["type_label"], subtitle) + [_p("Seçime uygun kayıt yok.", INFO)]
 

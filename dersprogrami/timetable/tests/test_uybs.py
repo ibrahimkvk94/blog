@@ -87,6 +87,22 @@ class UybsTests(TestCase):
         response = self.client.get(reverse("timetable:report_render", args=[self.timetable.pk]), {"tur": "uybs", "hafta": "2026-11-02"})
         self.assertContains(response, "Arşivden")
 
+    def test_reports_page_outputs_use_template(self):
+        """Raporlar sayfasındaki ön izleme, Excel ve PDF de ÜYBS şablonu biçiminde (ayrı bir liste değil)."""
+        self.school.uybs_settings = {"prefixes": {"ASK": "AB"}}
+        self.school.save()
+        params = {"tur": "uybs"}
+        page = self.client.get(reverse("timetable:report_render", args=[self.timetable.pk]), params)
+        self.assertContains(page, "KSM YAZACAK")
+        self.assertContains(page, "<td>AB</td>")
+        self.assertContains(page, "Referans kontrol listesi")
+        ws = self._sheet(self.client.get(reverse("timetable:report_excel", args=[self.timetable.pk]), params))
+        self.assertEqual((ws["A1"].value, ws["B1"].value), ("ÜYBS REF", "KISIM NO"))
+        self.assertEqual([ws.cell(row=2, column=c).value for c in range(1, 16)],
+                         [1001, 1, "ASK203", 0, "11:20", "12:00", "KSM", 1, 1, 1, "AB", "AB", 11, "22556185970", None])
+        pdf = self.client.get(reverse("timetable:report_pdf", args=[self.timetable.pk]), params)
+        self.assertEqual((pdf.status_code, pdf["Content-Type"]), (200, "application/pdf"))
+
     def test_substitution_uses_substitute_tc(self):
         absence = Absence.objects.create(school=self.school, date=MONDAY, teacher=self.ali)
         Substitution.objects.create(absence=absence, card=self.card, period=3, substitute=self.veli)

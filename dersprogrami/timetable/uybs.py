@@ -124,6 +124,22 @@ def template_rows(school, rows):
     return out
 
 
+def template_table(school, rows):
+    """Şablonun başlıkları ve satırları, Excel'deki sütun sırasıyla (ÜYBS REF ayara göre başta, sonda ya da yok).
+    Rapor ön izlemesi ve PDF bunu kullanır; Excel dosyası template_xlsx ile aynı düzende yazılır."""
+    ref_col = settings_of(school)["ref_col"]
+    headers = (["ÜYBS REF"] if ref_col == "A" else []) + HEADERS + (["ÜYBS REF"] if ref_col == "P" else [])
+    table = []
+    for row in template_rows(school, rows):
+        cells = list(row["cells"])
+        if ref_col == "A":
+            cells = [row["ref"]] + cells
+        elif ref_col == "P":
+            cells = cells + [row["ref"]]
+        table.append(cells)
+    return headers, table
+
+
 def template_xlsx(school, rows):
     settings = settings_of(school)
     wb = Workbook()

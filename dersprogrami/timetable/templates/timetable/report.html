@@ -44,6 +44,11 @@
   .overview .c span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .list td, .list th { padding: 4px 6px; }
   .list .num { text-align: right; width: 60px; }
+  .uybs-template { font-size: .85em; }
+  .uybs-template th { background: #4E8A5B; color: #fff; text-align: center; vertical-align: middle; font-size: .9em; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .uybs-template td { text-align: center; white-space: nowrap; }
+  .uybs-check { margin-top: 14px; }
+  .uybs-check summary { cursor: pointer; font-weight: 600; margin-bottom: 8px; }
   .block { break-inside: avoid; margin-bottom: 10px; }
   .block h2 { font-size: 1.25em; margin: 0 0 4px; display: flex; justify-content: space-between; }
   .free td { font-size: .9em; }
@@ -152,10 +157,16 @@
 {% elif o.tur == "uybs" %}
   <section class="page">
     <header><div><h1>{% firstof o.baslik "ÜYBS aktarım listesi" %}</h1><div class="info">{% if o.hafta_tarih %}{{ o.hafta_tarih|date:"d.m.Y" }} haftası · {% endif %}{{ uybs_rows|length }} ders saati{% if uybs_missing %} · <span class="bad">{{ uybs_missing }} saatin referansı yok</span>{% endif %}{% if uybs_subs %} · {{ uybs_subs }} saat vekâletli{% endif %}{% if uybs_archive %}<br><b>Arşivden:</b> {{ uybs_archive.created_at|date:"d.m.Y H:i" }} tarihinde “{{ uybs_archive.source }}” sürümünden alındı{% elif o.hafta_tarih %}<br>Güncel programdan (henüz arşivlenmedi){% endif %}</div></div><div class="meta">{{ school }}<br>{{ timetable.name }}</div></header>
+    <table class="list uybs-template">
+      <thead><tr>{% for h in uybs_headers %}<th>{{ h|linebreaksbr }}</th>{% endfor %}</tr></thead>
+      <tbody>{% for row in uybs_table %}<tr>{% for c in row %}<td>{{ c }}</td>{% endfor %}</tr>{% empty %}<tr><td colspan="{{ uybs_headers|length }}">Seçime uygun ders saati yok.</td></tr>{% endfor %}</tbody>
+    </table>
+    <details class="no-print uybs-check"><summary>Referans kontrol listesi (ders ve öğretmen adlarıyla; eksik referansları bulmak için)</summary>
     <table class="list">
       <thead><tr><th>Kısım</th><th>Ders kodu</th><th>Ders</th><th>Öğretmen</th><th>Gün</th>{% if o.hafta_tarih %}<th>Tarih</th>{% endif %}<th class="num">Saat</th><th>Saat aralığı</th><th class="num">Sıra</th><th>ÜYBS ref</th><th>Derslik</th></tr></thead>
       <tbody>{% for r in uybs_rows %}<tr><td>{{ r.class }}</td><td>{{ r.code }}</td><td>{{ r.subject }}{% if r.groups %} <span class="subtle">({{ r.groups }})</span>{% endif %}</td><td>{{ r.teachers }}{% if r.sub %}<div class="subtle">{{ r.sub }}</div>{% endif %}</td><td>{{ r.day }}</td>{% if o.hafta_tarih %}<td>{{ r.date|date:"d.m.Y"|default:"–" }}</td>{% endif %}<td class="num">{{ r.period|default:"–" }}</td><td>{{ r.time }}</td><td class="num">{{ r.ordinal }}</td><td>{% if r.ref %}<b>{{ r.ref }}</b>{% else %}<span class="bad">yok</span>{% endif %}</td><td>{{ r.room }}</td></tr>{% endfor %}</tbody>
     </table>
+    </details>
     {% if o.imza %}<div class="sign"><div>{% for line in o.imza %}<span>{{ line }}</span>{% endfor %}</div></div>{% endif %}
   </section>
 
