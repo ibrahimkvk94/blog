@@ -1016,7 +1016,8 @@ def minimal_repair(problem, time_limit=40, workers=8, seed=0, place_all=False):
        1. adımın tam çözümü başlangıç olur, böylece 2. adım hemen geçerli bir yerleşimden iyileştirir.
     Tek bir puanda iki hedefi birleştirmek ilerlemeyi tıkıyordu (gerçek veride 37 ihlalden yalnızca 1'i gitti).
     place_all: bekleyen kart yoksa her kart yerleşmek zorunda (daha küçük arama).
-    Dönüş: ({kart: Placement}, kalan aşım) ya da çözüm yoksa (None, None)."""
+    Dönüş: ({kart: Placement}, kalan aşım); süre yetmediyse (None, None), sabit kartlar kendi aralarında çakıştığı
+    için hiç çözüm yoksa (None, "infeasible")."""
     started = time.monotonic()
     builder = _Builder(problem, RELAXED, place_all=place_all)
     model = builder.build()
@@ -1033,6 +1034,8 @@ def minimal_repair(problem, time_limit=40, workers=8, seed=0, place_all=False):
     watched = [e for _, _, e in builder.relaxed_slacks if not isinstance(e, int)]
     watched += [e for c, _, e in builder.penalties if c == "unplaced" and not isinstance(e, int)]
     status = solver.Solve(model, _StopAtZero(watched))
+    if status == cp_model.INFEASIBLE:
+        return None, "infeasible"  # sabit (kilitli / korunan) kartlar kendi aralarında çakışıyor
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         return None, None
     best = int(round(solver.Value(violations))) if not isinstance(violations, int) else violations

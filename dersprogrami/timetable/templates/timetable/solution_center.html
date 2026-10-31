@@ -34,6 +34,7 @@
         <label><input type="radio" name="tur" value="place"{% if form.kind == "place" %} checked{% endif %}> <span><b>Dersi şu saate al</b> – gerekirse diğerleri yer açsın</span></label>
         <label><input type="radio" name="tur" value="teacher"{% if form.kind == "teacher" %} checked{% endif %}> <span><b>Öğretmen gelemiyor</b> – o saatlerdeki dersleri kaysın</span></label>
         <label><input type="radio" name="tur" value="room"{% if form.kind == "room" %} checked{% endif %}> <span><b>Derslik kullanılamıyor</b></span></label>
+        <label><input type="radio" name="tur" value="fix"{% if form.kind == "fix" %} checked{% endif %}> <span><b>İhlalleri düzelt</b> – kesin ihlaller en az ders taşınarak giderilsin</span></label>
         {% if form.kind == "insert" %}<label><input type="radio" name="tur" value="insert" checked> <span><b>Bekleyen kartı yerleştir</b> – diğerleri en az oynasın</span></label>{% endif %}
       </div>
 
@@ -68,8 +69,16 @@
         <div class="sc-hours">{% for i, p in periods %}<label class="check"><input type="checkbox" name="saatler" value="{{ i }}"{% if i in form.periods %} checked{% endif %}> <span>{{ i|add:1 }}</span></label>{% endfor %}
           <button type="button" class="btn btn-sm btn-ghost" onclick="this.parentNode.querySelectorAll('input').forEach(c=>c.checked=true)">Tüm gün</button></div>
       </div>
+      <div data-sc="fix">
+        <label class="label" for="sc-sure">Süre</label>
+        <select class="select" name="sure" id="sc-sure">
+          <option value="40"{% if form.seconds == 40 %} selected{% endif %}>Hızlı – yaklaşık 40 sn</option>
+          <option value="90"{% if form.seconds == 90 %} selected{% endif %}>Az değişiklik – yaklaşık 90 sn, daha az ders taşınır</option>
+        </select>
+        <p class="subtle small" style="margin:6px 0 0">Programdaki tüm kesin ihlaller ele alınır. Kilitli dersler ve aşağıdaki “Değişmeyecek dersler” yerinde kalır. Öneri uygulanmadan önce taşınacak dersleri ve etkilenenleri görürsünüz.</p>
+      </div>
       <div class="dialog-row" style="margin-top:6px">
-        <div style="width:140px"><label class="label" for="sc-m">En fazla değişiklik</label><input class="input" type="number" min="1" max="10" name="en_fazla" id="sc-m" value="{{ form.max_moves }}"></div>
+        <div style="width:140px" data-sc="shift place teacher room insert"><label class="label" for="sc-m">En fazla değişiklik</label><input class="input" type="number" min="1" max="10" name="en_fazla" id="sc-m" value="{{ form.max_moves }}"></div>
         <label class="check" data-sc="shift" style="align-self:end;margin-bottom:8px"><input type="checkbox" name="ayni_gun" value="1"{% if form.same_day %} checked{% endif %}> <span>Yalnızca aynı gün içinde</span></label>
       </div>
       <input type="hidden" name="koru_set" value="1">
@@ -84,7 +93,7 @@
         <button type="button" class="btn btn-sm btn-ghost" data-protect-clear>Seçimi temizle</button>
       </details>
       <button class="btn btn-primary" style="margin-top:12px" id="sc-solve">{% include "timetable/icon.html" with name="wand" %} Çözüm öner</button>
-      <p class="subtle small" id="sc-wait" hidden>Çözümler hesaplanıyor (genellikle 5–20 sn)…</p>
+      <p class="subtle small" id="sc-wait" hidden>Çözümler hesaplanıyor (genellikle 5–20 sn; ihlal düzeltmede seçilen süre kadar)…</p>
     </div>
     {% if form.kind == "insert" %}<input type="hidden" name="kart" value="{{ form.card }}">{% endif %}{# QueryDict.get son değeri alır #}
   </form>
@@ -110,6 +119,7 @@
           </table>
         </div>
         <div class="panel-body sc-impact">
+          {% if p.violations %}<div><span class="label">Kesin ihlal</span><b>{{ p.violations.0 }} → {{ p.violations.1 }}</b>{% if p.violations.1 %} <span class="subtle small">(kalanlar ders taşınarak giderilemedi; kuralları inceleyin)</span>{% else %} <span class="ok-text">program ihlalsiz olur</span>{% endif %}</div>{% endif %}
           <div><span class="label">Etkilenen öğretmenler</span>{% for t in p.teachers %}<span class="chip">{{ t }}</span>{% endfor %}</div>
           <div><span class="label">Etkilenen sınıflar</span>{% for c in p.classes %}<span class="chip">{{ c }}</span>{% endfor %}</div>
           {% if p.quality.rows %}

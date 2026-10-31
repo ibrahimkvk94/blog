@@ -271,6 +271,50 @@ class Center:
             placements[old] = place
         return moved, placements
 
+    # --- ihlalleri düzeltme ------------------------------------------------------------------
+
+    def fix_violations(self, seconds=40, protected=()):
+        """Kesin ihlalleri en az ders taşıyarak gideren tek öneri (ana görünümdeki "İhlalleri çöz" ile aynı yöntem:
+        cpsat.minimal_repair). Kilitli ve korunan ("değişmeyecek") dersler yerinde kalır; öneri uygulanmadan önce
+        etkilenenlerin raporuyla gösterilir."""
+        import copy
+
+        baseline_v, baseline_stats = validate(self.full, self.placements)
+        before = sum(1 for v in baseline_v if v.level == "hard")
+        if not before:
+            raise ResolveError("Programda kesin ihlal yok.")
+        problem = copy.deepcopy(self.full)
+        keep = self.protected_keys(protected)
+        anchors, room_anchors = {}, {}
+        for card in problem.cards:
+            place = self.placements.get(card.key)
+            if place is None or card.fixed is not None:
+                continue
+            if card.key in keep:
+                card.fixed, card.fixed_room, card.fixed_rooms = (place.day, place.period), place.room, place.rooms
+                continue
+            card.hint = (place.day, place.period, place.room)
+            anchors[card.key] = (place.day, place.period)
+            if place.rooms:
+                room_anchors[card.key] = tuple(place.rooms)
+        problem.anchors, problem.room_anchors = anchors, room_anchors
+        after, info = cpsat.minimal_repair(problem, time_limit=seconds, place_all=len(self.placements) == len(problem.cards))
+        if after is None and info == "infeasible":
+            raise ResolveError("Kilitli ya da “değişmeyecek” dersler kendi aralarında çakışıyor; hiçbiri yerinden "
+                               "oynamadan düzeltme yapılamaz. Bu derslerden çakışanların kilidini açın ya da korumayı kaldırın.")
+        if after is None:
+            raise ResolveError("Süre içinde çözüm bulunamadı; “Az değişiklik” seçeneğiyle ya da biraz sonra yeniden deneyin.")
+        placements = {**self.placements, **after}
+        remaining = sum(1 for v in validate(self.full, placements)[0] if v.level == "hard")
+        if remaining >= before:
+            raise ResolveError(f"{before} kesin ihlal, ders taşınarak azaltılamadı. Kalan ihlallerin nedeni büyük olasılıkla "
+                               "kuralların kendisi; ilişki denetiminde inceleyin.")
+        moved = {k for k, p in after.items()
+                 if self.placements.get(k) is None or (self.placements[k].day, self.placements[k].period) != (p.day, p.period)}
+        proposal = self._report(placements, moved, baseline_v, baseline_stats)
+        proposal["violations"] = (before, remaining)
+        return [proposal]
+
     # --- programı iyileştirme ---------------------------------------------------------------
 
     def improve(self, teacher_ids=(), class_ids=(), max_moves=12, time_limit=25, weights=(IMPROVE_GAP, IMPROVE_DAY), everyone=False):
@@ -497,7 +541,7 @@ def center_view(request, pk):
     school = timetable.school
     session_key = f"resolve-{timetable.pk}"
     data = request.POST if request.method == "POST" else request.GET
-    kind = data.get("tur") if data.get("tur") in ("shift", "place", "teacher", "room", "insert") else "shift"
+    kind = data.get("tur") if data.get("tur") in ("shift", "place", "teacher", "room", "insert", "fix") else "shift"
     card_id = _int(data.get("kart"))
     teacher_id = _int(data.get("ogretmen"))
     if card_id and not teacher_id:
@@ -507,6 +551,7 @@ def center_view(request, pk):
         "day": _int(data.get("gun"), 0), "period": _int(data.get("saat"), 0),
         "periods": [int(p) for p in data.getlist("saatler") if p.isdigit()] if hasattr(data, "getlist") else [],
         "max_moves": min(10, max(1, _int(data.get("en_fazla"), 4))), "same_day": data.get("ayni_gun") == "1",
+        "seconds": 90 if data.get("sure") == "90" else 40,
     }
     # Değişmeyecek dersler (ders kodları): formda gönderildiyse kaydedilir, yoksa programın son seçimi kullanılır.
     protect_key = f"resolve-protect-{school.pk}"
@@ -585,9 +630,14 @@ def center_view(request, pk):
         center = Center(timetable)
         req = availability = None
         try:
-            req, label, availability = _build_request(center, form)
-            req.protected = form["protected"]
-            proposals = center.proposals(req)
+            if form["kind"] == "fix":
+                label = "İhlaller düzeltildi"
+                proposals = center.fix_violations(form["seconds"], form["protected"])
+                request.session[session_key] = {"label": label, "proposals": proposals, "availability": None, "swaps": None}
+            else:
+                req, label, availability = _build_request(center, form)
+                req.protected = form["protected"]
+                proposals = center.proposals(req)
             if not proposals:
                 error = f"En fazla {form['max_moves']} değişiklikle çakışmasız çözüm bulunamadı. Değişiklik sınırını artırıp yeniden deneyin."
         except ResolveError as exc:

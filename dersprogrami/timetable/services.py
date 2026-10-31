@@ -385,7 +385,9 @@ def resolve_violations(timetable, time_limit=40):
             if place.rooms:
                 room_anchors[card.key] = tuple(place.rooms)
     problem.anchors, problem.room_anchors = anchors, room_anchors
-    placements_after, _ = cpsat.minimal_repair(problem, time_limit=time_limit, place_all=len(placements) == len(problem.cards))
+    placements_after, info = cpsat.minimal_repair(problem, time_limit=time_limit, place_all=len(placements) == len(problem.cards))
+    if placements_after is None and info == "infeasible":
+        return {"ok": False, "message": "Kilitli dersler kendi aralarında çakışıyor; çakışanların kilidini açıp yeniden deneyin."}
     if placements_after is None:
         return {"ok": False, "message": "Süre içinde çözüm bulunamadı; biraz sonra yeniden deneyin."}
     after = hard(validate(problem, placements_after)[0])
