@@ -93,6 +93,9 @@ class Solution:
     relaxed_rules: list = field(default_factory=list)
     # Katı çözüm bulunamadıysa onarım yolunun en iyi taslağı: {kart: (gün, saat)}; tanı üretimi buradan başlar.
     draft: dict = field(default_factory=dict)
+    # Aynı taslağın kaydedilebilir hali (gevşek modda Solution: yerleşim, esnetilen kurallar); süre içinde kesin
+    # kurallara uyan program bulunamadıysa "ihlalli taslak" olarak bu kaydedilir, ek arama yapılmaz.
+    draft_solution: object = None
 
     @property
     def ok(self):
@@ -832,7 +835,9 @@ class _FirstSolution(cp_model.CpSolverSolutionCallback):
 
 # İki aşamalı arama bu kart sayısından itibaren kullanılır (küçük programlarda gerek yok).
 TWO_PHASE_MIN_CARDS = 150
-PHASE1_SHARE = 0.45  # 1. aşamanın (doğrudan geçerli program arama) süre payı; kalanı onarım ve iyileştirme
+PHASE1_SHARE = 0.2  # doğrudan geçerli program aramanın süre payı; tıkanırsa taslak + turlu onarım devralır
+REPAIR_UNTIL = 0.9  # taslak turları en geç bu paya kadar sürer; ihlaller önce sıfırlanır, kalite sonra
+FIX_UNTIL = 0.95
 
 
 class StopHandle:
@@ -896,17 +901,17 @@ def solve(
         hinted = any(c.hint is not None and c.fixed is None for c in problem.cards)
         if hinted:
             first, callback1, repair = _repair_search(problem, builder, model, time_limit, started, workers, seed,
-                                                      on_progress, stop_handle, draft_until=0.35, fix_until=0.45)
+                                                      on_progress, stop_handle, draft_until=REPAIR_UNTIL, fix_until=FIX_UNTIL)
             phase1 = {"status": repair.get("status"), "wall_time": round(time.monotonic() - started, 2), "from_hint": repair}
             if repair.get("status") == "infeasible":
                 return infeasible()
             found = callback1.found
-        if not found and not stopped():
+        if not found and not hinted and not stopped():
             feasibility = model.clone()
             feasibility.ClearObjective()
             first = cp_model.CpSolver()
             # Doğrudan arama bu veride çoğunlukla 15–20 sn sürer; payı kısa tutmak kısa sürelerde sonucu şansa bırakıyordu.
-            share = 0.75 if hinted else PHASE1_SHARE
+            share = PHASE1_SHARE
             first.parameters.max_time_in_seconds = max(1.0, float(time_limit) * share - (time.monotonic() - started))
             first.parameters.num_workers = workers
             first.parameters.random_seed = seed
@@ -919,7 +924,7 @@ def solve(
                 return infeasible()
             if not callback1.found and not hinted and not stopped():
                 first, callback1, repair = _repair_search(problem, builder, model, time_limit, started, workers, seed,
-                                                          on_progress, stop_handle)
+                                                          on_progress, stop_handle, draft_until=REPAIR_UNTIL, fix_until=FIX_UNTIL)
                 phase1["repair"] = repair
                 if repair.get("status") == "infeasible":
                     return infeasible()
@@ -928,6 +933,14 @@ def solve(
             model.ClearHints()
             for index, value in enumerate(values):
                 model.AddHint(model.GetIntVarFromProtoIndex(index), value)
+        elif getattr(builder, "best_draft", None) is not None:
+            # Süre taslak turlarına gitti ve kesin kurallara uyan program çıkmadı: kalan birkaç saniyede sıfırdan
+            # arama sonuç vermez; en iyi taslak (kalan aşımlarıyla) döner.
+            return Solution(status="unknown", draft=builder.best_draft[1],
+                            draft_solution=getattr(builder, "best_draft_solution", None),
+                            stats={"wall_time": round(time.monotonic() - started, 2), "cards": len(problem.cards),
+                                   "solutions": 0, "mode": mode, "phase1": phase1, "stopped": stopped(),
+                                   "draft_violations": builder.best_draft[0]})
     remaining = max(1.0, float(time_limit) - (time.monotonic() - started))
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = remaining
@@ -968,6 +981,7 @@ def solve(
         if getattr(builder, "best_draft", None):
             solution.draft = builder.best_draft[1]
             solution.stats["draft_violations"] = builder.best_draft[0]
+            solution.draft_solution = getattr(builder, "best_draft_solution", None)
         return solution
     if builder.penalties:
         solution.objective = int(solver.ObjectiveValue()) if solver is not first else _objective(solver, builder)
@@ -1085,41 +1099,134 @@ class _StopAtZero(cp_model.CpSolverSolutionCallback):
             self.StopSearch()
 
 
+DRAFT_FIRST_SHARE = 0.25  # ilk taslak turunun toplam süreden payı (en az 30 sn)
+DRAFT_ROUND_SHARE = 0.08  # sonraki onarım turlarının payı (en az 15 sn)
+
+
+class _DraftRound(cp_model.CpSolverSolutionCallback):
+    """Onarım turu: kural aşımı (amaç değeri) sıfıra inince durur, ilerlemeyi bildirir."""
+
+    def __init__(self, on_progress, round_no, best):
+        super().__init__()
+        self.on_progress = on_progress
+        self.round_no = round_no
+        self.best = best
+
+    def on_solution_callback(self):
+        violations = int(round(self.ObjectiveValue()))
+        if self.on_progress:
+            shown = violations if self.best is None else min(violations, self.best)
+            self.on_progress({"phase": "repair", "round": self.round_no, "violations": shown})
+        if violations == 0:
+            self.StopSearch()
+
+
+def _relaxed_solution(problem, relaxed, solver, violations):
+    """En iyi taslak turunun çözücüsünden kaydedilebilir gevşek Solution: yerleşim ve esnetilen kurallar."""
+    value = lambda v: v if isinstance(v, int) else solver.Value(v)  # noqa: E731
+    solution = Solution(status="feasible", stats={"mode": RELAXED, "violations": violations})
+    for card in problem.cards:
+        start = next((slot for slot, var in relaxed.x[card.key].items() if value(var)), None)
+        if start is None:
+            solution.unplaced.append(card.key)
+            continue
+        rooms = [r for r, var in relaxed.y.get(card.key, {}).items() if value(var)]
+        solution.placements[card.key] = Placement(start[0], start[1], rooms[0] if rooms else None, tuple(rooms[1:]))
+    totals, labels = {}, {}
+    for rule, label, expr in relaxed.relaxed_slacks:
+        amount = value(expr)
+        if amount:
+            key = rule if rule is not None else label
+            totals[key] = totals.get(key, 0) + amount
+            labels.setdefault(key, label or str(rule))
+    solution.relaxed_rules = [{"rule": k, "label": labels[k], "amount": n} for k, n in sorted(totals.items(), key=lambda kv: -kv[1])]
+    penalties = {}
+    for category, weight, expr in relaxed.penalties:
+        amount = value(expr)
+        if amount and category != "relaxed":
+            penalties[category] = penalties.get(category, 0) + weight * amount
+    solution.penalties = penalties
+    solution.objective = sum(penalties.values())
+    for lesson_id, zs in relaxed.z.items():
+        solution.teacher_choice[lesson_id] = next((t for t, var in zs.items() if value(var)), None)
+    return solution
+
+
 def _repair_search(problem, builder, model, time_limit, started, workers, seed, on_progress, stop_handle,
                    draft_until=0.7, fix_until=0.75):
-    """1. aşamanın yedeği: esnek modelde (her kart yerleşmek zorunda, kurallar cezalı) yaklaşık program kurar,
-    onu katı modele ipucu verip kurallara uyar hale getirir. (çözücü, geri çağırma, özet) döner."""
+    """1. aşamanın yedeği: önce her dersin yerleştiği, kesin kural aşımı en az bir taslak kurulur (esnek model:
+    her kart yerleşmek zorunda, kurallar cezalı); sonra taslak turlarla onarılır ve aşımı sıfırlanan taslak katı
+    modele aktarılır. (çözücü, geri çağırma, özet) döner.
+
+    Turlar: her tur en iyi taslaktan başlar (tam çözüm ipucu, yerel arama); daha az aşımlı taslak bulunursa o
+    korunur ve sonraki tur ondan devam eder (ör. 11 → 7 → 3 → 0). Bir tur iyileştiremezse sonraki tur farklı
+    tohum ve tam aramayla dener. Aşım sıfırlanınca ya da draft_until payı dolunca durulur. Elle "taslaktan
+    yeniden üret" yapmanın otomatik hali: gerçek veride sıfırdan tek aramada bulunamayan program, taslağı
+    başlangıç alan ikinci aramada bulunuyordu."""
     if on_progress:
         on_progress({"phase": "repair"})
-    info = {}
+    info = {"rounds": []}
     relaxed = _Builder(problem, RELAXED, place_all=True)
     relaxed_model = relaxed.build()
-    # Taslakta yalnızca kural aşımı en aza indirilir (tercih cezaları 2. aşamaya kalır); aşım sıfıra inince
-    # taslak zaten geçerli bir programdır ve arama durur.
+    # Taslakta yalnızca kural aşımı en aza indirilir (tercih cezaları kesin kurallar sağlandıktan sonraya kalır).
     slacks = [expr for _, _, expr in relaxed.relaxed_slacks if not isinstance(expr, int)]
     relaxed_model.Minimize(sum(slacks))
-    draft = cp_model.CpSolver()
-    # Onarım için birkaç saniye bırakılır (aşımsız taslak 1–2 sn'de tamamlanır).
-    draft.parameters.max_time_in_seconds = max(1.0, float(time_limit) * draft_until - (time.monotonic() - started))
-    draft.parameters.num_workers = workers
-    draft.parameters.random_seed = seed
-    if stop_handle is not None:
-        stop_handle.attach(draft)
-    status = draft.Solve(relaxed_model, _StopAtZero(slacks))
-    info["draft"] = STATUS_NAMES.get(status, "unknown")
-    info["draft_time"] = round(draft.WallTime(), 2)
-    if status == cp_model.INFEASIBLE:  # kurallar esnese bile kartlar sığmıyor
-        info["status"] = "infeasible"
-        return draft, _FirstSolution(None), info
-    if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE) or (stop_handle and stop_handle.stopped):
+    deadline = started + float(time_limit) * draft_until
+    best = None  # (aşım, çözüm vektörü)
+    round_seed, round_no, stalls = seed, 0, 0
+    draft = None
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining < 1 or (stop_handle and stop_handle.stopped):
+            break
+        round_no += 1
+        floor, share = (30.0, DRAFT_FIRST_SHARE) if best is None else (15.0, DRAFT_ROUND_SHARE)
+        draft = cp_model.CpSolver()
+        draft.parameters.max_time_in_seconds = min(remaining, max(floor, float(time_limit) * share))
+        draft.parameters.num_workers = workers
+        draft.parameters.random_seed = round_seed
+        if best is not None:
+            relaxed_model.ClearHints()
+            for index, v in enumerate(best[1]):
+                relaxed_model.AddHint(relaxed_model.GetIntVarFromProtoIndex(index), v)
+            # İlerleyen taslak yerel aramayla (LNS) iyileştirilir; tıkandıysa tam arama farklı yönlere bakar.
+            draft.parameters.use_lns_only = stalls == 0
+        if stop_handle is not None:
+            stop_handle.attach(draft)
+        status = draft.Solve(relaxed_model, _DraftRound(on_progress, round_no, best[0] if best else None))
+        if status == cp_model.INFEASIBLE and best is None:  # kurallar esnese bile kartlar sığmıyor
+            info.update(status="infeasible", draft="infeasible")
+            return draft, _FirstSolution(None), info
+        if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            violations = int(round(draft.ObjectiveValue()))
+            info["rounds"].append({"round": round_no, "violations": violations, "seed": round_seed,
+                                   "time": round(draft.WallTime(), 1), "lns": bool(draft.parameters.use_lns_only)})
+            if best is None or violations < best[0]:
+                best = (violations, list(draft.ResponseProto().solution), draft)
+                stalls = 0
+            else:
+                stalls += 1
+                round_seed += 1
+            if best[0] == 0:
+                break
+        else:
+            stalls += 1
+            round_seed += 1
+    info["draft_time"] = round(time.monotonic() - started, 2)
+    if best is None:
         info["status"] = "no_draft"
         return draft, _FirstSolution(None), info
-    info["violations"] = sum(v if isinstance(v, int) else draft.Value(v) for _, _, v in relaxed.relaxed_slacks)
-    best = getattr(builder, "best_draft", None)
-    if best is None or info["violations"] < best[0]:
-        builder.best_draft = (info["violations"], {key: slot for key, slots in relaxed.x.items() for slot, v in slots.items()
-                                                   if (v if isinstance(v, int) else draft.Value(v))})
-    value = lambda v: v if isinstance(v, int) else draft.Value(v)  # noqa: E731
+    info["draft"] = "optimal" if best[0] == 0 else "feasible"
+    info["violations"] = best[0]
+    values = best[1]
+    value = lambda v: v if isinstance(v, int) else values[v.Index()]  # noqa: E731
+    previous = getattr(builder, "best_draft", None)
+    if previous is None or best[0] < previous[0]:
+        builder.best_draft = (best[0], {key: slot for key, slots in relaxed.x.items() for slot, v in slots.items() if value(v)})
+        builder.best_draft_solution = _relaxed_solution(problem, relaxed, best[2], best[0])
+    if stop_handle and stop_handle.stopped:
+        info["status"] = "stopped"
+        return draft, _FirstSolution(None), info
     # Katı model özdeş kartları başlangıç sırasına dizer; taslakta sıra farklı olabilir, kartlar ona göre eşlenir.
     source = {key: key for key in builder.x}
     first_slot = {key: min((slot for slot, v in slots.items() if value(v)), default=(99, 99)) for key, slots in relaxed.x.items()}

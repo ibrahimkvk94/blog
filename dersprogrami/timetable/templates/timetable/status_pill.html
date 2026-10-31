@@ -1,1 +1,1 @@
-<span class="pill {{ t.status }}">{{ t.get_status_display }}</span>{% if t.pk == school.active_timetable_id %} <span class="pill active-tt">Yayında</span>{% endif %}
+<span class="pill {{ t.status_class }}"{% if t.status_class == "violated" %} title="Süre içinde bütün kesin kurallara uyan program bulunamadı; kalan ihlaller program sayfasında"{% endif %}>{{ t.status_label }}</span>{% if t.pk == school.active_timetable_id %} <span class="pill active-tt">Yayında</span>{% endif %}

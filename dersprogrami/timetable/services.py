@@ -119,10 +119,10 @@ def _run_generation(timetable_id, base_id=None, seed=0):
             return
 
         on_progress = lambda progress: jobs.set_progress(timetable_id, progress)  # noqa: E731
+        started = time.monotonic()
         if relaxed:
             # Gevşek mod: önce her kart yerleşmek zorunda, yalnızca kurallar esner (çok daha iyi taslak); kartlar o
             # şekilde sığmıyorsa kalan sürede sığmayan kartların beklemesine izin verilir.
-            started = time.monotonic()
             solution = cpsat.solve(problem, time_limit=max(10, timetable.time_limit * 0.6), seed=seed, mode=timetable.mode,
                                    place_all=True, on_progress=on_progress, stop_handle=jobs.handle_for(timetable_id))
             if not solution.ok and not jobs.handle_for(timetable_id).stopped:
@@ -155,13 +155,26 @@ def _run_generation(timetable_id, base_id=None, seed=0):
             # esnetildiği ve hangi kartların sığmadığı "neden" raporu olur, taslak da açılabilir program olarak kalır.
             # Önce her kart yerleşmek zorunda, yalnızca kurallar esner ("hangi kural esnemeli?" sorusunun cevabı);
             # kartlar o şekilde de sığmıyorsa tam gevşek mod (sığmayan kartlar da bekler).
+            if solution.draft_solution is not None:
+                # Taslak turları süre içinde kesin kurallara uyan programa ulaşamadı: en iyi taslak (kalan aşımlarıyla)
+                # "ihlalli taslak" olarak kaydedilir. Ek arama yapılmaz; kullanıcının verdiği süre aşılmaz.
+                draft = solution.draft_solution
+                report["diagnosis"] = diagnosis(timetable.school, problem, solution.status, draft)
+                report["strict_failed"] = {"status": solution.status, "error": report.pop("error"),
+                                           "violations": solution.stats.get("draft_violations")}
+                report["solver"] = {"status": draft.status, **draft.stats, "strict": report["solver"]}
+                report["penalties"] = draft.penalties
+                Timetable.objects.filter(pk=timetable.pk).update(mode=Timetable.RELAXED)
+                _retry_locked(lambda: _save_result(timetable, problem, draft, report))
+                return
             jobs.set_progress(timetable_id, {"phase": "diagnose"})
             if solution.draft:
                 # Onarım yolunun en iyi taslağı (az aşımlı) başlangıç olur; tanı sıfırdan başlayıp daha kötüsünü bulmasın.
                 for card in problem.cards:
                     if card.fixed is None and card.key in solution.draft:
                         card.hint = (*solution.draft[card.key], None)
-            budget = min(240, max(60, timetable.time_limit // 3))
+            # Kalan süre kullanılır (en az 30 sn: imkânsızlık erken kanıtlandıysa çoğu zaman bol süre kalır).
+            budget = max(30, timetable.time_limit - (time.monotonic() - started))
             progress = lambda p: jobs.set_progress(timetable_id, {**p, "phase": "diagnose"})  # noqa: E731
             draft = cpsat.solve(problem, time_limit=budget, seed=seed, mode=Timetable.RELAXED, place_all=True,
                                 stop_handle=jobs.handle_for(timetable_id), on_progress=progress)
@@ -240,9 +253,13 @@ def _save_result(timetable, problem, solution, report):
             report["pools"] = apply_teacher_choice(timetable.school, problem, solution.teacher_choice)
         versions.save_version(timetable, note="Üretim sonucu", auto=True)
         violations, stats = validate(problem, solution.placements)
-        report["validation"] = {"violations": [v.as_dict() for v in violations], "stats": stats}
+        hard = sum(1 for v in violations if v.level == "hard" and v.code != "unplaced")
+        report["validation"] = {"violations": [v.as_dict() for v in violations], "stats": stats, "hard": hard,
+                                "unplaced": len(solution.unplaced)}
         timetable.objective = solution.objective
-        status = Timetable.PARTIAL if solution.unplaced else Timetable.OK
+        # Bağımsız doğrulama: "üretildi" ancak bütün kartlar yerleştiyse ve doğrulama hiç kesin ihlal bulmadıysa.
+        # Aksi halde program ihlalli taslak / kısmi olarak kalır (açılır, düzenlenir, sonraki üretime ipucu olur).
+        status = Timetable.PARTIAL if solution.unplaced or hard else Timetable.OK
         _finish(timetable, status, report)
 
 
@@ -323,6 +340,22 @@ def placements_of(problem, timetable):
     return placements
 
 
+def refresh_status(timetable):
+    """Elle onarımdan sonra (bekleyenleri yerleştir, ihlalleri çöz) durumu bağımsız doğrulamayla yeniler: bütün
+    kartlar yerleşmiş ve kesin ihlal yoksa "üretildi", değilse "kısmen / ihlalli taslak"."""
+    if timetable.status not in (Timetable.OK, Timetable.PARTIAL):
+        return
+    violations, _ = verify_timetable(timetable)
+    hard = sum(1 for v in violations if v.level == "hard" and v.code != "unplaced")
+    unplaced = timetable.cards.filter(day__isnull=True).count()
+    status = Timetable.OK if not hard and not unplaced else Timetable.PARTIAL
+    report = dict(timetable.report or {})
+    validation = dict(report.get("validation") or {})
+    validation.update(hard=hard, unplaced=unplaced)
+    report["validation"] = validation
+    Timetable.objects.filter(pk=timetable.pk).update(status=status, report=report)
+
+
 def verify_timetable(timetable):
     """Kaydedilmiş (elle düzenlenmiş olabilir) bir programı doğrular."""
     from .problem_cache import problem_for
@@ -367,8 +400,7 @@ def repair_timetable(timetable, time_limit=20):
     for db_card, new in updates:
         db_card.day, db_card.period, db_card.classroom_id, db_card.extra_rooms = new
     Card.objects.bulk_update(changed, ["day", "period", "classroom", "extra_rooms"])
-    if not solution.unplaced and timetable.status == Timetable.PARTIAL:
-        Timetable.objects.filter(pk=timetable.pk).update(status=Timetable.OK)
+    refresh_status(timetable)
     return {
         "ok": True,
         "step": step,
@@ -423,6 +455,7 @@ def resolve_violations(timetable, time_limit=40):
     for db_card, new in updates:
         db_card.day, db_card.period, db_card.classroom_id, db_card.extra_rooms = new
     Card.objects.bulk_update(changed, ["day", "period", "classroom", "extra_rooms"])
+    refresh_status(timetable)
     rooms = f", {len(changed) - shifted} dersin yalnızca dersliği değişti" if len(changed) > shifted else ""
     rest = f"; {after} ihlal kaldı (kart oynatarak giderilemedi)" if after else "; program ihlalsiz"
     return {"ok": True, "moved": len(changed), "shifted": shifted, "before": before, "after": after,

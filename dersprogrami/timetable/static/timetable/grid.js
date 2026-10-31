@@ -119,7 +119,9 @@
         : p.phase === "explain"
         ? "Bu kurallarla program mümkün değil; hangi kuralların çeliştiği aranıyor…"
         : p.phase === "repair"
-        ? "Doğrudan arama tıkandı; önce her dersin yerleştiği yaklaşık bir program kuruluyor, sonra kurallara uyacak şekilde onarılıyor…"
+        ? (p.violations != null
+          ? "Taslak onarılıyor (tur " + (p.round || 1) + "): en iyi taslakta " + p.violations + " kesin ihlal kaldı; her tur en iyi taslaktan devam ediyor…"
+          : "Doğrudan arama tıkandı; önce her dersin yerleştiği bir taslak kuruluyor, sonra turlarla kurallara uyacak şekilde onarılıyor…")
         : p.phase === "feasible"
         ? "Geçerli bir program bulundu (" + p.elapsed + " sn); şimdi boşluklar ve tercihler iyileştiriliyor…"
         : p.solutions

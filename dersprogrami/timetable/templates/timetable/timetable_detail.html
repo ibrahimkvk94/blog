@@ -119,7 +119,7 @@
   {% with sf=timetable.report.strict_failed %}{% if sf %}
     <details class="panel diag-banner" open>
       <summary><span class="diag-icon">{% include "timetable/icon.html" with name="alert" %}</span>
-        <span><b>Katı modda program bulunamadı</b> ({% if sf.status == "infeasible" %}bu kurallarla imkânsız{% else %}süre içinde bulunamadı{% endif %}). Aşağıdaki kurallar esnetilerek <b>en yakın taslak</b> üretildi; düzeltip yeniden üretin.</span></summary>
+        <span>{% if sf.status == "infeasible" %}<b>Bu kurallarla program mümkün değil.</b> Aşağıdaki kurallar esnetilerek <b>en yakın taslak</b> üretildi; düzeltip yeniden üretin.{% else %}<b>İhlalli taslak:</b> verilen sürede bütün kesin kurallara uyan program bulunamadı{% if timetable.hard_violations %}; en iyi taslakta <b>{{ timetable.hard_violations }} kesin ihlal</b> kaldı{% endif %}. Bu taslaktan yeniden üretmek (otomatik ipucu) ya da “İhlalleri çöz” çoğu zaman kalanları giderir.{% endif %}</span></summary>
       <div class="panel-body">
         {% with c=timetable.report.conflict %}{% if c.status == "core" %}
           <div class="alert alert-error"><b>Birlikte sağlanamayan kurallar{% if c.minimal %} (herhangi birini gevşetmek yeter){% endif %}:</b>

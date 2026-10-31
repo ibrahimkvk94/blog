@@ -42,8 +42,12 @@ class DiagnosisTests(TestCase):
         self.assertEqual(d["main"][0]["url"], reverse("timetable:data_edit", args=[self.school.pk, "kart-iliskileri", self.rel.pk]))
         self.client.force_login(User.objects.create_superuser("admin", "a@x.tr", "pw"))
         page = self.client.get(reverse("timetable:timetable_detail", args=[tt.pk]))
-        self.assertContains(page, "Katı modda program bulunamadı")
+        self.assertContains(page, "Bu kurallarla program mümkün değil")
         self.assertContains(page, "Asıl neden")
+        # Bağımsız doğrulama: kesin ihlali kalan taslak "üretildi" sayılmaz
+        self.assertEqual(tt.status, Timetable.PARTIAL)
+        self.assertTrue(tt.hard_violations)
+        self.assertTrue(tt.status_label.startswith("İhlalli taslak"))
         self.assertContains(page, "Birlikte")
 
     def test_failure_lists_what_changed_since_last_success(self):

@@ -111,7 +111,7 @@ html.nav-collapsed .sidebar { display: none; }
 .pill { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); white-space: nowrap; }
 .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .pill.ok { background: var(--success-soft); color: var(--success); border-color: #bfe5cc; }
-.pill.partial, .pill.warn { background: var(--warning-soft); color: var(--warning); border-color: #f3dca8; }
+.pill.partial, .pill.warn, .pill.violated { background: var(--warning-soft); color: var(--warning); border-color: #f3dca8; }
 .pill.failed, .pill.error { background: var(--danger-soft); color: var(--danger-strong); border-color: #f3c3bd; }
 .pill.running { background: var(--primary-soft); color: var(--primary); border-color: #d4d7fd; }
 .pill.running::before { animation: pulse 1.2s infinite; }
@@ -1324,7 +1324,7 @@ td.empty, td.subtle[colspan] { text-align: center; padding: 22px 12px; color: va
 }
 :root[data-theme="dark"] .alert-info, :root[data-theme="dark"] .condition-help { color: var(--primary-2); border-color: rgba(129, 140, 248, .3); }
 :root[data-theme="dark"] .pill.ok { border-color: rgba(74, 222, 128, .3); }
-:root[data-theme="dark"] .pill.partial, :root[data-theme="dark"] .pill.warn { border-color: rgba(251, 191, 36, .3); }
+:root[data-theme="dark"] .pill.partial, :root[data-theme="dark"] .pill.warn, :root[data-theme="dark"] .pill.violated { border-color: rgba(251, 191, 36, .3); }
 :root[data-theme="dark"] .pill.failed, :root[data-theme="dark"] .pill.error { border-color: rgba(248, 113, 113, .35); }
 :root[data-theme="dark"] .pill.running { border-color: rgba(129, 140, 248, .35); }
 :root[data-theme="dark"] .pill.active-tt { background: rgba(56, 189, 248, .14); color: #7dd3fc; border-color: rgba(56, 189, 248, .3); }
@@ -1865,3 +1865,5 @@ details.dropdown[open] .dropdown-menu { display: block; }
   .ex-tabs, .ex-toolbar, .ex-tools { display: none !important; }
   .ex-chip { box-shadow: none; break-inside: avoid; }
 }
+
+.pill.violated { font-weight: 700; }

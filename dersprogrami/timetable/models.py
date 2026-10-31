@@ -677,6 +677,27 @@ class Timetable(models.Model):
         return self.status in (self.OK, self.PARTIAL, self.DRAFT)
 
     @property
+    def hard_violations(self):
+        """Son doğrulamadaki kesin ihlal sayısı (yerleşmeyen kartlar hariç); bilinmiyorsa None."""
+        validation = (self.report or {}).get("validation") or {}
+        if "hard" in validation:
+            return validation["hard"]
+        if "violations" in validation:
+            return sum(1 for v in validation["violations"] if v.get("level") == "hard" and v.get("code") != "unplaced")
+        return None
+
+    @property
+    def status_label(self):
+        """Rozet metni: kesin ihlali kalan sonuç "ihlalli taslak" olarak açıkça ayrılır."""
+        if self.status == self.PARTIAL and self.hard_violations:
+            return f"İhlalli taslak · {self.hard_violations}"
+        return self.get_status_display()
+
+    @property
+    def status_class(self):
+        return "violated" if self.status == self.PARTIAL and self.hard_violations else self.status
+
+    @property
     def is_running(self):
         return self.status == self.RUNNING
 

@@ -64,10 +64,12 @@ def generation_finished(timetable):
     url = reverse("timetable:timetable_detail", args=[timetable.pk])
     if timetable.status == timetable.FAILED:
         send([user_id], f"Program üretilemedi: {timetable.name}", (timetable.report or {}).get("error", ""), url, Notification.ERROR)
-    elif timetable.mode == timetable.RELAXED and (timetable.report or {}).get("strict_failed"):
-        send([user_id], f"Program taslak olarak hazır: {timetable.name}",
-             "Kesin kurallarla program bulunamadı; kuralları esneterek en yakın taslak çıkarıldı. Nedenler rapor sayfasında.",
-             url, Notification.WARNING)
+    elif timetable.hard_violations or (timetable.mode == timetable.RELAXED and (timetable.report or {}).get("strict_failed")):
+        n = timetable.hard_violations
+        send([user_id], f"İhlalli taslak: {timetable.name}",
+             (f"Süre içinde bütün kesin kurallara uyan program bulunamadı; en iyi taslakta {n} kesin ihlal kaldı. "
+              if n else "Kesin kurallarla program bulunamadı; en yakın taslak çıkarıldı. ")
+             + "Bu taslaktan yeniden üretmek (otomatik ipucu) çoğu zaman kalan ihlalleri giderir.", url, Notification.WARNING)
     else:
         send([user_id], f"Program hazır: {timetable.name}", f"{timetable.school} · ceza {timetable.objective or 0}", url,
              Notification.SUCCESS)
