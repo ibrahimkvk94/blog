@@ -30,7 +30,7 @@
 
 <div class="pd-list" data-pd-list>
   {% for r in data.rows %}
-    <article class="panel pd-item" data-kind="{{ r.kind }}" data-q="{{ r.short|lower }} {{ r.subject|lower }} {{ r.classes|lower }} {{ r.teachers|lower }}" data-card="{{ r.id }}">
+    <article class="panel pd-item" data-kind="{{ r.kind }}" data-q="{{ r.short|fold }} {{ r.subject|fold }} {{ r.classes|fold }} {{ r.teachers|fold }}" data-card="{{ r.id }}">
       <div class="pd-main">
         <div class="pd-title">
           <span class="pd-badge pd-{{ r.kind }}">{{ r.kind_label }}</span>
@@ -73,7 +73,7 @@
   const count = document.querySelector("[data-pd-count]");
   let kind = "";
   const filter = () => {
-    const q = search.value.trim().toLocaleLowerCase("tr");
+    const q = search.value.trim().toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
     let n = 0;
     items.forEach((i) => { i.hidden = (q && !i.dataset.q.includes(q)) || (kind && i.dataset.kind !== kind); if (!i.hidden) n++; });
     count.textContent = (q || kind) ? n + " / " + items.length : "";

@@ -103,9 +103,9 @@
     return sum;
   }
   function renderTeachers() {
-    const q = ($("#dist-teacher-search").value || "").trim().toLocaleLowerCase("tr");
+    const q = ($("#dist-teacher-search").value || "").trim().toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
     $("#dist-teachers").innerHTML = D.teachers
-      .filter((t) => !q || t.name.toLocaleLowerCase("tr").includes(q) || t.short.toLocaleLowerCase("tr").includes(q))
+      .filter((t) => !q || t.name.toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i").includes(q) || t.short.toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i").includes(q))
       .map((t) => {
         const load = teacherLoad(t.id);
         const cap = t.target || D.capacity;

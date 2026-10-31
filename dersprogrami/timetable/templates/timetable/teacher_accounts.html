@@ -29,7 +29,7 @@
       <thead><tr><th style="width:28px"><input type="checkbox" data-ta-all aria-label="Tümünü seç"></th><th>Öğretmen</th><th>E-posta</th><th>Kullanıcı adı</th><th>Durum</th></tr></thead>
       <tbody>
         {% for r in rows %}
-          <tr data-status="{{ r.status }}" data-text="{{ r.t.full_name|lower }} {{ r.t.short|lower }} {{ r.t.email|lower }}">
+          <tr data-status="{{ r.status }}" data-text="{{ r.t.full_name|fold }} {{ r.t.short|fold }} {{ r.t.email|fold }}">
             <td><input type="checkbox" name="teacher" value="{{ r.t.pk }}" aria-label="{{ r.t.full_name }}"></td>
             <td><b>{{ r.t.full_name }}</b>{% if r.t.short %} <span class="subtle small">{{ r.t.short }}</span>{% endif %}</td>
             <td>{% if r.t.email %}{{ r.t.email }}{% else %}<span class="subtle">—</span>{% endif %}</td>
@@ -50,7 +50,7 @@
   const search = form.querySelector("[data-ta-search]"), filter = form.querySelector("[data-ta-filter]");
   const count = () => { form.querySelector("[data-ta-count]").textContent = form.querySelectorAll("tbody input:checked").length; };
   const apply = () => {
-    const q = search.value.trim().toLocaleLowerCase("tr");
+    const q = search.value.trim().toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
     rows.forEach((r) => { r.hidden = (q && !r.dataset.text.includes(q)) || (filter.value && r.dataset.status !== filter.value); });
   };
   search.addEventListener("input", apply); filter.addEventListener("change", apply);

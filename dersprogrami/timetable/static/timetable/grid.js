@@ -207,7 +207,7 @@
     });
     const rowEl = el("div", "tt-row");
     rowEl.dataset.row = row.id;
-    rowEl.dataset.search = (row.label + " " + (row.sub || "")).toLocaleLowerCase("tr");
+    rowEl.dataset.search = (row.label + " " + (row.sub || "")).toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
     rowEl.style.setProperty("--lanes", Math.max(1, laneEnds.length));
     const label = el("div", "tt-label", '<span class="n">' + esc(row.label) + '</span><span class="s">' + esc(row.sub || "") + "</span>");
     label.title = row.label + (row.sub ? "\n" + row.sub : "") + "\nSağ tık: işlemler";
@@ -427,7 +427,7 @@
     sort: $("#tray-sort"), row: $("#tray-row"), clear: $("#tray-clear"),
   };
   const split = (text) => (text || "").split(", ").filter(Boolean);
-  const trLower = (t) => (t || "").toLocaleLowerCase("tr");
+  const trLower = (t) => (t || "").toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
 
   function fillSelect(select, values, label) {
     const current = select.value;
@@ -493,7 +493,7 @@
   }
 
   function applyFilter() {
-    const q = ($("#row-filter").value || "").trim().toLocaleLowerCase("tr");
+    const q = ($("#row-filter").value || "").trim().toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
     board.querySelectorAll(".tt-row").forEach((r) => r.classList.toggle("hidden", q && !r.dataset.search.includes(q)));
   }
 

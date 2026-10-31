@@ -27,3 +27,16 @@ def natural_key(text):
             continue
         key.append((0, int(part), ()) if i % 2 else (1, 0, tr_key(part)))  # sayılar harflerden önce
     return tuple(key)
+
+
+def search_fold(text):
+    """Aramada karşılaştırılacak biçim: İ/I/ı → i, Türkçe harfler şapkasız (ş→s, ğ→g, ö→o …), küçük harf.
+
+    Tarayıcıdaki aramalar aynı dönüşümü yapar (toLocaleLowerCase("tr") + NFD + birleşen işaretleri at + ı→i);
+    Python'un lower()'ı "İ"yi "i̇" (i + birleşen nokta) yaptığından eşleşmeyen aramalar bu yüzden düzelir.
+    """
+    import unicodedata
+
+    text = str(text or "").replace("İ", "i").replace("I", "ı").lower()
+    text = "".join(c for c in unicodedata.normalize("NFD", text) if not unicodedata.combining(c))
+    return text.replace("ı", "i")

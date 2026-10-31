@@ -7,7 +7,7 @@
   const $ = (sel, root) => (root || document).querySelector(sel);
   const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const norm = (t) => String(t || "").toLocaleLowerCase("tr");
+  const norm = (t) => String(t || "").toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
   const data = JSON.parse($("#rel-data").textContent);
   const select = $("select[name=condition]", form);
   const list = (key) => (select.dataset[key] || "").split(" ");

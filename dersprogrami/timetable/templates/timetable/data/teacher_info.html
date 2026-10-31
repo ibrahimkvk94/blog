@@ -40,7 +40,7 @@
       <th>Öğretmen</th><th>Kısa ad</th><th>Bölüm</th><th>Ünvan / rütbe</th><th>Branş</th><th>TC kimlik no</th></tr></thead>
     <tbody>
     {% for t in teachers %}
-      <tr data-ti-row data-keys="{{ t.full_name|lower }}|{{ t.last_name|lower }} {{ t.first_name|lower }}|{{ t.short|lower }}">
+      <tr data-ti-row data-keys="{{ t.full_name|fold }}|{{ t.last_name|fold }} {{ t.first_name|fold }}|{{ t.short|fold }}">
         <td class="ti-check"><input type="checkbox" data-ti-select aria-label="{{ t.full_name }} seç"></td>
         <td><b>{{ t.full_name }}</b></td>
         <td class="subtle">{{ t.short }}</td>

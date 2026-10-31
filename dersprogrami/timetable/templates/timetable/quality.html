@@ -72,7 +72,7 @@
         </tr></thead>
         <tbody>
           {% for r in data.rows %}
-            <tr data-level="{{ r.level }}" data-name="{{ r.name|lower }} {{ r.sub|lower }}"
+            <tr data-level="{{ r.level }}" data-name="{{ r.name|fold }} {{ r.sub|fold }}"
                 data-score="{{ r.score }}" data-fixable="{{ r.fixable }}" data-hours="{{ r.hours }}" data-days="{{ r.days }}" data-gaps="{{ r.gaps }}"
                 data-single_days="{{ r.single_days }}" data-extra_days="{{ r.extra_days }}" data-late_days="{{ r.late_days }}"
                 data-unplaced="{{ r.unplaced }}" data-hard="{{ r.hard }}">
@@ -114,7 +114,7 @@
   const count = document.querySelector("[data-q-count]");
   const run = document.querySelector("[data-q-run]");
   const filter = () => {
-    const q = search.value.trim().toLocaleLowerCase("tr");
+    const q = search.value.trim().toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
     const level = levelBox.querySelector("input:checked").value;
     rows.forEach((r) => { r.hidden = (q && !r.dataset.name.includes(q)) || (level && r.dataset.level !== level); });
   };

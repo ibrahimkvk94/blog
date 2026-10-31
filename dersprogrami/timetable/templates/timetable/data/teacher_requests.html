@@ -98,7 +98,7 @@
     <input class="input input-sm" type="search" placeholder="Öğretmen ara…" data-rq-search style="max-width:260px;margin-bottom:8px">
     <div class="rq-account-list">
       {% for a in accounts %}
-        <label class="rq-account" data-name="{{ a.t.full_name|lower }}"><span>{{ a.t.full_name }}{% if a.t.department %} <span class="subtle">{{ a.t.department }}</span>{% endif %}</span>
+        <label class="rq-account" data-name="{{ a.t.full_name|fold }}"><span>{{ a.t.full_name }}{% if a.t.department %} <span class="subtle">{{ a.t.department }}</span>{% endif %}</span>
           <select class="select select-sm" name="hesap-{{ a.t.pk }}"{% if a.suggest %} data-suggest="{{ a.suggest.pk }}"{% endif %}><option value="">— bağlı değil</option>{% for u in users %}<option value="{{ u.pk }}"{% if u.pk == a.t.user_id %} selected{% endif %}>{{ u.username }}{% if u.get_full_name %} ({{ u.get_full_name }}){% endif %}</option>{% endfor %}</select>
           {% if a.suggest %}<small class="subtle">öneri: {{ a.suggest.username }}</small>{% endif %}</label>
       {% endfor %}
@@ -115,7 +115,7 @@
   const suggest = box.querySelector("[data-rq-suggest]");
   if (suggest) suggest.addEventListener("click", () => box.querySelectorAll("select[data-suggest]").forEach((s) => { if (!s.value) s.value = s.dataset.suggest; }));
   box.querySelector("[data-rq-search]").addEventListener("input", (e) => {
-    const q = e.target.value.trim().toLocaleLowerCase("tr");
+    const q = e.target.value.trim().toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
     box.querySelectorAll(".rq-account").forEach((r) => { r.hidden = q && !r.dataset.name.includes(q); });
   });
 })();

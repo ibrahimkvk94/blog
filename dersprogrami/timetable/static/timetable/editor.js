@@ -150,7 +150,7 @@
   const search = $("[data-nav-search]", root);
   const items = $$("[data-nav-item]", root);
   const none = $("[data-nav-none]", root);
-  const norm = (t) => t.toLocaleLowerCase("tr");
+  const norm = (t) => t.toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
   items.forEach((i) => { i.dataset.q = norm(i.textContent); });
   if (search) search.addEventListener("input", () => {
     const q = norm(search.value.trim());

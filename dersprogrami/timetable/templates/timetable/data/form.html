@@ -40,7 +40,7 @@
       <div class="fsec-head"><div><h3>Bölünmeleri başka sınıflara kopyala</h3><p>Kaydedilmiş bölünmeler kopyalanır.</p></div></div>
       <div class="fsec-body">
         <div class="chips-field" data-chips><input class="input chip-search" placeholder="Sınıf ara…"><div class="chip-list">
-          {% for c in other_classes %}<label class="chip-opt" data-label="{{ c.name|lower }}"><input type="checkbox" name="targets" value="{{ c.pk }}"> {{ c.name }}</label>{% endfor %}
+          {% for c in other_classes %}<label class="chip-opt" data-label="{{ c.name|fold }}"><input type="checkbox" name="targets" value="{{ c.pk }}"> {{ c.name }}</label>{% endfor %}
         </div></div>
         <button class="btn btn-sm" style="margin-top:10px">Seçili sınıflara kopyala</button>
       </div>

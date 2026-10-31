@@ -75,10 +75,10 @@
   let pickFor = null;
   const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   function renderPicker() {
-    const q = picker.querySelector("[data-dp-search]").value.trim().toLocaleLowerCase("tr");
+    const q = picker.querySelector("[data-dp-search]").value.trim().toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
     const groups = {};
     teachers.forEach((t) => {
-      if (q && !(t.name + " " + t.group).toLocaleLowerCase("tr").includes(q)) return;
+      if (q && !(t.name + " " + t.group).toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i").includes(q)) return;
       (groups[t.group] = groups[t.group] || []).push(t);
     });
     const html = Object.entries(groups).map(([g, list]) => '<div class="dp-group"><h3>' + esc(g) + "</h3>" +

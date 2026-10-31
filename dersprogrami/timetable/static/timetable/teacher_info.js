@@ -6,7 +6,7 @@
   const $ = (s, root) => (root || document).querySelector(s);
   const $$ = (s, root) => [...(root || document).querySelectorAll(s)];
   const rows = $$("[data-ti-row]", form);
-  const fold = (s) => (s || "").toLocaleLowerCase("tr").replace(/\s+/g, " ").trim();
+  const fold = (s) => (s || "").toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i").replace(/\s+/g, " ").trim();
   const field = (row, name) => $(`[data-ti-field="${name}"]`, row);
 
   // değişen hücreler
@@ -93,7 +93,7 @@
   rows.forEach((r) => r.dataset.keys.split("|").forEach((k) => { k = fold(k); if (k && !index.has(k)) index.set(k, r); }));
   function headerOf(cell) {
     const c = fold(cell);
-    return Object.keys(HEADERS).find((k) => HEADERS[k].includes(c));
+    return Object.keys(HEADERS).find((k) => HEADERS[k].some((h) => fold(h) === c));
   }
   $("[data-ti-paste-go]").addEventListener("click", () => {
     const lines = $("[data-ti-paste]").value.split(/\r?\n/).filter((l) => l.trim());

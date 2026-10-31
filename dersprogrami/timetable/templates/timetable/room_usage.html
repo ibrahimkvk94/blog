@@ -52,7 +52,7 @@
       <thead><tr><th data-sort="name">Derslik</th>{% if data.buildings %}<th>Bina</th>{% endif %}<th data-sort="pct" class="num">Doluluk</th><th class="num">Saat</th><th>Hafta (günler soldan sağa)</th></tr></thead>
       <tbody>
         {% for r in data.rooms %}
-          <tr data-name="{{ r.room.name|lower }}" data-pct="{{ r.pct|default_if_none:-1 }}">
+          <tr data-name="{{ r.room.name|fold }}" data-pct="{{ r.pct|default_if_none:-1 }}">
             <td><b>{{ r.room.name }}</b></td>
             {% if data.buildings %}<td class="subtle">{{ r.building|default:"–" }}</td>{% endif %}
             <td class="num"><div class="ru-bar"><div class="lv{{ r.level }}" style="width:{{ r.pct|default:0 }}%"></div></div>{% if r.pct is not None %}%{{ r.pct }}{% else %}–{% endif %}</td>
@@ -86,7 +86,7 @@
   const table = document.querySelector("[data-ru-rooms]");
   const rows = [...table.tBodies[0].rows];
   document.querySelector("[data-ru-search]").addEventListener("input", (e) => {
-    const q = e.target.value.trim().toLocaleLowerCase("tr");
+    const q = e.target.value.trim().toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
     rows.forEach((r) => { r.hidden = q && !r.dataset.name.includes(q); });
   });
   let dir = -1, key = "";

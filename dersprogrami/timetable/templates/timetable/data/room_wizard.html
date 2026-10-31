@@ -22,7 +22,7 @@
               <label class="label">Derslikler</label>
               <div class="chips-field" data-chips>
                 <input class="input chip-search" placeholder="Derslik ara…">
-                <div class="chip-list">{% for r in p.room_order %}<label class="chip-opt" data-label="{{ r.name|lower }}"><input type="checkbox" name="onek-{{ p.prefix }}-derslik" value="{{ r.pk }}"{% if r.pk in p.rooms %} checked{% endif %}><span>{{ r.name }}</span></label>{% endfor %}</div>
+                <div class="chip-list">{% for r in p.room_order %}<label class="chip-opt" data-label="{{ r.name|fold }}"><input type="checkbox" name="onek-{{ p.prefix }}-derslik" value="{{ r.pk }}"{% if r.pk in p.rooms %} checked{% endif %}><span>{{ r.name }}</span></label>{% endfor %}</div>
               </div>
               <div class="rw-subjects">
                 <div class="rw-subjects-head"><span class="label" style="margin:0">Uygulanacak ders adları</span>

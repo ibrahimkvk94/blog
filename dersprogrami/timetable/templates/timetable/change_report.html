@@ -49,7 +49,7 @@
 <div class="no-print" style="margin-bottom:10px"><input class="input input-sm" type="search" placeholder="Öğretmen ya da ders ara…" data-cr-search style="max-width:300px"></div>
 <div class="cr-list">
   {% for g in data.groups %}
-    <section class="panel cr-teacher" data-text="{{ g.name|lower }} {% for i in g.items %}{{ i.subject|lower }} {{ i.classes|lower }} {% endfor %}">
+    <section class="panel cr-teacher" data-text="{{ g.name|fold }} {% for i in g.items %}{{ i.subject|fold }} {{ i.classes|fold }} {% endfor %}">
       <div class="panel-head"><h2>{{ g.name }}</h2><span class="subtle small">{{ g.items|length }} değişiklik · {{ school }} · {{ timetable.name }}</span></div>
       <div class="panel-body flush table-wrap">
         <table class="table cr-table">
@@ -73,7 +73,7 @@
   const search = document.querySelector("[data-cr-search]");
   if (!search) return;
   search.addEventListener("input", () => {
-    const q = search.value.trim().toLocaleLowerCase("tr");
+    const q = search.value.trim().toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
     document.querySelectorAll(".cr-teacher").forEach((s) => { s.hidden = q && !s.dataset.text.includes(q); });
   });
 })();

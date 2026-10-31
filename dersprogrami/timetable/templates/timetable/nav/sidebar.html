@@ -26,7 +26,7 @@
 (function () {
   var input = document.querySelector("[data-nav-search]");
   if (!input) return;
-  var norm = function (t) { return (t || "").replace(/İ/g, "i").replace(/I/g, "ı").toLocaleLowerCase("tr").trim(); };
+  var norm = function (t) { return (t || "").replace(/İ/g, "i").replace(/I/g, "ı").toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i").trim(); };
   var groups = Array.prototype.slice.call(document.querySelectorAll("[data-nav-group]"));
   var opened = groups.map(function (d) { return d.open; });
   var searching = false;

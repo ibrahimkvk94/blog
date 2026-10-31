@@ -97,3 +97,22 @@ class ExcelBranchTcTests(TestCase):
         values = dict(zip(header, [c.value for c in ws[2]]))
         self.assertEqual(values["Branş"], "Elektronik")
         self.assertEqual(str(values["TC kimlik no"]), "10987654321")
+
+
+class SearchFoldTests(TestCase):
+    def test_turkish_fold(self):
+        from timetable.textsort import search_fold
+
+        self.assertEqual(search_fold("İŞL103"), "isl103")
+        self.assertEqual(search_fold("İBRAHİM Işık"), "ibrahim isik")
+        self.assertEqual(search_fold("ibrahim"), "ibrahim")
+
+    def test_search_attributes_use_fold(self):
+        school = School.objects.create(name="MYO")
+        Subject.objects.create(school=school, name="İktisat", short="İŞL103")
+        from timetable.models import Lesson
+
+        Lesson.objects.create(school=school, subject=school.subjects.get(), periods_per_week=2)
+        self.client.force_login(User.objects.create_superuser("admin2", "b@x.tr", "pw"))
+        page = self.client.get(reverse("timetable:teacher_assign", args=[school.pk]))
+        self.assertContains(page, 'data-name="iktisat isl103"')

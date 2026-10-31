@@ -17,7 +17,7 @@
   {% for g in groups %}
     <section class="card" data-group>
       <h2>{{ g.title }}</h2>
-      <div class="items">{% for i in g.items %}<a href="{% url 'timetable:public_timetable' token g.kind i.id %}" data-name="{{ i.name|lower }} {{ i.sub|lower }}">{{ i.name }}{% if i.sub %}<small>{{ i.sub }}</small>{% endif %}</a>{% endfor %}</div>
+      <div class="items">{% for i in g.items %}<a href="{% url 'timetable:public_timetable' token g.kind i.id %}" data-name="{{ i.name|fold }} {{ i.sub|fold }}">{{ i.name }}{% if i.sub %}<small>{{ i.sub }}</small>{% endif %}</a>{% endfor %}</div>
     </section>
   {% endfor %}
   <script>
@@ -29,7 +29,7 @@
       box.hidden = !recent.length;
     } catch (e) {}
     document.getElementById("search").addEventListener("input", (e) => {
-      const q = e.target.value.trim().toLocaleLowerCase("tr");
+      const q = e.target.value.trim().toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
       document.querySelectorAll("[data-name]").forEach((a) => { a.hidden = q && !a.dataset.name.includes(q); });
       document.querySelectorAll("[data-group]").forEach((g) => { g.hidden = !g.querySelector("[data-name]:not([hidden])"); });
     });

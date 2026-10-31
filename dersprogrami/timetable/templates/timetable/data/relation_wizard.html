@@ -37,7 +37,7 @@
       <thead><tr><th style="width:32px"><input type="checkbox" data-rw-all aria-label="Görünenlerin hepsini seç"></th><th>Kod</th><th>Teori</th><th>Uygulama</th><th>Kısım</th><th>Öğretmen</th><th>Mevcut ilişki</th></tr></thead>
       <tbody>
         {% for p in data.pairs %}{% if not status or status == p.status %}
-          <tr data-text="{{ p.code|lower }} {{ p.theory.subject.name|lower }} {{ p.classes|lower }} {{ p.teachers|lower }}">
+          <tr data-text="{{ p.code|fold }} {{ p.theory.subject.name|fold }} {{ p.classes|fold }} {{ p.teachers|fold }}">
             <td><input type="checkbox" name="cift" value="{{ p.key }}" data-rw-row></td>
             <td><b>{{ p.code }}</b></td>
             <td>{{ p.theory.subject.name }}<div class="subtle small">{{ p.theory.periods_per_week }} saat</div></td>
@@ -71,7 +71,7 @@
   const boxes = () => rows.filter((r) => !r.hidden).map((r) => r.querySelector("[data-rw-row]"));
   const count = () => { form.querySelector("[data-rw-count]").textContent = rows.filter((r) => r.querySelector("[data-rw-row]").checked).length; };
   form.querySelector("[data-rw-search]").addEventListener("input", (e) => {
-    const q = e.target.value.trim().toLocaleLowerCase("tr");
+    const q = e.target.value.trim().toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
     rows.forEach((r) => { r.hidden = q && !r.dataset.text.includes(q); });
   });
   form.querySelector("[data-rw-all]").addEventListener("change", (e) => { boxes().forEach((b) => { b.checked = e.target.checked; }); count(); });

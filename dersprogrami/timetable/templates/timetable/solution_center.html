@@ -88,7 +88,7 @@
         {% if form.protected %}<div class="sc-protect-chosen" data-protect-chosen>{% for c in form.protected %}<span class="chip">{{ c }}</span>{% endfor %}</div>{% endif %}
         <input class="input input-sm" type="search" placeholder="Ders kodu ya da adı ara (ör. BSB100)…" data-protect-search autocomplete="off">
         <div class="sc-protect-list" data-protect-list>
-          {% for o in protect_options %}<label class="check small" data-q="{{ o.code|lower }} {{ o.names|lower }}"><input type="checkbox" name="koru" value="{{ o.code }}"{% if o.code in form.protected %} checked{% endif %}> <span><b>{{ o.code }}</b> <span class="subtle">{{ o.names|truncatechars:48 }} · {{ o.cards }} kart</span></span></label>{% empty %}<p class="subtle small">Programda yerleşmiş ders yok.</p>{% endfor %}
+          {% for o in protect_options %}<label class="check small" data-q="{{ o.code|fold }} {{ o.names|fold }}"><input type="checkbox" name="koru" value="{{ o.code }}"{% if o.code in form.protected %} checked{% endif %}> <span><b>{{ o.code }}</b> <span class="subtle">{{ o.names|truncatechars:48 }} · {{ o.cards }} kart</span></span></label>{% empty %}<p class="subtle small">Programda yerleşmiş ders yok.</p>{% endfor %}
         </div>
         <button type="button" class="btn btn-sm btn-ghost" data-protect-clear>Seçimi temizle</button>
       </details>
@@ -203,7 +203,7 @@
   // Değişmeyecek dersler: arama ve temizleme
   const pSearch = form.querySelector("[data-protect-search]");
   if (pSearch) {
-    const norm = (t) => (t || "").replace(/İ/g, "i").replace(/I/g, "ı").toLocaleLowerCase("tr");
+    const norm = (t) => (t || "").replace(/İ/g, "i").replace(/I/g, "ı").toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
     pSearch.addEventListener("input", () => {
       const q = norm(pSearch.value.trim());
       form.querySelectorAll("[data-protect-list] [data-q]").forEach((l) => { l.hidden = q && !norm(l.dataset.q).includes(q); });

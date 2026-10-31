@@ -22,7 +22,7 @@
     const search = $(".chip-search", box);
     if (search) {
       search.addEventListener("input", () => {
-        const q = search.value.trim().toLocaleLowerCase("tr");
+        const q = search.value.trim().toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
         $$(".chip-opt", box).forEach((l) => { l.classList.toggle("filtered", !!q && !l.dataset.label.includes(q)); });
       });
       search.addEventListener("keydown", (e) => { if (e.key === "Enter") e.preventDefault(); });
@@ -69,7 +69,7 @@
       input(o).dispatchEvent(new Event("change", { bubbles: true }));
     };
     const renderDrop = () => {
-      const q = search.value.trim().toLocaleLowerCase("tr");
+      const q = search.value.trim().toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
       const rank = box._rank;
       let pool = opts.filter((o) => !input(o).checked && !o.hidden && (!q || o.dataset.label.includes(q)));
       let ranked = pool.map((o) => ({ o, r: rank ? rank(input(o).value) : { score: 0, note: "" } }));
@@ -356,7 +356,7 @@
   search.className = "input input-sm condition-search";
   search.placeholder = "Koşul ara: sözcük ya da aSc numarası (ör. #30)";
   select.parentNode.insertBefore(search, select);
-  const norm = (t) => t.toLocaleLowerCase("tr");
+  const norm = (t) => t.toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
   search.addEventListener("input", () => {
     const q = norm(search.value.trim());
     let first = null;
@@ -440,7 +440,7 @@
   "use strict";
   document.querySelectorAll("[data-target-picker]").forEach((box) => {
     const items = [...box.querySelectorAll(".tp-item")];
-    items.forEach((i) => { i.dataset.name = i.textContent.trim().toLocaleLowerCase("tr"); });
+    items.forEach((i) => { i.dataset.name = i.textContent.trim().toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i"); });
     const count = box.querySelector("[data-tp-count]");
     const summary = box.closest("details")?.querySelector("[data-copy-summary]");
     const update = () => {
@@ -450,7 +450,7 @@
     };
     const visible = () => items.filter((i) => !i.hidden);
     box.querySelector("[data-tp-search]").addEventListener("input", (e) => {
-      const q = e.target.value.trim().toLocaleLowerCase("tr");
+      const q = e.target.value.trim().toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
       items.forEach((i) => { i.hidden = q && !i.dataset.name.includes(q); });
     });
     const group = box.querySelector("[data-tp-group]");

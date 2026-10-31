@@ -10,7 +10,7 @@
     <div class="panel-head"><input class="input input-sm" type="search" placeholder="Ders adı ara…" data-ta-search></div>
     <nav class="ta-list">
       {% for r in subject_rows %}
-        <a href="?ders={{ r.s.pk }}" class="ta-item{% if subject and r.s.pk == subject.pk %} active{% endif %}" data-name="{{ r.s.name|lower }} {{ r.s.short|lower }}">
+        <a href="?ders={{ r.s.pk }}" class="ta-item{% if subject and r.s.pk == subject.pk %} active{% endif %}" data-name="{{ r.s.name|fold }} {{ r.s.short|fold }}">
           <span><b>{{ r.s.name }}</b>{% if r.s.short and r.s.short != r.s.name %} <span class="subtle">{{ r.s.short }}</span>{% endif %}</span>
           <small>{{ r.count }} kısım{% if r.missing %} · <span class="bad">{{ r.missing }} öğretmensiz</span>{% endif %}</small></a>
       {% empty %}<p class="subtle small" style="padding:12px">Henüz ders yok.</p>{% endfor %}
@@ -82,7 +82,7 @@
 (function () {
   const search = document.querySelector("[data-ta-search]");
   search.addEventListener("input", () => {
-    const q = search.value.trim().toLocaleLowerCase("tr");
+    const q = search.value.trim().toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
     document.querySelectorAll(".ta-item").forEach((a) => { a.hidden = q && !a.dataset.name.includes(q); });
   });
   const active = document.querySelector(".ta-item.active");

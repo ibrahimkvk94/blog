@@ -52,7 +52,7 @@
   const table = document.querySelector("[data-list]");
   if (!table) return;
   const rows = [...table.tBodies[0].rows];
-  const norm = (t) => t.toLocaleLowerCase("tr");
+  const norm = (t) => t.toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
   rows.forEach((r) => { r.dataset.q = norm(r.textContent); });
   const search = document.querySelector("[data-list-search]");
   const state = document.querySelector("[data-list-state]");

@@ -36,7 +36,7 @@
       <thead><tr><th style="width:32px"><input type="checkbox" data-ra-all aria-label="Görünenlerin hepsini seç"></th><th>İlişki</th><th>Koşul</th><th>Kartlar</th><th class="num">Eşleşen kart</th><th>Durum</th></tr></thead>
       <tbody>
         {% for r in rows %}{% if not status or status in r.flags %}
-          <tr data-text="{{ r.rel.name|lower }} {{ r.target|lower }} {{ r.rel.get_condition_display|lower }}" data-cond="{{ r.rel.condition }}" data-twin="{{ r.keep|yesno:'0,1' }}"{% if not r.rel.active %} class="subtle"{% endif %}>
+          <tr data-text="{{ r.rel.name|fold }} {{ r.target|fold }} {{ r.rel.get_condition_display|fold }}" data-cond="{{ r.rel.condition }}" data-twin="{{ r.keep|yesno:'0,1' }}"{% if not r.rel.active %} class="subtle"{% endif %}>
             <td><input type="checkbox" name="iliski" value="{{ r.rel.pk }}" data-ra-row></td>
             <td><a href="{% url 'timetable:data_edit' school.pk 'kart-iliskileri' r.rel.pk %}"><b>{{ r.rel.name }}</b></a>{% if r.rel.note %}<div class="subtle small">{{ r.rel.note }}</div>{% endif %}</td>
             <td class="small">{{ r.rel.get_condition_display }}{% if r.rel.condition in r.rel.USES_N %} · N={{ r.rel.param }}{% endif %}<div class="subtle">{{ r.rel.get_apply_to_display }} · {{ r.rel.get_importance_display }}</div></td>
@@ -63,7 +63,7 @@
   const count = () => { form.querySelector("[data-ra-count]").textContent = rows.filter((r) => r.querySelector("[data-ra-row]").checked).length; };
   const search = form.querySelector("[data-ra-search]"), cond = form.querySelector("[data-ra-cond]");
   const filter = () => {
-    const q = search.value.trim().toLocaleLowerCase("tr");
+    const q = search.value.trim().toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
     rows.forEach((r) => { r.hidden = (q && !r.dataset.text.includes(q)) || (cond.value && r.dataset.cond !== cond.value); });
   };
   search.addEventListener("input", filter);

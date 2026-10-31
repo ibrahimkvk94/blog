@@ -9,7 +9,7 @@
   const searchUrl = dlg.dataset.searchUrl;
   const icons = JSON.parse(document.getElementById("palette-icons").textContent || "{}");
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const norm = (t) => String(t || "").toLocaleLowerCase("tr");
+  const norm = (t) => String(t || "").toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
   let items = [], active = 0, timer = null, seq = 0;
 
   function render() {

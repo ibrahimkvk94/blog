@@ -49,7 +49,7 @@
   const teacherSel = document.querySelector("[data-ls-teacher]");
   const count = document.querySelector("[data-ls-count]");
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const norm = (t) => (t || "").toLocaleLowerCase("tr");
+  const norm = (t) => (t || "").toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
   const selected = new Set();
   let open = new Set();
   try { open = new Set(JSON.parse(sessionStorage.getItem("ls-open") || "[]")); } catch (e) { /* yok */ }
