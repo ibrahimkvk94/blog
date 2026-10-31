@@ -15,7 +15,7 @@
     <section class="panel institution-block">
       <div class="panel-head">
         <h2><a href="{% url 'timetable:institution_detail' item.institution.pk %}">{{ item.institution }}</a> <span class="pill">{{ item.programs|length }} program</span></h2>
-        <a class="btn btn-sm" href="{% url 'timetable:institution_detail' item.institution.pk %}">Kurum sayfası{% if "programlar" in item.perms %} · program ekle / aSc aktar{% endif %}</a>
+        <a class="btn btn-sm" href="{% url 'timetable:institution_detail' item.institution.pk %}">Kurum sayfası{% if "programlar" in item.perms %} · düzenle / program ekle / aSc aktar{% endif %}</a>
       </div>
       <div class="panel-body">
         <div class="school-cards">

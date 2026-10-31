@@ -18,16 +18,74 @@ def _programs(request, institution):
     return with_program_counts(visible).select_related("active_timetable").order_by("name")
 
 
+def _movable_targets(user, institution):
+    """Program taşınabilecek diğer kurumlar: kullanıcının orada da program yetkisi olanlar."""
+    return [i for i in Institution.objects.exclude(pk=institution.pk).order_by("name")
+            if "programlar" in access.institution_permissions(user, i)]
+
+
 def institution_detail(request, pk):
     institution = get_object_or_404(Institution, pk=pk)
     perms = access.institution_permissions(request.user, institution)
+    if request.method == "POST":  # erişim denetimi: kurumda "programlar" yetkisi (access.INSTITUTION_ROUTES)
+        return _edit(request, institution)
     programs = list(_programs(request, institution))
     from .copying import PARTS
 
     return render(request, "timetable/institution.html", {
         "institution": institution, "programs": programs, "nav": "institution", "copy_parts": PARTS,
         "can_programs": "programlar" in perms, "can_users": "kullanici" in perms,
+        "targets": _movable_targets(request.user, institution) if "programlar" in perms else [],
+        "can_delete": request.user.is_superuser and not programs and not institution.programs.exists(),
     })
+
+
+def _edit(request, institution):
+    """Kurum sayfasındaki düzenlemeler: kurum adı, program adı, programı başka kuruma taşıma, boş kurumu silme."""
+    action = request.POST.get("action")
+    url = redirect("timetable:institution_detail", pk=institution.pk)
+    if action == "rename":
+        name = (request.POST.get("name") or "").strip()[:200]
+        if not name:
+            messages.error(request, "Kurum adı boş olamaz.")
+        else:
+            old, institution.name = institution.name, name
+            institution.save(update_fields=["name"])
+            messages.success(request, f"Kurumun adı “{old}” → “{name}” olarak değiştirildi.")
+        return url
+    if action == "delete":
+        if not request.user.is_superuser or institution.programs.exists():
+            messages.error(request, "Yalnızca programı kalmamış kurum silinebilir (merkez yöneticisi).")
+            return url
+        name = institution.name
+        institution.delete()
+        messages.success(request, f"“{name}” kurumu silindi.")
+        return redirect("timetable:school_list")
+    school = institution.programs.filter(pk=request.POST.get("program") or 0).first()
+    if school is None or school not in access.visible_schools(request.user):
+        messages.error(request, "Program bulunamadı.")
+        return url
+    if action == "rename_program":
+        name = (request.POST.get("name") or "").strip()[:100]
+        if not name:
+            messages.error(request, "Program adı boş olamaz.")
+        else:
+            old, school.name = school.name, name
+            school.save(update_fields=["name"])
+            messages.success(request, f"Program adı “{old}” → “{name}” olarak değiştirildi.")
+    elif action == "move_program":
+        target = next((i for i in _movable_targets(request.user, institution) if str(i.pk) == request.POST.get("target")), None)
+        if target is None:
+            messages.error(request, "Hedef kurumu seçin (orada da program yetkiniz olmalı).")
+            return url
+        with transaction.atomic():
+            School.objects.filter(pk=school.pk).update(institution=target)
+            # Bu programa sınırlı üyeliklerin kısıtı eski kurumda anlamsız kalır; kaldırılır.
+            for membership in school.restricted_memberships.all():
+                membership.programs.remove(school)
+        messages.success(request, f"“{school.name}” programı “{target.name}” kurumuna taşındı."
+                                  + (" Bu kurumda başka program kalmadı; isterseniz silebilirsiniz." if not institution.programs.exists() else ""))
+    return url
 
 
 @require_POST

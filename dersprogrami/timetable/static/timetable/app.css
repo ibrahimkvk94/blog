@@ -1660,3 +1660,11 @@ html.ribbon-min .ribbon.drop .rb-panels { display: block; position: absolute; le
 .ntf-item { display: flex; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
 .ntf-item.unread { background: var(--primary-soft); }
 .ntf-body { color: var(--text-2); margin: 3px 0; font-size: 13.5px; }
+
+/* Kurum sayfası: program satırı düzenleme menüsü */
+.inst-row { display: flex; gap: 8px; align-items: center; }
+.inst-row .input, .inst-row .select { flex: 1; min-width: 0; }
+.inst-dialog { width: min(420px, 92vw); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text);
+  box-shadow: var(--shadow-lg); padding: 16px; white-space: normal; text-align: left; }
+.inst-dialog::backdrop { background: rgba(10, 13, 23, .4); }
+.inst-pop { display: flex; flex-direction: column; gap: 4px; }

@@ -69,7 +69,7 @@ SCHOOL_ROUTES = {
 }
 # pk = kurum
 INSTITUTION_ROUTES = {
-    "institution_detail": (M.VIEW, M.PROGRAMS),
+    "institution_detail": (M.VIEW, M.PROGRAMS),  # POST: kurum adı, program adı / taşıma, boş kurumu silme
     "institution_users": (M.USERS, M.USERS),
     "institution_log": (M.USERS, M.USERS),
     "program_new": (M.PROGRAMS, M.PROGRAMS),
@@ -332,7 +332,7 @@ ACTION_LABELS = {
     "api_versions": "Versiyon kaydetti", "api_version": "Versiyon işlemi", "api_row_action": "Satır işlemi",
     "api_card_move": "Kart taşıdı", "api_card_unplace": "Kartı kaldırdı", "api_card_lock": "Kart kilidi",
     "api_card_room": "Derslik değiştirdi", "api_lesson_quick": "Hızlı değişiklik", "reports": "Rapor şablonu",
-    "account": "Parolasını değiştirdi", "backups": "Yedekleme", "system_update": "Sistem güncelleme", "broadcast": "Duyuru gönderdi", "publish_settings": "Web yayını",
+    "account": "Parolasını değiştirdi", "backups": "Yedekleme", "system_update": "Sistem güncelleme", "broadcast": "Duyuru gönderdi", "institution_detail": "Kurumu düzenledi", "publish_settings": "Web yayını",
 }
 SKIP_AUDIT = {"login", "logout", "api_notifications_read", "notifications"}  # okundu işaretleri günlüğe yazılmaz
 

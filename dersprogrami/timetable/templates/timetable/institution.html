@@ -20,7 +20,22 @@
               <td><a href="{% url 'timetable:school_detail' p.pk %}"><b>{{ p.name }}</b></a></td>
               <td class="num">{{ p.n_classes }}</td><td class="num">{{ p.n_teachers }}</td>
               <td>{% if p.active_timetable %}<a href="{% url 'timetable:timetable_detail' p.active_timetable_id %}">★ {{ p.active_timetable.name }}</a>{% else %}<span class="subtle">–</span>{% endif %}</td>
-              <td><a class="btn btn-sm" href="{% url 'timetable:school_detail' p.pk %}">Aç</a></td>
+              <td class="nowrap"><a class="btn btn-sm" href="{% url 'timetable:school_detail' p.pk %}">Aç</a>
+                {% if can_programs %}<button type="button" class="btn btn-sm btn-ghost" title="Adını değiştir ya da başka kuruma taşı" onclick="this.nextElementSibling.showModal()">Düzenle</button>
+                <dialog class="inst-dialog">
+                  <div class="dialog-head"><h3>{{ p.name }}</h3><button type="button" class="btn btn-sm btn-ghost" onclick="this.closest('dialog').close()" aria-label="Kapat">✕</button></div>
+                  <div class="inst-pop">
+                    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="rename_program"><input type="hidden" name="program" value="{{ p.pk }}">
+                      <label class="label" for="pn-{{ p.pk }}" style="margin-top:0">Program adı</label>
+                      <div class="inst-row"><input class="input input-sm" id="pn-{{ p.pk }}" name="name" value="{{ p.name }}" maxlength="200" required><button class="btn btn-sm btn-primary">Kaydet</button></div>
+                    </form>
+                    {% if targets %}<form method="post">{% csrf_token %}<input type="hidden" name="action" value="move_program"><input type="hidden" name="program" value="{{ p.pk }}">
+                      <label class="label" for="pt-{{ p.pk }}">Başka kuruma taşı</label>
+                      <div class="inst-row"><select class="select select-sm" id="pt-{{ p.pk }}" name="target">{% for i in targets %}<option value="{{ i.pk }}">{{ i.name }}</option>{% endfor %}</select>
+                        <button class="btn btn-sm" onclick="return confirm('“{{ p.name|escapejs }}” programı seçilen kuruma taşınsın mı? Verileri ve sürümleri olduğu gibi taşınır.')">Taşı</button></div>
+                    </form>{% endif %}
+                  </div>
+                </dialog>{% endif %}</td>
             </tr>
           {% empty %}<tr><td colspan="5" class="subtle">Henüz program yok.</td></tr>{% endfor %}
         </tbody>
@@ -29,6 +44,18 @@
   </div>
   {% if can_programs %}
   <div class="stack">
+    <div class="panel">
+      <div class="panel-head"><h2>Kurum</h2></div>
+      <form class="panel-body" method="post">{% csrf_token %}<input type="hidden" name="action" value="rename">
+        <label class="label" for="inst-name" style="margin-top:0">Kurumun adı</label>
+        <div class="inst-row"><input class="input" id="inst-name" name="name" value="{{ institution.name }}" maxlength="200" required><button class="btn btn-primary">Kaydet</button></div>
+        <p class="subtle small" style="margin:8px 0 0">Programların adı, satırlarındaki <b>Düzenle</b> ile değişir; aynı menüden bir program başka kuruma taşınabilir (ör. aSc'den içe aktarırken ayrı kurum olarak açılan programı asıl kuruma almak için).</p>
+      </form>
+      {% if can_delete %}<form class="panel-body" method="post" style="border-top:1px solid var(--border)">{% csrf_token %}<input type="hidden" name="action" value="delete">
+        <p class="small" style="margin:0 0 8px">Bu kurumda program kalmadı.</p>
+        <button class="btn btn-danger btn-sm" onclick="return confirm('“{{ institution.name|escapejs }}” kurumu silinsin mi? Kurum üyelikleri de silinir.')">Kurumu sil</button>
+      </form>{% endif %}
+    </div>
     <div class="panel">
       <div class="panel-head"><h2>aSc TimeTables'tan içe aktar</h2></div>
       <form class="panel-body" method="post" enctype="multipart/form-data" action="{% url 'timetable:program_import' institution.pk %}" id="asc-import">
