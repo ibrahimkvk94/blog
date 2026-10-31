@@ -16,6 +16,7 @@ Yumuşak kısıtlar (amaç): sınıf boşlukları, sınıfın güne ilk saatten 
 boşlukları, koşullu (?) hücre kullanımı, önemi "kesin" olmayan kart ilişkileri.
 """
 
+import os
 import threading
 import time
 from dataclasses import dataclass, field
@@ -24,6 +25,16 @@ from types import SimpleNamespace
 from ortools.sat.python import cp_model
 
 from . import relations_extra
+
+
+def default_workers():
+    """Çözücü iş parçacığı sayısı: SOLVER_WORKERS ortam değişkeni ya da bilgisayarın çekirdek sayısı (en az 8,
+    en çok 32). CP-SAT her iş parçacığında farklı bir arama stratejisi çalıştırır; çok çekirdekli bilgisayarda
+    hepsini kullanmak sıfırdan aramayı belirgin hızlandırır. Daha önce 8'de sabitti."""
+    try:
+        return max(1, int(os.environ["SOLVER_WORKERS"]))
+    except (KeyError, ValueError):
+        return min(32, max(8, os.cpu_count() or 8))
 
 W_UNPLACED = 10000
 W_RELAXED = 1000
@@ -852,7 +863,7 @@ class StopHandle:
 def solve(
     problem,
     time_limit=60,
-    workers=8,
+    workers=None,
     seed=0,
     log=False,
     mode=STRICT,
@@ -862,6 +873,7 @@ def solve(
     two_phase=None,
     place_all=False,
 ):
+    workers = workers or default_workers()
     builder = _Builder(problem, mode, place_all=place_all)
     model = builder.build()
     started = time.monotonic()
@@ -1008,7 +1020,7 @@ def _placements(builder, solver, problem):
 VIOLATION_FIRST = 2000 * 200  # bir aşım, kart hareketinin (ağırlık 200) 2000 katı
 
 
-def minimal_repair(problem, time_limit=40, workers=8, seed=0, place_all=False):
+def minimal_repair(problem, time_limit=40, workers=None, seed=0, place_all=False):
     """Mevcut programdaki ihlalleri en az kartı oynatarak giderir; iki adımda (önce ihlal, sonra hareket):
 
     1. Kartlar bugünkü yerlerinden (ipucu) başlar, yalnızca kural aşımı en aza indirilir (aşım sıfırsa durur).
@@ -1018,6 +1030,7 @@ def minimal_repair(problem, time_limit=40, workers=8, seed=0, place_all=False):
     place_all: bekleyen kart yoksa her kart yerleşmek zorunda (daha küçük arama).
     Dönüş: ({kart: Placement}, kalan aşım); süre yetmediyse (None, None), sabit kartlar kendi aralarında çakıştığı
     için hiç çözüm yoksa (None, "infeasible")."""
+    workers = workers or default_workers()
     started = time.monotonic()
     builder = _Builder(problem, RELAXED, place_all=place_all)
     model = builder.build()

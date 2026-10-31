@@ -258,7 +258,7 @@ class Center:
         sub.forbidden_move_sets = [[new_key[k] for k in s if k in new_key] for s in forbidden]
         if tune:
             tune(sub)
-        solution = cpsat.solve(sub, time_limit=limit, mode=cpsat.RELAXED, workers=8, two_phase=False)
+        solution = cpsat.solve(sub, time_limit=limit, mode=cpsat.RELAXED, two_phase=False)
         if not solution.ok or solution.unplaced:
             return None
         placements = dict(self.placements)
