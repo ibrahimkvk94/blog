@@ -877,14 +877,24 @@ def solve(
     stop_handle=None,
     two_phase=None,
     place_all=False,
+    algorithm=None,
 ):
+    if algorithm == "gen3":
+        from .blocks import solve as solve_blocks
+        return solve_blocks(problem, time_limit=time_limit, workers=workers, seed=seed,
+                            on_progress=on_progress, stop_handle=stop_handle, should_stop=should_stop, log=log)
     workers = workers or default_workers()
+    started = time.monotonic()
+    repair_search = _repair_search
+    if algorithm == "gen2":
+        from .gen2 import repair_search
     builder = _Builder(problem, mode, place_all=place_all)
     model = builder.build()
-    started = time.monotonic()
+    if algorithm != "gen2":
+        started = time.monotonic()
     phase1 = first = callback1 = None
     if two_phase is None:
-        two_phase = mode == STRICT and bool(builder.penalties) and len(problem.cards) >= TWO_PHASE_MIN_CARDS
+        two_phase = mode == STRICT and (algorithm == "gen2" or (bool(builder.penalties) and len(problem.cards) >= TWO_PHASE_MIN_CARDS))
     if two_phase:
         # 1. aşama: amaç fonksiyonu olmadan ilk geçerli programı bul (çok daha hızlı); bulunamazsa
         # veri imkânsızdır ve bunu erken söyleriz. 2. aşama bu programı ipucu alıp iyileştirir.
@@ -900,7 +910,7 @@ def solve(
         # arama bulamazken ipucunu onarmak 7 sn sürdü). Olmazsa doğrudan aramaya geçilir.
         hinted = any(c.hint is not None and c.fixed is None for c in problem.cards)
         if hinted:
-            first, callback1, repair = _repair_search(problem, builder, model, time_limit, started, workers, seed,
+            first, callback1, repair = repair_search(problem, builder, model, time_limit, started, workers, seed,
                                                       on_progress, stop_handle, draft_until=REPAIR_UNTIL, fix_until=FIX_UNTIL)
             phase1 = {"status": repair.get("status"), "wall_time": round(time.monotonic() - started, 2), "from_hint": repair}
             if repair.get("status") == "infeasible":
@@ -923,7 +933,7 @@ def solve(
             if status1 == cp_model.INFEASIBLE:
                 return infeasible()
             if not callback1.found and not hinted and not stopped():
-                first, callback1, repair = _repair_search(problem, builder, model, time_limit, started, workers, seed,
+                first, callback1, repair = repair_search(problem, builder, model, time_limit, started, workers, seed,
                                                           on_progress, stop_handle, draft_until=REPAIR_UNTIL, fix_until=FIX_UNTIL)
                 phase1["repair"] = repair
                 if repair.get("status") == "infeasible":
@@ -958,8 +968,12 @@ def solve(
     if stop_handle is not None:
         stop_handle.attach(solver)
     callback = _Progress(on_progress, should_stop)
-    status = solver.Solve(model, callback)
-    status_name = STATUS_NAMES.get(status, "unknown")
+    if algorithm == "gen2" and callback1 is not None and callback1.found:
+        # Gen2 sıfır ihlalde tamamlanır; tercihler için yeni bir arama başlatma.
+        solver, status_name = first, "feasible"
+    else:
+        status = solver.Solve(model, callback)
+        status_name = STATUS_NAMES.get(status, "unknown")
     if status_name not in ("optimal", "feasible") and phase1 and callback1 is not None and callback1.found:
         # 2. aşama sonuç veremediyse (ör. durdurma) 1. aşamanın geçerli programı kullanılır;
         # değişken sıraları iki modelde aynı olduğundan değerler oradan okunur.

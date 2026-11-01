@@ -103,7 +103,7 @@
                 <td><a href="{% url 'timetable:timetable_detail' t.pk %}"><b>{{ t.name }}</b></a>
                   {% if main and t.pk == main.pk %}<span class="pill ok">Aktif</span>{% endif %}{% if t.pk == school.active_timetable_id %}<span class="pill">Yayında</span>{% endif %}</td>
                 <td>{% include "timetable/status_pill.html" %}</td>
-                <td class="muted">{{ t.get_mode_display }}</td>
+                <td class="muted">{{ t.generation_label }}</td>
                 <td class="num">{{ t.objective|default_if_none:"–" }}</td>
                 <td class="muted nowrap">{{ t.created_at|date:"d.m.Y H:i" }}</td>
               </tr>
@@ -141,14 +141,17 @@
       </div>
       <div class="form-row">
         <span class="label">Üretim modu</span>
-        <div class="choice-cards">
-          <label class="choice"><input type="radio" name="mode" value="strict" checked><b>Katı</b><span>Tüm kurallar sağlanır; mümkün değilse üretilmez.</span></label>
+        <div class="choice-cards choice-cards--generation">
+          <label class="choice"><input type="radio" name="mode" value="strict" checked><b>Katı</b><span>Tüm kurallara uygun program arar; kalan ihlaller taslakta gösterilir.</span></label>
           <label class="choice"><input type="radio" name="mode" value="relaxed"><b>Gevşek (taslak)</b><span>Sığmayan kartlar bekler, kırılan kurallar raporlanır.</span></label>
+          <label class="choice"><input type="radio" name="mode" value="gen2"><b>Gen2</b><span>En iyi taslağı koruyarak ihlalleri turlarla azaltır. Kalan ihlaller açıkça gösterilir.</span></label>
+          <label class="choice"><input type="radio" name="mode" value="gen3"><b>Gen3 (Blok)</b><span>Kesin ilişkili dersleri birlikte yerleştirir. Yalnızca ihlalsiz çözüm arar.</span></label>
         </div>
       </div>
       <div class="form-row">
         <label class="label" for="time_limit">Süre sınırı (saniye)</label>
         <input class="input" type="number" id="time_limit" name="time_limit" value="60" min="5" max="1800">
+        {% include "timetable/generation_timing.html" %}
       </div>
       <div class="form-row">
         <label class="label" for="base">Başlangıç sürümü</label>

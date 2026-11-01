@@ -12,7 +12,7 @@ class Command(BaseCommand):
         parser.add_argument("--name", default="Komut satırı üretimi")
         parser.add_argument("--time-limit", type=int, default=None, help="saniye")
         parser.add_argument("--seed", type=int, default=0)
-        parser.add_argument("--mode", choices=["strict", "relaxed"], default="strict", help="katı ya da gevşek (taslak)")
+        parser.add_argument("--mode", choices=["strict", "relaxed", "gen2", "gen3"], default="strict", help="katı, gevşek (taslak), Gen2 ya da Gen3 (Blok)")
 
     def handle(self, *args, **options):
         try:

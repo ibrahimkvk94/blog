@@ -109,12 +109,18 @@
       failures = 0;
       if (s.status !== "running") { location.reload(); return; }
       const p = s.progress || {};
-      const pct = Math.min(100, Math.round((s.elapsed / Math.max(1, s.time_limit)) * 100));
+      const budget = p.budget_seconds || s.time_limit;
+      const pct = Math.min(100, Math.round((s.elapsed / Math.max(1, budget)) * 100));
       $("#run-bar").style.width = pct + "%";
       $("#run-elapsed").textContent = Math.round(s.elapsed) + " sn";
+      $("#run-limit").textContent = "sınır " + Math.round(budget) + " sn" +
+        (p.extension_seconds ? " · +" + (p.extension_seconds / 60) + " dk uzatma" : "");
       $("#run-solutions").textContent = p.solutions || 0;
       $("#run-objective").textContent = p.objective != null ? p.objective.toLocaleString("tr-TR") : "–";
-      $("#run-text").textContent = p.phase === "diagnose"
+      $("#run-text").textContent = p.phase === "blocks"
+        ? (p.stage === "build" ? "Kesin ilişkili derslerin ortak yerleşimleri hazırlanıyor…"
+          : "Gen3: " + (p.blocks || 0) + " ders bloğu birlikte yerleştiriliyor; tüm kesin kurallara uygun program aranıyor…")
+        : p.phase === "diagnose"
         ? "Katı modda program bulunamadı; nedenini bulmak için kurallar esnetilerek en yakın taslak aranıyor…" + (p.solutions ? " (" + p.solutions + " taslak)" : "")
         : p.phase === "explain"
         ? "Bu kurallarla program mümkün değil; hangi kuralların çeliştiği aranıyor…"

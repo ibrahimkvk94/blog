@@ -206,12 +206,13 @@ def generate(request, pk):
     from_scratch = request.POST.get("base") == "sifir"
     if request.POST.get("base", "").isdigit():
         base = get_object_or_404(Timetable, pk=request.POST["base"], school=school)
-    try:
-        time_limit = max(5, min(1800, int(request.POST.get("time_limit") or 60)))
-    except ValueError:
-        time_limit = 60
     mode = request.POST.get("mode")
-    if mode not in (Timetable.STRICT, Timetable.RELAXED):
+    default_limit = 1800 if mode in (Timetable.GEN2, Timetable.GEN3) else 60
+    try:
+        time_limit = max(5, min(1800, int(request.POST.get("time_limit") or default_limit)))
+    except ValueError:
+        time_limit = default_limit
+    if mode not in (Timetable.STRICT, Timetable.RELAXED, Timetable.GEN2, Timetable.GEN3):
         mode = Timetable.STRICT
     name = (request.POST.get("name") or "").strip() or "Yeni program"
     only = {

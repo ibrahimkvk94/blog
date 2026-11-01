@@ -646,6 +646,8 @@ class Timetable(models.Model):
 
     STRICT = "strict"
     RELAXED = "relaxed"
+    GEN2 = "gen2"  # Üretim yöntemi report.algorithm içinde; kesinlik modu STRICT kalır.
+    GEN3 = "gen3"
     MODE_CHOICES = [(STRICT, "Katı"), (RELAXED, "Gevşek (taslak)")]
 
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="timetables")
@@ -671,6 +673,11 @@ class Timetable(models.Model):
     # ({"rev", "user", "user_id", "tab", "label", "cards": [kimlikler] ya da "all": true}); bkz. concurrency.py.
     revision = models.PositiveIntegerField(default=0)
     changes = models.JSONField(default=list, blank=True)
+
+    @property
+    def generation_label(self):
+        return {self.GEN2: "Gen2", self.GEN3: "Gen3 (Blok)"}.get(
+            (self.report or {}).get("algorithm"), self.get_mode_display())
 
     @property
     def has_grid(self):

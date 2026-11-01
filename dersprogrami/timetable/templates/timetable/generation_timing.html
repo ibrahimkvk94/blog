@@ -1,0 +1,25 @@
+<p class="subtle small" data-gen2-timing hidden>Gen2: 30 dakika ana süre. Son 1 dakikada ihlal azalırsa +1 dakika; uzatmada her yeni en düşük ihlal sayısı +1 dakika daha kazandırır. Sıfır ihlalde tamamlanır. Ana süreyi değiştirebilir veya üretimi durdurabilirsiniz.</p>
+<p class="subtle small" data-gen3-timing hidden>Gen3: varsayılan süre 30 dakika. Başlangıç sürümü özellikle seçilmediyse sıfırdan başlar. Kesin kuralları gevşetmez; süre sonunda çözüm bulunamazsa bunu bildirir. Otomatik süre uzatması yoktur.</p>
+<script>
+  (function () {
+    const form = document.currentScript.closest("form");
+    const input = form.querySelector('[name="time_limit"]');
+    const help = form.querySelector('[data-gen2-timing]');
+    const blockHelp = form.querySelector('[data-gen3-timing]');
+    let previous = null;
+    const times = {standard: input.value, gen2: "1800", gen3: "1800"};
+    function sync() {
+      const selected = form.querySelector('[name="mode"]:checked')?.value;
+      const mode = selected === "gen2" || selected === "gen3" ? selected : "standard";
+      if (mode !== previous) {
+        if (previous !== null) times[previous] = input.value;
+        input.value = times[mode];
+      }
+      help.hidden = mode !== "gen2";
+      blockHelp.hidden = mode !== "gen3";
+      previous = mode;
+    }
+    form.querySelectorAll('[name="mode"]').forEach(radio => radio.addEventListener("change", sync));
+    sync();
+  })();
+</script>

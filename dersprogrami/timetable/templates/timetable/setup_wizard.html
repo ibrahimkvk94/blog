@@ -118,12 +118,15 @@
       {% else %}
         <form method="post" action="{% url 'timetable:generate' school.pk %}" class="sw-generate">{% csrf_token %}
           <input type="hidden" name="name" value="Program {{ timetables|add:1 }}">
-          <div class="choice-cards">
+          <div class="choice-cards choice-cards--generation">
             <label class="choice"><input type="radio" name="mode" value="relaxed" checked><b>Taslak (önerilen)</b><span>Sığmayan kartlar bekler, kırılan kurallar raporlanır; ilk deneme için en iyisi.</span></label>
-            <label class="choice"><input type="radio" name="mode" value="strict"><b>Katı</b><span>Tüm kurallar sağlanmazsa program üretilmez.</span></label>
+            <label class="choice"><input type="radio" name="mode" value="strict"><b>Katı</b><span>Tüm kurallara uygun program arar; kalan ihlaller taslakta gösterilir.</span></label>
+            <label class="choice"><input type="radio" name="mode" value="gen2"><b>Gen2</b><span>En iyi taslağı koruyarak ihlalleri turlarla azaltır. Kalan ihlaller açıkça gösterilir.</span></label>
+            <label class="choice"><input type="radio" name="mode" value="gen3"><b>Gen3 (Blok)</b><span>Kesin ilişkili dersleri birlikte yerleştirir. Yalnızca ihlalsiz çözüm arar.</span></label>
           </div>
           <label class="label" for="sw-time">Süre sınırı (saniye)</label>
           <input class="input" id="sw-time" type="number" name="time_limit" value="120" min="5" max="1800" style="max-width:160px">
+          {% include "timetable/generation_timing.html" %}
           <div class="sw-nav"><a class="btn" href="{{ prev.url }}">‹ Geri</a><button class="btn btn-primary">{% include "timetable/icon.html" with name="play" %} Programı üret</button></div>
         </form>
       {% endif %}

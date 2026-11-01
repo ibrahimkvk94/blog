@@ -34,11 +34,13 @@ def start_generation(school, name, time_limit=None, mode=Timetable.STRICT, base=
         school=school,
         name=name,
         status=Timetable.RUNNING,
-        mode=mode,
-        time_limit=time_limit or settings.TIMETABLE_SOLVER_TIME_LIMIT,
+        mode=Timetable.STRICT if mode in (Timetable.GEN2, Timetable.GEN3) else mode,
+        time_limit=time_limit or (1800 if mode in (Timetable.GEN2, Timetable.GEN3) else settings.TIMETABLE_SOLVER_TIME_LIMIT),
         started_at=timezone.now(),
-        report={"base": base.pk if base else None, **({"only": only} if only and any(only.values()) else {}),
-                **({"from_scratch": True} if from_scratch else {}), **({"by": user.pk} if user else {})},
+        report={"base": base.pk if base else None, **({"algorithm": mode} if mode in (Timetable.GEN2, Timetable.GEN3) else {}),
+                **({"only": only} if only and any(only.values()) else {}),
+                **({"from_scratch": True} if from_scratch or (mode == Timetable.GEN3 and base is None) else {}),
+                **({"by": user.pk} if user else {})},
     )
     jobs.start(timetable.pk, run_generation, base.pk if base else None, seed)
     return timetable
@@ -50,9 +52,11 @@ def generate_timetable(school, name, time_limit=None, base=None, seed=0, mode=Ti
         school=school,
         name=name,
         status=Timetable.RUNNING,
-        mode=mode,
-        time_limit=time_limit or settings.TIMETABLE_SOLVER_TIME_LIMIT,
+        mode=Timetable.STRICT if mode in (Timetable.GEN2, Timetable.GEN3) else mode,
+        time_limit=time_limit or (1800 if mode in (Timetable.GEN2, Timetable.GEN3) else settings.TIMETABLE_SOLVER_TIME_LIMIT),
         started_at=timezone.now(),
+        report=({"algorithm": mode, **({"from_scratch": True} if mode == Timetable.GEN3 and base is None else {})}
+                if mode in (Timetable.GEN2, Timetable.GEN3) else {}),
     )
     run_generation(timetable.pk, base.pk if base else None, seed)
     timetable.refresh_from_db()
@@ -101,7 +105,8 @@ def _run_generation(timetable_id, base_id=None, seed=0):
         pass
     try:
         hint = None
-        if base is None and not report.get("only") and not report.get("from_scratch"):
+        if (base is None and not report.get("only") and not report.get("from_scratch")
+                and report.get("algorithm") != Timetable.GEN3):
             # Başlangıç sürümü seçilmediyse son başarılı program ipucu olur (kilitlenmez): "dün yerleşiyordu, bugün küçük
             # bir değişiklik var" durumunda çözücü sıfırdan aramak yerine o yerleşimi onarır.
             hint, hard = input_diff.best_hint(timetable)
@@ -130,7 +135,9 @@ def _run_generation(timetable_id, base_id=None, seed=0):
                                        mode=timetable.mode, on_progress=on_progress, stop_handle=jobs.handle_for(timetable_id))
         else:
             solution = cpsat.solve(problem, time_limit=timetable.time_limit, seed=seed, mode=timetable.mode,
-                                   on_progress=on_progress, stop_handle=jobs.handle_for(timetable_id))
+                                   on_progress=on_progress, stop_handle=jobs.handle_for(timetable_id),
+                                   **({"algorithm": report["algorithm"]}
+                                      if report.get("algorithm") in (Timetable.GEN2, Timetable.GEN3) else {}))
     except Exception as exc:  # beklenmeyen hatada iş "üretiliyor" durumunda asılı kalmasın
         report["error"] = str(exc)
         _finish(timetable, Timetable.FAILED, report)
@@ -138,6 +145,13 @@ def _run_generation(timetable_id, base_id=None, seed=0):
 
     report["solver"] = {"status": solution.status, **solution.stats}
     report["penalties"] = solution.penalties
+    if report.get("algorithm") == Timetable.GEN3 and not solution.ok:
+        # Gen3 yalnızca kesin çözüm arar; süre bitince başka algoritmayla taslak başlatmaz.
+        report["error"] = ("Blok modelinde kesin kuralların birlikte sağlanamadığı kanıtlandı."
+                           if solution.status == "infeasible" else solution.stats.get("error") or
+                           "Blok araması geçerli bir program bulamadan durdu. Bu, çözüm olmadığı anlamına gelmez.")
+        _finish(timetable, Timetable.FAILED, report)
+        return
     if not solution.ok:
         if solution.status == "unknown":
             report["error"] = "Süre sınırı içinde tüm kuralları sağlayan bir program bulunamadı."
@@ -150,7 +164,8 @@ def _run_generation(timetable_id, base_id=None, seed=0):
         report["changes"] = input_diff.since_last_success(timetable, inputs)  # "dün bulunuyordu; arada ne değişti?"
         report["asc_mismatch"] = _asc_mismatch(timetable.school)
         stopped = solution.stats.get("stopped") or jobs.handle_for(timetable_id).stopped
-        if solution.status in ("unknown", "infeasible") and not relaxed and not stopped:
+        if (solution.status in ("unknown", "infeasible") and not relaxed
+                and (not stopped or (report.get("algorithm") == Timetable.GEN2 and solution.draft_solution is not None))):
             # Tanı: kurallar ağır cezalı esnetilerek en yakın taslak aranır; hangi kuralların ne kadar
             # esnetildiği ve hangi kartların sığmadığı "neden" raporu olur, taslak da açılabilir program olarak kalır.
             # Önce her kart yerleşmek zorunda, yalnızca kurallar esner ("hangi kural esnemeli?" sorusunun cevabı);
@@ -166,6 +181,10 @@ def _run_generation(timetable_id, base_id=None, seed=0):
                 report["penalties"] = draft.penalties
                 Timetable.objects.filter(pk=timetable.pk).update(mode=Timetable.RELAXED)
                 _retry_locked(lambda: _save_result(timetable, problem, draft, report))
+                return
+            if report.get("algorithm") == Timetable.GEN2:
+                # Ana süre ve kazanılan uzatmalar çözücüde tüketildi; tanı için süreyi yeniden başlatma.
+                _finish(timetable, Timetable.FAILED, report)
                 return
             jobs.set_progress(timetable_id, {"phase": "diagnose"})
             if solution.draft:

@@ -150,6 +150,7 @@ html.nav-collapsed .sidebar { display: none; }
 .input:focus, .select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,.15); }
 .input-inline { display: flex; gap: 10px; }
 .choice-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.choice-cards--generation { grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); }
 .choice { position: relative; display: block; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); padding: 10px 12px 10px 36px; cursor: pointer; }
 .choice input { position: absolute; left: 12px; top: 13px; accent-color: var(--primary); }
 .choice b { display: block; font-size: 13.5px; }

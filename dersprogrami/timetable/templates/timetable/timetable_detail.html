@@ -6,7 +6,7 @@
 {% block heading %}
   <h1>{{ timetable.name }}</h1>
   {% include "timetable/status_pill.html" with t=timetable %}
-  <span class="pill">{{ timetable.get_mode_display }}</span>
+  <span class="pill">{{ timetable.generation_label }}</span>
 {% endblock %}
 {% block actions %}
   {% if timetable.has_grid %}
@@ -66,7 +66,7 @@
       <div class="progress"><div id="run-bar" style="width:0%"></div></div>
       <p class="muted small" id="run-text">Veri hazırlanıyor…</p>
       <div class="running-stats">
-        <div class="tile"><div class="k">Geçen süre</div><div class="v" id="run-elapsed">0 sn</div><div class="h">sınır {{ timetable.time_limit }} sn</div></div>
+        <div class="tile"><div class="k">Geçen süre</div><div class="v" id="run-elapsed">0 sn</div><div class="h" id="run-limit">sınır {{ timetable.time_limit }} sn</div></div>
         <div class="tile"><div class="k">Bulunan çözüm</div><div class="v" id="run-solutions">0</div></div>
         <div class="tile"><div class="k">En iyi ceza</div><div class="v" id="run-objective">–</div></div>
       </div>

@@ -10,7 +10,7 @@
   <div class="panel-body">
     <p class="subtle small" style="margin-top:0">Dün (ya da önce) başarıyla üretilmiş bir programı seçin. O gün tüm kesin kuralları sağlayan yerleşim, bugünkü verilerle denetlenir; takıldığı kurallar arada neyin değiştiğini gösterir.</p>
     <form method="get" class="dialog-row" style="align-items:center">
-      <select class="select" name="program" style="max-width:420px">{% for t in successes %}<option value="{{ t.pk }}"{% if chosen.pk == t.pk %} selected{% endif %}>{{ t.name }} · {{ t.finished_at|date:"d.m.Y H:i" }} · {{ t.get_mode_display }}{% if t.objective is not None %} · ceza {{ t.objective }}{% endif %}</option>{% empty %}<option value="">Başarılı program yok</option>{% endfor %}</select>
+      <select class="select" name="program" style="max-width:420px">{% for t in successes %}<option value="{{ t.pk }}"{% if chosen.pk == t.pk %} selected{% endif %}>{{ t.name }} · {{ t.finished_at|date:"d.m.Y H:i" }} · {{ t.generation_label }}{% if t.objective is not None %} · ceza {{ t.objective }}{% endif %}</option>{% empty %}<option value="">Başarılı program yok</option>{% endfor %}</select>
       <button class="btn btn-primary"{% if not successes %} disabled{% endif %}>Bugünkü verilerle denetle</button>
     </form>
     {% if chosen %}<div style="margin-top:12px">{% include "timetable/recheck.html" with rc=recheck name=chosen.name %}</div>{% endif %}
