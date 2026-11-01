@@ -1,4 +1,4 @@
-{% extends "timetable/base.html" %}
+{% extends "timetable/base.html" %}{% load assets %}
 {% block title %}{{ school }}{% endblock %}
 {% block crumbs %}<a href="{% url 'timetable:institution_detail' school.institution_id %}">{{ school.institution }}</a>{% endblock %}
 {% block heading %}<h1>{{ school }}</h1>{% endblock %}
@@ -95,21 +95,45 @@
       </div>
       <div class="panel-body flush">
         {% if timetables %}
-        <table class="table">
-          <thead><tr><th>Ad</th><th>Durum</th><th>Mod</th><th class="num">Ceza</th><th>Tarih</th></tr></thead>
+        {% if can.program %}
+        <div id="tt-select-bar" class="tt-select-bar" hidden>
+          <span class="small"><b data-tt-count>0</b> sürüm seçili</span>
+          <span class="tt-select-actions">
+            <button type="button" class="btn btn-sm" data-tt-all>Tümünü seç</button>
+            <button type="button" class="btn btn-sm" data-tt-cancel>Vazgeç</button>
+            <button type="button" class="btn btn-sm btn-danger" data-tt-delete-selected disabled>Seçilenleri sil…</button>
+          </span>
+        </div>
+        {% endif %}
+        <table class="table{% if can.program %} tt-table{% endif %}" id="tt-table">
+          <thead><tr>{% if can.program %}<th class="tt-check" hidden></th>{% endif %}<th>Ad</th><th>Durum</th><th>Mod</th><th class="num">Ceza</th><th>Tarih</th>{% if can.program %}<th class="tt-more-col"></th>{% endif %}</tr></thead>
           <tbody>
             {% for t in timetables %}
-              <tr>
+              <tr{% if can.program %} data-tt="{{ t.pk }}" data-tt-name="{{ t.name }}" data-tt-open="{% url 'timetable:timetable_detail' t.pk %}"{% if t.is_running or t.job_state %} data-tt-busy="1"{% endif %}{% if t.pk == school.active_timetable_id %} data-tt-published="1"{% endif %}{% endif %}>
+                {% if can.program %}<td class="tt-check" hidden><input type="checkbox" value="{{ t.pk }}" aria-label="{{ t.name }} seç"{% if t.is_running or t.job_state %} disabled{% endif %}></td>{% endif %}
                 <td><a href="{% url 'timetable:timetable_detail' t.pk %}"><b>{{ t.name }}</b></a>
                   {% if main and t.pk == main.pk %}<span class="pill ok">Aktif</span>{% endif %}{% if t.pk == school.active_timetable_id %}<span class="pill">Yayında</span>{% endif %}</td>
                 <td>{% include "timetable/status_pill.html" %}</td>
                 <td class="muted">{{ t.generation_label }}</td>
                 <td class="num">{{ t.objective|default_if_none:"–" }}</td>
                 <td class="muted nowrap">{{ t.created_at|date:"d.m.Y H:i" }}</td>
+                {% if can.program %}<td class="tt-more-col"><button type="button" class="btn btn-sm btn-ghost btn-icon" data-tt-button aria-label="{{ t.name }} işlemleri">⋯</button></td>{% endif %}
               </tr>
             {% endfor %}
           </tbody>
         </table>
+        {% if can.program %}
+        <div class="ctx-menu" id="tt-menu" hidden></div>
+        {% if can.yayin and school.active_timetable_id %}<form method="post" action="{% url 'timetable:unpublish' school.pk %}" id="tt-unpublish" hidden>{% csrf_token %}</form>{% endif %}
+        <dialog class="inst-dialog" id="tt-delete"><form method="post" action="{% url 'timetable:timetables_delete' school.pk %}">{% csrf_token %}
+          <div data-tt-ids></div>
+          <div class="dialog-head"><h3 data-tt-title>Sürümü sil</h3><button type="button" class="btn btn-sm btn-ghost" data-tt-close aria-label="Kapat">✕</button></div>
+          <p class="small" data-tt-text style="margin-top:0"></p>
+          <p class="small subtle" style="margin-top:0">Kartlar ve kayıtlı versiyonlar da silinir; geri alınamaz. Yayındaki ya da aktif sürüm silinirse yayın ve vekâlet o sürüme bağlı kalmaz. Üretimi süren sürüm atlanır.</p>
+          <div class="dialog-actions"><button type="button" class="btn" data-tt-close>Vazgeç</button><button class="btn btn-danger" data-tt-go>Sil</button></div>
+        </form></dialog>
+        <script src="{% asset 'timetable/timetable_menu.js' %}" defer></script>
+        {% endif %}
         {% else %}
           {% include "timetable/empty.html" with icon="grid" title="Henüz program üretilmedi" text="Veriler tamamlanınca sağdaki formdan ilk programı üretin." %}
         {% endif %}

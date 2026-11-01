@@ -1868,3 +1868,12 @@ details.dropdown[open] .dropdown-menu { display: block; }
 }
 
 .pill.violated { font-weight: 700; }
+
+/* Genel bakış · Sürümler tablosu: sağ tık / uzun basma menüsü ve seçerek silme */
+.tt-table tr[data-tt] { -webkit-touch-callout: none; }
+.tt-table tr[data-tt] td { -webkit-user-select: none; user-select: none; }
+.tt-table .tt-more-col { width: 1%; padding-left: 4px; padding-right: 8px; text-align: right; }
+.tt-table .tt-check { width: 1%; padding-right: 0; }
+.tt-select-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+.tt-select-bar[hidden] { display: none; }
+.tt-select-actions { display: flex; flex-wrap: wrap; gap: 6px; }

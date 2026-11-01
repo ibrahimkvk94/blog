@@ -311,6 +311,42 @@ def stop(request, pk):
 
 
 @require_POST
+def timetables_delete(request, pk):
+    """Programın seçili sürümlerini kalıcı olarak siler. Üretimi ya da iyileştirmesi süren sürüm atlanır."""
+    from .models import ImproveJob
+
+    school = get_object_or_404(School, pk=pk)
+    ids = [int(i) for i in request.POST.getlist("ids") if i.isdigit()]
+    deleted, skipped = [], []
+    for timetable in school.timetables.filter(pk__in=ids):
+        busy = timetable.is_running or timetable.job_state or timetable.improve_jobs.filter(
+            status__in=[ImproveJob.QUEUED, ImproveJob.RUNNING]).exists()
+        (skipped if busy else deleted).append(timetable)
+    for timetable in deleted:
+        timetable.delete()
+    if deleted:
+        names = ", ".join(t.name for t in deleted[:3]) + (f" ve {len(deleted) - 3} sürüm daha" if len(deleted) > 3 else "")
+        messages.success(request, f"Silindi: {names}.")
+    if skipped:
+        messages.error(request, f"Çalışan üretim ya da iyileştirme sürdüğü için silinmedi: {', '.join(t.name for t in skipped)}. "
+                                "Önce durdurun.")
+    if not deleted and not skipped:
+        messages.info(request, "Silinecek sürüm seçilmedi.")
+    return redirect("timetable:school_detail", pk=school.pk)
+
+
+@require_POST
+def unpublish(request, pk):
+    """Yayındaki programı pasife alır: öğrenci/öğretmen yayını, vekâlet ve nöbet artık hiçbir sürüme bağlı değildir."""
+    school = get_object_or_404(School, pk=pk)
+    if school.active_timetable_id:
+        name = school.active_timetable.name
+        School.objects.filter(pk=school.pk).update(active_timetable=None)
+        messages.success(request, f"“{name}” yayından kaldırıldı; yayında program yok.")
+    return redirect("timetable:school_detail", pk=school.pk)
+
+
+@require_POST
 def publish(request, pk):
     timetable = get_object_or_404(Timetable, pk=pk)
     if not timetable.has_grid:
