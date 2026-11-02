@@ -36,13 +36,14 @@ SCORE = {"teacher_gaps": 40, "teacher_days": 2, "class_gaps": 30}
 J = ImproveJob
 
 
-def start(timetable, user, minutes):
-    """İşi başlatır (zaten çalışan varsa onu döndürür)."""
+def start(timetable, user, minutes, kind=J.SCHOOL, seconds=None):
+    """İşi başlatır. Programda başka bir iyileştirme işi (türü ne olursa olsun) sürüyorsa onu döndürür: iki iş
+    aynı kartları aynı anda oynatmasın."""
     current = active_job(timetable)
     if current is not None:
         return current
     job = J.objects.create(timetable=timetable, created_by=user if user and user.is_authenticated else None,
-                           time_limit=int(minutes) * 60)
+                           kind=kind, time_limit=int(seconds) if seconds else int(minutes) * 60)
     if jobs.worker_mode():
         return job  # calisan süreci sıradan alır
     if not getattr(settings, "TIMETABLE_RUN_IN_BACKGROUND", True):
@@ -68,8 +69,9 @@ def claim_next():
     return None
 
 
-def active_job(timetable):
-    job = timetable.improve_jobs.filter(status__in=[J.QUEUED, J.RUNNING]).first()
+def active_job(timetable, kind=None):
+    jobs_ = timetable.improve_jobs.filter(status__in=[J.QUEUED, J.RUNNING])
+    job = (jobs_.filter(kind=kind) if kind else jobs_).first()
     return refresh_stale(job) if job else None
 
 
@@ -133,6 +135,10 @@ def run(job_id):
     job = J.objects.select_related("timetable__school").get(pk=job_id)
     if job.status == J.CANCELLED:
         return
+    if job.kind != J.SCHOOL:
+        from . import quick_jobs
+
+        return quick_jobs.run(job)
     now = timezone.now()
     J.objects.filter(pk=job.pk).update(status=J.RUNNING, started_at=now, heartbeat=now)
     began = time.monotonic()
@@ -231,9 +237,9 @@ def improve_view(request, pk):
     from .views import _nav
 
     timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
-    active = active_job(timetable)
+    active = active_job(timetable, J.SCHOOL)
     if request.GET.get("durum") == "1":
-        job = active or timetable.improve_jobs.first()
+        job = active or timetable.improve_jobs.filter(kind=J.SCHOOL).first()
         return JsonResponse({"job": _state(job)})
     if request.method == "POST":
         action = request.POST.get("action")
@@ -241,7 +247,10 @@ def improve_view(request, pk):
             minutes = int(request.POST.get("dakika") or 20)
             if minutes not in LIMITS:
                 minutes = 20
-            if active is None:
+            other = active_job(timetable)
+            if other is not None and other.kind != J.SCHOOL:
+                messages.warning(request, f"Bu programda “{other.get_kind_display()}” sürüyor; bitince yeniden başlatın.")
+            elif active is None:
                 start(timetable, request.user, minutes)
                 messages.success(request, f"İyileştirme başladı ({minutes} dk). Bu sayfadan ayrılabilirsiniz; sonuç öneri olarak burada bekler.")
         elif action == "stop" and active is not None:
@@ -256,7 +265,7 @@ def improve_view(request, pk):
                 request.session[f"resolve-{timetable.pk}"] = {"label": LABEL, "proposals": [job.result], "availability": None}
                 return redirect(reverse("timetable:solution_center", args=[timetable.pk]) + "?goster=1")
         return redirect("timetable:school_improve", pk=timetable.pk)
-    latest = timetable.improve_jobs.exclude(status__in=[J.QUEUED, J.RUNNING]).first()
+    latest = timetable.improve_jobs.filter(kind=J.SCHOOL).exclude(status__in=[J.QUEUED, J.RUNNING]).first()
     return render(request, "timetable/school_improve.html", _nav(
         timetable.school, "solution", timetable=timetable, active=active, latest=latest, limits=LIMITS,
         worker=jobs.worker_mode()))

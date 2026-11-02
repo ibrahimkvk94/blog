@@ -843,6 +843,8 @@ FIX_UNTIL = 0.95
 AUTO_LIMIT = 3600
 AUTO_DIRECT = 60.0
 AUTO_STALL = 900.0
+AUTO_POLISH = 600.0  # otomatik sürede kesin programdan sonra ceza düşürmenin (gün komşuluğu) en uzun süresi
+AUTO_POLISH_STALL = 120.0  # ceza bu kadar saniye düşmezse ceza düşürme biter
 AUTO_PREFERENCE = 120.0
 
 
@@ -1044,7 +1046,43 @@ def solve(
             continue
         rooms = [r for r, var in builder.y.get(card.key, {}).items() if isinstance(var, int) or solver.Value(var)]
         solution.placements[card.key] = Placement(start[0], start[1], rooms[0] if rooms else None, tuple(rooms[1:]))
+    if auto_time and mode == STRICT and solution.objective and not solution.stats["stopped"]:
+        _polish(problem, solution, started, time_limit, workers, seed, on_progress, stop_handle)
     return solution
+
+
+def _polish(problem, solution, started, time_limit, workers, seed, on_progress, stop_handle):
+    """Otomatik sürede kesin program bulunduktan sonra ceza gün komşuluğuyla düşürülür ("Cezayı düşür" ile aynı
+    motor, solver/penaltyrepair.py): 2–3 günün dersleri birlikte yeniden dizilir, kesin kurallar korunur. Gerçek
+    veride (1104 kart) LNS aşamasından sonra 2 dakikada ceza %15–32 daha düştü. AUTO_POLISH_STALL saniye ceza
+    düşmezse, AUTO_POLISH dolunca ya da durdurulunca biter; sonuç bağımsız doğrulamadan geçmezse kullanılmaz."""
+    from .penaltyrepair import PenaltyRepair
+    from .validate import validate
+
+    t0 = time.monotonic()
+    deadline = min(started + float(time_limit), t0 + AUTO_POLISH)
+    if deadline - t0 < 30:
+        return
+    repair = PenaltyRepair(problem, workers, seed)
+    if not repair.start(solution.placements, teacher_choice=solution.teacher_choice):
+        return
+    before = min(repair.penalty, solution.objective)
+    if on_progress:
+        on_progress({"phase": "polish", "round": 0, "objective": before})
+    repair.run(deadline, stall=AUTO_POLISH_STALL, stop_handle=stop_handle, on_progress=on_progress)
+    info = {"before": before, "after": min(before, repair.penalty), "rounds": repair.rounds,
+            "wall_time": round(time.monotonic() - t0, 2)}
+    solution.stats["polish"] = info
+    solution.stats["wall_time"] = round(time.monotonic() - started, 2)
+    if repair.penalty >= before:
+        return
+    placements = repair.placements()
+    if len(placements) != len(solution.placements) or any(v.level == "hard" for v in validate(problem, placements)[0]):
+        info.update(after=before, rejected=True)
+        return
+    solution.placements = placements
+    solution.objective = repair.penalty
+    solution.penalties = dict(repair.totals)
 
 
 def _violation_expr(builder):

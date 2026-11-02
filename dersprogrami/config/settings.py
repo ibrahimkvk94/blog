@@ -25,8 +25,18 @@ def _load_env_file(path):
 _load_env_file(BASE_DIR / ".env")
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-insecure-key-change-me")
+# Varsayılan açık: "baslat.py yerel" yalnızca bu bilgisayardan (localhost) erişilir ve statik dosyaları runserver
+# sunar. Ağda paylaşırken (baslat.py paylas, kurulum paketi, docker) kapalıdır ve gerçek anahtar ister.
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
+if not DEBUG and SECRET_KEY == "dev-only-insecure-key-change-me":
+    from django.core.exceptions import ImproperlyConfigured
+
+    raise ImproperlyConfigured("DJANGO_SECRET_KEY ayarlanmadan hata ayıklama kapalı çalıştırılamaz (oturumlar ve parola "
+                               "bağlantıları herkesin bildiği anahtarla imzalanırdı). .env dosyasına ekleyin.")
 ALLOWED_HOSTS = [h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",") if h]
+# E-postadaki bağlantıların (parola belirleme) adresi, ör. "http://100.78.183.16:8000". Boşsa isteğin adresi
+# kullanılır; ALLOWED_HOSTS "*" iken yalnızca yerel ağ / Tailscale adresine güvenilir (teacher_accounts.link_base).
+PUBLIC_URL = os.environ.get("DJANGO_PUBLIC_URL", "").rstrip("/")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -132,6 +142,8 @@ CSRF_TRUSTED_ORIGINS = [o for o in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS",
 if os.environ.get("DJANGO_BEHIND_HTTPS_PROXY") == "1":
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SESSION_COOKIE_SECURE = CSRF_COOKIE_SECURE = True
+    # Tarayıcı bu siteye yalnızca HTTPS ile bağlansın (yalnızca HTTPS yayında; düz HTTP'de siteyi kilitlerdi).
+    SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_HSTS_SECONDS", "31536000"))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

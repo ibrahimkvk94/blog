@@ -8,6 +8,7 @@ ya da boş bir kurulumda:
 import gzip
 import json
 import re
+import threading
 import time
 from datetime import datetime
 from io import StringIO
@@ -125,16 +126,18 @@ def compare(path, school):
 
     out_path = compare_path(path.name, school.pk)
     temp = directory() / f".karsilastir-{school.pk}-{int(time.time())}.sqlite3"
-    env = {**os.environ, "DJANGO_DB_PATH": str(temp)}
+    # Alt süreç çıktısı her zaman UTF-8: Windows'ta varsayılan kod sayfası "ı", "≤" gibi karakterleri bozar.
+    env = {**os.environ, "DJANGO_DB_PATH": str(temp), "PYTHONIOENCODING": "utf-8"}
+    text = {"capture_output": True, "text": True, "encoding": "utf-8", "errors": "replace"}
     manage = [sys.executable, str(settings.BASE_DIR / "manage.py")]
     result = {"backup": path.name, "school": school.name, "created": f"{datetime.now():%d.%m.%Y %H:%M}"}
     try:
         for args in (["migrate", "--noinput", "-v0"], ["loaddata", str(path), "-v0"]):
-            done = subprocess.run(manage + args, env=env, capture_output=True, text=True, timeout=1800)
+            done = subprocess.run(manage + args, env=env, timeout=1800, **text)
             if done.returncode:
                 raise RuntimeError((done.stderr or done.stdout).strip().splitlines()[-1] if (done.stderr or done.stdout) else "hata")
         done = subprocess.run(manage + ["girdi_ozeti", "--okul", str(school.pk), "--ad", school.name], env=env,
-                              capture_output=True, text=True, timeout=1800)
+                              timeout=1800, **text)
         data = json.loads(done.stdout.strip().splitlines()[-1])
         if data.get("error"):
             raise RuntimeError(data["error"])
@@ -148,20 +151,31 @@ def compare(path, school):
     return result
 
 
-def compare_start(path, school):
-    """Karşılaştırmayı arka planda başlatır (yedeği yüklemek bir-iki dakika sürebilir)."""
-    import threading
+_running = set()  # karşılaştırması süren okullar: her biri yedeğin tamamını ayrı bir veritabanına yükler
+_running_lock = threading.Lock()
 
+
+def compare_start(path, school):
+    """Karşılaştırmayı arka planda başlatır (yedeği yüklemek bir-iki dakika sürebilir). Aynı okul için bir
+    karşılaştırma sürerken yenisi başlatılmaz (tekrarlanan istek sunucuyu yormasın). Dönüş: başladı mı."""
     from django.db import connection
+
+    with _running_lock:
+        if school.pk in _running:
+            return False
+        _running.add(school.pk)
 
     def run():
         try:
             compare(path, school)
         finally:
+            with _running_lock:
+                _running.discard(school.pk)
             connection.close()
 
     compare_path(path.name, school.pk).unlink(missing_ok=True)
     threading.Thread(target=run, daemon=True).start()
+    return True
 
 
 def compare_result(name, school_id):

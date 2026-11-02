@@ -23,6 +23,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
 from . import refs
+from .institutions import is_local_path
 from .models import School, Teacher, Timetable, WeekArchive
 
 DEFAULTS = {"ksm": "KSM", "hep1": "1", "hep1b": "1", "hep11": "11", "ref_col": "A", "prefixes": {}}
@@ -209,7 +210,9 @@ def archive(request, pk):
     """Hafta arşivi: güncel programdan yeniden oluştur ya da sil."""
     timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
     week = _week(request)
-    back = request.POST.get("next") or reverse("timetable:reports", args=[timetable.pk])
+    back = request.POST.get("next") or ""
+    if not is_local_path(back):  # açık yönlendirme olmasın: yalnızca bu sitenin yolu
+        back = reverse("timetable:reports", args=[timetable.pk])
     if week is None:
         messages.error(request, "Hafta seçilmedi.")
         return redirect(back)

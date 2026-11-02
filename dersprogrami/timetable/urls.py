@@ -99,6 +99,7 @@ urlpatterns = [
     path("api/program/<int:pk>/onar/", views.api_repair, name="api_repair"),
     path("api/program/<int:pk>/ihlal-coz/", views.api_resolve, name="api_resolve"),
     path("api/program/<int:pk>/ceza-dusur/", views.api_penalty, name="api_penalty"),
+    path("api/program/<int:pk>/onarim-isi/", views.api_quick_job, name="api_quick_job"),
     path("api/program/<int:pk>/geri-al/", views.api_undo, name="api_undo"),
     path("api/program/<int:pk>/yinele/", views.api_redo, name="api_redo"),
     path("api/program/<int:pk>/toplu/", views.api_bulk, name="api_bulk"),

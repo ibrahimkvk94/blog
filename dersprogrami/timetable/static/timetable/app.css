@@ -1637,7 +1637,8 @@ html.ribbon-min .ribbon.drop .rb-panels { display: block; position: absolute; le
 
 /* Ana görünüm: İhlalleri çöz menüsü */
 #resolve-menu .dropdown-menu { min-width: 270px; }
-#resolve-menu .dropdown-menu button[data-resolve] { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; }
+[data-job-menu] .dropdown-menu button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; }
+.dropdown-menu [hidden] { display: none !important; }
 
 /* ---- Bildirimler: zil, açılır liste, anlık bildirim ve geçmiş sayfası ---- */
 .ntf-bell { position: relative; }

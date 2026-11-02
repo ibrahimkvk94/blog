@@ -1,5 +1,7 @@
 """Çalışan süreç kipi (TIMETABLE_JOB_BACKEND=worker): kuyruk, nabız, ilerleme, durdurma."""
 
+import io
+
 from django.core.management import call_command
 from django.test import TransactionTestCase, override_settings
 
@@ -21,7 +23,7 @@ class WorkerTests(TransactionTestCase):
             t.refresh_from_db()
             self.assertEqual((t.status, t.job_state), (Timetable.RUNNING, "queued"))
             self.assertEqual(refresh_stale(t).status, Timetable.RUNNING)  # sırada: bayat sayılmaz
-        call_command("calisan", "--bir-kez", "--paralel", "2", stdout=open("/dev/null", "w"))
+        call_command("calisan", "--bir-kez", "--paralel", "2", stdout=io.StringIO())
         for t in (first, second):
             t.refresh_from_db()
             self.assertEqual(t.status, Timetable.OK, t.report)

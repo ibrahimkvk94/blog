@@ -3,6 +3,7 @@
 from django.contrib import messages
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from . import access, asc_xml
@@ -44,7 +45,14 @@ def institution_detail(request, pk):
 def _next(request, default):
     """İşlemden sonra dönülecek sayfa: formdaki next (yalnızca bu sitenin yolu) ya da varsayılan."""
     target = request.POST.get("next") or ""
-    return redirect(target) if target.startswith("/") and not target.startswith("//") else redirect(*default)
+    return redirect(target) if is_local_path(target) else redirect(*default)
+
+
+def is_local_path(target):
+    """Yalnızca bu sitenin yolu: "/x" evet; "//evil.com", ters bölülü "/\\evil.com" (tarayıcı "//" sayar) ve tam
+    adres hayır."""
+    return target.startswith("/") and not target.startswith(("//", "/\\")) and url_has_allowed_host_and_scheme(
+        target, allowed_hosts=None)
 
 
 def menu_context(user, institutions):

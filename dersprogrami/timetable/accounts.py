@@ -13,7 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from .access import grantable, institution_permissions
+from .access import account_is_local, grantable, institution_permissions
 from .counts import related_count
 from .data_views import default_periods
 from .models import Institution, Membership, School
@@ -63,6 +63,10 @@ def _create_or_attach(form, institution, granter, allowed, programs=()):
         return None, f"{username} zaten bu kurumun kullanıcısı."
     elif user.is_superuser:
         return None, "Merkez yönetici kurum kullanıcısı olarak eklenemez."
+    elif not granter.is_superuser and not account_is_local(user, institution):
+        # Başka kurumun hesabını kendi kurumuna bağlayıp parolasını sıfırlamanın önü kesilir.
+        return None, (f"{username} kullanıcı adı başka bir kurumda kullanılıyor. Var olan bu hesabı yalnızca merkez "
+                      "yönetici ekleyebilir; yeni kullanıcı için başka bir ad seçin.")
     membership = M.objects.create(user=user, institution=institution, permissions=perms, granted_by=granter)
     if programs:
         membership.programs.set(programs)

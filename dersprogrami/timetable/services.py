@@ -436,17 +436,49 @@ def repair_timetable(timetable, time_limit=20):
     }
 
 
-def resolve_violations(timetable, time_limit=40):
-    """Kesin ihlalleri en az kartı oynatarak giderir (ana görünümde "İhlalleri çöz").
+DEEP_RESOLVE = 600  # "İhlalleri çöz" bu süreden itibaren az değişiklikle onarımdan sonra gün komşuluğuna da geçer
 
-    Önce ihlal en aza indirilir, sonra o sayıyı aşmadan en az kart oynatılır (cpsat.minimal_repair); kilitli kartlar
-    yerinde kalır. Giderilemeyen ihlal kalabilir; sonuç ancak kesin ihlal sayısı azalırsa uygulanır. Değişiklik "Geri al" ile geri alınabilir."""
+
+def write_placements(timetable, problem, result, note):
+    """Onarım sonucunu ({kart: Placement}; olmayan kart bekler) programa yazar; "Geri al" kaydı tutulur.
+    Dönüş: (değişen kart, saati değişen kart)."""
+    db_cards = {c.id: c for c in timetable.cards.all()}
+    updates = []
+    for card in problem.cards:
+        db_card = db_cards[card.card_id]
+        place = result.get(card.key)
+        new = (place.day, place.period, place.room, list(place.extra_rooms)) if place else (None, None, None, [])
+        if (db_card.day, db_card.period, db_card.classroom_id, list(db_card.extra_rooms or [])) != new:
+            updates.append((db_card, new))
+    changed = [db_card for db_card, _ in updates]
+    shifted = sum(1 for db_card, new in updates if (db_card.day, db_card.period) != tuple(new[:2]))
+    editing.record(timetable, note, editing.snapshot(changed))
+    for db_card, new in updates:
+        db_card.day, db_card.period, db_card.classroom_id, db_card.extra_rooms = new
+    Card.objects.bulk_update(changed, ["day", "period", "classroom", "extra_rooms"])
+    refresh_status(timetable)
+    return len(changed), shifted
+
+
+def _hard_count(problem, placements):
+    return sum(1 for v in validate(problem, placements)[0] if v.level == "hard")
+
+
+def resolve_search(timetable, time_limit=40, stop_handle=None, on_progress=None):
+    """Kesin ihlalleri giderecek yerleşimi arar; programa yazmaz (write_placements).
+
+    1. Az değişiklik: önce ihlal en aza indirilir, sonra o sayıyı aşmadan en az kart oynatılır (cpsat.minimal_repair);
+       kilitli kartlar yerinde kalır.
+    2. Süre DEEP_RESOLVE ve üstündeyse ve ihlal kaldıysa (bütün kartlar yerleşikken): gün komşuluğu
+       (solver/dayrepair.py) 2–3 günün bütün derslerini birlikte yeniden dizer; daha çok ders oynar.
+    Dönüş: {"ok", "before", "after", "problem", "result" (değişiklik yoksa None), "message" (yalnızca sonuç yoksa)}."""
+    started = time.monotonic()
     problem = build_problem(timetable.school, timetable=timetable)
     placements = placements_of(problem, timetable)
-    hard = lambda violations: sum(1 for v in violations if v.level == "hard")  # noqa: E731
-    before = hard(validate(problem, placements)[0])
+    before = _hard_count(problem, placements)
+    out = {"ok": True, "before": before, "after": before, "problem": problem, "result": None}
     if not before:
-        return {"ok": True, "moved": 0, "before": 0, "after": 0, "message": "Programda kesin ihlal yok."}
+        return {**out, "message": "Programda kesin ihlal yok."}
     anchors, room_anchors = {}, {}
     for card in problem.cards:
         place = placements.get(card.key)
@@ -456,87 +488,107 @@ def resolve_violations(timetable, time_limit=40):
             if place.rooms:
                 room_anchors[card.key] = tuple(place.rooms)
     problem.anchors, problem.room_anchors = anchors, room_anchors
-    placements_after, info = cpsat.minimal_repair(problem, time_limit=time_limit, place_all=len(placements) == len(problem.cards))
-    if placements_after is None and info == "infeasible":
-        return {"ok": False, "message": "Kilitli dersler kendi aralarında çakışıyor; çakışanların kilidini açıp yeniden deneyin."}
-    if placements_after is None:
-        return {"ok": False, "message": "Süre içinde çözüm bulunamadı; biraz sonra yeniden deneyin."}
-    after = hard(validate(problem, placements_after)[0])
-    if after >= before:
-        return {"ok": True, "moved": 0, "before": before, "after": before,
-                "message": f"{before} kesin ihlal, kart oynatılarak azaltılamadı. Nedenini Çözüm merkezinde ya da "
-                           "ilişki denetiminde inceleyin; kuralı değiştirmek gerekebilir."}
+    deep = time_limit >= DEEP_RESOLVE
+    if on_progress:
+        on_progress({"stage": "minimal", "violations": before})
+    best, best_after = None, before
+    found, info = cpsat.minimal_repair(problem, time_limit=40 if deep else time_limit,
+                                       place_all=len(placements) == len(problem.cards))
+    if found is None and info == "infeasible":
+        return {**out, "ok": False,
+                "message": "Kilitli dersler kendi aralarında çakışıyor; çakışanların kilidini açıp yeniden deneyin."}
+    if found is not None:
+        after = _hard_count(problem, found)
+        if after < best_after:
+            best, best_after = found, after
+            if on_progress:
+                on_progress({"stage": "minimal", "violations": after})
+    if deep and best_after and len(placements) == len(problem.cards) and not (stop_handle and stop_handle.stopped):
+        from .solver.dayrepair import DayRepair
 
-    db_cards = {c.id: c for c in timetable.cards.all()}
-    updates = []
-    for card in problem.cards:
-        db_card = db_cards[card.card_id]
-        place = placements_after.get(card.key)
-        new = (place.day, place.period, place.room, list(place.extra_rooms)) if place else (None, None, None, [])
-        if (db_card.day, db_card.period, db_card.classroom_id, list(db_card.extra_rooms or [])) != new:
-            updates.append((db_card, new))
-    changed = [db_card for db_card, _ in updates]
-    shifted = sum(1 for db_card, new in updates if (db_card.day, db_card.period) != tuple(new[:2]))
-    editing.record(timetable, "ihlaller çözüldü", editing.snapshot(changed))
-    for db_card, new in updates:
-        db_card.day, db_card.period, db_card.classroom_id, db_card.extra_rooms = new
-    Card.objects.bulk_update(changed, ["day", "period", "classroom", "extra_rooms"])
-    refresh_status(timetable)
-    rooms = f", {len(changed) - shifted} dersin yalnızca dersliği değişti" if len(changed) > shifted else ""
+        current = best or placements
+        days = DayRepair(problem, cpsat.default_workers(), 0, stop_handle=stop_handle,
+                         on_progress=(lambda p: on_progress({**p, "stage": "days"})) if on_progress else None)
+        if days.start(current):
+            days.run(started + time_limit, stall_cycles=3)
+            candidate = days.placement_objects(current)
+            after = _hard_count(problem, candidate)
+            if after < best_after:
+                best, best_after = candidate, after
+    if best is None:
+        message = (f"{before} kesin ihlal, kart oynatılarak azaltılamadı. Nedenini Çözüm merkezinde ya da ilişki "
+                   "denetiminde inceleyin; kuralı değiştirmek gerekebilir.")
+        if found is None and not deep:
+            message = "Süre içinde çözüm bulunamadı; “Derin” seçeneğini deneyin."
+        return {**out, "message": message}
+    return {**out, "after": best_after, "result": best}
+
+
+def resolve_message(before, after, changed, shifted):
+    rooms = f", {changed - shifted} dersin yalnızca dersliği değişti" if changed > shifted else ""
     rest = f"; {after} ihlal kaldı (kart oynatarak giderilemedi)" if after else "; program ihlalsiz"
-    return {"ok": True, "moved": len(changed), "shifted": shifted, "before": before, "after": after,
-            "message": f"{before - after} kesin ihlal giderildi: {shifted} ders başka saate taşındı{rooms}{rest}. "
-                       "Geri almak için “Geri al”."}
+    return (f"{before - after} kesin ihlal giderildi: {shifted} ders başka saate taşındı{rooms}{rest}. "
+            "Geri almak için “Geri al”.")
 
 
-def reduce_penalty(timetable, time_limit=60):
-    """Ana görünümde "Cezayı düşür": yumuşak ceza gün komşuluğuyla azaltılır (solver/penaltyrepair.py).
+def resolve_violations(timetable, time_limit=40):
+    """Kesin ihlalleri giderir ve sonucu programa yazar (ana görünümde "İhlalleri çöz" bunu arka plan işi olarak
+    çalıştırır: quick_jobs.py). Sonuç ancak kesin ihlal sayısı azalırsa uygulanır; "Geri al" ile geri alınabilir."""
+    found = resolve_search(timetable, time_limit=time_limit)
+    if found["result"] is None:
+        return {"ok": found["ok"], "moved": 0, "before": found["before"], "after": found["after"],
+                "message": found["message"]}
+    changed, shifted = write_placements(timetable, found["problem"], found["result"], "ihlaller çözüldü")
+    return {"ok": True, "moved": changed, "shifted": shifted, "before": found["before"], "after": found["after"],
+            "message": resolve_message(found["before"], found["after"], changed, shifted)}
 
-    Kesin ihlal sayısı artmaz, bekleyen kartlar bekler, kilitli kartlar yerinde kalır. Sonuç ancak ceza azalırsa
-    uygulanır ve "Geri al" ile geri alınabilir."""
+
+def penalty_search(timetable, time_limit=60, stall=None, stop_handle=None, on_progress=None):
+    """Yumuşak cezayı gün komşuluğuyla düşürecek yerleşimi arar (solver/penaltyrepair.py); programa yazmaz.
+    Kesin ihlal sayısı artmaz, bekleyen kartlar bekler, kilitli kartlar ve havuzdaki öğretmen seçimleri yerinde kalır.
+    Dönüş: resolve_search ile aynı biçim ("before"/"after" ceza puanıdır)."""
     from .solver.penaltyrepair import PenaltyRepair
 
     started = time.monotonic()
     problem = build_problem(timetable.school, timetable=timetable)
     placements = placements_of(problem, timetable)
+    out = {"ok": True, "before": None, "after": None, "problem": problem, "result": None}
     if not placements:
-        return {"ok": False, "message": "Programda yerleşmiş kart yok."}
+        return {**out, "ok": False, "message": "Programda yerleşmiş kart yok."}
     repair = PenaltyRepair(problem, cpsat.default_workers())
     if not repair.start(placements):
-        return {"ok": False, "message": "Program şu anki kurallarla değerlendirilemedi (bir kart artık izin verilmeyen bir "
-                                        "saatte olabilir). Önce “İhlalleri çöz”ü deneyin."}
+        return {**out, "ok": False, "message": "Program şu anki kurallarla değerlendirilemedi (bir kart artık izin "
+                                               "verilmeyen bir saatte olabilir). Önce “İhlalleri çöz”ü deneyin."}
     before = repair.penalty
+    out.update(before=before, after=before)
     if not before:
-        return {"ok": True, "moved": 0, "before": 0, "after": 0, "message": "Programın cezası zaten 0."}
-    repair.run(started + time_limit)
+        return {**out, "message": "Programın cezası zaten 0."}
+    if on_progress:
+        on_progress({"objective": before, "round": 0})
+    repair.run(started + time_limit, stall=stall, stop_handle=stop_handle, on_progress=on_progress)
     result = repair.placements()
     if repair.penalty >= before or not repair.start(result):  # yeniden değerlendirme: cezanın en küçük değeri
-        return {"ok": True, "moved": 0, "before": before, "after": before,
-                "message": f"Ceza {before}; bu sürede kart oynatarak düşürülemedi. Daha uzun süreyi ya da kalite "
-                           "sayfasındaki “Bütün okulu iyileştir”i deneyin."}
-    after = repair.penalty
+        return {**out, "message": f"Ceza {before}; bu sürede kart oynatarak düşürülemedi. Daha uzun süreyi ya da "
+                                  "kalite sayfasındaki “Bütün okulu iyileştir”i deneyin."}
+    if _hard_count(problem, result) > _hard_count(problem, placements):  # bağımsız doğrulama: beklenmez, yine de
+        return {**out, "message": "Ceza düşürülürken yeni bir kesin ihlal çıktı; sonuç kullanılmadı."}
+    return {**out, "after": repair.penalty, "result": result}
 
-    db_cards = {c.id: c for c in timetable.cards.all()}
-    updates = []
-    for card in problem.cards:
-        place = result.get(card.key)
-        if place is None:
-            continue
-        db_card = db_cards[card.card_id]
-        new = (place.day, place.period, place.room, list(place.extra_rooms))
-        if (db_card.day, db_card.period, db_card.classroom_id, list(db_card.extra_rooms or [])) != new:
-            updates.append((db_card, new))
-    changed = [db_card for db_card, _ in updates]
-    shifted = sum(1 for db_card, new in updates if (db_card.day, db_card.period) != tuple(new[:2]))
-    editing.record(timetable, "ceza düşürüldü", editing.snapshot(changed))
-    for db_card, new in updates:
-        db_card.day, db_card.period, db_card.classroom_id, db_card.extra_rooms = new
-    Card.objects.bulk_update(changed, ["day", "period", "classroom", "extra_rooms"])
-    Timetable.objects.filter(pk=timetable.pk).update(objective=after)
-    refresh_status(timetable)
-    return {"ok": True, "moved": len(changed), "shifted": shifted, "before": before, "after": after,
-            "message": f"Ceza {before} → {after} (−{before - after}): {shifted} ders başka saate taşındı. "
-                       "Geri almak için “Geri al”."}
+
+def penalty_message(before, after, shifted):
+    return f"Ceza {before} → {after} (−{before - after}): {shifted} ders başka saate taşındı. Geri almak için “Geri al”."
+
+
+def reduce_penalty(timetable, time_limit=60):
+    """Cezayı düşürür ve sonucu programa yazar (ana görünümde arka plan işi olarak çalışır: quick_jobs.py)."""
+    found = penalty_search(timetable, time_limit=time_limit)
+    if found["result"] is None:
+        return {"ok": found["ok"], "moved": 0, "before": found["before"], "after": found["after"],
+                "message": found["message"]}
+    changed, shifted = write_placements(timetable, found["problem"], found["result"], "ceza düşürüldü")
+    Timetable.objects.filter(pk=timetable.pk).update(objective=found["after"])
+    return {"ok": True, "moved": changed, "shifted": shifted, "before": found["before"], "after": found["after"],
+            "message": penalty_message(found["before"], found["after"], shifted)}
 
 
 ENTITY_PAGES = {"teacher": "ogretmenler", "school_class": "siniflar", "subject": "ders-adlari", "classroom": "derslikler"}

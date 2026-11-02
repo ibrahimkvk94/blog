@@ -1,7 +1,7 @@
 """Ana görünümde "İhlalleri çöz": kesin ihlaller en az kartı oynatarak giderilir, geri alınabilir."""
 
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from timetable.demo import create_demo_school
@@ -12,6 +12,7 @@ def hard(tt):
     return sum(1 for v in verify_timetable(tt)[0] if v.level == "hard")
 
 
+@override_settings(TIMETABLE_RUN_IN_BACKGROUND=False)
 class ResolveViolationsTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -47,7 +48,11 @@ class ResolveViolationsTests(TestCase):
         url = reverse("timetable:api_resolve", args=[self.timetable.pk])
         response = self.client.post(url, data='{"sure": 40}', content_type="application/json")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["after"], 0)
+        job = response.json()["job"]  # anında çalıştırma (testte arka plan yok): iş bitmiş döner
+        self.assertEqual((job["kind"], job["status"]), ("resolve", "done"))
+        self.assertEqual(job["result"]["after"], 0)
+        status = self.client.get(reverse("timetable:api_quick_job", args=[self.timetable.pk])).json()["job"]
+        self.assertEqual(status["id"], job["id"])
         # Geri al: çakışmalı hale döner
         self.client.post(reverse("timetable:api_undo", args=[self.timetable.pk]))
         self.assertGreater(hard(self.timetable), 0)
@@ -56,7 +61,8 @@ class ResolveViolationsTests(TestCase):
         self.client.force_login(User.objects.create_superuser("admin2", "b@x.tr", "pw"))
         page = self.client.get(reverse("timetable:timetable_detail", args=[self.timetable.pk]))
         self.assertContains(page, "İhlalleri çöz")
-        self.assertContains(page, 'data-resolve="90"')
+        self.assertContains(page, 'data-job-menu="resolve"')
+        self.assertContains(page, 'data-job-start="600"')
 
 
 class SolutionCenterFixTests(TestCase):

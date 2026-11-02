@@ -11,6 +11,7 @@ Denetim tek yerde, SchoolAccessMiddleware'de yapılır: her istekte URL adından
 URL'si varsayılan olarak yalnızca merkez yöneticiye açıktır (güvenli varsayılan).
 """
 
+from django.conf import settings
 from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -102,6 +103,7 @@ TIMETABLE_ROUTES = {
     "api_repair": (M.PROGRAM, M.PROGRAM),
     "api_resolve": (M.PROGRAM, M.PROGRAM),
     "api_penalty": (M.PROGRAM, M.PROGRAM),
+    "api_quick_job": (M.VIEW, M.PROGRAM),
     "api_undo": (M.PROGRAM, M.PROGRAM),
     "api_redo": (M.PROGRAM, M.PROGRAM),
     "api_bulk": (M.PROGRAM, M.PROGRAM),
@@ -224,7 +226,7 @@ def _deny(request, message):
 
 # Yalnızca kartların yerini değiştiren işlemler: çözücü problemi değişmez, önbellek korunur.
 PLACEMENT_ONLY = set(CARD_ROUTES) | {
-    "api_row_action", "api_undo", "api_redo", "api_bulk", "api_cell_candidates", "api_versions", "publish", "unpublish", "activate", "timetables_delete", "api_resolve", "api_penalty",
+    "api_row_action", "api_undo", "api_redo", "api_bulk", "api_cell_candidates", "api_versions", "publish", "unpublish", "activate", "timetables_delete", "api_resolve", "api_penalty", "api_quick_job",
     "api_presence", "report_excel", "report_pdf", "uybs_export", "uybs_archive", "substitutions", "duties", "solution_center", "quality", "program_compare", "availability_repair", "pending", "school_improve", "change_report", "print_settings", "backup_compare",
     # sınav programı ders programının çözücü verisini değiştirmez
     "exams", "exam_period", "exam_solve", "exam_results", "exam_edit", "exam_proctors",
@@ -327,6 +329,14 @@ def can(request):
     return context
 
 
+def account_is_local(user, institution):
+    """Hesap yalnızca bu kuruma mı ait? Merkez yöneticisinin, başka kurumun üyesinin ya da başka kurumda öğretmen
+    kartına bağlı hesabın üyeliği, parolası ve e-postası kurum yöneticisince değiştirilemez (yalnızca merkez)."""
+    if user.is_superuser or user.memberships.exclude(institution=institution).exists():
+        return False
+    return not user.teacher_profiles.exclude(school__institution=institution).exists()
+
+
 def grantable(user, institution):
     """Kullanıcının bu kurumda başkasına verebileceği yetkiler."""
     perms = institution_permissions(user, institution)
@@ -354,7 +364,7 @@ ACTION_LABELS = {
     "lesson_delete": "Ders sildi", "class_lessons": "Sınıf ders tablosu", "distribution_save": "Ders dağıtımı",
     "distribution_paste": "Ders dağıtımı (yapıştırma)", "copy_divisions": "Bölünme kopyaladı", "excel_import": "Excel'den veri aktardı",
     "data_list": "Kayıtları toplu düzenledi", "data_new": "Kayıt ekledi", "data_edit": "Kaydı düzenledi", "data_delete": "Kayıt sildi",
-    "api_repair": "Bekleyenleri yerleştirdi", "api_resolve": "İhlalleri çözdü", "api_penalty": "Cezayı düşürdü", "api_undo": "Geri aldı", "api_redo": "Yineledi", "api_bulk": "Toplu işlem",
+    "api_repair": "Bekleyenleri yerleştirdi", "api_resolve": "İhlalleri çöz başlattı", "api_penalty": "Cezayı düşür başlattı", "api_quick_job": "Onarım işini durdurdu", "api_undo": "Geri aldı", "api_redo": "Yineledi", "api_bulk": "Toplu işlem",
     "api_versions": "Versiyon kaydetti", "api_version": "Versiyon işlemi", "api_row_action": "Satır işlemi",
     "api_card_move": "Kart taşıdı", "api_card_unplace": "Kartı kaldırdı", "api_card_lock": "Kart kilidi",
     "api_card_room": "Derslik değiştirdi", "api_lesson_quick": "Hızlı değişiklik", "reports": "Rapor şablonu",
@@ -385,6 +395,16 @@ def _detail(request, response):
     return " · ".join(parts)[:2000]
 
 
+def client_ip(request):
+    """Denetim kaydı için istemci IP'si. X-Forwarded-For yalnızca ters vekil arkasında (DJANGO_BEHIND_HTTPS_PROXY)
+    okunur; doğrudan yayında bu başlığı istemci yazar ve IP taklit edilebilir."""
+    if getattr(settings, "SECURE_PROXY_SSL_HEADER", None):
+        forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip()
+        if forwarded:
+            return forwarded
+    return request.META.get("REMOTE_ADDR") or None
+
+
 def audit(request, response, action=None, detail=None):
     match = getattr(request, "resolver_match", None)
     if match is None or match.namespace != "timetable" or match.url_name in SKIP_AUDIT or not request.user.is_authenticated:
@@ -395,19 +415,17 @@ def audit(request, response, action=None, detail=None):
     institution_id = getattr(request, "current_institution_id", None)
     if institution_id and not Institution.objects.filter(pk=institution_id).exists():
         institution_id = None
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip()
     AuditLog.objects.create(
         user=request.user, username=request.user.get_username(), institution_id=institution_id, school_id=school_id,
         program_name=getattr(request, "current_program_name", ""),
         action=action or ACTION_LABELS.get(match.url_name, match.url_name), detail=detail if detail is not None else _detail(request, response),
-        path=request.path[:300], ip=forwarded or request.META.get("REMOTE_ADDR") or None,
+        path=request.path[:300], ip=client_ip(request),
     )
 
 
 def _on_login(sender, request, user, **kwargs):
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip() if request else ""
     AuditLog.objects.create(user=user, username=user.get_username(), action="Giriş yaptı",
-                            ip=forwarded or (request.META.get("REMOTE_ADDR") if request else None) or None)
+                            ip=client_ip(request) if request else None)
 
 
 def _on_login_failed(sender, credentials, request=None, **kwargs):

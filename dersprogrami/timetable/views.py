@@ -19,7 +19,7 @@ from .concurrency import guard
 from .counts import with_program_counts
 from .demo import create_demo_school
 from .grid import KINDS, card_payload, grid_data, grid_delta, room_names
-from .models import Absence, Card, day_time_notes, Duty, DutyPlace, LessonRef, ReportPreset, School, Teacher, Timetable, TimetableVersion
+from .models import Absence, Card, day_time_notes, Duty, DutyPlace, ImproveJob, LessonRef, ReportPreset, School, Teacher, Timetable, TimetableVersion
 from .services import check_school, refresh_stale, repair_timetable, request_stop, start_generation, verify_timetable
 
 KIND_LABELS = {"sinif": "Sınıflar", "ogretmen": "Öğretmenler", "derslik": "Derslikler"}
@@ -156,7 +156,7 @@ def _dashboard(request, school, main, timetables, errors):
     if "veri" in perms:
         board["today"].append({"label": "Onay bekleyen", "value": pending + leaves, "hint": f"{leaves} izin, {pending} müsaitlik isteği",
                                "url": reverse("timetable:teacher_requests", args=[school.pk]), "bad": bool(pending + leaves), "icon": "inbox"})
-    job = ImproveJob.objects.filter(timetable__school=school).select_related("timetable").first()
+    job = ImproveJob.objects.filter(timetable__school=school, kind=ImproveJob.SCHOOL).select_related("timetable").first()
     if job is not None and "program" in perms:
         job_text = {"queued": "sırada", "running": f"çalışıyor · {job.progress.get('elapsed', 0) // 60} dk",
                     "done": "öneri hazır" if job.result else "iyileştirme bulunamadı", "failed": "başarısız", "cancelled": "iptal"}[job.status]
@@ -247,6 +247,8 @@ def timetable_detail(request, pk):
         "repairUrl": reverse("timetable:api_repair", args=[timetable.pk]),
         "resolveUrl": reverse("timetable:api_resolve", args=[timetable.pk]),
         "penaltyUrl": reverse("timetable:api_penalty", args=[timetable.pk]),
+        "jobUrl": reverse("timetable:api_quick_job", args=[timetable.pk]),
+        "quickJob": _active_quick_job(timetable),
         "optionsUrl": reverse("timetable:api_card_options", args=[0]),
         "moveUrl": reverse("timetable:api_card_move", args=[0]),
         "unplaceUrl": reverse("timetable:api_card_unplace", args=[0]),
@@ -897,30 +899,52 @@ def api_repair(request, pk):
     return JsonResponse(repair_timetable(timetable))
 
 
+def _active_quick_job(timetable):
+    """Sayfa açılırken süren "İhlalleri çöz" / "Cezayı düşür" işi: sayfa izlemeyi kaldığı yerden sürdürür."""
+    from . import quick_jobs
+
+    job = quick_jobs.latest(timetable)
+    return quick_jobs.state(job) if job is not None and job.active else None
+
+
 @require_POST
 def api_resolve(request, pk):
-    """Ana görünümde "İhlalleri çöz": kesin ihlaller en az kartı oynatarak giderilir (geri alınabilir)."""
-    from .services import resolve_violations
-
-    timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
-    if not timetable.has_grid:
-        return JsonResponse({"ok": False, "message": "Bu program düzenlenemez."}, status=400)
-    seconds = _json_body(request).get("sure")
-    seconds = 90 if seconds == 90 else 40
-    return JsonResponse(resolve_violations(timetable, time_limit=seconds))
+    """Ana görünümde "İhlalleri çöz": arka plan işi başlatır (quick_jobs.py); sayfa api_quick_job ile izler."""
+    return _start_quick_job(request, pk, ImproveJob.RESOLVE)
 
 
 @require_POST
 def api_penalty(request, pk):
-    """Ana görünümde "Cezayı düşür": yumuşak ceza gün komşuluğuyla azaltılır (geri alınabilir)."""
-    from .services import reduce_penalty
+    """Ana görünümde "Cezayı düşür": arka plan işi başlatır (quick_jobs.py); sayfa api_quick_job ile izler."""
+    return _start_quick_job(request, pk, ImproveJob.PENALTY)
+
+
+def _start_quick_job(request, pk, kind):
+    from . import quick_jobs
 
     timetable = get_object_or_404(Timetable.objects.select_related("school"), pk=pk)
     if not timetable.has_grid:
         return JsonResponse({"ok": False, "message": "Bu program düzenlenemez."}, status=400)
     seconds = _json_body(request).get("sure")
-    seconds = 120 if seconds == 120 else 60
-    return JsonResponse(reduce_penalty(timetable, time_limit=seconds))
+    job = quick_jobs.start(timetable, request.user, kind, seconds if isinstance(seconds, int) else None)
+    job.refresh_from_db()
+    if job.kind != kind:
+        return JsonResponse({"ok": False, "job": quick_jobs.state(job) if job.kind != ImproveJob.SCHOOL else None,
+                             "message": f"Bu programda “{job.get_kind_display()}” sürüyor; bitince yeniden deneyin."})
+    return JsonResponse({"ok": True, "job": quick_jobs.state(job)})
+
+
+def api_quick_job(request, pk):
+    """GET: son "İhlalleri çöz" / "Cezayı düşür" işinin durumu. POST: süren işi durdurur (o ana kadarki en iyi
+    sonuç uygulanır)."""
+    from . import quick_jobs, school_improve
+
+    timetable = get_object_or_404(Timetable, pk=pk)
+    job = quick_jobs.latest(timetable)
+    if request.method == "POST" and job is not None and job.active:
+        school_improve.request_stop(job)
+        job.refresh_from_db()
+    return JsonResponse({"job": quick_jobs.state(job)})
 
 
 def _card(pk):
@@ -1168,9 +1192,10 @@ def backup_compare(request, pk):
         path = backup.path_of(name)
         if path is None:
             messages.error(request, "Yedek bulunamadı.")
-        else:
-            backup.compare_start(path, school)
+        elif backup.compare_start(path, school):
             messages.info(request, "Karşılaştırma başladı; yedek ayrı bir kopyaya yükleniyor (bir-iki dakika sürebilir).")
+        else:
+            messages.warning(request, "Bu program için bir karşılaştırma zaten sürüyor; bitince yenisini başlatın.")
         return redirect(reverse("timetable:backup_compare", args=[school.pk]) + (f"?yedek={name}" if name else ""))
     from . import input_diff
 

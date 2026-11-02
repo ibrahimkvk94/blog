@@ -37,6 +37,8 @@ class PenaltyRepair:
         days = sorted({d for slots in self.builder.x.values() for d, _ in slots})
         self.combos = [set(c) for size in (2, 3) if size <= len(days) for c in itertools.combinations(days, size)]
         self.original = {}
+        self.totals = {}
+        self.choice = {}  # havuzdaki ders -> öğretmen: onarım boyunca değişmez (veritabanına yalnızca yerler yazılır)
         self.values = None
         self.violations = None
         self.penalty = None
@@ -49,7 +51,12 @@ class PenaltyRepair:
         self.values = list(solver.ResponseProto().solution)
         value = lambda e: e if isinstance(e, int) else solver.Value(e)  # noqa: E731 (ifade de olabilir)
         self.violations = sum(value(e) for e in self.slacks)
-        self.penalty = sum(w * value(e) for w, e in self.terms)
+        self.totals = {}  # kategori -> ceza (Solution.penalties biçimi)
+        for category, weight, expr in self.builder.penalties:
+            amount = value(expr) if category not in SKIP else 0
+            if amount:
+                self.totals[category] = self.totals.get(category, 0) + weight * amount
+        self.penalty = sum(self.totals.values())
 
     def _solver(self, seconds):
         solver = cp_model.CpSolver()
@@ -58,10 +65,23 @@ class PenaltyRepair:
         solver.parameters.random_seed = self.seed + self.rounds
         return solver
 
-    def start(self, placements, seconds=15.0):
-        """Programı modelde değerlendirir (ceza değişkenleri en küçük değerlerini alır). Olmazsa False."""
+    def _fix_choice(self, model):
+        for lesson_id, teacher in self.choice.items():
+            zs = self.builder.z.get(lesson_id, {})
+            if teacher in zs:
+                for t, var in zs.items():
+                    _fix(model, [var], int(t == teacher))
+
+    def start(self, placements, seconds=15.0, teacher_choice=None):
+        """Programı modelde değerlendirir (ceza değişkenleri en küçük değerlerini alır). Olmazsa False.
+        teacher_choice: havuzdaki derslerin öğretmeni; verilmezse programın bugünkü öğretmeni (havuz ipucu)."""
         self.original = placements
+        if teacher_choice is not None:
+            self.choice = dict(teacher_choice)
+        elif not self.choice:
+            self.choice = {l: t for pool in self.problem.teacher_pools for l, t in pool.hints.items()}
         candidate = self.model.clone()
+        self._fix_choice(candidate)
         for card in self.problem.cards:
             place = placements.get(card.key)
             slots = self.builder.x[card.key]
@@ -79,12 +99,13 @@ class PenaltyRepair:
         self._accept(solver)
         return True
 
-    def _round(self, days, seconds):
+    def _round(self, days, seconds, stop_handle=None):
         candidate = self.model.clone()
         candidate.ClearHints()
         for index, value in enumerate(self.values):
             candidate.AddHint(candidate.GetIntVarFromProtoIndex(index), value)
         candidate.Add(sum(self.slacks) <= self.violations)
+        self._fix_choice(candidate)
         for key, slots in self.builder.x.items():
             current = next((slot for slot, var in slots.items() if self._value(var)), None)
             if current is None:  # bekleyen kart bekler
@@ -92,29 +113,41 @@ class PenaltyRepair:
                 continue
             if current[0] in days:
                 _fix(candidate, [var for slot, var in slots.items() if slot[0] not in days], 0)
+                candidate.Add(sum(var for slot, var in slots.items() if slot[0] in days) == 1)  # yerleşik kalır
                 continue
             _fix(candidate, [slots[current]], 1)
             for var in self.builder.y.get(key, {}).values():
                 _fix(candidate, [var], self._value(var))
         solver = self._solver(seconds)
+        if stop_handle is not None:
+            stop_handle.attach(solver)
         return solver, solver.Solve(candidate)
 
-    def run(self, deadline):
-        """Süre bitene kadar gün gruplarını sırayla dener; her grup bir kez denenince sıra karışır."""
+    def run(self, deadline, stall=None, stop_handle=None, on_progress=None):
+        """Süre bitene, ceza sıfırlanana, durdurulana ya da `stall` saniye ceza düşmeyene kadar gün gruplarını
+        sırayla dener; her grup bir kez denenince sıra karışır."""
         rng = random.Random(self.seed)
         order = []
+        improved = time.monotonic()
         while True:
-            remaining = deadline - time.monotonic()
-            if remaining < 2 or not self.penalty:
+            now = time.monotonic()
+            remaining = deadline - now
+            if (remaining < 2 or not self.penalty or (stop_handle is not None and stop_handle.stopped)
+                    or (stall is not None and now - improved > stall)):
                 return self.penalty
             if not order:
                 order = list(self.combos)
                 rng.shuffle(order)
             days = order.pop()
             self.rounds += 1
-            solver, status = self._round(days, min(ROUND, remaining))
+            solver, status = self._round(days, min(ROUND, remaining), stop_handle)
             if status in (cp_model.OPTIMAL, cp_model.FEASIBLE) and solver.ObjectiveValue() <= self.penalty:
+                before = self.penalty
                 self._accept(solver)
+                if self.penalty < before:
+                    improved = time.monotonic()
+                    if on_progress:
+                        on_progress({"phase": "polish", "round": self.rounds, "objective": self.penalty})
 
     def placements(self):
         out = {}

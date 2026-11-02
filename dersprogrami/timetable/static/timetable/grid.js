@@ -130,6 +130,8 @@
           : p.violations != null
           ? "Taslak onarılıyor (tur " + (p.round || 1) + "): en iyi taslakta " + p.violations + " kesin ihlal kaldı; her tur en iyi taslaktan devam ediyor…"
           : "Doğrudan arama tıkandı; önce her dersin yerleştiği bir taslak kuruluyor, sonra turlarla kurallara uyacak şekilde onarılıyor…")
+        : p.phase === "polish"
+        ? "Kesin kurallara uyan program hazır; ceza 2–3 günlük gruplar halinde yeniden dizilerek düşürülüyor (tur " + (p.round || 0) + "). İstediğiniz an durdurup en iyisini alabilirsiniz."
         : p.phase === "feasible"
         ? "Geçerli bir program bulundu (" + p.elapsed + " sn); şimdi boşluklar ve tercihler iyileştiriliyor…"
         : p.solutions
@@ -1039,39 +1041,63 @@
     });
   }
 
-  // İhlalleri çöz: kesin ihlaller en az kartı oynatarak giderilir; süre seçilir (hızlı / az değişiklik).
-  const resolveMenu = $("#resolve-menu");
-  if (resolveMenu) {
-    const resolveBtn = $("#btn-resolve"), label = $("[data-resolve-label]", resolveMenu);
-    resolveMenu.addEventListener("click", async (e) => {
-      const opt = e.target.closest("[data-resolve]");
-      if (!opt) return;
-      resolveMenu.classList.remove("open");
-      const seconds = Number(opt.dataset.resolve);
-      resolveBtn.disabled = true;
-      label.innerHTML = '<span class="spinner"></span> İhlaller çözülüyor (~' + seconds + " sn)…";
-      await run(api(cfg.resolveUrl, { method: "POST", body: JSON.stringify({ sure: seconds }) }));
-      resolveBtn.disabled = false;
-      label.textContent = "İhlalleri çöz";
+  // İhlalleri çöz / Cezayı düşür: arka plan işi (quick_jobs.py). Düğme ilerlemeyi gösterir, menüde "Durdur" çıkar;
+  // iş bitince sonuç iletisi gösterilir ve tablo yenilenir. Sayfa yeniden açılırsa süren iş izlenmeye devam eder.
+  const jobMenus = {};
+  document.querySelectorAll("[data-job-menu]").forEach((menu) => {
+    const label = $("[data-job-label]", menu);
+    jobMenus[menu.dataset.jobMenu] = { menu, label, text: label.textContent };
+  });
+  let jobTimer = null;
+  function showJob(job) {
+    Object.entries(jobMenus).forEach(([kind, m]) => {
+      const mine = job && job.active && job.kind === kind;
+      const busy = job && job.active;
+      m.menu.querySelectorAll("[data-job-start]").forEach((b) => { b.hidden = busy; });
+      $("[data-job-stop]", m.menu).hidden = !mine;
+      if (!mine) { m.label.textContent = m.text; return; }
+      const p = job.progress || {};
+      const change = p.before != null && p.now != null && p.now !== p.before ? " " + p.before + " → " + p.now : (p.now != null ? " " + p.now : "");
+      m.label.innerHTML = '<span class="spinner"></span> ' + esc(job.stop_requested ? "Durduruluyor…" : (p.unit === "ceza" ? "Ceza" : "İhlal") + change +
+        " · " + (p.elapsed || 0) + "/" + job.time_limit + " sn");
+      m.label.title = p.phase || "";
     });
   }
-
-  // Cezayı düşür: yumuşak ceza gün komşuluğuyla azaltılır; kesin ihlal artmaz (hızlı / uzun).
-  const penaltyMenu = $("#penalty-menu");
-  if (penaltyMenu) {
-    const penaltyBtn = $("#btn-penalty"), label = $("[data-penalty-label]", penaltyMenu);
-    penaltyMenu.addEventListener("click", async (e) => {
-      const opt = e.target.closest("[data-penalty]");
-      if (!opt) return;
-      penaltyMenu.classList.remove("open");
-      const seconds = Number(opt.dataset.penalty);
-      penaltyBtn.disabled = true;
-      label.innerHTML = '<span class="spinner"></span> Ceza düşürülüyor (~' + seconds + " sn)…";
-      await run(api(cfg.penaltyUrl, { method: "POST", body: JSON.stringify({ sure: seconds }) }));
-      penaltyBtn.disabled = false;
-      label.textContent = "Cezayı düşür";
-    });
+  async function watchJob(job) {
+    clearTimeout(jobTimer);
+    showJob(job);
+    if (!job || !job.active) return;
+    let next = job;
+    try {
+      next = (await api(cfg.jobUrl)).job;
+    } catch (e) { /* ağ hatası: bir sonraki turda yeniden denenir */ }
+    if (next && !next.active && next.id === job.id) {
+      showJob(next);
+      if (next.status === "done" && next.result) toast(next.result.message, next.result.ok === false ? "error" : "");
+      else if (next.error) toast(next.error, "error");
+      else if (next.status === "cancelled") toast("İş iptal edildi.");
+      await refresh(null);
+      return;
+    }
+    jobTimer = setTimeout(() => watchJob(next), 2000);
   }
+  Object.entries(jobMenus).forEach(([kind, m]) => {
+    m.menu.addEventListener("click", async (e) => {
+      const start = e.target.closest("[data-job-start]"), stop = e.target.closest("[data-job-stop]");
+      if (!start && !stop) return;
+      m.menu.classList.remove("open");
+      try {
+        if (stop) { watchJob((await api(cfg.jobUrl, { method: "POST" })).job); return; }
+        const r = await api(kind === "resolve" ? cfg.resolveUrl : cfg.penaltyUrl,
+          { method: "POST", body: JSON.stringify({ sure: Number(start.dataset.jobStart) }) });
+        if (r.message) toast(r.message, r.ok ? "" : "error");
+        watchJob(r.job);
+      } catch (err) {
+        toast(err.message, "error");
+      }
+    });
+  });
+  if (cfg.quickJob) watchJob(cfg.quickJob);
 
   // ---- sağ tık menüleri (aSc 13.5, 13.7, 13.9) -------------------------------------------
   const ctx = $("#ctx-menu");

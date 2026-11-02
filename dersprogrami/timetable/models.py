@@ -750,8 +750,14 @@ class Card(models.Model):
 
 
 class ImproveJob(models.Model):
-    """Bütün okulu arka planda iyileştirme işi (school_improve.py). Sonuç programa uygulanmaz; öneri
-    olarak saklanır ve çözüm merkezinde incelenip uygulanır."""
+    """Programı arka planda iyileştiren iş. "Okul geneli iyileştirme" (school_improve.py) sonucu öneri olarak saklar
+    ve çözüm merkezinde uygulanır; ana görünümdeki "İhlalleri çöz" ve "Cezayı düşür" (quick_jobs.py) sonucu
+    doğrudan programa yazar (geri alınabilir)."""
+
+    SCHOOL = "school"
+    RESOLVE = "resolve"
+    PENALTY = "penalty"
+    KIND_CHOICES = [(SCHOOL, "Okul geneli iyileştirme"), (RESOLVE, "İhlalleri çöz"), (PENALTY, "Cezayı düşür")]
 
     QUEUED = "queued"
     RUNNING = "running"
@@ -761,6 +767,7 @@ class ImproveJob(models.Model):
     STATUS_CHOICES = [(QUEUED, "Sırada"), (RUNNING, "Çalışıyor"), (DONE, "Bitti"), (FAILED, "Başarısız"), (CANCELLED, "İptal edildi")]
 
     timetable = models.ForeignKey(Timetable, on_delete=models.CASCADE, related_name="improve_jobs")
+    kind = models.CharField(max_length=10, choices=KIND_CHOICES, default=SCHOOL)
     created_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=QUEUED)
     time_limit = models.PositiveIntegerField(default=1200, help_text="saniye")
@@ -775,8 +782,8 @@ class ImproveJob(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
-        verbose_name = "okul geneli iyileştirme"
-        verbose_name_plural = "okul geneli iyileştirmeler"
+        verbose_name = "iyileştirme işi"
+        verbose_name_plural = "iyileştirme işleri"
 
     @property
     def active(self):

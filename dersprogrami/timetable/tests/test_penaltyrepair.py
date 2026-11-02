@@ -84,7 +84,7 @@ class ReducePenaltyServiceTests(TestCase):
     def test_reduces_without_new_violations_and_undo(self):
         before_cards = {c.id: (c.day, c.period) for c in self.timetable.cards.all()}
         hard_before = self.hard()
-        result = reduce_penalty(self.timetable, time_limit=10)
+        result = reduce_penalty(self.timetable, time_limit=10)  # kesin ihlal artmaz (bağımsız doğrulama)
         self.assertTrue(result["ok"], result)
         self.assertLessEqual(result["after"], result["before"])
         self.assertLessEqual(self.hard(), hard_before)
@@ -96,12 +96,40 @@ class ReducePenaltyServiceTests(TestCase):
             self.assertEqual({c.id: (c.day, c.period) for c in self.timetable.cards.all()}, before_cards)
 
     def test_api_maps_duration_and_page_has_button(self):
+        from timetable import quick_jobs
+
         self.client.force_login(User.objects.create_superuser("admin2", "b@x.tr", "pw"))
         url = reverse("timetable:api_penalty", args=[self.timetable.pk])
-        with mock.patch("timetable.services.reduce_penalty", return_value={"ok": True, "message": "x"}) as reduce:
-            self.client.post(url, data='{"sure": 120}', content_type="application/json")
-            self.client.post(url, data='{"sure": 9999}', content_type="application/json")
-        self.assertEqual([c.kwargs["time_limit"] for c in reduce.call_args_list], [120, 60])
+        with mock.patch.object(quick_jobs.school_improve, "start") as start:
+            start.return_value = mock.Mock(kind="penalty", **{"refresh_from_db.return_value": None})
+            with mock.patch.object(quick_jobs, "state", return_value={}):
+                self.client.post(url, data='{"sure": 300}', content_type="application/json")
+                self.client.post(url, data='{"sure": 9999}', content_type="application/json")
+        self.assertEqual([c.kwargs["seconds"] for c in start.call_args_list], [300, 60])
         page = self.client.get(reverse("timetable:timetable_detail", args=[self.timetable.pk]))
         self.assertContains(page, "Cezayı düşür")
-        self.assertContains(page, 'data-penalty="120"')
+        self.assertContains(page, 'data-job-start="900"')
+
+
+class StrictPolishTests(SimpleTestCase):
+    def test_polish_lowers_objective_of_strict_solution(self):
+        problem = gappy_problem()
+        repair = PenaltyRepair(problem, workers=1)
+        repair.start(GAPPY)
+        solution = cpsat.Solution(status="feasible", placements=dict(GAPPY), objective=repair.penalty, stats={})
+        progress = []
+        cpsat._polish(problem, solution, time.monotonic(), 120, 1, 0, progress.append, None)
+        self.assertLess(solution.objective, repair.penalty)
+        self.assertEqual(solution.stats["polish"]["before"], repair.penalty)
+        self.assertEqual(hard(problem, solution.placements), [])
+        self.assertEqual(progress[0]["phase"], "polish")
+
+    def test_auto_strict_solve_runs_polish_only_with_auto_time(self):
+        problem = gappy_problem()
+        with mock.patch.object(cpsat, "_polish") as polish:
+            cpsat.solve(problem, time_limit=20, workers=1, two_phase=False)
+            polish.assert_not_called()
+        # Kolay problemde ceza zaten 0 olabilir; çağrının koşulu yalnızca otomatik süre ve sıfır olmayan ceza.
+        with mock.patch.object(cpsat, "_polish") as polish:
+            solution = cpsat.solve(problem, time_limit=20, workers=1, two_phase=False, auto_time=True)
+        self.assertEqual(polish.called, bool(solution.objective))

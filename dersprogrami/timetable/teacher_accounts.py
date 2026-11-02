@@ -6,9 +6,12 @@ kullanımlık). E-postası olmayana tek seferlik geçici parola üretilir ve yal
 ilk girişte parolasını değiştirir. Aynı bağlantı "Parolamı unuttum" akışında da kullanılır.
 """
 
+import ipaddress
 import re
 import secrets
+import socket
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import login_not_required
@@ -23,6 +26,7 @@ from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode
 
 from . import notify
+from .access import account_is_local
 from .models import School
 from .textsort import natural_key
 
@@ -47,10 +51,36 @@ def unique_username(teacher):
     return name
 
 
+CGNAT = ipaddress.ip_network("100.64.0.0/10")  # Tailscale adresleri
+
+
+def link_base(request):
+    """E-postadaki bağlantının kökü ("http://adres:port") ya da güvenilir adres yoksa None.
+
+    Bağlantı isteğin Host başlığından kurulursa, "*" kabul eden sunucuda saldırgan kendi alan adına giden bir
+    parola bağlantısı gönderttirebilir. Bu yüzden: ayarlı PUBLIC_URL; yoksa Django'nun zaten denetlediği adlar;
+    "*" iken yalnızca yerel ağ / Tailscale IP'si, *.ts.net adı ya da bu bilgisayarın adı."""
+    if settings.PUBLIC_URL:
+        return settings.PUBLIC_URL
+    host = request.get_host()
+    base = f"{request.scheme}://{host}"
+    if "*" not in settings.ALLOWED_HOSTS:
+        return base
+    name = host.rsplit(":", 1)[0].strip("[]").lower() if not host.endswith("]") else host.strip("[]").lower()
+    try:
+        ip = ipaddress.ip_address(name)
+    except ValueError:
+        trusted = name.endswith(".ts.net") or name in ("localhost", socket.gethostname().lower())
+    else:
+        trusted = ip.is_private or ip.is_loopback or ip in CGNAT
+    return base if trusted else None
+
+
 def set_password_link(request, user):
     uid = urlsafe_base64_encode(force_bytes(user.pk))
     token = default_token_generator.make_token(user)
-    return request.build_absolute_uri(reverse("timetable:password_set", args=[uid, token]))
+    path = reverse("timetable:password_set", args=[uid, token])
+    return (link_base(request) or request.build_absolute_uri("/").rstrip("/")) + path
 
 
 def _invite_message(request, school, teacher, user):
@@ -80,6 +110,11 @@ def create_accounts(request, school, teachers, mode):
                 teacher.user = user
                 teacher.save(update_fields=["user"])
                 created += 1
+            elif not request.user.is_superuser and not account_is_local(user, school.institution):
+                # Başka kurumda da kullanılan hesabın parolası/e-postası buradan değiştirilemez.
+                errors.append(f"{teacher.full_name}: bağlı hesap ({user.username}) başka bir kurumda da kullanılıyor; "
+                              "parolasını yalnızca hesabın sahibi ya da merkez yönetici değiştirebilir.")
+                continue
             elif teacher.email and user.email != teacher.email:
                 user.email = teacher.email
                 user.save(update_fields=["email"])
@@ -153,7 +188,18 @@ class _ForgotForm(PasswordResetForm):
         return User.objects.filter(email__iexact=email, is_active=True)
 
 
-password_forgot = login_not_required(auth_views.PasswordResetView.as_view(
+class _ForgotView(auth_views.PasswordResetView):
+    def form_valid(self, form):
+        base = link_base(self.request)
+        if base is None:  # güvenilmeyen adresle gelen istek: bağlantı gönderilmez, yanıt aynıdır (bilgi sızmaz)
+            return redirect(self.get_success_url())
+        scheme, _, domain = base.partition("://")
+        self.extra_email_context = {"protocol": scheme, "domain": domain}
+        self.domain_override = domain
+        return super().form_valid(form)
+
+
+password_forgot = login_not_required(_ForgotView.as_view(
     form_class=_ForgotForm, template_name="timetable/password_forgot.html", email_template_name="timetable/email/password_reset.txt",
     subject_template_name="timetable/email/password_reset_subject.txt", success_url=reverse_lazy("timetable:password_forgot_done")))
 password_forgot_done = login_not_required(auth_views.PasswordResetDoneView.as_view(template_name="timetable/password_forgot.html"))

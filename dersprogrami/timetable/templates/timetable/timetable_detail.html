@@ -12,19 +12,24 @@
   {% if timetable.has_grid %}
     {% if can.program %}
     <button class="btn" id="btn-repair" title="Bekleyen kartları programa yerleştir">{% include "timetable/icon.html" with name="wand" %} Bekleyenleri yerleştir</button>
-    <div class="dropdown" id="resolve-menu">
-      <button class="btn" type="button" data-toggle="dropdown" id="btn-resolve" title="Kesin ihlalleri en az kartı oynatarak gider (geri alınabilir)">{% include "timetable/icon.html" with name="shield" %} <span data-resolve-label>İhlalleri çöz</span> {% include "timetable/icon.html" with name="chevron" %}</button>
+    <div class="dropdown" id="resolve-menu" data-job-menu="resolve">
+      <button class="btn" type="button" data-toggle="dropdown" id="btn-resolve" title="Kesin ihlalleri gider; arka planda çalışır, sayfadan ayrılabilirsiniz (geri alınabilir)">{% include "timetable/icon.html" with name="shield" %} <span data-job-label>İhlalleri çöz</span> {% include "timetable/icon.html" with name="chevron" %}</button>
       <div class="dropdown-menu">
-        <button type="button" data-resolve="40"><b>Hızlı</b><span class="subtle small">yaklaşık 40 sn</span></button>
-        <button type="button" data-resolve="90"><b>Az değişiklik</b><span class="subtle small">yaklaşık 90 sn · daha az ders taşınır</span></button>
-        <div class="subtle small" style="padding:6px 10px 2px;max-width:280px">Kilitli kartlara dokunulmaz. Ortaya çıkan değişiklik “Geri al” ile geri alınabilir.</div>
+        <button type="button" data-job-start="40"><b>Hızlı</b><span class="subtle small">yaklaşık 40 sn · az değişiklik</span></button>
+        <button type="button" data-job-start="90"><b>Az değişiklik</b><span class="subtle small">yaklaşık 90 sn · daha az ders taşınır</span></button>
+        <button type="button" data-job-start="600"><b>Derin</b><span class="subtle small">en çok 10 dk · takılınca 2–3 günün dersleri birlikte yeniden dizilir</span></button>
+        <button type="button" data-job-start="1800"><b>En derin</b><span class="subtle small">en çok 30 dk · sıkışık programlar için</span></button>
+        <button type="button" data-job-stop hidden><b>Durdur</b><span class="subtle small">o ana kadarki en iyi sonuç uygulanır</span></button>
+        <div class="subtle small" style="padding:6px 10px 2px;max-width:280px">Kilitli kartlara dokunulmaz. Sonuç ancak ihlal azalırsa uygulanır; “Geri al” ile geri alınabilir.</div>
       </div>
     </div>
-    <div class="dropdown" id="penalty-menu">
-      <button class="btn" type="button" data-toggle="dropdown" id="btn-penalty" title="Boşlukları, geç başlamaları ve diğer yumuşak cezaları azaltır (geri alınabilir)">{% include "timetable/icon.html" with name="gauge" %} <span data-penalty-label>Cezayı düşür</span> {% include "timetable/icon.html" with name="chevron" %}</button>
+    <div class="dropdown" id="penalty-menu" data-job-menu="penalty">
+      <button class="btn" type="button" data-toggle="dropdown" id="btn-penalty" title="Boşlukları, geç başlamaları ve diğer yumuşak cezaları azaltır; arka planda çalışır (geri alınabilir)">{% include "timetable/icon.html" with name="gauge" %} <span data-job-label>Cezayı düşür</span> {% include "timetable/icon.html" with name="chevron" %}</button>
       <div class="dropdown-menu">
-        <button type="button" data-penalty="60"><b>Hızlı</b><span class="subtle small">yaklaşık 1 dk</span></button>
-        <button type="button" data-penalty="120"><b>Uzun</b><span class="subtle small">yaklaşık 2 dk · daha çok iyileşir</span></button>
+        <button type="button" data-job-start="60"><b>Hızlı</b><span class="subtle small">yaklaşık 1 dk</span></button>
+        <button type="button" data-job-start="300"><b>Uzun</b><span class="subtle small">en çok 5 dk · daha çok iyileşir</span></button>
+        <button type="button" data-job-start="900"><b>En uzun</b><span class="subtle small">en çok 15 dk · 3 dk düşmezse erken biter</span></button>
+        <button type="button" data-job-stop hidden><b>Durdur</b><span class="subtle small">o ana kadarki en iyi sonuç uygulanır</span></button>
         <div class="subtle small" style="padding:6px 10px 2px;max-width:280px">Kesin ihlal sayısı artmaz, bekleyen kartlar bekler, kilitli kartlara dokunulmaz. Ceza ancak azalırsa uygulanır; “Geri al” ile geri alınabilir.</div>
       </div>
     </div>

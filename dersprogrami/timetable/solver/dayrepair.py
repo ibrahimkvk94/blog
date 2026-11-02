@@ -190,6 +190,21 @@ class DayRepair:
                         hot.update((da, db))
         return hot
 
+    def placement_objects(self, original=None):
+        """{kart: Placement} bütün derslikleriyle; derslikleri değişmeyen kartın ana dersliği aynı kalır."""
+        from .cpsat import Placement
+
+        original = original or {}
+        out = {}
+        for key, slots in self.relaxed.x.items():
+            slot = next(s for s, var in slots.items() if self._value(var))
+            rooms = [r for r, var in self.relaxed.y.get(key, {}).items() if self._value(var)]
+            before = original.get(key)
+            if before is not None and set(before.rooms) == set(rooms):
+                rooms = list(before.rooms)
+            out[key] = Placement(slot[0], slot[1], rooms[0] if rooms else None, tuple(rooms[1:]))
+        return out
+
     def placements(self):
         out = {}
         for key, slots in self.relaxed.x.items():
