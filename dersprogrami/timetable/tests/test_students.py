@@ -199,3 +199,47 @@ class StudentRuleTests(TestCase):
     def test_student_rules_skip_solver(self):
         self.rule("st_same_teacher", a=[self.x, self.y])
         self.assertEqual(build_problem(self.school).relationships, [])
+
+
+class SectionPlanTests(TestCase):
+    """Seçimlerden şube açma: gereken şube sayısı, kopyalanan şube, şubesi olmayan ders ve sayfa."""
+
+    def setUp(self):
+        self.school = School.objects.create(name="MYO", days_per_week=2)
+        self.cls = SchoolClass.objects.create(school=self.school, name="1.KISIM")
+        self.bil = Subject.objects.create(school=self.school, name="Bilişim", short="BİL")
+        self.muz = Subject.objects.create(school=self.school, name="Müzik", short="MÜZ")
+        self.teacher = Teacher.objects.create(school=self.school, first_name="Ali", last_name="Kaya")
+        self.section = Lesson.objects.create(school=self.school, subject=self.bil, elective=True, capacity=2,
+                                             periods_per_week=3, card_length=1, split="2+1")
+        self.section.teachers.set([self.teacher])
+        self.section.classes.set([self.cls])
+        for i in range(5):
+            s = Student.objects.create(school=self.school, number=str(i), first_name=f"Ö{i}", school_class=self.cls)
+            s.choices.set([self.bil] + ([self.muz] if i < 3 else []))
+
+    def test_plan_counts_needed_sections(self):
+        rows = {r["subject"].short: r for r in students.section_plan(self.school)}
+        self.assertEqual((rows["BİL"]["demand"], rows["BİL"]["sections"], rows["BİL"]["needed"], rows["BİL"]["missing"]),
+                         (5, 1, 3, 2))  # 5 öğrenci, kontenjan 2
+        self.assertEqual((rows["MÜZ"]["sections"], rows["MÜZ"]["capacity"], rows["MÜZ"]["needed"]),
+                         (0, students.DEFAULT_CAPACITY, 1))
+
+    def test_create_copies_template_and_distributes(self):
+        self.client.force_login(User.objects.create_superuser("admin", "a@x.tr", "pw"))
+        url = reverse("timetable:students", args=[self.school.pk])
+        page = self.client.get(url)
+        self.assertContains(page, "Şube planı")
+        self.client.post(url, {"action": "sections", "sube": [self.bil.pk, self.muz.pk], "adet_%d" % self.bil.pk: "3",
+                               "kontenjan_%d" % self.bil.pk: "2", "adet_%d" % self.muz.pk: "1",
+                               "kontenjan_%d" % self.muz.pk: "25", "saat_%d" % self.muz.pk: "2", "redistribute": "1"})
+        bil = list(self.school.lessons.filter(subject=self.bil, elective=True).order_by("id"))
+        self.assertEqual(len(bil), 3)
+        copy = bil[-1]
+        self.assertEqual((copy.periods_per_week, copy.split, copy.capacity), (3, "2+1", 2))
+        self.assertEqual(list(copy.teachers.all()), [self.teacher])
+        self.assertEqual(sorted(l.students.count() for l in bil), [1, 2, 2])  # 5 öğrenci kontenjana göre dağıldı
+        muz = self.school.lessons.get(subject=self.muz, elective=True)
+        self.assertEqual((muz.periods_per_week, muz.card_length, muz.capacity, muz.students.count()), (2, 2, 25, 3))
+        rows = {r["subject"].short: r for r in students.section_plan(self.school)}
+        self.assertEqual(rows["BİL"]["missing"], 0)

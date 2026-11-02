@@ -8,6 +8,7 @@
   ve kayıtlı olduğu seçmeli dersler. Üretimde aynı öğrencinin dersleri çakışmaz.
 """
 
+import math
 import re
 from collections import Counter, defaultdict
 
@@ -16,7 +17,7 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
-from .models import Lesson, School, Student
+from .models import Lesson, School, Student, Subject
 
 
 # --- öğrencinin dersleri ------------------------------------------------------------------------
@@ -244,6 +245,70 @@ def distribute(school, timetable=None, reset=False):
     return {"assigned": assigned, "kept": kept, "unassigned": unassigned}
 
 
+# --- şube planı: seçimlerden şube açma ----------------------------------------------------------
+
+DEFAULT_CAPACITY = 30  # şubesi olmayan ders adı için önerilen kontenjan
+
+
+def section_plan(school):
+    """Seçilen her ders adı için şube ihtiyacı: [{"subject", "demand", "sections", "capacity", "hours", "needed",
+    "missing"}]. Kontenjan mevcut şubelerin en sık kontenjanı (yoksa DEFAULT_CAPACITY); gereken şube = seçen /
+    kontenjan (yukarı yuvarlanır)."""
+    demand = Counter(cid for s in school.students.prefetch_related("choices") for cid in (c.id for c in s.choices.all()))
+    sections = defaultdict(list)
+    for lesson in school.lessons.filter(elective=True).order_by("id"):
+        sections[lesson.subject_id].append(lesson)
+    plain_hours = dict(school.lessons.filter(elective=False).values_list("subject_id", "periods_per_week"))
+    rows = []
+    for subject in Subject.objects.filter(pk__in=set(demand) | set(sections)).order_by("short", "name"):
+        existing = sections.get(subject.id, [])
+        capacities = Counter(l.capacity for l in existing if l.capacity)
+        capacity = capacities.most_common(1)[0][0] if capacities else DEFAULT_CAPACITY
+        hours = existing[0].periods_per_week if existing else plain_hours.get(subject.id, 2)
+        needed = math.ceil(demand[subject.id] / capacity) if demand[subject.id] else 0
+        rows.append({"subject": subject, "demand": demand[subject.id], "sections": len(existing), "capacity": capacity,
+                     "hours": hours, "needed": needed, "missing": max(0, needed - len(existing))})
+    rows.sort(key=lambda r: (-r["missing"], r["subject"].short or r["subject"].name))
+    return rows
+
+
+def create_sections(school, wanted):
+    """Eksik seçmeli şubeleri açar. wanted: {ders adı kimliği: (istenen şube sayısı, kontenjan, haftalık saat)}.
+    Yeni şube ilk mevcut şubenin kopyasıdır (saat, kart dağılımı, öğretmen, derslik, sınıflar); şubesi yoksa
+    verilen haftalık saatle boş bir seçmeli ders açılır. Kontenjanı boş olan mevcut şubelere de kontenjan yazılır.
+    Dönüş: açılan ders sayısı."""
+    created = 0
+    with transaction.atomic():
+        for subject_id, (count, capacity, hours) in wanted.items():
+            subject = school.subjects.filter(pk=subject_id).first()
+            if subject is None:
+                continue
+            existing = list(school.lessons.filter(elective=True, subject=subject).order_by("id")
+                            .prefetch_related("teachers", "classrooms", "classes"))
+            for lesson in existing:
+                if lesson.capacity is None and capacity:
+                    lesson.capacity = capacity
+                    lesson.save(update_fields=["capacity"])
+            template = existing[0] if existing else None
+            for _ in range(max(0, count - len(existing))):
+                if template is not None:
+                    lesson = Lesson.objects.create(
+                        school=school, subject=subject, elective=True, capacity=capacity or template.capacity,
+                        periods_per_week=template.periods_per_week, card_length=template.card_length, split=template.split,
+                        rooms_needed=template.rooms_needed, max_per_day=template.max_per_day,
+                        weeks_mask=template.weeks_mask, terms_mask=template.terms_mask,
+                    )
+                    lesson.teachers.set(template.teachers.all())
+                    lesson.classrooms.set(template.classrooms.all())
+                    lesson.classes.set(template.classes.all())
+                else:
+                    hours = max(1, hours or 2)
+                    lesson = Lesson.objects.create(school=school, subject=subject, elective=True, capacity=capacity,
+                                                   periods_per_week=hours, card_length=min(hours, 2))
+                created += 1
+    return created
+
+
 def rule_warnings(school):
     """Öğrenci kurallarının mevcut seçim ve kayıtlara göre ihlalleri (metin listesi)."""
     rules = student_rules(school)
@@ -364,6 +429,21 @@ def students_page(request, pk):
                 messages.warning(request, f"{s.full_name} – {subject.short or subject.name}: {reason}")
             if len(result["unassigned"]) > 12:
                 messages.warning(request, f"… ve {len(result['unassigned']) - 12} seçim daha dağıtılamadı.")
+        elif action == "sections":
+            wanted = {}
+            for sid in request.POST.getlist("sube"):
+                if not sid.isdigit():
+                    continue
+                number = lambda name, default: int(v) if (v := request.POST.get(f"{name}_{sid}", "")).isdigit() else default  # noqa: E731
+                wanted[int(sid)] = (number("adet", 0), number("kontenjan", None), number("saat", 2))
+            created = create_sections(school, wanted)
+            messages.success(request, f"{created} yeni şube açıldı. Öğretmen ve dersliklerini Dersler ekranında "
+                                      "düzenleyebilirsiniz; şubelerin programa girmesi için programı yeniden üretin.")
+            if created and request.POST.get("redistribute") == "1":
+                result = distribute(school, timetable, reset=True)
+                messages.success(request, f"Öğrenciler baştan dağıtıldı: {result['assigned']} seçim yerleşti.")
+                for s, subject, reason in result["unassigned"][:8]:
+                    messages.warning(request, f"{s.full_name} – {subject.short or subject.name}: {reason}")
         elif action == "delete":
             ids = [int(x) for x in request.POST.getlist("sec") if x.isdigit()]
             n, _ = school.students.filter(pk__in=ids).delete() if ids else (0, None)
@@ -392,7 +472,7 @@ def students_page(request, pk):
         school, "students", students=students, classes=list(school.classes.all()), class_id=int(class_id) if class_id and class_id.isdigit() else None,
         electives=[{"lesson": e, "count": e.students.count(), "demand": demand.get(e.subject_id, 0),
                     "teachers": ", ".join(t.full_name for t in e.teachers.all())} for e in electives],
-        rule_warnings=warnings[:50], rule_warning_count=len(warnings),
+        rule_warnings=warnings[:50], rule_warning_count=len(warnings), section_rows=section_plan(school),
         clash_list=[(s, _clash_text(bad)) for s, bad in clash_list[:50]], clash_ids=clash_ids, timetable=timetable,
         timetables=[t for t in school.timetables.all() if t.has_grid], total=school.students.count(),
     ))

@@ -38,6 +38,7 @@ NAV_GROUPS = [
     ]),
     ("gunluk", "Günlük işler", [
         ("Vekâlet", "swap", _school("substitutions"), {"subs"}, None, True),
+        ("Etkinlik ve telafi", "calendar", _school("events"), {"etkinlik"}, None, True),
         ("Nöbet çizelgesi", "clipboard", _school("duties"), {"duties"}, None, True),
         ("Sınav programı", "calendar", _school("exams"), {"sinavlar"}, None, True),
         ("Öğretmen istekleri", "inbox", _school("teacher_requests"), {"istekler"}, "veri", True),

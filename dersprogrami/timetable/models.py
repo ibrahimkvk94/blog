@@ -1158,6 +1158,52 @@ class Substitution(models.Model):
         return f"{self.absence} – {self.period + 1}. saat → {self.substitute or 'boş'}"
 
 
+class Event(models.Model):
+    """Haftalık programın üstüne tek seferlik kayıt (events.py): derslik / etkinlik rezervasyonu ya da telafi dersi.
+
+    Telafide katılımcılar karma olabilir: birden çok dersin (ör. aynı dersin iki kısmı) sınıfları ve grupları ile tek
+    tek seçilen öğrenciler aynı oturumda toplanır. Uygun saat aranırken o tarihin dersleri, vekâletleri,
+    devamsızlıkları, müsaitlik yasakları ve diğer etkinlikler hesaba katılır."""
+
+    EVENT = "etkinlik"
+    MAKEUP = "telafi"
+    KIND_CHOICES = [(EVENT, "Etkinlik / rezervasyon"), (MAKEUP, "Telafi dersi")]
+
+    school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="events")
+    kind = models.CharField("tür", max_length=10, choices=KIND_CHOICES, default=EVENT)
+    title = models.CharField("başlık", max_length=200)
+    date = models.DateField("tarih")
+    period = models.PositiveSmallIntegerField("başlangıç saati", help_text="0'dan başlar")
+    length = models.PositiveSmallIntegerField("süre (ders saati)", default=1)
+    classrooms = models.ManyToManyField(Classroom, blank=True, related_name="events", verbose_name="derslikler")
+    teachers = models.ManyToManyField(Teacher, blank=True, related_name="events", verbose_name="öğretmenler")
+    classes = models.ManyToManyField(SchoolClass, blank=True, related_name="events", verbose_name="sınıflar")
+    groups = models.ManyToManyField(Group, blank=True, related_name="events", verbose_name="gruplar")
+    students = models.ManyToManyField("Student", blank=True, related_name="events", verbose_name="öğrenciler")
+    lessons = models.ManyToManyField(Lesson, blank=True, related_name="makeups", verbose_name="telafisi yapılan dersler")
+    missed_date = models.DateField("telafi edilen tarih", null=True, blank=True)
+    note = models.TextField("not", blank=True)
+    created_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["date", "period", "id"]
+        indexes = [models.Index(fields=["school", "date"])]
+        verbose_name = "etkinlik"
+        verbose_name_plural = "etkinlikler"
+
+    def __str__(self):
+        return f"{self.title} – {self.date:%d.%m.%Y} {self.period + 1}. saat"
+
+    @property
+    def periods(self):
+        return range(self.period, self.period + self.length)
+
+    @property
+    def periods_label(self):
+        return f"{self.period + 1}. saat" if self.length == 1 else f"{self.period + 1}–{self.period + self.length}. saat"
+
+
 class DutyPlace(models.Model):
     """Nöbet yeri (aSc'de "room supervision" alanı): ör. Bahçe, 1. kat koridoru."""
 

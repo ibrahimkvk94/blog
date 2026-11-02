@@ -2,7 +2,7 @@ from django.contrib.auth import views as auth_views
 from django.urls import path
 
 from . import penalty  # noqa: I001 (ayrı satır: paralel değişikliklerle birleştirmesi kolay olsun)
-from . import accounts, asc_relations, availability_repair, concurrency, data_views, departments, notification_views, printing, request_views, setup_wizard, teacher_accounts, resolve, institutions, public, school_improve, students, teacher_info, uybs, views
+from . import accounts, asc_relations, availability_repair, concurrency, data_views, departments, events, notification_views, printing, request_views, setup_wizard, teacher_accounts, resolve, institutions, public, school_improve, students, teacher_info, uybs, views
 
 app_name = "timetable"
 
@@ -43,6 +43,7 @@ urlpatterns = [
     path("okul/<int:pk>/surum-sil/", views.timetables_delete, name="timetables_delete"),
     path("okul/<int:pk>/yayindan-kaldir/", views.unpublish, name="unpublish"),
     path("okul/<int:pk>/vekalet/", views.substitutions, name="substitutions"),
+    path("okul/<int:pk>/etkinlik-ve-telafi/", events.events_page, name="events"),
     path("okul/<int:pk>/nobet/", views.duties, name="duties"),
     path("okul/<int:pk>/uybs/", views.lesson_refs, name="lesson_refs"),
     path("okul/<int:pk>/uybs/ayarlar/", uybs.settings_page, name="uybs_settings"),

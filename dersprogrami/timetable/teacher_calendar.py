@@ -13,7 +13,7 @@ from collections import defaultdict
 
 from django.utils import timezone
 
-from .models import Absence, Duty, Substitution, Timetable
+from .models import Absence, Duty, Event, Substitution, Timetable
 
 WEEKS = 16
 DAY_FULL = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
@@ -78,6 +78,10 @@ def events(teacher, start, end):
     for sub in (Substitution.objects.filter(substitute=teacher, absence__date__gte=start, absence__date__lt=end)
                 .select_related("absence__teacher", "card__lesson__subject").prefetch_related("card__lesson__classes")):
         subs[sub.absence.date].append(sub)
+    extras = defaultdict(list)  # tek seferlik kayıtlar: telafi dersi, etkinlik / rezervasyon (events.py)
+    for ev in (Event.objects.filter(teachers=teacher, date__gte=start, date__lt=end)
+               .prefetch_related("classrooms", "classes", "groups__division__school_class")):
+        extras[ev.date].append(ev)
     duties = defaultdict(list)
     for duty in Duty.objects.filter(teacher=teacher).select_related("place"):
         duties[duty.day].append(duty)
@@ -107,6 +111,16 @@ def events(teacher, start, end):
                     "title": f"Vekâlet: {short} · {classes}", "location": sub.card.classroom.name if sub.card.classroom else "",
                     "detail": f"{sub.absence.teacher.full_name} yerine, {sub.period + 1}. saat", "uid": f"vekalet-{sub.id}",
                 })
+            for ev in extras.get(date, []):
+                begin, _ = times.get((ev.period, weekday), (None, None))
+                _, finish = times.get((ev.period + ev.length - 1, weekday), (None, None))
+                who = ", ".join([c.short or c.name for c in ev.classes.all()] + [str(g) for g in ev.groups.all()])
+                out.append({
+                    "date": date, "start": begin, "end": finish, "kind": ev.kind,
+                    "title": ev.title + (f" · {who}" if who else ""),
+                    "location": ", ".join(r.name for r in ev.classrooms.all()),
+                    "detail": ev.periods_label + (f" — {ev.note}" if ev.note else ""), "uid": f"etkinlik-{ev.id}",
+                })
             for duty in duties.get(weekday, []):
                 out.append({"date": date, "start": None, "end": None, "kind": "nobet", "title": f"Nöbet: {duty.place.name}",
                             "location": duty.place.name, "detail": "", "uid": f"nobet-{duty.id}-{date:%Y%m%d}"})
@@ -119,7 +133,7 @@ def upcoming(teacher, days=14):
     """Bugünden itibaren olağan dışı günler (izin, vekâlet) ve bugünün planı."""
     today = timezone.localdate()
     items = events(teacher, today, today + datetime.timedelta(days=days))
-    special = [e for e in items if e["kind"] in ("izin", "vekalet")]
+    special = [e for e in items if e["kind"] in ("izin", "vekalet", "telafi", "etkinlik")]
     return {"today": [e for e in items if e["date"] == today], "special": special}
 
 

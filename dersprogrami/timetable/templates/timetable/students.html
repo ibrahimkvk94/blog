@@ -36,6 +36,33 @@
       </div>
     </div>
 
+    {% if section_rows %}
+    <form method="post" class="panel">{% csrf_token %}<input type="hidden" name="action" value="sections"><input type="hidden" name="program" value="{{ timetable.pk|default:'' }}">
+      <div class="panel-head"><h2>Şube planı (seçimlerden)</h2>{% with missing=section_rows|first %}{% if missing.missing %}<span class="pill warn">eksik şube var</span>{% endif %}{% endwith %}</div>
+      <div class="panel-body flush table-wrap">
+        <table class="table">
+          <thead><tr><th></th><th>Ders</th><th class="num">Seçen</th><th class="num">Mevcut şube</th><th class="num">Kontenjan</th><th class="num">Şube sayısı</th><th class="num">Haftalık saat</th></tr></thead>
+          <tbody>{% for r in section_rows %}<tr>
+            <td><input type="checkbox" name="sube" value="{{ r.subject.pk }}" {% if r.missing and can.veri %}checked{% endif %} {% if not can.veri %}disabled{% endif %}></td>
+            <td><b>{{ r.subject.short|default:r.subject.name }}</b> <span class="subtle small">{{ r.subject.name }}</span>{% if r.missing %}<div class="small" style="color:var(--warn)">{{ r.missing }} şube eksik</div>{% endif %}</td>
+            <td class="num">{{ r.demand }}</td>
+            <td class="num">{{ r.sections }}</td>
+            <td class="num"><input class="input" type="number" min="1" name="kontenjan_{{ r.subject.pk }}" value="{{ r.capacity }}" style="width:76px"></td>
+            <td class="num"><input class="input" type="number" min="0" name="adet_{{ r.subject.pk }}" value="{% if r.needed > r.sections %}{{ r.needed }}{% else %}{{ r.sections }}{% endif %}" style="width:64px"></td>
+            <td class="num">{% if r.sections %}{{ r.hours }}{% else %}<input class="input" type="number" min="1" name="saat_{{ r.subject.pk }}" value="{{ r.hours }}" style="width:64px">{% endif %}</td>
+          </tr>{% endfor %}</tbody>
+        </table>
+      </div>
+      {% if can.veri %}
+      <div class="panel-body">
+        <p class="subtle small" style="margin-top:0">Şube sayısı, seçen öğrenci ÷ kontenjan (yukarı yuvarlanır). Yeni şube, dersin ilk şubesinin kopyasıdır (saat, öğretmen, derslik); şubesi olmayan ders için boş bir seçmeli ders açılır. Şubeler programa yeniden üretimle girer.</p>
+        <label class="check"><input type="checkbox" name="redistribute" value="1" checked> <span>Ardından öğrencileri baştan dağıt</span></label>
+        <button class="btn btn-primary" style="margin-top:10px">{% include "timetable/icon.html" with name="plus" %} İşaretli derslerin eksik şubelerini aç</button>
+      </div>
+      {% endif %}
+    </form>
+    {% endif %}
+
     <form method="post" class="panel">{% csrf_token %}<input type="hidden" name="program" value="{{ timetable.pk|default:'' }}">
       <div class="panel-head"><h2>Öğrenciler</h2></div>
       <div class="panel-body flush table-wrap">

@@ -30,6 +30,7 @@ SCHOOL_ROUTES = {
     "timetables_delete": (M.PROGRAM, M.PROGRAM),
     "unpublish": (M.PUBLISH, M.PUBLISH),
     "substitutions": (M.VIEW, M.SUBSTITUTE),
+    "events": (M.VIEW, M.SUBSTITUTE),
     "duties": (M.VIEW, M.DUTY),
     "duties_print": (M.VIEW, M.VIEW),
     "lesson_refs": (M.VIEW, M.DATA),
@@ -227,7 +228,7 @@ def _deny(request, message):
 # Yalnızca kartların yerini değiştiren işlemler: çözücü problemi değişmez, önbellek korunur.
 PLACEMENT_ONLY = set(CARD_ROUTES) | {
     "api_row_action", "api_undo", "api_redo", "api_bulk", "api_cell_candidates", "api_versions", "publish", "unpublish", "activate", "timetables_delete", "api_resolve", "api_penalty", "api_quick_job",
-    "api_presence", "report_excel", "report_pdf", "uybs_export", "uybs_archive", "substitutions", "duties", "solution_center", "quality", "program_compare", "availability_repair", "pending", "school_improve", "change_report", "print_settings", "backup_compare",
+    "api_presence", "report_excel", "report_pdf", "uybs_export", "uybs_archive", "substitutions", "events", "duties", "solution_center", "quality", "program_compare", "availability_repair", "pending", "school_improve", "change_report", "print_settings", "backup_compare",
     # sınav programı ders programının çözücü verisini değiştirmez
     "exams", "exam_period", "exam_solve", "exam_results", "exam_edit", "exam_proctors",
 }
@@ -357,7 +358,7 @@ ACTION_LABELS = {
     "central_school_new": "Kurum oluşturdu", "institution_users": "Kullanıcı yönetimi", "program_new": "Program ekledi",
     "program_copy": "Program kopyaladı", "program_import": "aSc'den program aktardı", "program_delete": "Program sildi",
     "generate": "Üretim başlattı", "timetables_delete": "Sürüm sildi", "unpublish": "Programı yayından kaldırdı", "stop": "Üretimi durdurdu", "publish": "Programı yayınladı", "activate": "Aktif programı değiştirdi",
-    "substitutions": "Vekâlet", "duties": "Nöbet çizelgesi", "lesson_refs": "ÜYBS referansları",
+    "substitutions": "Vekâlet", "events": "Etkinlik ve telafi", "duties": "Nöbet çizelgesi", "lesson_refs": "ÜYBS referansları",
     "penalty_breakdown": "Ceza dökümü", "program_compare": "Program karşılaştırma", "availability_repair": "Müsaitlik onarımı",
     "uybs_settings": "ÜYBS ayarları", "print_settings": "Basılı çıktı ayarları", "setup_wizard": "Kurulum sihirbazı", "teacher_accounts": "Öğretmen hesapları", "departments": "Bölümler", "backup_compare": "Yedekle karşılaştırdı", "department_portal": "Bölüm önerisi", "relationship_import": "aSc kart ilişkisi aktarımı", "bulk_availability": "Toplu müsaitlik", "availability_import": "aSc müsaitlik aktarımı", "room_wizard": "Derslik atama", "school_improve": "Okul geneli iyileştirme", "change_report": "Değişiklik bildirimi gönderdi", "teacher_requests": "Öğretmen istekleri", "teacher_assign": "Öğretmen atama", "teacher_info": "Öğretmen bilgileri (toplu)", "relation_wizard": "Teori + uygulama sihirbazı", "relation_audit": "İlişki denetimi", "my_requests": "Müsaitlik isteği", "my_timetable": "Takvim bağlantısı", "solution_center": "Çözüm merkezi", "quality": "Kalite karnesi", "pending": "Bekleyen kart yerleştirme", "uybs_archive": "ÜYBS hafta arşivi", "students": "Öğrenciler",
     "school_settings": "Program ayarları/saatler", "lesson_new": "Ders ekledi", "lesson_edit": "Dersi düzenledi",

@@ -44,6 +44,9 @@ def day_plan(school, timetable, date):
     for card in cards:
         for teacher in card.lesson.teachers.all():
             busy[teacher.id].update(range(card.period, card.period + card.length))
+    for event in school.events.filter(date=date).prefetch_related("teachers"):  # o günün telafi / etkinlikleri
+        for teacher in event.teachers.all():
+            busy[teacher.id].update(event.periods)
 
     substituting = defaultdict(set)
     for sub in Substitution.objects.filter(absence__school=school, absence__date=date, substitute__isnull=False):

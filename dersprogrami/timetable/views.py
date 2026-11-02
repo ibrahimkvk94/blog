@@ -541,6 +541,7 @@ def substitutions(request, pk):
             next_date=date + datetime.timedelta(days=1),
             timetable=timetable,
             plan=plan,
+            day_events=list(school.events.filter(date=date).prefetch_related("teachers", "classrooms", "classes")),
             teachers=school.teachers.all(),
             weekday_ok=weekday_ok, weekday=date.weekday(),
             day_name=school.day_names[date.weekday()] if weekday_ok else "",

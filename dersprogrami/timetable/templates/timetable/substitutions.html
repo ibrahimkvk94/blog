@@ -30,6 +30,11 @@
       </form>
     </div>
 
+    {% if day_events %}
+      <div class="alert alert-info no-print" style="margin-bottom:18px"><b>Bugün {{ day_events|length }} telafi / etkinlik var:</b>
+        {% for e in day_events %}{{ e.periods_label }} {{ e.title }}{% if e.classrooms.all %} ({% for r in e.classrooms.all %}{{ r.name }}{% if not forloop.last %}, {% endif %}{% endfor %}){% endif %}{% if not forloop.last %} · {% endif %}{% endfor %}
+        · <a href="{% url 'timetable:events' school.pk %}?baslangic={{ date|date:'Y-m-d' }}&bitis={{ date|date:'Y-m-d' }}">Ayrıntılar</a></div>
+    {% endif %}
     {% for item in plan %}
       <div class="panel" style="margin-bottom:18px">
         <div class="panel-head">
