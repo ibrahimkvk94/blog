@@ -1,23 +1,23 @@
 {% extends "timetable/base.html" %}
 {% load assets %}
 {% block title %}{{ period.name }}{% endblock %}
-{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{% url 'timetable:exams' school.pk %}">Sınav programı</a>{% endblock %}
-{% block heading %}<h1>{{ period.name }}</h1>{% include "timetable/exams/status.html" %}{% endblock %}
+{% block crumbs %}<a href="{% url 'sinav:home' %}">Sınav Planlama</a> / <a href="{% url 'sinav:periods' school.pk %}">{{ school }}</a>{% endblock %}
+{% block heading %}<h1>{{ period.name }}</h1>{% include "sinav/status.html" %}{% endblock %}
 {% block actions %}
   {% if can.veri and rows %}
-    <form method="post" action="{% url 'timetable:exam_solve' school.pk period.pk %}"{% if period.status %} data-confirm="Kilitli olmayan yerleşimler silinip program yeniden oluşturulsun mu?"{% endif %}>{% csrf_token %}
+    <form method="post" action="{% url 'sinav:solve' school.pk period.pk %}"{% if period.status %} data-confirm="Kilitli olmayan yerleşimler silinip program yeniden oluşturulsun mu?"{% endif %}>{% csrf_token %}
       <button class="btn btn-primary"{% if period.is_running %} disabled{% endif %}>{% include "timetable/icon.html" with name="wand" %} Programı oluştur</button></form>
   {% endif %}
 {% endblock %}
 {% block content %}
-{% include "timetable/exams/tabs.html" with active=tab %}
+{% include "sinav/tabs.html" with active=tab %}
 
 {% if tab == "ayarlar" %}
 <div class="panel" style="margin-top:14px">
   <div class="panel-head"><h2>Dönem ayarları</h2><span class="subtle small">{{ slots }} oturum ({{ period.dates|length }} gün × {{ period.session_times|length }})</span></div>
   <div class="panel-body">
     <form method="post">{% csrf_token %}<input type="hidden" name="action" value="settings">
-      {% include "timetable/exams/period_form.html" %}
+      {% include "sinav/period_form.html" %}
       {% if can.veri %}<div class="form-actions"><button class="btn btn-primary">Kaydet</button></div>{% endif %}
     </form>
   </div>
@@ -98,7 +98,7 @@
         {% for e in rows %}
           <tr class="{% if e.excluded %}ex-off{% endif %}" data-search="{{ e.title|fold }} {% for c in e.classes.all %}{{ c.name|fold }} {{ c.short|fold }} {% endfor %}{% for t in e.teachers.all %}{{ t.full_name|fold }} {% endfor %}">
             <td><input type="checkbox" name="sel" value="{{ e.pk }}" aria-label="Seç"><input type="hidden" name="row" value="{{ e.pk }}"></td>
-            <td><a href="{% url 'timetable:exam_edit' school.pk period.pk e.pk %}"><b>{{ e.title }}</b></a>{% if e.note %}<div class="subtle small">{{ e.note }}</div>{% endif %}</td>
+            <td><a href="{% url 'sinav:edit' school.pk period.pk e.pk %}"><b>{{ e.title }}</b></a>{% if e.note %}<div class="subtle small">{{ e.note }}</div>{% endif %}</td>
             <td class="small">{% for c in e.classes.all %}{{ c.short|default:c.name }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="subtle">—</span>{% endfor %}</td>
             <td class="small">{% for t in e.teachers.all %}{{ t.full_name }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="subtle">—</span>{% endfor %}</td>
             <td class="num"><input class="input input-sm ex-num" type="number" min="0" name="count-{{ e.pk }}" value="{{ e.student_count }}" title="{% if e.count_manual %}Elle girildi{% else %}Sınıflardan hesaplandı{% endif %}"{% if e.count_manual %} data-manual{% endif %}></td>
@@ -116,4 +116,4 @@
 {% endif %}
 {% endif %}
 {% endblock %}
-{% block scripts %}<script src="{% asset 'timetable/data.js' %}"></script><script src="{% asset 'timetable/exams.js' %}"></script>{% endblock %}
+{% block scripts %}<script src="{% asset 'timetable/data.js' %}"></script><script src="{% asset 'sinav/exams.js' %}"></script>{% endblock %}

@@ -7,7 +7,8 @@ from . import accounts, asc_relations, availability_repair, concurrency, data_vi
 app_name = "timetable"
 
 urlpatterns = [
-    path("", views.school_list, name="school_list"),
+    path("", views.home, name="home"),
+    path("ders-planlama/", views.school_list, name="school_list"),
     path("giris/", auth_views.LoginView.as_view(template_name="timetable/login.html", redirect_authenticated_user=True), name="login"),
     path("cikis/", auth_views.LogoutView.as_view(), name="logout"),
     path("hesabim/", accounts.account, name="account"),
@@ -135,16 +136,10 @@ urlpatterns = [
     path("api/program/<int:pk>/hucre/", views.api_cell_candidates, name="api_cell_candidates"),
 ]
 
-# Sınav programı (bkz. exam_views.py)
-from . import exam_views  # noqa: E402
+# Sınav programının eski adresleri: Sınav Planlama modülüne (sinav/) yönlendirir.
+from django.views.generic import RedirectView  # noqa: E402
 
 urlpatterns += [
-    path("okul/<int:pk>/sinavlar/", exam_views.period_list, name="exams"),
-    path("okul/<int:pk>/sinavlar/<int:period_id>/", exam_views.period_page, name="exam_period"),
-    path("okul/<int:pk>/sinavlar/<int:period_id>/olustur/", exam_views.solve, name="exam_solve"),
-    path("okul/<int:pk>/sinavlar/<int:period_id>/program/", exam_views.results, name="exam_results"),
-    path("okul/<int:pk>/sinavlar/<int:period_id>/sinav/<int:exam_id>/", exam_views.exam_edit, name="exam_edit"),
-    path("okul/<int:pk>/sinavlar/<int:period_id>/gozetmenler/", exam_views.proctors, name="exam_proctors"),
-    path("okul/<int:pk>/sinavlar/<int:period_id>/yazdir/", exam_views.print_view, name="exam_print"),
-    path("okul/<int:pk>/sinavlar/<int:period_id>/excel/", exam_views.excel_view, name="exam_excel"),
+    path("okul/<int:pk>/sinavlar/", RedirectView.as_view(pattern_name="sinav:periods"), name="exams_old"),
+    path("okul/<int:pk>/sinavlar/<int:period_id>/", RedirectView.as_view(pattern_name="sinav:period"), name="exam_period_old"),
 ]

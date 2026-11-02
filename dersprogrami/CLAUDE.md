@@ -1,7 +1,13 @@
-# Ders Programı modülü — Claude için çalışma kuralları
+# Ders ve Sınav Planlama — Claude için çalışma kuralları
 
-Bu klasör, Django + OR-Tools CP-SAT ile çalışan okul / MYO ders programı uygulamasıdır (Django uygulaması:
-`timetable`). Modülün ne yaptığı, mimarisi, alınan kararlar ve başka bir projeye nasıl bağlanacağı:
+Bu klasör, Django + OR-Tools CP-SAT ile çalışan okul / MYO planlama uygulamasıdır. Modüllerden oluşur; ana
+sayfada her modül bir karttır:
+
+- **Ders Planlama** — Django uygulaması `timetable`. Ortak veriyi de (kurum, program, sınıf, öğretmen, derslik,
+  ders) bu uygulama tutar; modül kaydı, ana sayfa ve yetki denetimi de buradadır (`modules.py`, `access.py`).
+- **Sınav Planlama** — Django uygulaması `sinav`. Ortak veriyi kullanır, kendi verisi sınav dönemleri ve sınavlardır.
+
+Uygulamanın ne yaptığı, mimarisi, alınan kararlar ve başka bir projeye nasıl bağlanacağı:
 **[docs/MODUL-DEVIR.md](docs/MODUL-DEVIR.md)** — bu klasörde ilk kez çalışıyorsan önce onu oku.
 Ekran listesi ve kavramlar için [README.md](README.md).
 
@@ -25,24 +31,29 @@ python manage.py runserver
 ```
 
 - Windows'ta konsol çıktısında Türkçe karakter için `PYTHONIOENCODING=utf-8`.
-- Testler: `python manage.py test timetable --parallel 1` (≈560 test, 8–10 dk; çözücü testleri yavaş).
+- Testler: `python manage.py test timetable sinav --parallel 1` (≈570 test, 8–10 dk; çözücü testleri yavaş).
   Tek dosya: `python manage.py test timetable.tests.test_events`.
 - Veritabanı yolunu değiştirmek için `DJANGO_DB_PATH` (gerçek veriye dokunmadan denemek için kopyasını kullan).
 
 ## Değiştirirken uyulacak kurallar
 
-1. **Yetki tablosu:** Okul/program altındaki her yeni URL adı `timetable/access.py` içindeki tablolara
-   (`SCHOOL_ROUTES`, `TIMETABLE_ROUTES` …) eklenmeli. Eklenmeyen URL yalnızca süper kullanıcıya açılır
-   (güvenli varsayılan) — "sayfa bende çalışıyor, öğretmende 403" hatasının sebebi hep budur.
-2. **Menü:** Yeni sayfa menüde görünecekse `timetable/templatetags/navigation.py`.
-3. **Model değişikliği** → migration (`python manage.py makemigrations timetable`); numara sırası korunur.
-4. **Çözücü katmanı** (`timetable/solver/`) Django'ya bağımlı değildir; içine model / ORM importu girmez.
+1. **Yetki tablosu:** Okul/program altındaki her yeni URL adı bir yetki tablosuna eklenmeli: Ders Planlama
+   için `timetable/access.py` (`SCHOOL_ROUTES`, `TIMETABLE_ROUTES` …), diğer modüller için kendi `module.py`'sindeki
+   `routes`. Eklenmeyen URL yalnızca süper kullanıcıya açılır (güvenli varsayılan) — "sayfa bende çalışıyor,
+   öğretmende 403" hatasının sebebi hep budur. Bütün modüllerin kullandığı ortak veri sayfaları `SHARED_ROUTES`'tadır.
+2. **Yeni modül:** yeni bir Django uygulaması aç; `module.py`'de `timetable.modules.Module` tanımla (başlık, simge,
+   giriş sayfası, sol menü, yetki tablosu, işlem günlüğü adları) ve `apps.py`'nin `ready()`'sinde
+   `modules.register(...)` çağır; `INSTALLED_APPS` ve `config/urls.py`'ye ekle. Örnek: `sinav/`.
+3. **Menü:** Ders Planlama sayfası menüde görünecekse `timetable/templatetags/navigation.py` (`NAV_GROUPS`);
+   başka modülün sayfası o modülün `module.py`'sindeki `NAV_GROUPS`.
+4. **Model değişikliği** → migration (`python manage.py makemigrations timetable`); numara sırası korunur.
+5. **Çözücü katmanı** (`timetable/solver/`) Django'ya bağımlı değildir; içine model / ORM importu girmez.
    Veritabanı ↔ problem dönüşümü `solver/builder.py`, sonucu yazma `services.py`.
-5. **Uzun işler web isteğinde çalışmaz:** üretim `jobs.py`, iyileştirme / "İhlalleri çöz" / "Cezayı düşür"
+6. **Uzun işler web isteğinde çalışmaz:** üretim `jobs.py`, iyileştirme / "İhlalleri çöz" / "Cezayı düşür"
    `school_improve.py` + `quick_jobs.py` kuyruğunda (ImproveJob). Yeni uzun iş de bu kuyruğa girer.
-6. **Programı yazan her işlem geri alınabilir olmalı** (`versions.py` sürüm kaydı; `services.write_placements`).
-7. **`timetable/solver/gen2.py` dosyasına dokunma** — o kısım ayrı yürüyor (Codex). Yalnızca çağrılır.
-8. Kesin kural ihlali artıran bir sonuç asla programa yazılmaz (bkz. `services.penalty_search` koruması).
+7. **Programı yazan her işlem geri alınabilir olmalı** (`versions.py` sürüm kaydı; `services.write_placements`).
+8. **`timetable/solver/gen2.py` dosyasına dokunma** — o kısım ayrı yürüyor (Codex). Yalnızca çağrılır.
+9. Kesin kural ihlali artıran bir sonuç asla programa yazılmaz (bkz. `services.penalty_search` koruması).
 
 ## Kişisel veri
 

@@ -18,6 +18,7 @@ from django.shortcuts import render
 
 import json
 
+from . import modules
 from .models import AuditLog, Card, Institution, Membership, School, Timetable, TimetableVersion
 
 M = Membership
@@ -72,15 +73,16 @@ SCHOOL_ROUTES = {
     "school_users": (M.USERS, M.USERS),
     "program_delete": (M.PROGRAMS, M.PROGRAMS),
     "api_presence": (M.VIEW, M.VIEW),  # düzenleyici nabzı (kim düzenliyor)
-    # sınav programı (exam_views.py)
-    "exams": (M.VIEW, M.DATA),
-    "exam_period": (M.VIEW, M.DATA),
-    "exam_solve": (M.VIEW, M.DATA),
-    "exam_results": (M.VIEW, M.DATA),
-    "exam_edit": (M.VIEW, M.DATA),
-    "exam_proctors": (M.VIEW, M.DATA),
-    "exam_print": (M.VIEW, M.VIEW),
-    "exam_excel": (M.VIEW, M.VIEW),
+    # sınav programının eski adresleri: Sınav Planlama modülüne yönlendirir (bkz. sinav/)
+    "exams_old": (M.VIEW, M.VIEW),
+    "exam_period_old": (M.VIEW, M.VIEW),
+}
+# Bütün modüllerin kullandığı ortak veri sayfaları: Ders Planlama modülü kapalı olan kullanıcıya da açıktır
+# (kurum yetkisi yine gerekir) ve en son girilen modülün menüsüyle görünür (bkz. modules.current).
+SHARED_ROUTES = {
+    "data_list", "data_new", "data_edit", "data_delete", "lessons", "lesson_new", "lesson_edit", "lesson_delete",
+    "class_lessons", "school_settings", "excel_import", "excel_export", "quick_search", "api_presence", "school_users",
+    "program_delete", "exams_old", "exam_period_old",
 }
 # pk = kurum
 INSTITUTION_ROUTES = {
@@ -140,7 +142,7 @@ CARD_ROUTES = {
 }
 VERSION_ROUTES = {"api_version": (M.VIEW, M.PROGRAM)}
 # Herkese açık (giriş yapmış) ve yalnızca merkez yöneticiye açık sayfalar
-OPEN_ROUTES = {"school_list", "login", "logout", "account", "password_set", "password_set_done", "password_forgot",
+OPEN_ROUTES = {"home", "school_list", "login", "logout", "account", "password_set", "password_set_done", "password_forgot",
                "password_forgot_done", "department_portal", "my_requests", "my_timetable", "teacher_ics", "public_index", "public_board", "public_timetable",
                "notifications", "notification_open", "api_notifications", "api_notifications_read"}
 CENTRAL_ROUTES = {"create_demo", "import_asc", "school_create", "central", "central_school_new", "central_log", "backups", "system_update", "broadcast"}
@@ -229,8 +231,6 @@ def _deny(request, message):
 PLACEMENT_ONLY = set(CARD_ROUTES) | {
     "api_row_action", "api_undo", "api_redo", "api_bulk", "api_cell_candidates", "api_versions", "publish", "unpublish", "activate", "timetables_delete", "api_resolve", "api_penalty", "api_quick_job",
     "api_presence", "report_excel", "report_pdf", "uybs_export", "uybs_archive", "substitutions", "events", "duties", "solution_center", "quality", "program_compare", "availability_repair", "pending", "school_improve", "change_report", "print_settings", "backup_compare",
-    # sınav programı ders programının çözücü verisini değiştirmez
-    "exams", "exam_period", "exam_solve", "exam_results", "exam_edit", "exam_proctors",
 }
 
 
@@ -238,7 +238,7 @@ def _bump_data_version(request):
     """Programın verisini değiştirmiş olabilecek her başarılı POST'ta veri sürümünü artır."""
     match = request.resolver_match
     school_id = getattr(request, "current_school_id", None)
-    if match is None or school_id is None or match.url_name in PLACEMENT_ONLY:
+    if match is None or school_id is None or match.namespace != "timetable" or match.url_name in PLACEMENT_ONLY:
         return
     from .problem_cache import bump
 
@@ -267,8 +267,12 @@ class SchoolAccessMiddleware:
 
     def process_view(self, request, view_func, view_args, view_kwargs):
         match = request.resolver_match
-        if match is None or match.namespace != "timetable" or not request.user.is_authenticated:
+        if match is None or not request.user.is_authenticated:
             return None
+        module = modules.by_namespace(match.namespace)
+        if match.namespace != "timetable":
+            # başka bir modülün sayfası: kendi tablosu, pk = program
+            return None if module is None else self._module_view(request, module, match.url_name, view_kwargs)
         name = match.url_name
         request.school_perms = set()
         if name in OPEN_ROUTES:
@@ -288,12 +292,53 @@ class SchoolAccessMiddleware:
             school_id = _school_id(name, view_kwargs)
             if school_id is None:
                 return None  # kayıt yok: görünüm 404 verir
-            perms = school_permissions(request.user, School(pk=school_id))
-            request.current_school_id = school_id
-            row = School.objects.filter(pk=school_id).values_list("institution_id", "name").first()
-            if row:
-                request.current_institution_id, request.current_program_name = row
+            denied = self._school(request, school_id)
+            if denied:
+                return denied
+            if name not in SHARED_ROUTES:
+                denied = self._module(request, module)
+                if denied:
+                    return denied
+            perms = request.school_perms
         request.school_perms = perms
+        return self._needed(request, routes, perms)
+
+    def _module_view(self, request, module, name, view_kwargs):
+        request.school_perms = set()
+        if name in module.open_routes:
+            return None
+        routes = module.routes.get(name)
+        if routes is None:  # tabloda olmayan modül sayfası: güvenli varsayılan
+            return None if request.user.is_superuser else _deny(request, "Bu sayfaya erişim yetkiniz yok.")
+        school_id = view_kwargs.get("pk")
+        if school_id is None or not School.objects.filter(pk=school_id).exists():
+            return None  # kayıt yok: görünüm 404 verir
+        return (self._school(request, school_id) or self._module(request, module)
+                or self._needed(request, routes, request.school_perms))
+
+    @staticmethod
+    def _school(request, school_id):
+        perms = school_permissions(request.user, School(pk=school_id))
+        request.current_school_id = school_id
+        row = School.objects.filter(pk=school_id).values_list("institution_id", "name").first()
+        if row:
+            request.current_institution_id, request.current_program_name = row
+        request.school_perms = perms
+        if not perms:
+            return _deny(request, "Bu kuruma ya da programa erişim yetkiniz yok.")
+        return None
+
+    @staticmethod
+    def _module(request, module):
+        if module is None:
+            return None
+        if not modules.can_use(request.user, getattr(request, "current_institution_id", None), module.key):
+            return _deny(request, f"“{module.title}” modülüne erişiminiz yok.")
+        modules.remember(request, module)
+        return None
+
+    @staticmethod
+    def _needed(request, routes, perms):
         needed = routes[1] if request.method not in ("GET", "HEAD", "OPTIONS") else routes[0]
         if not perms:
             return _deny(request, "Bu kuruma ya da programa erişim yetkiniz yok.")
@@ -304,13 +349,14 @@ class SchoolAccessMiddleware:
 
 
 def can(request):
-    """Şablonlar için: {{ can.veri }} ve kenar çubuğundaki program değiştirici."""
+    """Şablonlar için: {{ can.veri }}, açık modül ve kenar çubuğundaki program / modül değiştirici."""
     perms = getattr(request, "school_perms", set())
-    context = {"can": {p: p in perms for p in M.ALL}}
+    context = {"can": {p: p in perms for p in M.ALL}, "module": modules.current(request)}
     school_id = getattr(request, "current_school_id", None)
     if school_id and request.user.is_authenticated:
         institution_id = School.objects.filter(pk=school_id).values_list("institution_id", flat=True).first()
         context["sibling_programs"] = visible_schools(request.user).filter(institution_id=institution_id).order_by("name")
+        context["school_modules"] = modules.user_modules(request.user, institution_id)
         if M.DATA in perms:
             from .models import AvailabilityRequest
 
@@ -369,9 +415,6 @@ ACTION_LABELS = {
     "api_versions": "Versiyon kaydetti", "api_version": "Versiyon işlemi", "api_row_action": "Satır işlemi",
     "api_card_move": "Kart taşıdı", "api_card_unplace": "Kartı kaldırdı", "api_card_lock": "Kart kilidi",
     "api_card_room": "Derslik değiştirdi", "api_lesson_quick": "Hızlı değişiklik", "reports": "Rapor şablonu",
-    "exams": "Sınav dönemi ekledi", "exam_period": "Sınav dönemini düzenledi", "exam_solve": "Sınav programı oluşturdu",
-    "exam_results": "Sınav programı işlemi", "exam_edit": "Sınavı düzenledi", "exam_proctors": "Gözetmen ayarları",
-    "exam_print": "Sınav programı yazdırdı", "exam_excel": "Sınav programı Excel",
     "account": "Parolasını değiştirdi", "backups": "Yedekleme", "system_update": "Sistem güncelleme", "broadcast": "Duyuru gönderdi", "institution_detail": "Kurumu düzenledi", "publish_settings": "Web yayını",
     "api_presence": "Düzenleyici nabzı",
 }
@@ -408,8 +451,10 @@ def client_ip(request):
 
 def audit(request, response, action=None, detail=None):
     match = getattr(request, "resolver_match", None)
-    if match is None or match.namespace != "timetable" or match.url_name in SKIP_AUDIT or not request.user.is_authenticated:
+    module = modules.by_namespace(match.namespace) if match is not None else None
+    if match is None or module is None or match.url_name in SKIP_AUDIT or not request.user.is_authenticated:
         return
+    labels = ACTION_LABELS if match.namespace == "timetable" else module.labels
     school_id = getattr(request, "current_school_id", None)
     if school_id and not School.objects.filter(pk=school_id).exists():
         school_id = None  # işlemde silinmiş (program silme)
@@ -419,7 +464,7 @@ def audit(request, response, action=None, detail=None):
     AuditLog.objects.create(
         user=request.user, username=request.user.get_username(), institution_id=institution_id, school_id=school_id,
         program_name=getattr(request, "current_program_name", ""),
-        action=action or ACTION_LABELS.get(match.url_name, match.url_name), detail=detail if detail is not None else _detail(request, response),
+        action=action or labels.get(match.url_name, match.url_name), detail=detail if detail is not None else _detail(request, response),
         path=request.path[:300], ip=client_ip(request),
     )
 

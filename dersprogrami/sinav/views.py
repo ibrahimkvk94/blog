@@ -9,15 +9,19 @@ from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
-from . import exam_excel, exams, printing
-from .forms import ChipSelectMultiple, StyledFormMixin
-from .models import DAY_NAMES, Classroom, Exam, ExamPeriod, ExamPlacement, School, SchoolClass, Teacher
+from timetable import printing
+from timetable.forms import ChipSelectMultiple, StyledFormMixin
+from timetable.models import DAY_NAMES, Classroom, School, SchoolClass, Subject, Teacher
+
+from . import excel as exam_excel
+from . import services as exams
+from .models import Exam, ExamPeriod, ExamPlacement
 
 VIEWS = [("takvim", "Takvim"), ("siniflar", "Sınıflar"), ("gozetmenler", "Gözetmenler"), ("salonlar", "Salonlar")]
 
 
 def _nav(school, **extra):
-    from .views import _nav as base_nav
+    from timetable.views import _nav as base_nav
 
     return base_nav(school, "sinavlar", **extra)
 
@@ -142,6 +146,27 @@ class ExamForm(StyledFormMixin, forms.ModelForm):
         return super().save(commit)
 
 
+# --- modülün giriş sayfası ----------------------------------------------------------------------
+
+def home(request):
+    """Sınav Planlama'nın giriş sayfası: modülün açık olduğu programlar ve sınav dönemleri."""
+    from django.db.models import Count
+
+    from timetable import modules
+
+    schools = (modules.schools_for(request.user, "sinav").select_related("institution")
+               .annotate(n_periods=Count("exam_periods")).order_by("institution__name", "name"))
+    groups = {}
+    for school in schools:
+        groups.setdefault(school.institution, []).append(school)
+    latest = {}
+    for period in ExamPeriod.objects.filter(school__in=schools).order_by("school_id", "-start_date", "-id"):
+        latest.setdefault(period.school_id, period)
+    rows = [{"institution": inst, "programs": [{"school": s, "latest": latest.get(s.pk)} for s in items]}
+            for inst, items in groups.items()]
+    return render(request, "sinav/home.html", {"groups": rows, "nav": "sinav_home"})
+
+
 # --- dönemler -----------------------------------------------------------------------------------
 
 def period_list(request, pk):
@@ -154,14 +179,14 @@ def period_list(request, pk):
             period.save()
             form.save_m2m()
             messages.success(request, f"Sınav dönemi oluşturuldu: {period.name}. Şimdi sınavları derslerden oluşturun.")
-            return redirect("timetable:exam_period", pk=school.pk, period_id=period.pk)
+            return redirect("sinav:period", pk=school.pk, period_id=period.pk)
         messages.error(request, "Formdaki hataları düzeltin.")
     periods = []
     for period in school.exam_periods.all():
         exams.refresh_stale(period)
         periods.append({"period": period, "exams": period.exams.filter(excluded=False).count(),
                         "placed": ExamPlacement.objects.filter(exam__period=period).count(), "days": len(period.dates())})
-    return render(request, "timetable/exams/periods.html", _nav(school, periods=periods, form=form,
+    return render(request, "sinav/periods.html", _nav(school, periods=periods, form=form,
                                                                  show_form=bool(request.POST) or not periods))
 
 
@@ -172,7 +197,7 @@ def period_page(request, pk, period_id):
     form = PeriodForm(instance=period, school=school)
     if request.method == "POST":
         action = request.POST.get("action")
-        back = reverse("timetable:exam_period", args=[school.pk, period.pk])
+        back = reverse("sinav:period", args=[school.pk, period.pk])
         if action == "settings":
             form = PeriodForm(request.POST, instance=period, school=school)
             if form.is_valid():
@@ -185,7 +210,7 @@ def period_page(request, pk, period_id):
             name = period.name
             period.delete()
             messages.success(request, f"Sınav dönemi silindi: {name}")
-            return redirect("timetable:exams", pk=school.pk)
+            return redirect("sinav:periods", pk=school.pk)
         else:
             _exam_list_action(request, period, action)
             return redirect(back + (f"?q={request.POST.get('q')}" if request.POST.get("q") else ""))
@@ -194,7 +219,7 @@ def period_page(request, pk, period_id):
                 for s, lessons in exams.subject_groups(school)] if tab == "sinavlar" else []
     for row in rows:
         row.placed = hasattr(row, "placement")
-    return render(request, "timetable/exams/period.html", _nav(
+    return render(request, "sinav/period.html", _nav(
         school, period=period, tab=tab, form=form, rows=rows, subjects=subjects,
         multi_subjects=[s for s in subjects if len(s["lessons"]) > 1],
         total_students=sum(r.student_count for r in rows if not r.excluded),
@@ -245,8 +270,6 @@ def _exam_list_action(request, period, action):
         n = exams.refresh_counts(period)
         messages.success(request, f"Öğrenci sayıları yeniden hesaplandı ({n} sınav değişti; elle girilenler korunur).")
     elif action == "add":
-        from .models import Subject
-
         subject = Subject.objects.filter(school=period.school_id, pk=_int(request.POST.get("subject"))).first()
         if subject is None:
             messages.error(request, "Ders adı seçin.")
@@ -265,7 +288,7 @@ def solve(request, pk, period_id):
         return JsonResponse({"status": period.status, "running": period.is_running, "report": period.report})
     if not period.exams.filter(excluded=False).exists():
         messages.error(request, "Önce sınavları oluşturun (Derslerden oluştur).")
-        return redirect("timetable:exam_period", pk=school.pk, period_id=period.pk)
+        return redirect("sinav:period", pk=school.pk, period_id=period.pk)
     if request.POST.get("time_limit"):
         period.time_limit = max(5, min(600, _int(request.POST.get("time_limit"), period.time_limit)))
         period.save(update_fields=["time_limit"])
@@ -279,7 +302,7 @@ def solve(request, pk, period_id):
                   .get(period.status, "Sınav programı oluşturulamadı."))
     else:
         messages.info(request, "Oluşturma zaten sürüyor.")
-    return redirect("timetable:exam_results", pk=school.pk, period_id=period.pk)
+    return redirect("sinav:results", pk=school.pk, period_id=period.pk)
 
 
 # --- sonuçlar -----------------------------------------------------------------------------------
@@ -300,7 +323,7 @@ def results(request, pk, period_id):
         elif action == "clear":
             qs.delete()
             messages.success(request, "Sınav programı temizlendi.")
-        return redirect(reverse("timetable:exam_results", args=[school.pk, period.pk]) + f"?gorunum={request.POST.get('gorunum', 'takvim')}")
+        return redirect(reverse("sinav:results", args=[school.pk, period.pk]) + f"?gorunum={request.POST.get('gorunum', 'takvim')}")
     view = request.GET.get("gorunum", "takvim")
     if view not in dict(VIEWS):
         view = "takvim"
@@ -320,7 +343,7 @@ def results(request, pk, period_id):
         ctx["idle"] = [t for t in exams.proctor_pool(period) if t.pk not in assigned]
     else:
         ctx["rooms"] = exams.by_room(period, rows)
-    return render(request, "timetable/exams/results.html", _nav(school, **ctx))
+    return render(request, "sinav/results.html", _nav(school, **ctx))
 
 
 def exam_edit(request, pk, period_id, exam_id):
@@ -329,7 +352,7 @@ def exam_edit(request, pk, period_id, exam_id):
     exam = get_object_or_404(Exam.objects.select_related("subject"), pk=exam_id, period=period)
     placement = ExamPlacement.objects.filter(exam=exam).first()
     form = ExamForm(instance=exam, period=period)
-    back = reverse("timetable:exam_edit", args=[school.pk, period.pk, exam.pk])
+    back = reverse("sinav:edit", args=[school.pk, period.pk, exam.pk])
     if request.method == "POST":
         action = request.POST.get("action")
         if action == "save":
@@ -388,7 +411,7 @@ def exam_edit(request, pk, period_id, exam_id):
         elif action == "delete":
             exam.delete()
             messages.success(request, "Sınav silindi.")
-            return redirect("timetable:exam_period", pk=school.pk, period_id=period.pk)
+            return redirect("sinav:period", pk=school.pk, period_id=period.pk)
     slots = exams.slot_status(period, exam)
     room_rows, teacher_rows = [], []
     if placement is not None:
@@ -416,7 +439,7 @@ def exam_edit(request, pk, period_id, exam_id):
         teacher_rows.sort(key=lambda r: (r["bad"], "dersin öğretmeni" not in r["notes"], r["load"], r["teacher"].last_name))
     else:
         room_rows = [{"room": r, "cap": exams.exam_capacity(r, period), "on": False, "busy": None} for r in exams.exam_rooms(period)]
-    return render(request, "timetable/exams/edit.html", _nav(
+    return render(request, "sinav/edit.html", _nav(
         school, period=period, exam=exam, form=form, placement=placement, slots=slots, room_rows=room_rows,
         teacher_rows=teacher_rows, issues=exams.validate(period, only=exam.pk) if placement else [],
         rooms=list(placement.rooms.select_related("classroom").prefetch_related("proctors")) if placement else []))
@@ -435,7 +458,7 @@ def proctors(request, pk, period_id):
     teachers = list(school.teachers.all())
     if request.method == "POST":
         action = request.POST.get("action")
-        back = reverse("timetable:exam_proctors", args=[school.pk, period.pk])
+        back = reverse("sinav:proctors", args=[school.pk, period.pk])
         if action == "exempt":
             ids = {_int(x) for x in request.POST.getlist("exempt")}
             period.proctor_exempt.set([t for t in teachers if t.pk in ids])
@@ -487,7 +510,7 @@ def proctors(request, pk, period_id):
                 {"value": f"{d.isoformat()}#{s}", "on": whole or f"{d.isoformat()}#{s}" in mine, "auto": (d, s) in auto}
                 for s in range(len(period.session_times))]})
     pool = len(teachers) - len(exempt)
-    return render(request, "timetable/exams/proctors.html", _nav(
+    return render(request, "sinav/proctors.html", _nav(
         school, period=period, rows=rows, selected=selected, grid=grid, sessions=period.session_times, pool=pool,
         total=sum(loads.values())))
 
@@ -514,7 +537,7 @@ def print_view(request, pk, period_id):
         ctx["classes"] = exams.by_class(period, rows)
     else:
         ctx["rooms"] = exams.by_room(period, rows)
-    return render(request, "timetable/exams/print.html", ctx)
+    return render(request, "sinav/print.html", ctx)
 
 
 def excel_view(request, pk, period_id):

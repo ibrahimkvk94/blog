@@ -16,3 +16,14 @@ class TimetableConfig(AppConfig):
         from .problem_cache import connect_signals
 
         connect_signals()  # veri değişince çözücü problemi önbelleği boşalır
+
+        from . import modules
+        from .templatetags.navigation import NAV_GROUPS
+
+        # Ders Planlama: bu uygulamanın kendisi. Okul URL'lerinin yetki tabloları access.py'dedir.
+        modules.register(modules.Module(
+            key="ders", title="Ders Planlama",
+            description="Haftalık ders programı: veri girişi, otomatik üretim, düzenleme, vekâlet, nöbet, telafi ve raporlar.",
+            icon="grid", namespace="timetable", landing="timetable:school_list", entry="timetable:school_detail",
+            nav_groups=NAV_GROUPS, order=10,
+        ))

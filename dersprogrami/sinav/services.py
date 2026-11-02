@@ -16,8 +16,10 @@ from django.conf import settings
 from django.db import close_old_connections, connection, transaction
 from django.utils import timezone
 
-from . import exams_solver
-from .models import DAY_NAMES, Availability, Classroom, Exam, ExamPeriod, ExamPlacement, ExamRoom, Lesson, Teacher
+from timetable.models import DAY_NAMES, Availability, Classroom, Lesson, Teacher
+
+from . import solver as exams_solver
+from .models import Exam, ExamPeriod, ExamPlacement, ExamRoom
 
 STALE_GRACE = 180  # süre sınırından bu kadar saniye sonra hâlâ "çalışıyor" ise yarıda kalmış sayılır
 
@@ -367,10 +369,10 @@ def _notify(period):
     try:
         from django.urls import reverse
 
-        from . import notifications
-        from .models import Notification
+        from timetable import notifications
+        from timetable.models import Notification
 
-        url = reverse("timetable:exam_results", args=[period.school_id, period.pk])
+        url = reverse("sinav:results", args=[period.school_id, period.pk])
         report = period.report or {}
         if period.status == ExamPeriod.FAILED:
             notifications.send([period.requested_by_id], f"Sınav programı oluşturulamadı: {period.name}",

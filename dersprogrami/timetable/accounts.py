@@ -13,6 +13,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
+from . import modules
 from .access import account_is_local, grantable, institution_permissions
 from .counts import related_count
 from .data_views import default_periods
@@ -44,7 +45,7 @@ def _perm_choices(allowed):
     return [(key, label) for key, label in M.PERMISSIONS if key in allowed and key != M.VIEW]
 
 
-def _create_or_attach(form, institution, granter, allowed, programs=()):
+def _create_or_attach(form, institution, granter, allowed, programs=(), module_keys=()):
     """Formdaki kullanıcıyı oluşturur ya da var olanı okula ekler. Dönüş: (membership, hata)."""
     data = form.cleaned_data
     username = data["username"].strip()
@@ -67,7 +68,8 @@ def _create_or_attach(form, institution, granter, allowed, programs=()):
         # Başka kurumun hesabını kendi kurumuna bağlayıp parolasını sıfırlamanın önü kesilir.
         return None, (f"{username} kullanıcı adı başka bir kurumda kullanılıyor. Var olan bu hesabı yalnızca merkez "
                       "yönetici ekleyebilir; yeni kullanıcı için başka bir ad seçin.")
-    membership = M.objects.create(user=user, institution=institution, permissions=perms, granted_by=granter)
+    membership = M.objects.create(user=user, institution=institution, permissions=perms, granted_by=granter,
+                                  modules=list(module_keys))
     if programs:
         membership.programs.set(programs)
     return membership, None
@@ -79,7 +81,26 @@ def _can_manage(request, institution, membership):
         return True
     if membership.user_id == request.user.id or membership.user.is_superuser:
         return False
-    return membership.perms <= institution_permissions(request.user, institution)
+    if not membership.perms <= institution_permissions(request.user, institution):
+        return False
+    return modules.allowed_keys(membership) <= _own_modules(request, institution)
+
+
+def _own_modules(request, institution):
+    if request.user.is_superuser:
+        return set(modules.keys())
+    own = M.objects.filter(user=request.user, institution=institution).first()
+    return modules.allowed_keys(own) if own else set()
+
+
+def _selected_modules(request, institution):
+    """Seçilen modüller (hiçbiri = tümü). Modülleri kısıtlı kullanıcı yalnızca kendi modüllerini verebilir;
+    hiçbirini seçmezse "tümü" yerine kendi modülleri yazılır (yetki devri kuralı)."""
+    own = _own_modules(request, institution)
+    chosen = [k for k in modules.keys() if k in request.POST.getlist("modules") and k in own]
+    if not chosen and own != set(modules.keys()):
+        chosen = [k for k in modules.keys() if k in own]
+    return chosen
 
 
 def _selected_programs(request, institution):
@@ -103,7 +124,8 @@ def institution_users(request, pk):
         if action == "add":
             if form.is_valid():
                 membership, error = _create_or_attach(
-                    form, institution, request.user, allowed, _selected_programs(request, institution)
+                    form, institution, request.user, allowed, _selected_programs(request, institution),
+                    _selected_modules(request, institution),
                 )
                 if error:
                     messages.error(request, error)
@@ -116,7 +138,8 @@ def institution_users(request, pk):
                 messages.error(request, "Bu kullanıcının yetkilerini değiştiremezsiniz (kendiniz ya da sizden yetkili).")
             elif action == "update":
                 membership.permissions = [p for p in request.POST.getlist("permissions") if p in allowed]
-                membership.save(update_fields=["permissions"])
+                membership.modules = _selected_modules(request, institution)
+                membership.save(update_fields=["permissions", "modules"])
                 membership.programs.set(_selected_programs(request, institution))
                 messages.success(request, f"{membership.user.username} yetkileri güncellendi.")
             elif action == "remove":
@@ -139,10 +162,12 @@ def institution_users(request, pk):
     members = []
     for m in institution.memberships.select_related("user", "granted_by").prefetch_related("programs"):
         members.append({"m": m, "manageable": _can_manage(request, institution, m),
-                        "program_ids": [p.pk for p in m.programs.all()]})
+                        "program_ids": [p.pk for p in m.programs.all()],
+                        "module_titles": [title for key, title in modules.choices() if key in (m.modules or [])]})
     return render(request, "timetable/users.html", {
         "institution": institution, "nav": "users", "form": form, "members": members, "choices": choices,
         "programs": list(institution.programs.order_by("name")),
+        "module_choices": [(k, title) for k, title in modules.choices() if k in _own_modules(request, institution)],
     })
 
 

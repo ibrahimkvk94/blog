@@ -1,7 +1,7 @@
 {% extends "timetable/base.html" %}
 {% load assets %}
 {% block title %}{{ exam.title }}{% endblock %}
-{% block crumbs %}<a href="{% url 'timetable:exams' school.pk %}">Sınav programı</a> / <a href="{% url 'timetable:exam_period' school.pk period.pk %}">{{ period.name }}</a> / <a href="{% url 'timetable:exam_results' school.pk period.pk %}">Program</a>{% endblock %}
+{% block crumbs %}<a href="{% url 'sinav:periods' school.pk %}">Sınav programı</a> / <a href="{% url 'sinav:period' school.pk period.pk %}">{{ period.name }}</a> / <a href="{% url 'sinav:results' school.pk period.pk %}">Program</a>{% endblock %}
 {% block heading %}<h1>{{ exam.title }}</h1>{% if exam.excluded %}<span class="pill">sınav yapılmaz</span>{% elif placement %}<span class="pill ok">{{ placement.date|date:"d.m.Y" }} · {{ placement.session|add:1 }}. oturum</span>{% if placement.locked %}<span class="pill active-tt">kilitli</span>{% endif %}{% else %}<span class="pill warn">yerleşmedi</span>{% endif %}{% endblock %}
 {% block content %}
 <p class="page-lead">{% for c in exam.classes.all %}{{ c.short|default:c.name }}{% if not forloop.last %}, {% endif %}{% empty %}Sınıf seçilmemiş{% endfor %} · {{ exam.student_count }} öğrenci · {{ exam.duration }} oturum{% if exam.teachers.all %} · Dersin öğretmeni: {% for t in exam.teachers.all %}{{ t.full_name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}</p>

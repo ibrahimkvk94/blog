@@ -4,9 +4,10 @@ from io import BytesIO
 
 from openpyxl import Workbook
 
-from . import exams
-from .models import DAY_NAMES
-from .report_excel import _header, _table
+from timetable.models import DAY_NAMES
+from timetable.report_excel import _header, _table
+
+from . import services as exams
 
 
 def _time(period, pl):

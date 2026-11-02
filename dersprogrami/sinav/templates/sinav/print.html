@@ -58,7 +58,7 @@
       <tbody>
         {% for t, items in teachers %}
           <tr><td>{{ t.full_name }}</td><td class="num">{{ items|length }}</td>
-            <td>{% for pl, room in items %}<div>{{ pl.date|date:"d.m.Y D" }} {% include "timetable/exams/time.html" %} · {{ pl.exam.title }} · {{ room.classroom }}</div>{% endfor %}</td><td></td></tr>
+            <td>{% for pl, room in items %}<div>{{ pl.date|date:"d.m.Y D" }} {% include "sinav/time.html" %} · {{ pl.exam.title }} · {{ room.classroom }}</div>{% endfor %}</td><td></td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -67,7 +67,7 @@
     {% for c, items in classes %}
       <div class="block"><h3>{{ c.short|default:c.name }}</h3>
         <table><thead><tr><th style="width:30mm">Tarih</th><th style="width:22mm">Saat</th><th>Sınav</th><th>Salon</th></tr></thead><tbody>
-          {% for pl, crooms in items %}<tr><td>{{ pl.date|date:"d.m.Y D" }}</td><td>{% include "timetable/exams/time.html" %}</td><td>{{ pl.exam.title }}</td><td>{% for r in crooms %}{{ r.classroom }}{% if not forloop.last %}, {% endif %}{% endfor %}</td></tr>{% endfor %}
+          {% for pl, crooms in items %}<tr><td>{{ pl.date|date:"d.m.Y D" }}</td><td>{% include "sinav/time.html" %}</td><td>{{ pl.exam.title }}</td><td>{% for r in crooms %}{{ r.classroom }}{% if not forloop.last %}, {% endif %}{% endfor %}</td></tr>{% endfor %}
         </tbody></table></div>
     {% endfor %}
 
@@ -75,7 +75,7 @@
     {% for room, items in rooms %}
       <div class="block"><h3>{{ room }}</h3>
         <table><thead><tr><th style="width:30mm">Tarih</th><th style="width:22mm">Saat</th><th>Sınav</th><th class="num">Öğrenci</th><th>Gözetmen</th></tr></thead><tbody>
-          {% for pl, r in items %}<tr><td>{{ pl.date|date:"d.m.Y D" }}</td><td>{% include "timetable/exams/time.html" %}</td><td>{{ pl.exam.title }}</td><td class="num">{{ r.seats }}</td><td>{% for t in r.proctors.all %}{{ t.full_name }}{% if not forloop.last %}, {% endif %}{% endfor %}</td></tr>{% endfor %}
+          {% for pl, r in items %}<tr><td>{{ pl.date|date:"d.m.Y D" }}</td><td>{% include "sinav/time.html" %}</td><td>{{ pl.exam.title }}</td><td class="num">{{ r.seats }}</td><td>{% for t in r.proctors.all %}{{ t.full_name }}{% if not forloop.last %}, {% endif %}{% endfor %}</td></tr>{% endfor %}
         </tbody></table></div>
     {% endfor %}
   {% endif %}

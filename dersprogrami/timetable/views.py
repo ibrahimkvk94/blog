@@ -14,7 +14,7 @@ from django.views.decorators.http import require_POST
 
 from . import report_excel as report_excel_module
 from . import report_pdf as report_pdf_module
-from . import access, analysis, asc_xml, duty, editing, excel, jobs, printing, refs, reports, substitutes, versions
+from . import access, analysis, asc_xml, duty, editing, excel, jobs, modules, printing, refs, reports, substitutes, versions
 from .concurrency import guard
 from .counts import with_program_counts
 from .demo import create_demo_school
@@ -33,9 +33,34 @@ def _nav(school, nav, **extra):
 # --- sayfalar ----------------------------------------------------------------------------------
 
 
+def _personal_home(request):
+    """Kurum üyeliği olmayan hesap: bölüm sorumlusu bölüm ekranına, öğretmen kendi programına gider."""
+    if request.user.is_superuser or request.user.memberships.exists():
+        return None
+    department = request.user.departments.first()
+    if department is not None:
+        return redirect("timetable:department_portal", pk=department.pk)
+    if request.user.teacher_profiles.exists():
+        return redirect("timetable:my_timetable")
+    return None
+
+
+def home(request):
+    """Ana sayfa: kullanıcının açabildiği modüller (Ders Planlama, Sınav Planlama ...) ve her birindeki programlar."""
+    personal = _personal_home(request)
+    if personal is not None:
+        return personal
+    cards = []
+    for module in modules.user_modules(request.user):
+        schools = modules.schools_for(request.user, module.key).select_related("institution").order_by("institution__name", "name")
+        cards.append({"module": module, "url": module.landing_url(), "count": schools.count(),
+                      "programs": [{"school": s, "url": module.entry_url(s)} for s in schools[:6]]})
+    return render(request, "timetable/home.html", {"cards": cards, "nav": "home"})
+
+
 def school_list(request):
-    """Kurumlarım: her kurumun görünür programları."""
-    schools = with_program_counts(access.visible_schools(request.user)).select_related("institution", "active_timetable").order_by("name")
+    """Ders Planlama modülünün giriş sayfası (Kurumlarım): her kurumun görünür programları."""
+    schools = with_program_counts(modules.schools_for(request.user, "ders")).select_related("institution", "active_timetable").order_by("name")
     groups = {}
     for school in schools:
         groups.setdefault(school.institution, []).append(school)
@@ -46,11 +71,9 @@ def school_list(request):
         for inst, progs in sorted(groups.items(), key=lambda kv: kv[0].name)
     ]
     if not institutions:
-        department = request.user.departments.first()
-        if department is not None:
-            return redirect("timetable:department_portal", pk=department.pk)  # bölüm sorumlusu: bölüm ekranı
-        if request.user.teacher_profiles.exists():
-            return redirect("timetable:my_timetable")  # yalnızca öğretmen hesabı: kendi programı
+        personal = _personal_home(request)
+        if personal is not None:
+            return personal
     from .institutions import menu_context
 
     for item in institutions:

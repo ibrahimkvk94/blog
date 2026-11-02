@@ -1,4 +1,5 @@
-"""Sol menü, bölüm sekmeleri ve hızlı git (Ctrl+K) tek tanımdan üretilir: NAV_GROUPS.
+"""Sol menü, bölüm sekmeleri ve hızlı git (Ctrl+K) tek tanımdan üretilir: açık modülün menü grupları
+(Ders Planlama için NAV_GROUPS; diğer modüller kendi gruplarını modules.register ile verir).
 
 Her öğe: (anahtar, ad, simge, url üretici, eşleşen nav/data_nav değerleri, gereken yetki, menüde görünür mü).
 Bir sayfa açıkken onun grubu menüde açık gelir; Veri sayfalarının üstündeki sekmeler yalnızca o grubun sayfalarıdır.
@@ -21,7 +22,7 @@ def _school(name, *extra):
     return lambda s, tt: reverse(f"timetable:{name}", args=[s.pk, *extra])
 
 
-def _data(slug):
+def data_url(slug):
     return lambda s, tt: reverse("timetable:data_list", args=[s.pk, slug])
 
 
@@ -40,25 +41,24 @@ NAV_GROUPS = [
         ("Vekâlet", "swap", _school("substitutions"), {"subs"}, None, True),
         ("Etkinlik ve telafi", "calendar", _school("events"), {"etkinlik"}, None, True),
         ("Nöbet çizelgesi", "clipboard", _school("duties"), {"duties"}, None, True),
-        ("Sınav programı", "calendar", _school("exams"), {"sinavlar"}, None, True),
         ("Öğretmen istekleri", "inbox", _school("teacher_requests"), {"istekler"}, "veri", True),
         ("Bölümler", "users", _school("departments"), {"bolumler"}, "veri", True),
     ]),
     ("veri", "Veri girişi", [
         ("Kurulum sihirbazı", "sparkles", _school("setup_wizard_start"), {"kurulum"}, "veri", True),
         ("Ayarlar ve saatler", "settings", _school("school_settings"), {"okul"}, "veri", True),
-        ("Sınıflar", "layers", _data("siniflar"), {"siniflar"}, "veri", True),
-        ("Öğretmenler", "user", _data("ogretmenler"), {"ogretmenler"}, "veri", True),
+        ("Sınıflar", "layers", data_url("siniflar"), {"siniflar"}, "veri", True),
+        ("Öğretmenler", "user", data_url("ogretmenler"), {"ogretmenler"}, "veri", True),
         ("Öğretmen bilgileri", "users", _school("teacher_info"), {"ogretmen-bilgileri"}, "veri", True),
-        ("Ders adları", "book", _data("ders-adlari"), {"ders-adlari"}, "veri", True),
-        ("Derslikler", "building", _data("derslikler"), {"derslikler"}, "veri", True),
-        ("Binalar", "building", _data("binalar"), {"binalar"}, "veri", False),
+        ("Ders adları", "book", data_url("ders-adlari"), {"ders-adlari"}, "veri", True),
+        ("Derslikler", "building", data_url("derslikler"), {"derslikler"}, "veri", True),
+        ("Binalar", "building", data_url("binalar"), {"binalar"}, "veri", False),
         ("Dersler", "list", _school("lessons"), {"dersler"}, "veri", True),
         ("Öğretmen atama", "user-plus", _school("teacher_assign"), {"ogretmen-atama"}, "veri", True),
         ("Ders dağıtımı", "columns", _school("distribution"), {"dagitim"}, "veri", True),
     ]),
     ("kurallar", "Kurallar", [
-        ("Kart ilişkileri", "link", _data("kart-iliskileri"), {"kart-iliskileri"}, "veri", True),
+        ("Kart ilişkileri", "link", data_url("kart-iliskileri"), {"kart-iliskileri"}, "veri", True),
         ("Derslik atama", "map-pin", _school("room_wizard"), {"derslik-atama"}, "veri", True),
         ("Toplu müsaitlik", "calendar-x", _school("bulk_availability"), {"toplu-musaitlik"}, "veri", True),
     ]),
@@ -86,8 +86,9 @@ def build(context):
     tt = context.get("latest_timetable") or school.current_timetable()
     current = {context.get("data_nav"), context.get("nav")}
     badges = {"istekler": context.get("pending_requests") or 0, "bolumler": context.get("pending_departments") or 0}
+    module = context.get("module")
     groups = []
-    for key, title, items in NAV_GROUPS:
+    for key, title, items in (module.nav_groups if module is not None and module.nav_groups else NAV_GROUPS):
         rows = []
         for label, icon, url, match, perm, visible in items:
             if perm and not can.get(perm):
@@ -145,3 +146,11 @@ def palette_icons_json():
 
     icons = {name: render_to_string("timetable/icon.html", {"name": name}).strip() for name in PALETTE_ICONS}
     return mark_safe(json.dumps(icons).replace("</", "<\\/"))
+
+
+@register.simple_tag
+def module_url(module, school):
+    """Programın açık modüldeki ilk sayfası (program ve modül değiştiricide)."""
+    if module is None:
+        return reverse("timetable:school_detail", args=[school.pk])
+    return module.entry_url(school)

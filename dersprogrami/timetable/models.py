@@ -1289,6 +1289,8 @@ class Membership(models.Model):
         School, blank=True, related_name="restricted_memberships", verbose_name="yalnızca bu programlar",
         help_text="Boş = kurumun tüm programları.",
     )
+    # Açabildiği modüller (Ders Planlama, Sınav Planlama ...; bkz. modules.py). Boş = tümü.
+    modules = models.JSONField("modüller", default=list, blank=True, help_text="Boş = tüm modüller.")
     granted_by = models.ForeignKey(
         "auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="granted_memberships"
     )
@@ -1451,6 +1453,3 @@ class Notification(models.Model):
     def __str__(self):
         return self.title
 
-
-# Sınav programı modelleri ayrı dosyada (bkz. exam_models.py).
-from .exam_models import Exam, ExamPeriod, ExamPlacement, ExamRoom  # noqa: E402,F401

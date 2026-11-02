@@ -9,10 +9,12 @@ from django.contrib.auth.models import User
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
-from timetable import access, exams, exams_solver
+from sinav import services as exams
+from sinav import solver as exams_solver
+from sinav.models import Exam, ExamPeriod, ExamPlacement, ExamRoom
+from timetable import access
 from timetable.models import (
-    Availability, Classroom, Exam, ExamPeriod, ExamPlacement, ExamRoom, Lesson, Membership, Period, School, SchoolClass,
-    Subject, Teacher,
+    Availability, Classroom, Lesson, Membership, Period, School, SchoolClass, Subject, Teacher,
 )
 
 MONDAY = datetime.date(2026, 11, 2)
@@ -188,43 +190,43 @@ class ExamViewTests(TestCase):
         self.client.force_login(self.user)
 
     def test_pages_render_and_flow(self):
-        r = self.client.get(reverse("timetable:exams", args=[self.school.pk]))
+        r = self.client.get(reverse("sinav:periods", args=[self.school.pk]))
         self.assertContains(r, "2026 Güz Vize")
-        r = self.client.post(reverse("timetable:exams", args=[self.school.pk]), {
+        r = self.client.post(reverse("sinav:periods", args=[self.school.pk]), {
             "name": "2026 Güz Final", "kind": "final", "start_date": "2027-01-04", "end_date": "2027-01-15",
             "sessions_text": "13:30, 09:30", "max_per_day": 2, "proctors_per_room": 1, "capacity_percent": 50,
             "exam_minutes": 60, "time_limit": 10, "weekday_list": ["0", "1", "2", "3", "4", "5"],
             "excluded_text": "06.01.2027"})
         final = ExamPeriod.objects.get(name="2026 Güz Final")
-        self.assertRedirects(r, reverse("timetable:exam_period", args=[self.school.pk, final.pk]))
+        self.assertRedirects(r, reverse("sinav:period", args=[self.school.pk, final.pk]))
         self.assertEqual(final.sessions, ["09:30", "13:30"])
         self.assertEqual(final.weekdays, [0, 1, 2, 3, 4, 5])
         self.assertEqual(final.excluded_dates, ["2027-01-06"])
         self.assertNotIn(datetime.date(2027, 1, 6), final.dates())
         self.assertIn(datetime.date(2027, 1, 9), final.dates())  # cumartesi
 
-        url = reverse("timetable:exam_period", args=[self.school.pk, self.period.pk])
+        url = reverse("sinav:period", args=[self.school.pk, self.period.pk])
         r = self.client.post(url, {"action": "from_lessons", "mode": "replace"})
         self.assertEqual(self.period.exams.count(), 3)
         r = self.client.get(url)
         self.assertContains(r, "Matematik")
         self.assertContains(r, "Derslerden oluştur")
-        r = self.client.post(reverse("timetable:exam_solve", args=[self.school.pk, self.period.pk]))
+        r = self.client.post(reverse("sinav:solve", args=[self.school.pk, self.period.pk]))
         self.period.refresh_from_db()
         self.assertEqual(self.period.status, ExamPeriod.OK, self.period.report)
-        results = reverse("timetable:exam_results", args=[self.school.pk, self.period.pk])
+        results = reverse("sinav:results", args=[self.school.pk, self.period.pk])
         for view in ("takvim", "siniflar", "gozetmenler", "salonlar"):
             r = self.client.get(results + f"?gorunum={view}")
             self.assertEqual(r.status_code, 200, view)
             self.assertContains(r, "Matematik")
         for kind in ("takvim", "gozetmenler", "siniflar"):
-            r = self.client.get(reverse("timetable:exam_print", args=[self.school.pk, self.period.pk]) + f"?tur={kind}")
+            r = self.client.get(reverse("sinav:print", args=[self.school.pk, self.period.pk]) + f"?tur={kind}")
             self.assertContains(r, "window.print()")
-        r = self.client.get(reverse("timetable:exam_proctors", args=[self.school.pk, self.period.pk]))
+        r = self.client.get(reverse("sinav:proctors", args=[self.school.pk, self.period.pk]))
         self.assertContains(r, "Öğretmen0")
         # gözetmen: muafiyet ve gelemeyeceği oturumlar
         t0 = Teacher.objects.get(school=self.school, first_name="Öğretmen0")
-        proctor_url = reverse("timetable:exam_proctors", args=[self.school.pk, self.period.pk])
+        proctor_url = reverse("sinav:proctors", args=[self.school.pk, self.period.pk])
         self.client.post(proctor_url, {"action": "exempt", "exempt": [t0.pk]})
         self.assertEqual(list(self.period.proctor_exempt.all()), [t0])
         tuesday = (MONDAY + datetime.timedelta(days=1)).isoformat()
@@ -240,7 +242,7 @@ class ExamViewTests(TestCase):
 
         # elle taşıma
         exam = Exam.objects.get(period=self.period, subject__name="Fizik")
-        edit = reverse("timetable:exam_edit", args=[self.school.pk, self.period.pk, exam.pk])
+        edit = reverse("sinav:edit", args=[self.school.pk, self.period.pk, exam.pk])
         self.assertEqual(self.client.get(edit).status_code, 200)
         room = Classroom.objects.filter(school=self.school).order_by("-capacity").first()
         target = MONDAY + datetime.timedelta(days=4)
@@ -259,7 +261,7 @@ class ExamViewTests(TestCase):
 
         exams.generate_from_lessons(self.period)
         exams.start(self.period)
-        r = self.client.get(reverse("timetable:exam_excel", args=[self.school.pk, self.period.pk]))
+        r = self.client.get(reverse("sinav:excel", args=[self.school.pk, self.period.pk]))
         self.assertEqual(r.status_code, 200)
         wb = load_workbook(BytesIO(r.content))
         self.assertEqual(wb.sheetnames, ["Takvim", "Sınıflar", "Gözetmenler", "Salonlar"])
@@ -270,28 +272,99 @@ class ExamViewTests(TestCase):
         viewer = User.objects.create_user("viewer", password="x")
         Membership.objects.create(user=viewer, institution=self.school.institution, permissions=[Membership.VIEW])
         self.client.force_login(viewer)
-        self.assertEqual(self.client.get(reverse("timetable:exams", args=[self.school.pk])).status_code, 200)
-        r = self.client.post(reverse("timetable:exam_period", args=[self.school.pk, self.period.pk]),
+        self.assertEqual(self.client.get(reverse("sinav:periods", args=[self.school.pk])).status_code, 200)
+        r = self.client.post(reverse("sinav:period", args=[self.school.pk, self.period.pk]),
                              {"action": "from_lessons", "mode": "replace"})
         self.assertEqual(r.status_code, 403)
         self.assertFalse(self.period.exams.exists())
 
     def test_other_school_period_is_404(self):
         other, other_period = build_exam_school()
-        r = self.client.get(reverse("timetable:exam_period", args=[self.school.pk, other_period.pk]))
+        r = self.client.get(reverse("sinav:period", args=[self.school.pk, other_period.pk]))
         self.assertEqual(r.status_code, 404)
 
 
-class ExamAccessTests(TestCase):
-    NAMES = ["exams", "exam_period", "exam_solve", "exam_results", "exam_edit", "exam_proctors", "exam_print", "exam_excel"]
+class ModuleTests(TestCase):
+    """Sınav Planlama ayrı modül: kayıt, ana sayfa, modül bazlı erişim, ortak veri sayfaları, eski adresler."""
 
-    def test_routes_and_labels(self):
-        for name in self.NAMES:
-            self.assertIn(name, access.SCHOOL_ROUTES, name)
-            self.assertIn(name, access.ACTION_LABELS, name)
+    def setUp(self):
+        self.school, self.period = build_exam_school(classes=1)
 
-    def test_ribbon_entry(self):
+    def _member(self, name, modules=(), permissions=(Membership.DATA,)):
+        user = User.objects.create_user(name, password="x")
+        Membership.objects.create(user=user, institution=self.school.institution, permissions=list(permissions),
+                                  modules=list(modules))
+        self.client.force_login(user)
+        return user
+
+    def test_routes_labels_and_registry(self):
+        from sinav import urls
+        from sinav.module import MODULE
+        from timetable import modules
+
+        self.assertEqual(modules.keys(), ["ders", "sinav"])
+        for pattern in urls.urlpatterns:
+            self.assertTrue(pattern.name in MODULE.routes or pattern.name in MODULE.open_routes, pattern.name)
+        for name in MODULE.routes:
+            self.assertIn(name, MODULE.labels, name)
         from timetable.templatetags import navigation
 
         labels = [item[0] for _key, _title, items in navigation.NAV_GROUPS for item in items]
-        self.assertIn("Sınav programı", labels)
+        self.assertNotIn("Sınav programı", labels)  # Ders Planlama menüsünden çıktı
+
+    def test_home_lists_modules_and_programs(self):
+        self.client.force_login(User.objects.create_superuser("admin", "a@x.tr", "x"))
+        page = self.client.get(reverse("timetable:home"))
+        self.assertContains(page, "Ders Planlama")
+        self.assertContains(page, "Sınav Planlama")
+        self.assertContains(page, reverse("sinav:periods", args=[self.school.pk]))
+        landing = self.client.get(reverse("sinav:home"))
+        self.assertContains(landing, "1 sınav dönemi")
+        self.assertContains(landing, "2026 Güz Vize")
+
+    def test_exam_only_user(self):
+        self._member("sinavci", modules=["sinav"])
+        page = self.client.get(reverse("timetable:home"))
+        self.assertContains(page, "Sınav Planlama")
+        self.assertNotContains(page, "Ders Planlama</h2>")
+        self.assertEqual(self.client.get(reverse("sinav:periods", args=[self.school.pk])).status_code, 200)
+        denied = self.client.get(reverse("timetable:school_detail", args=[self.school.pk]))
+        self.assertEqual(denied.status_code, 403)
+        self.assertContains(denied, "Ders Planlama", status_code=403)
+        # ortak veri sayfası açık ve Sınav Planlama menüsüyle görünür
+        rooms = self.client.get(reverse("timetable:data_list", args=[self.school.pk, "derslikler"]))
+        self.assertEqual(rooms.status_code, 200)
+        self.assertContains(rooms, "Sınav dönemleri")
+        self.assertNotContains(rooms, "Ana görünüm")
+        # Ders Planlama'nın program listesinde görünmez
+        listing = self.client.get(reverse("timetable:school_list"))
+        self.assertContains(listing, "0 program")
+        self.assertNotContains(listing, reverse("timetable:school_detail", args=[self.school.pk]))
+
+    def test_lesson_only_user_cannot_open_exams(self):
+        self._member("dersci", modules=["ders"])
+        self.assertEqual(self.client.get(reverse("sinav:periods", args=[self.school.pk])).status_code, 403)
+        self.assertEqual(self.client.get(reverse("timetable:school_detail", args=[self.school.pk])).status_code, 200)
+
+    def test_empty_modules_means_all_and_sidebar_switch(self):
+        self._member("herkes")
+        page = self.client.get(reverse("sinav:periods", args=[self.school.pk]))
+        self.assertContains(page, "Sınav dönemleri")
+        self.assertContains(page, 'aria-label="Modül değiştir"')
+        self.assertContains(page, reverse("timetable:school_detail", args=[self.school.pk]))
+
+    def test_old_addresses_redirect(self):
+        self._member("eski")
+        r = self.client.get(f"/okul/{self.school.pk}/sinavlar/{self.period.pk}/")
+        self.assertRedirects(r, reverse("sinav:period", args=[self.school.pk, self.period.pk]), fetch_redirect_response=False)
+
+    def test_users_page_restricts_modules(self):
+        admin = self._member("yonetici", modules=["sinav"], permissions=[Membership.DATA, Membership.USERS])
+        url = reverse("timetable:institution_users", args=[self.school.institution_id])
+        self.assertContains(self.client.get(url), "Sınav Planlama")
+        self.client.post(url, {"action": "add", "username": "yeni", "password": "Uzun-parola-123", "permissions": ["veri"],
+                               "modules": ["ders", "sinav"]})
+        self.assertEqual(Membership.objects.get(user__username="yeni").modules, ["sinav"])  # ders verilemez
+        self.client.post(url, {"action": "add", "username": "bos", "password": "Uzun-parola-123", "permissions": ["veri"]})
+        self.assertEqual(Membership.objects.get(user__username="bos").modules, ["sinav"])  # "tümü" değil
+        self.assertTrue(admin.memberships.exists())

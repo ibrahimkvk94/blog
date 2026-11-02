@@ -1,10 +1,10 @@
 {% extends "timetable/base.html" %}
 {% load assets %}
 {% block title %}{{ period.name }} – gözetmenler{% endblock %}
-{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{% url 'timetable:exams' school.pk %}">Sınav programı</a> / <a href="{% url 'timetable:exam_period' school.pk period.pk %}">{{ period.name }}</a>{% endblock %}
+{% block crumbs %}<a href="{% url 'sinav:home' %}">Sınav Planlama</a> / <a href="{% url 'sinav:periods' school.pk %}">{{ school }}</a> / <a href="{% url 'sinav:period' school.pk period.pk %}">{{ period.name }}</a>{% endblock %}
 {% block heading %}<h1>Gözetmenler</h1>{% endblock %}
 {% block content %}
-{% include "timetable/exams/tabs.html" with active="gozetmen" %}
+{% include "sinav/tabs.html" with active="gozetmen" %}
 <p class="page-lead" style="margin-top:14px">Gözetmenlik {{ pool }} öğretmene dağıtılır (muaflar hariç). {% if period.use_availability %}Öğretmenin ders programındaki <b>yasak</b> saatleri, sınav gününün hafta gününde oturumla çakışan ders saatlerine eşlenerek kapalı sayılır.{% else %}Ders programı müsaitliği kullanılmıyor (dönem ayarı).{% endif %} Ayrıca sınav dönemine özel gelemeyeceği gün ve oturumlar aşağıdan işaretlenir.</p>
 
 <div class="grid-2">
@@ -55,4 +55,4 @@
   </div>
 </div>
 {% endblock %}
-{% block scripts %}<script src="{% asset 'timetable/exams.js' %}"></script>{% endblock %}
+{% block scripts %}<script src="{% asset 'sinav/exams.js' %}"></script>{% endblock %}

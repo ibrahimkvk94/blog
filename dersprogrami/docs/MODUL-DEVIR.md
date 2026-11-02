@@ -4,7 +4,7 @@
 > kalmaması için yazıldı. Önce bunu, sonra [../CLAUDE.md](../CLAUDE.md) (çalışma kuralları) ve
 > [../README.md](../README.md) (ekranlar, kavramlar, kısıt listesi) okunmalı.
 >
-> Yazıldığı tarih: 2 Kasım 2026 · Son commit: `aed1897` · Dal: `claude/elegant-fermi-mtxjbt`
+> Yazıldığı tarih: 2 Kasım 2026 (modül yapısıyla güncellendi) · Dal: `claude/elegant-fermi-mtxjbt`
 
 ## 1. Modül ne yapar
 
@@ -18,9 +18,12 @@ yönetir. aSc TimeTables mantığını örnek alır (tasarım gerekçesi: [`../.
   kuralların birlikte sağlanamadığının açıklaması.
 - **Üretim sonrası:** sürükle-bırak düzenleme, ihlal onarımı, ceza düşürme, çözüm merkezi, kalite karnesi,
   sürümler, karşılaştırma, raporlar / PDF / Excel.
-- **Günlük işler:** vekâlet, etkinlik ve telafi dersi, derslik ayırma, nöbet, sınav programı, öğretmen
+- **Günlük işler:** vekâlet, etkinlik ve telafi dersi, derslik ayırma, nöbet, öğretmen
   istekleri, öğretmen hesapları (Programım, telefon takvimi), web yayını, e-posta bildirimleri, ÜYBS aktarımı.
 - **Çok kurumlu:** tek kurulumda birden çok kurum, kurum düzeyinde yetkiler.
+- **Modüller:** ana sayfada **Ders Planlama** (yukarıdakilerin hepsi) ve **Sınav Planlama** (vize/final/bütünleme
+  programı, salon ve gözetmen ataması) ayrı kartlardır; yeni modül eklenebilir (§3.1). Kullanıcı modüllerle
+  sınırlanabilir (ör. yalnızca Sınav Planlama).
 
 Durum: üretimde kullanılıyor (bir MYO'nun ~1100 kartlık programı). 560 otomatik test var, hepsi geçiyor.
 
@@ -28,14 +31,14 @@ Durum: üretimde kullanılıyor (bir MYO'nun ~1100 kartlık programı). 560 otom
 
 | Katman | Ne kullanılıyor |
 |---|---|
-| Dil / çatı | Python 3.13, Django 5.2 (tek uygulama: `timetable`) |
+| Dil / çatı | Python 3.13, Django 5.2 (uygulamalar: `timetable` = Ders Planlama + ortak veri, `sinav` = Sınav Planlama) |
 | Çözücü | OR-Tools CP-SAT (`ortools>=9.12`) |
 | Veritabanı | SQLite (yerel) ya da PostgreSQL (`DATABASE_URL`) |
 | Arayüz | Sunucu tarafı Django şablonları + sade JavaScript (`timetable/static/timetable/*.js`). Derleme adımı, npm, harici CDN **yok** |
 | Dosya | openpyxl (Excel), reportlab (PDF), segno (QR) |
 | Yayın | gunicorn (Linux) / waitress (Windows), whitenoise, Docker + Caddy ([../YAYIN.md](../YAYIN.md)) |
 
-`config/` yalnızca bu bağımsız kurulumun Django projesidir; asıl modül `timetable/` klasörüdür.
+`config/` yalnızca bu bağımsız kurulumun Django projesidir; asıl kod `timetable/` ve `sinav/` klasörleridir.
 
 ## 3. Klasör haritası
 
@@ -44,7 +47,8 @@ dersprogrami/
   config/               bağımsız kurulumun settings / urls / wsgi
   baslat.py             yerel başlatıcı (git pull → migrate → sunucu; kendini güncelleme)
   timetable/
-    models.py           ana veri modeli (aşağıda)       exam_models.py   sınav modülünün modelleri
+    models.py           ana veri modeli (aşağıda)
+    modules.py          modül kaydı: ana sayfa kartları, açık modül, modül bazlı erişim
     access.py           TEK yetki noktası: SchoolAccessMiddleware + URL adı → yetki tabloları + denetim günlüğü
     urls.py             134 URL, ad alanı "timetable"
     views.py            ana sayfalar ve JSON API        data_views.py    veri giriş listeleri/formları
@@ -66,7 +70,7 @@ dersprogrami/
     editing.py, grid.py ana görünüm: hücre uygunluğu, taşıma, ızgara verisi
     penalty.py, quality.py, pending.py   ceza dökümü, kalite karnesi, bekleyenlerin nedenleri
     substitutes.py      vekâlet önerileri            events.py      etkinlik, telafi, derslik ayırma
-    duty.py             nöbet                        exams*.py      sınav programı (ayrı CP-SAT modeli)
+    duty.py             nöbet
     students.py         öğrenciler, seçmeliler, şube planı
     teacher_accounts.py, teacher_calendar.py, teacher_requests.py   öğretmen hesabı tarafı
     departments.py      bölüm sorumlularının veri önerisi
@@ -78,8 +82,30 @@ dersprogrami/
     backup.py, updater.py          yedek ve kendini güncelleme (bağımsız kurulum içindir)
     management/commands/ calisan (iş kuyruğu çalışanı), generate_timetable, seed_demo, yedekle, sunucu
     templatetags/navigation.py     sol menü tanımı
-    tests/              74 test dosyası
+    tests/              72 test dosyası
+  sinav/                Sınav Planlama modülü (ortak veriyi timetable'dan kullanır)
+    module.py           modül kaydı: başlık, sol menü, yetki tablosu, işlem günlüğü adları
+    models.py           ExamPeriod, Exam, ExamPlacement, ExamRoom (tablo adları eskisi gibi timetable_exam*)
+    services.py         derslerden sınav üretme, birleştirme, gözetmen müsaitliği, arka plan çözümü
+    solver.py           sınav yerleştirme CP-SAT modeli
+    views.py, urls.py   sayfalar (adres öneki /sinav-planlama/, ad alanı "sinav"), excel.py çıktı
+    tests/              sınav ve modül testleri
 ```
+
+### 3.1 Modül yapısı
+
+- `timetable/modules.py` kayıt defteridir. Her modül `Module(key, title, description, icon, namespace, landing,
+  entry, nav_groups, routes, open_routes, labels)` ile kendini `AppConfig.ready()`'de kaydeder (örnek:
+  `sinav/apps.py`, `sinav/module.py`; Ders Planlama `timetable/apps.py`'de kaydolur).
+- Ana sayfa (`/`) kullanıcının açabildiği modülleri ve her birindeki programları gösterir. Ders Planlama'nın giriş
+  sayfası `/ders-planlama/` (Kurumlarım), Sınav Planlama'nınki `/sinav-planlama/`.
+- Kenar çubuğunda ve üst şeritte modül değiştirici vardır; menü açık modülün `nav_groups`'udur.
+- **Ortak veri sayfaları** (`access.SHARED_ROUTES`: sınıf, öğretmen, derslik, ders, program ayarları ...) her
+  modülden açılır ve en son girilen modülün menüsüyle görünür (oturumda `modul`).
+- **Erişim:** `Membership.modules` boşsa kullanıcı bütün modülleri görür; doluysa yalnızca onları. Modül içindeki
+  işlemler yine kurum yetkileriyle denetlenir (Sınav Planlama: görüntüleme ile bakılır, veri girişi ile değiştirilir).
+  Kullanıcılar sayfasında modül kutuları vardır; modülü kısıtlı yönetici yalnızca kendi modüllerini verebilir.
+- Eski sınav adresleri (`/okul/<pk>/sinavlar/...`) yeni adreslere yönlendirilir.
 
 ## 4. Veri modeli
 
@@ -98,9 +124,10 @@ Institution (kurum)
      │    ├─ TimetableVersion (geri alınabilir anlık görüntüler)
      │    └─ ImproveJob (kind: school / resolve / penalty)
      ├─ Absence, Substitution (vekâlet), Event (etkinlik / telafi / derslik ayırma)
-     ├─ DutyPlace, Duty (nöbet), ExamPeriod/Exam/... (sınav)
+     ├─ DutyPlace, Duty (nöbet)
+     ├─ [sinav] ExamPeriod → Exam (ders adı, sınıflar, dersler) → ExamPlacement → ExamRoom (salon, gözetmenler)
      └─ LeaveRequest, AvailabilityRequest, Department, DepartmentSubmission (istek ve onay akışları)
-Membership (user × institution × yetkiler [+ program kısıtı]) · AuditLog · Notification · ReportPreset
+Membership (user × institution × yetkiler [+ program kısıtı] [+ modül kısıtı]) · AuditLog · Notification · ReportPreset
 ```
 
 - **Kart** = dersin tek oturumu. 6 saat / uzunluk 2 → 3 kart.
@@ -171,11 +198,12 @@ cezalı olur. Çözülemeyen veride bile "en yakın taslak + kırılan kurallar"
 
 ### Seçenek A — Ana proje de Django ise (en sıkı bütünleşme)
 
-1. `timetable/` klasörünü ana projeye kopyala (ya da bu depoyu alt modül olarak ekle).
+1. `timetable/` ve `sinav/` klasörlerini ana projeye kopyala (ya da bu depoyu alt modül olarak ekle). Sınav
+   Planlama istenmiyorsa `sinav/` alınmaz; Ders Planlama tek başına çalışır.
 2. `requirements.txt` bağımlılıklarını ekle.
 3. Ayarlar (bkz. `config/settings.py`):
    ```python
-   INSTALLED_APPS += ["timetable"]
+   INSTALLED_APPS += ["timetable", "sinav"]
    # Sıra önemli: AuthenticationMiddleware → LoginRequiredMiddleware → SchoolAccessMiddleware.
    # Modül Django 5.1+'ın LoginRequiredMiddleware'ine güvenir: giriş istemeyen görünümler (web yayını,
    # takvim aboneliği, parola sayfaları) @login_not_required ile işaretli. Ana projede bu ara katman yoksa
@@ -190,11 +218,13 @@ cezalı olur. Çözülemeyen veride bile "en yakın taslak + kırılan kurallar"
    BACKUP_DIR = ...; BACKUP_KEEP = 30; AUTO_BACKUP = False   # yedeği ana proje yapıyorsa
    PUBLIC_URL = "https://..."          # parola bağlantıları için
    ```
-4. URL: `path("ders-programi/", include("timetable.urls"))`. Modül kendi `login` sayfasını içerir; ana projenin
+4. URL: `path("planlama/sinav-planlama/", include("sinav.urls"))` ve `path("planlama/", include("timetable.urls"))`
+   (sinav önce). Ana projenin kendi ana sayfası varsa modül kartları oradan `timetable.modules.user_modules(user)`
+   ile üretilebilir. Modül kendi `login` sayfasını içerir; ana projenin
    girişini kullanmak için `LOGIN_URL` ana projeninki yapılabilir. Şablon ve JS adresleri `{% url %}` ile
    üretiliyor, sabit `/okul/...` yolu yok — önek altında çalışması beklenir ama **denenmedi**.
 5. Kullanıcı: ana proje özel kullanıcı modeli (`AUTH_USER_MODEL`) kullanıyorsa `models.py` ve
-   `exam_models.py`'deki `"auth.User"` başvuruları `settings.AUTH_USER_MODEL` yapılmalı (migration'lar zaten uyumlu).
+   `sinav/models.py`'deki `"auth.User"` başvuruları `settings.AUTH_USER_MODEL` yapılmalı (migration'lar zaten uyumlu).
 6. Yetki: modülün kendi `Institution` / `Membership` yapısı var. Ana projede kurum/okul ve rol varsa ya
    eşleştirme (ana projede kurum açılınca `Institution` + `Membership` oluşturan sinyal) ya da `access.py`'deki
    `school_permissions` / `institution_permissions` fonksiyonlarını ana projenin rollerine bağlama gerekir.
@@ -204,7 +234,7 @@ cezalı olur. Çözülemeyen veride bile "en yakın taslak + kırılan kurallar"
 8. Bağımsız kuruluma ait parçalar ana projede **kapatılmalı/çıkarılmalı:** `baslat.py`, `updater.py`
    (Merkez → Sistem güncelleme; git pull + yeniden başlatma yapar), `backup.py` otomatik yedeği,
    `config/`, `.bat/.sh` betikleri.
-9. Testler: `python manage.py test timetable --parallel 1` ana projede de geçmeli.
+9. Testler: `python manage.py test timetable sinav --parallel 1` ana projede de geçmeli.
 
 ### Seçenek B — Ana proje başka teknolojiyle (ayrı servis)
 
@@ -233,7 +263,7 @@ vekil altında yol). Veri alışverişi için hazır kapılar:
 > uygun olduğunu, ana projedeki kullanıcı/kurum yapısıyla nasıl eşleşeceğini öner. Kod yazmadan önce planı göster.
 
 Ezbere bilinmesi gereken tuzaklar:
-- Yeni URL → `access.py` tablosu (yoksa 403).
+- Yeni URL → `access.py` tablosu ya da modülün `module.py`'sindeki `routes` (yoksa 403).
 - Çözücü testleri yavaş; tüm paket ~10 dk. Değişen alanın test dosyasını önce tek başına çalıştır.
 - `gen2.py`'ye dokunma.
 - Sunucuda yeni migration'lar başlatıcı (`baslat.py`) ya da `manage.py migrate` ile uygulanır.

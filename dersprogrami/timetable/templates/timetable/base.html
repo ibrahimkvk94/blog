@@ -15,7 +15,7 @@
 <div class="shell">
   <div class="nav-backdrop" id="nav-backdrop"></div>
   <aside class="sidebar">
-    <a class="brand" href="{% url 'timetable:school_list' %}">
+    <a class="brand" href="{% url 'timetable:home' %}">
       <span class="brand-mark">{% include "timetable/icon.html" with name="grid" %}</span>
       Ders Programı
     </a>
@@ -23,18 +23,27 @@
       <div class="side-school">
         <div class="label">Kurum</div>
         <a href="{% url 'timetable:institution_detail' school.institution_id %}">{{ school.institution }}</a>
+        <div class="label" style="margin-top:8px">Modül</div>
+        {% if school_modules and school_modules|length > 1 %}
+          <select class="program-switch module-switch" aria-label="Modül değiştir" onchange="location.href=this.value">
+            {% for m in school_modules %}<option value="{% module_url m school %}"{% if m.key == module.key %} selected{% endif %}>{{ m.title }}</option>{% endfor %}
+          </select>
+        {% elif module %}
+          <a href="{% module_url module school %}">{{ module.title }}</a>
+        {% endif %}
         <div class="label" style="margin-top:8px">Program</div>
         {% if sibling_programs and sibling_programs|length > 1 %}
           <select class="program-switch" aria-label="Program değiştir" onchange="location.href=this.value">
-            {% for p in sibling_programs %}<option value="{% url 'timetable:school_detail' p.pk %}"{% if p.pk == school.pk %} selected{% endif %}>{{ p.name }}</option>{% endfor %}
+            {% for p in sibling_programs %}<option value="{% module_url module p %}"{% if p.pk == school.pk %} selected{% endif %}>{{ p.name }}</option>{% endfor %}
           </select>
         {% else %}
-          <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>
+          <a href="{% module_url module school %}">{{ school }}</a>
         {% endif %}
       </div>
       {% sidebar_nav %}
     {% else %}
       <nav class="side-nav">
+        <a href="{% url 'timetable:home' %}" class="{% if nav == 'home' %}active{% endif %}">{% include "timetable/icon.html" with name="layout" %} <span class="nav-label">Ana sayfa</span></a>
         <a href="{% url 'timetable:school_list' %}" class="{% if not nav or nav == 'institution' %}active{% endif %}">{% include "timetable/icon.html" with name="building" %} <span class="nav-label">Kurumlarım</span></a>
         {% if institution %}<a href="{% url 'timetable:institution_users' institution.pk %}" class="{% if nav == 'users' %}active{% endif %}">{% include "timetable/icon.html" with name="users" %} <span class="nav-label">Kurum kullanıcıları</span></a>{% endif %}
         {% if user.is_superuser %}<a href="{% url 'timetable:central' %}" class="{% if nav == 'central' %}active{% endif %}">{% include "timetable/icon.html" with name="shield" %} <span class="nav-label">Merkez paneli</span></a>{% endif %}

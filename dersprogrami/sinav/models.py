@@ -4,7 +4,8 @@
 - Exam (sınav): bir ders adının bir ya da birden çok sınıfa ortak sınavı; derslerden üretilir, elle düzenlenir.
 - ExamPlacement: sınavın yerleştiği gün + oturum; ExamRoom: kullandığı salonlar, oturan öğrenci ve gözetmenler.
 
-Modeller models.py'nin sonunda içe aktarılır (uygulama etiketi "timetable").
+Modeller önceden "timetable" uygulamasındaydı; tablolar aynı adla kaldı (db_table), veri taşınmadı.
+Ders Planlama'nın ortak verisine (program, ders adı, sınıf, ders, öğretmen, derslik) bağlıdır.
 """
 
 import datetime
@@ -59,6 +60,7 @@ class ExamPeriod(models.Model):
 
     class Meta:
         ordering = ["-start_date", "-id"]
+        db_table = "timetable_examperiod"
         verbose_name = "sınav dönemi"
         verbose_name_plural = "sınav dönemleri"
 
@@ -113,6 +115,7 @@ class Exam(models.Model):
 
     class Meta:
         ordering = ["subject__name", "id"]
+        db_table = "timetable_exam"
         verbose_name = "sınav"
         verbose_name_plural = "sınavlar"
 
@@ -132,6 +135,7 @@ class ExamPlacement(models.Model):
 
     class Meta:
         ordering = ["date", "session"]
+        db_table = "timetable_examplacement"
         verbose_name = "sınav yerleşimi"
         verbose_name_plural = "sınav yerleşimleri"
 
@@ -147,5 +151,6 @@ class ExamRoom(models.Model):
 
     class Meta:
         ordering = ["classroom__name"]
+        db_table = "timetable_examroom"
         verbose_name = "sınav salonu"
         verbose_name_plural = "sınav salonları"

@@ -1878,3 +1878,14 @@ details.dropdown[open] .dropdown-menu { display: block; }
 .tt-select-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
 .tt-select-bar[hidden] { display: none; }
 .tt-select-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Ana sayfa: modül kartları (Ders Planlama, Sınav Planlama ...) */
+.module-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.module-card { display: flex; flex-direction: column; gap: 12px; padding: 20px; }
+.module-card > .btn { align-self: flex-start; margin-top: auto; }
+.module-card-head { display: flex; align-items: center; gap: 12px; color: var(--text); }
+.module-card-head h2 { margin: 0; font-size: 18px; }
+.module-card-head:hover { color: var(--primary); }
+.module-icon { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; border-radius: 10px; background: var(--primary-soft); color: var(--primary); flex: none; }
+.module-programs { display: flex; flex-wrap: wrap; gap: 6px; }
+.module-switch { margin-bottom: 4px; }

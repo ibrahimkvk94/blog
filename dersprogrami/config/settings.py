@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "timetable",
+    "sinav",  # Sınav Planlama modülü (ortak veri timetable'da)
 ]
 
 MIDDLEWARE = [
