@@ -63,13 +63,14 @@ class Gen2FlowTests(TestCase):
         self.assertGreater(tt.hard_violations, 0)
         self.assertEqual(tt.generation_label, "Gen2")
 
-    def test_creation_pages_offer_all_three_modes(self):
+    def test_creation_pages_offer_strict_and_relaxed_only(self):
         self.client.force_login(User.objects.create_superuser("admin", "a@x.tr", "pw"))
         for url in (reverse("timetable:school_detail", args=[self.school.pk]),
                     reverse("timetable:setup_wizard", args=[self.school.pk, "uret"])):
             response = self.client.get(url)
-            for mode in ("strict", "relaxed", "gen2"):
+            for mode in ("strict", "relaxed"):
                 self.assertContains(response, f'name="mode" value="{mode}"')
+            self.assertNotContains(response, 'name="mode" value="gen2"')
 
     def test_gen2_defaults_to_thirty_minutes_in_web_and_services(self):
         self.client.force_login(User.objects.create_superuser("admin", "a@x.tr", "pw"))

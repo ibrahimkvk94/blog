@@ -489,6 +489,56 @@ def resolve_violations(timetable, time_limit=40):
                        "Geri almak için “Geri al”."}
 
 
+def reduce_penalty(timetable, time_limit=60):
+    """Ana görünümde "Cezayı düşür": yumuşak ceza gün komşuluğuyla azaltılır (solver/penaltyrepair.py).
+
+    Kesin ihlal sayısı artmaz, bekleyen kartlar bekler, kilitli kartlar yerinde kalır. Sonuç ancak ceza azalırsa
+    uygulanır ve "Geri al" ile geri alınabilir."""
+    from .solver.penaltyrepair import PenaltyRepair
+
+    started = time.monotonic()
+    problem = build_problem(timetable.school, timetable=timetable)
+    placements = placements_of(problem, timetable)
+    if not placements:
+        return {"ok": False, "message": "Programda yerleşmiş kart yok."}
+    repair = PenaltyRepair(problem, cpsat.default_workers())
+    if not repair.start(placements):
+        return {"ok": False, "message": "Program şu anki kurallarla değerlendirilemedi (bir kart artık izin verilmeyen bir "
+                                        "saatte olabilir). Önce “İhlalleri çöz”ü deneyin."}
+    before = repair.penalty
+    if not before:
+        return {"ok": True, "moved": 0, "before": 0, "after": 0, "message": "Programın cezası zaten 0."}
+    repair.run(started + time_limit)
+    result = repair.placements()
+    if repair.penalty >= before or not repair.start(result):  # yeniden değerlendirme: cezanın en küçük değeri
+        return {"ok": True, "moved": 0, "before": before, "after": before,
+                "message": f"Ceza {before}; bu sürede kart oynatarak düşürülemedi. Daha uzun süreyi ya da kalite "
+                           "sayfasındaki “Bütün okulu iyileştir”i deneyin."}
+    after = repair.penalty
+
+    db_cards = {c.id: c for c in timetable.cards.all()}
+    updates = []
+    for card in problem.cards:
+        place = result.get(card.key)
+        if place is None:
+            continue
+        db_card = db_cards[card.card_id]
+        new = (place.day, place.period, place.room, list(place.extra_rooms))
+        if (db_card.day, db_card.period, db_card.classroom_id, list(db_card.extra_rooms or [])) != new:
+            updates.append((db_card, new))
+    changed = [db_card for db_card, _ in updates]
+    shifted = sum(1 for db_card, new in updates if (db_card.day, db_card.period) != tuple(new[:2]))
+    editing.record(timetable, "ceza düşürüldü", editing.snapshot(changed))
+    for db_card, new in updates:
+        db_card.day, db_card.period, db_card.classroom_id, db_card.extra_rooms = new
+    Card.objects.bulk_update(changed, ["day", "period", "classroom", "extra_rooms"])
+    Timetable.objects.filter(pk=timetable.pk).update(objective=after)
+    refresh_status(timetable)
+    return {"ok": True, "moved": len(changed), "shifted": shifted, "before": before, "after": after,
+            "message": f"Ceza {before} → {after} (−{before - after}): {shifted} ders başka saate taşındı. "
+                       "Geri almak için “Geri al”."}
+
+
 ENTITY_PAGES = {"teacher": "ogretmenler", "school_class": "siniflar", "subject": "ders-adlari", "classroom": "derslikler"}
 
 

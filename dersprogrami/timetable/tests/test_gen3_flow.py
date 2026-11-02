@@ -42,8 +42,12 @@ class Gen3FlowTests(TestCase):
         self.assertIn("çözüm olmadığı anlamına gelmez", tt.report["error"])
         self.assertFalse(tt.cards.exists())
 
-    def test_creation_pages_offer_gen3(self):
+    def test_creation_pages_hide_gen2_and_gen3(self):
+        """Gen2 ile gün komşuluğu Katı modun içinde çalışır; menüde yalnızca Katı ve Gevşek kalır."""
         self.client.force_login(User.objects.create_superuser("admin", "a@x.tr", "pw"))
         for url in (reverse("timetable:school_detail", args=[self.school.pk]),
                     reverse("timetable:setup_wizard", args=[self.school.pk, "uret"])):
-            self.assertContains(self.client.get(url), 'name="mode" value="gen3"')
+            response = self.client.get(url)
+            self.assertContains(response, 'name="mode" value="strict"')
+            self.assertNotContains(response, 'name="mode" value="gen2"')
+            self.assertNotContains(response, 'name="mode" value="gen3"')

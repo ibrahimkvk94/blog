@@ -101,6 +101,7 @@ TIMETABLE_ROUTES = {
     "api_status": (M.VIEW, M.VIEW),
     "api_repair": (M.PROGRAM, M.PROGRAM),
     "api_resolve": (M.PROGRAM, M.PROGRAM),
+    "api_penalty": (M.PROGRAM, M.PROGRAM),
     "api_undo": (M.PROGRAM, M.PROGRAM),
     "api_redo": (M.PROGRAM, M.PROGRAM),
     "api_bulk": (M.PROGRAM, M.PROGRAM),
@@ -223,7 +224,7 @@ def _deny(request, message):
 
 # Yalnızca kartların yerini değiştiren işlemler: çözücü problemi değişmez, önbellek korunur.
 PLACEMENT_ONLY = set(CARD_ROUTES) | {
-    "api_row_action", "api_undo", "api_redo", "api_bulk", "api_cell_candidates", "api_versions", "publish", "unpublish", "activate", "timetables_delete", "api_resolve",
+    "api_row_action", "api_undo", "api_redo", "api_bulk", "api_cell_candidates", "api_versions", "publish", "unpublish", "activate", "timetables_delete", "api_resolve", "api_penalty",
     "api_presence", "report_excel", "report_pdf", "uybs_export", "uybs_archive", "substitutions", "duties", "solution_center", "quality", "program_compare", "availability_repair", "pending", "school_improve", "change_report", "print_settings", "backup_compare",
     # sınav programı ders programının çözücü verisini değiştirmez
     "exams", "exam_period", "exam_solve", "exam_results", "exam_edit", "exam_proctors",
@@ -353,7 +354,7 @@ ACTION_LABELS = {
     "lesson_delete": "Ders sildi", "class_lessons": "Sınıf ders tablosu", "distribution_save": "Ders dağıtımı",
     "distribution_paste": "Ders dağıtımı (yapıştırma)", "copy_divisions": "Bölünme kopyaladı", "excel_import": "Excel'den veri aktardı",
     "data_list": "Kayıtları toplu düzenledi", "data_new": "Kayıt ekledi", "data_edit": "Kaydı düzenledi", "data_delete": "Kayıt sildi",
-    "api_repair": "Bekleyenleri yerleştirdi", "api_resolve": "İhlalleri çözdü", "api_undo": "Geri aldı", "api_redo": "Yineledi", "api_bulk": "Toplu işlem",
+    "api_repair": "Bekleyenleri yerleştirdi", "api_resolve": "İhlalleri çözdü", "api_penalty": "Cezayı düşürdü", "api_undo": "Geri aldı", "api_redo": "Yineledi", "api_bulk": "Toplu işlem",
     "api_versions": "Versiyon kaydetti", "api_version": "Versiyon işlemi", "api_row_action": "Satır işlemi",
     "api_card_move": "Kart taşıdı", "api_card_unplace": "Kartı kaldırdı", "api_card_lock": "Kart kilidi",
     "api_card_room": "Derslik değiştirdi", "api_lesson_quick": "Hızlı değişiklik", "reports": "Rapor şablonu",

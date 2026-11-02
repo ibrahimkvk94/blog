@@ -1056,6 +1056,23 @@
     });
   }
 
+  // Cezayı düşür: yumuşak ceza gün komşuluğuyla azaltılır; kesin ihlal artmaz (hızlı / uzun).
+  const penaltyMenu = $("#penalty-menu");
+  if (penaltyMenu) {
+    const penaltyBtn = $("#btn-penalty"), label = $("[data-penalty-label]", penaltyMenu);
+    penaltyMenu.addEventListener("click", async (e) => {
+      const opt = e.target.closest("[data-penalty]");
+      if (!opt) return;
+      penaltyMenu.classList.remove("open");
+      const seconds = Number(opt.dataset.penalty);
+      penaltyBtn.disabled = true;
+      label.innerHTML = '<span class="spinner"></span> Ceza düşürülüyor (~' + seconds + " sn)…";
+      await run(api(cfg.penaltyUrl, { method: "POST", body: JSON.stringify({ sure: seconds }) }));
+      penaltyBtn.disabled = false;
+      label.textContent = "Cezayı düşür";
+    });
+  }
+
   // ---- sağ tık menüleri (aSc 13.5, 13.7, 13.9) -------------------------------------------
   const ctx = $("#ctx-menu");
   const KIND_ENTITY = { sinif: "Sınıf", ogretmen: "Öğretmen", derslik: "Derslik" };
