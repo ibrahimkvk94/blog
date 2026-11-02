@@ -16,6 +16,7 @@ Yumuşak kısıtlar (amaç): sınıf boşlukları, sınıfın güne ilk saatten 
 boşlukları, koşullu (?) hücre kullanımı, önemi "kesin" olmayan kart ilişkileri.
 """
 
+import functools
 import os
 import threading
 import time
@@ -838,6 +839,11 @@ TWO_PHASE_MIN_CARDS = 150
 PHASE1_SHARE = 0.1  # doğrudan geçerli program aramanın süre payı; tıkanırsa taslak + turlu onarım devralır
 REPAIR_UNTIL = 0.9  # taslak turları en geç bu paya kadar sürer; ihlaller önce sıfırlanır, kalite sonra
 FIX_UNTIL = 0.95
+# Otomatik süre (Katı modda süre boş bırakılınca): üst sınır, doğrudan arama payı, tıkanma sınırı, tercih iyileştirme.
+AUTO_LIMIT = 3600
+AUTO_DIRECT = 60.0
+AUTO_STALL = 900.0
+AUTO_PREFERENCE = 120.0
 
 
 class StopHandle:
@@ -878,16 +884,23 @@ def solve(
     two_phase=None,
     place_all=False,
     algorithm=None,
+    auto_time=False,
 ):
+    """auto_time: süreyi çözücü yönetir — time_limit yalnızca üst sınırdır; doğrudan arama kısa tutulur, onarım
+    AUTO_STALL saniye ilerlemezse en iyi taslakla biter, kesin program bulununca tercihlere AUTO_PREFERENCE saniye ayrılır."""
     if algorithm == "gen3":
         from .blocks import solve as solve_blocks
         return solve_blocks(problem, time_limit=time_limit, workers=workers, seed=seed,
                             on_progress=on_progress, stop_handle=stop_handle, should_stop=should_stop, log=log)
     workers = workers or default_workers()
     started = time.monotonic()
-    repair_search = _repair_search
     if algorithm == "gen2":
         from .gen2 import repair_search
+    else:
+        # Katı modelin onarım yolu: Gen2 turları ↔ gün komşuluğu (dayrepair modülünün açıklamasına bakın).
+        from . import dayrepair
+
+        repair_search = functools.partial(dayrepair.repair_search, stall_seconds=AUTO_STALL if auto_time else None)
     builder = _Builder(problem, mode, place_all=place_all)
     model = builder.build()
     if algorithm != "gen2":
@@ -922,7 +935,10 @@ def solve(
             first = cp_model.CpSolver()
             # Doğrudan arama bu veride çoğunlukla 15–20 sn sürer; payı kısa tutmak kısa sürelerde sonucu şansa bırakıyordu.
             share = PHASE1_SHARE
-            first.parameters.max_time_in_seconds = max(1.0, float(time_limit) * share - (time.monotonic() - started))
+            direct = float(time_limit) * share
+            if auto_time:
+                direct = min(direct, AUTO_DIRECT)
+            first.parameters.max_time_in_seconds = max(1.0, direct - (time.monotonic() - started))
             first.parameters.num_workers = workers
             first.parameters.random_seed = seed
             if stop_handle is not None:
@@ -952,9 +968,13 @@ def solve(
                                    "solutions": 0, "mode": mode, "phase1": phase1, "stopped": stopped(),
                                    "draft_violations": builder.best_draft[0]})
     remaining = max(1.0, float(time_limit) - (time.monotonic() - started))
+    if auto_time and callback1 is not None and callback1.found:
+        remaining = min(remaining, AUTO_PREFERENCE)
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = remaining
-    if phase1:
+    if phase1 and not (callback1 is not None and callback1.found):
+        # Elde geçerli tam program varsa ipucu zaten geçerli; repair_hint orada gereksiz ve onarım yolundan gelen
+        # programda OR-Tools'u çökertiyor ("heuristics.fixed_search != nullptr").
         solver.parameters.repair_hint = True
     if callback1 is not None and callback1.found:
         # Elde geçerli program varken çekirdeklerin hepsi yerel iyileştirmeye (LNS: programın küçük parçalarını

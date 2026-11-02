@@ -25,11 +25,16 @@ def check_school(school):
     return feasibility.check(school_problem(school))
 
 
-def start_generation(school, name, time_limit=None, mode=Timetable.STRICT, base=None, seed=0, only=None, from_scratch=False, user=None):
+def start_generation(school, name, time_limit=None, mode=Timetable.STRICT, base=None, seed=0, only=None, from_scratch=False, user=None,
+                     auto_time=False):
     """Yeni bir program sürümü oluşturur ve üretimi arka planda başlatır.
 
     only: {"classes": [...], "teachers": [...]} — yalnızca bunların kartları yeniden yerleşir, diğerleri
-    başlangıç sürümündeki yerinde sabitlenir (kısmi üretim; büyük programlarda çok daha hızlı)."""
+    başlangıç sürümündeki yerinde sabitlenir (kısmi üretim; büyük programlarda çok daha hızlı).
+    auto_time (Katı mod): süreyi çözücü yönetir; kolay programlar erken biter, en çok cpsat.AUTO_LIMIT saniye."""
+    auto_time = auto_time and mode == Timetable.STRICT
+    if auto_time:
+        time_limit = cpsat.AUTO_LIMIT
     timetable = Timetable.objects.create(
         school=school,
         name=name,
@@ -38,6 +43,7 @@ def start_generation(school, name, time_limit=None, mode=Timetable.STRICT, base=
         time_limit=time_limit or (1800 if mode in (Timetable.GEN2, Timetable.GEN3) else settings.TIMETABLE_SOLVER_TIME_LIMIT),
         started_at=timezone.now(),
         report={"base": base.pk if base else None, **({"algorithm": mode} if mode in (Timetable.GEN2, Timetable.GEN3) else {}),
+                **({"auto_time": True} if auto_time else {}),
                 **({"only": only} if only and any(only.values()) else {}),
                 **({"from_scratch": True} if from_scratch or (mode == Timetable.GEN3 and base is None) else {}),
                 **({"by": user.pk} if user else {})},
@@ -136,6 +142,7 @@ def _run_generation(timetable_id, base_id=None, seed=0):
         else:
             solution = cpsat.solve(problem, time_limit=timetable.time_limit, seed=seed, mode=timetable.mode,
                                    on_progress=on_progress, stop_handle=jobs.handle_for(timetable_id),
+                                   auto_time=bool(report.get("auto_time")),
                                    **({"algorithm": report["algorithm"]}
                                       if report.get("algorithm") in (Timetable.GEN2, Timetable.GEN3) else {}))
     except Exception as exc:  # beklenmeyen hatada iş "üretiliyor" durumunda asılı kalmasın

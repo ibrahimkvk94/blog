@@ -1,3 +1,4 @@
+<p class="subtle small" data-strict-timing hidden>Katı: süreyi boş bırakırsanız otomatik çalışır. Kolay programlar saniyeler içinde biter; zor programlarda Gen2 turları ile gün komşuluğu (2–3 günün bütün dersleri birlikte yeniden dizilir) dönüşümlü çalışır, sıfır ihlalde tamamlanır. En çok 60 dakika; 15 dakika boyunca ihlal azalmazsa en iyi taslak kaydedilir. Bir sayı yazarsanız o süre üst sınır olur.</p>
 <p class="subtle small" data-gen2-timing hidden>Gen2: 30 dakika ana süre. Son 1 dakikada ihlal azalırsa +1 dakika; uzatmada her yeni en düşük ihlal sayısı +1 dakika daha kazandırır. Sıfır ihlalde tamamlanır. Ana süreyi değiştirebilir veya üretimi durdurabilirsiniz.</p>
 <p class="subtle small" data-gen3-timing hidden>Gen3: varsayılan süre 30 dakika. Başlangıç sürümü özellikle seçilmediyse sıfırdan başlar. Kesin kuralları gevşetmez; süre sonunda çözüm bulunamazsa bunu bildirir. Otomatik süre uzatması yoktur.</p>
 <script>
@@ -6,17 +7,21 @@
     const input = form.querySelector('[name="time_limit"]');
     const help = form.querySelector('[data-gen2-timing]');
     const blockHelp = form.querySelector('[data-gen3-timing]');
+    const strictHelp = form.querySelector('[data-strict-timing]');
     let previous = null;
-    const times = {standard: input.value, gen2: "1800", gen3: "1800"};
+    // Katı: boş = otomatik süre; diğer modlar sabit süreyle çalışır.
+    const times = {strict: input.value, relaxed: "60", gen2: "1800", gen3: "1800"};
     function sync() {
       const selected = form.querySelector('[name="mode"]:checked')?.value;
-      const mode = selected === "gen2" || selected === "gen3" ? selected : "standard";
+      const mode = selected in times ? selected : "strict";
       if (mode !== previous) {
         if (previous !== null) times[previous] = input.value;
         input.value = times[mode];
       }
+      input.placeholder = mode === "strict" ? "Otomatik" : "";
       help.hidden = mode !== "gen2";
       blockHelp.hidden = mode !== "gen3";
+      if (strictHelp) strictHelp.hidden = mode !== "strict";
       previous = mode;
     }
     form.querySelectorAll('[name="mode"]').forEach(radio => radio.addEventListener("change", sync));

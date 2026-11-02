@@ -207,20 +207,22 @@ def generate(request, pk):
     if request.POST.get("base", "").isdigit():
         base = get_object_or_404(Timetable, pk=request.POST["base"], school=school)
     mode = request.POST.get("mode")
-    default_limit = 1800 if mode in (Timetable.GEN2, Timetable.GEN3) else 60
-    try:
-        time_limit = max(5, min(1800, int(request.POST.get("time_limit") or default_limit)))
-    except ValueError:
-        time_limit = default_limit
     if mode not in (Timetable.STRICT, Timetable.RELAXED, Timetable.GEN2, Timetable.GEN3):
         mode = Timetable.STRICT
+    default_limit = 1800 if mode in (Timetable.GEN2, Timetable.GEN3) else 60
+    # Katı modda süre boş bırakılırsa çözücü yönetir (kolay program erken biter, zor olanda onarım tıkanana dek sürer).
+    auto_time = mode == Timetable.STRICT and not (request.POST.get("time_limit") or "").strip()
+    try:
+        time_limit = max(5, min(3600, int(request.POST.get("time_limit") or default_limit)))
+    except ValueError:
+        time_limit = default_limit
     name = (request.POST.get("name") or "").strip() or "Yeni program"
     only = {
         "classes": [int(x) for x in request.POST.getlist("only_classes") if x.isdigit()],
         "teachers": [int(x) for x in request.POST.getlist("only_teachers") if x.isdigit()],
     } if base else None
     timetable = start_generation(school, name, time_limit=time_limit, mode=mode, base=base, only=only, from_scratch=from_scratch,
-                                 user=request.user)
+                                 user=request.user, auto_time=auto_time)
     return redirect("timetable:timetable_detail", pk=timetable.pk)
 
 
@@ -880,6 +882,7 @@ def api_status(request, pk):
             "status": timetable.status,
             "elapsed": round(elapsed, 1),
             "time_limit": timetable.time_limit,
+            "auto_time": bool(timetable.report.get("auto_time")),
             "progress": jobs.progress(timetable.pk) or timetable.report.get("progress", {}),
         }
     )

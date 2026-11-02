@@ -113,7 +113,7 @@
       const pct = Math.min(100, Math.round((s.elapsed / Math.max(1, budget)) * 100));
       $("#run-bar").style.width = pct + "%";
       $("#run-elapsed").textContent = Math.round(s.elapsed) + " sn";
-      $("#run-limit").textContent = "sınır " + Math.round(budget) + " sn" +
+      $("#run-limit").textContent = (s.auto_time ? "otomatik, en çok " : "sınır ") + Math.round(budget) + " sn" +
         (p.extension_seconds ? " · +" + (p.extension_seconds / 60) + " dk uzatma" : "");
       $("#run-solutions").textContent = p.solutions || 0;
       $("#run-objective").textContent = p.objective != null ? p.objective.toLocaleString("tr-TR") : "–";
@@ -125,7 +125,9 @@
         : p.phase === "explain"
         ? "Bu kurallarla program mümkün değil; hangi kuralların çeliştiği aranıyor…"
         : p.phase === "repair"
-        ? (p.violations != null
+        ? (p.violations != null && p.method === "days"
+          ? "Gün komşuluğu (tur " + (p.round || 1) + "): 2–3 günün bütün dersleri birlikte yeniden diziliyor; en iyi taslakta " + p.violations + " kesin ihlal kaldı…"
+          : p.violations != null
           ? "Taslak onarılıyor (tur " + (p.round || 1) + "): en iyi taslakta " + p.violations + " kesin ihlal kaldı; her tur en iyi taslaktan devam ediyor…"
           : "Doğrudan arama tıkandı; önce her dersin yerleştiği bir taslak kuruluyor, sonra turlarla kurallara uyacak şekilde onarılıyor…")
         : p.phase === "feasible"
