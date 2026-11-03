@@ -56,7 +56,10 @@ eşleşmesi ya da modüldeki öğretmen değişince kendiliğinden; elle `manage
    (`SchoolClass.program`) ve düzeyi kısa adından bir kez atanır: "10MKT" → MKT, numara 1–36 → 2. sınıf, 50–86 → 1. sınıf.
 4. **Zorluk** 1–5 (girilmezse 3): zor sınav mümkün olduğunca erken güne; eşit zorlukta MT içeren türler önce, ÇS sona.
 5. Adı aynı (parantez içi hariç) sınavlar aynı güne.
-6. Bir oturumda mümkün olduğunca tek **sınıf düzeyi** (3 haneli ders numarasının ilk rakamı: BİL103 → 1. sınıf).
+6. Bir oturumda mümkün olduğunca tek **sınıf düzeyi** (kısımların düzeyi; yoksa 3 haneli ders numarasının ilk rakamı).
+7. **Oturum düzeni** (dönem ayarı, ör. 2,1,2,1): her oturum bir düzeye ayrılır; o oturumda düzeyin her bölümünden
+   (kısımların programı) bir sınav olur — aynı bölümün iki sınavı (mükerrer) ve sınavsız bölüm (eksik) güçlü cezalıdır.
+   2025-2026 güz ara sınav planı bu düzendeydi (08.45 2. sınıflar, 10.30 1. sınıflar, 14.15 2. sınıflar …).
 
 Tür ve zorluk kurum düzeyinde ders koduyla tutulur (`ExamCourse`); "Ders sınav bilgileri" sayfasından elle ya da
 Excel'den girilir, Excel'e aktarılır (`sinav/ders_bilgileri.py`). 4–6 çözücünün zamanlama aşamasında tercihtir
