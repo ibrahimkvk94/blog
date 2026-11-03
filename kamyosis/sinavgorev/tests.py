@@ -109,6 +109,37 @@ class PuantajTestleri(TestCase):
                              HTTP_X_REQUESTED_WITH="fetch")
         self.assertEqual(r.json(), {"ok": True, "degisen": 1})
 
+    def test_gorev_degisikligi_puantaji_yeniler(self):
+        zeki = Personel.objects.create(ad_soyad="Zeki DOĞAN", bolum=self.bil)
+        t_zeki = Teacher.objects.create(school=self.period.school, first_name="Zeki", last_name="Doğan")
+        servis.isle(self.period, self.yonetici)
+        self.client.force_login(User.objects.create_superuser("kok", password="x-Parola-123"))
+        room = ExamRoom.objects.get(placement__exam__period=self.period)
+        url = reverse("sinav:duties", args=[self.period.school_id, self.period.pk])
+        r = self.client.post(url, {"action": "replace", "gorev": f"{room.pk}:{self.t_veli.pk}", "yeni": t_zeki.pk,
+                                   "neden": "raporlu"})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(SinavGorevi.objects.filter(personel=zeki).count(), 2)
+        self.assertEqual(SinavGorevi.objects.filter(personel=self.veli).count(), 0)
+
+    def test_kurala_gore_salon_amiri(self):
+        from personel.models import Secenek
+
+        dr = Secenek.objects.create(tur=Secenek.UNVAN, metin="Dr.Öğt.Üyesi")
+        bnb = Secenek.objects.create(tur=Secenek.RUTBE, metin="Bnb.")
+        yzb = Secenek.objects.create(tur=Secenek.RUTBE, metin="Yzb.")
+        a = Personel.objects.create(ad_soyad="A KİŞİ", unvan=dr)
+        b = Personel.objects.create(ad_soyad="B KİŞİ", rutbe=bnb, sinav_rolleri="G")
+        c = Personel.objects.create(ad_soyad="C KİŞİ", rutbe=yzb)
+        d = Personel.objects.create(ad_soyad="D KİŞİ", rutbe=bnb, sinav_rolleri="")  # görev almayan: dokunulmaz
+        self.client.force_login(self.yonetici)
+        r = self.client.get(reverse("sinavgorev:puantaj"))
+        self.assertContains(r, "Kurala göre salon amiri ata (2 kişi)")
+        self.client.post(reverse("sinavgorev:amir_ata"))
+        roller = {p.ad_soyad: p.sinav_rolleri for p in Personel.objects.filter(pk__in=[a.pk, b.pk, c.pk, d.pk])}
+        self.assertEqual(roller, {"A KİŞİ": "AGT", "B KİŞİ": "AG", "C KİŞİ": "GT", "D KİŞİ": ""})
+        self.assertNotContains(self.client.get(reverse("sinavgorev:puantaj")), "Kurala göre salon amiri ata")
+
     def test_roller_ve_elle_gorev(self):
         self.client.force_login(self.yonetici)
         self.client.post(reverse("sinavgorev:roller"), {"p": [self.ayse.pk, self.veli.pk], f"rol-{self.ayse.pk}-T": "1"})

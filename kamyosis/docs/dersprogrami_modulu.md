@@ -78,6 +78,11 @@ henüz yapılmadı.
 - **Puantaj** (KAMYOSİS `sinavgorev`, Plan Program → Sınav Görev Puantajı): sınav dönemi "puantaja işlenince" görevleri
   `SinavGorevi` olarak kopyalanır (her oturum ayrı görev); Sınav Planlama dışındaki görevler elle eklenir. Hafta içi 1,
   hafta sonu 1,5 puan; yıl 1 Ekim'de başlar. Skor = puan + z (haftalık ders saatinin z puanı, seçilen programdan).
+- **Salon amiri kuralı**: puantaj sayfasındaki "Kurala göre salon amiri ata", unvanı Dr.Öğt.Üyesi / Doç.Dr. /
+  Prof.Dr. ya da rütbesi Yzb. üstü (Bnb. ve yukarısı) olan personele A rolü ekler; kalan düzenleme elle yapılır.
+- **Görev değişikliği** (ortak kod, Sınav Planlama → dönem → "Görev değişikliği"): bir görevi başka öğretmene verme ya
+  da iki görevi takas etme; uygunluk denetlenir, gerekçe zorunlu, her değişiklik `ExamDutyChange` olarak kaydedilir,
+  sınav kilitlenir. Dönem puantaja işlenmişse köprü puantajı hemen yeniler.
 - **Dengeli dağıtım**: `settings.SINAV_GOREVLI_PUANI` → `sinavgorev.servis.onceki_puanlar`; çözücü her öğretmenin yıl
   içindeki skorunun (dağıtılan dönem hariç) üstüne yükü eşitler, hafta sonu oturumunu 1,5 sayar, "?" oturumuna
   ancak gerekirse görev verir (`W_SOFT`).
@@ -133,6 +138,8 @@ açıklamasıyla işaretli):
 5. `sinav`: görev rolleri, "mümkünse verilmesin" oturumları, önceki puanla denge (yukarıda) —
    `migrations/0003_kamyosis_gorev_rolleri.py`, `solver.duty_need` ve gözetmen aşaması, `services.prior_scores` /
    `proctor_soft`, düzenleme ve Gözetmenler sayfalarında rol seçimi, çıktılarda rol adı.
+6. `sinav`: görev değişikliği (`gorev_degisikligi.py`, `templates/sinav/duties.html`, `migrations/0004`), program
+   kontenjanı ve Gözetmenlerde anında kayıt; `timetable`: `SchoolClass.program` (`migrations/0047`).
 
 `templates/timetable/` altındaki `base.html`, `nav/ribbon.html`, `home.html`, `school_list.html`, `institution.html`
 KAMYOSİS sürümleriyle ezilir; `araclar/dersprogrami/sablon_uyarla.py` ile modülün dosyalarından üretilir.
