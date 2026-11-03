@@ -1,0 +1,107 @@
+{% extends "timetable/base.html" %}
+{% load assets %}
+{% block title %}{{ period.name }} – görev değişikliği{% endblock %}
+{% block crumbs %}<a href="{% url 'sinav:home' %}">Sınav Planlama</a> / <a href="{% url 'sinav:periods' school.pk %}">{{ school }}</a> / <a href="{% url 'sinav:period' school.pk period.pk %}">{{ period.name }}</a>{% endblock %}
+{% block heading %}<h1>Görev değişikliği</h1>{% endblock %}
+{% block content %}
+{% include "sinav/tabs.html" with active="degisiklik" %}
+<p class="page-lead" style="margin-top:14px">Program oluştuktan sonra bir görevi başka öğretmene verin ya da iki görevi takas edin. Yalnızca o oturumda boş, gelemeyeceği oturum işaretlememiş, muaf olmayan ve rolü uyan öğretmenler seçilebilir; gerekçe zorunludur. Değişen sınav kilitlenir: program yeniden oluşturulsa da görevliler korunur.</p>
+
+<form method="get" class="panel" style="margin-bottom:18px">
+  <div class="panel-body" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <label class="label" for="gorev" style="margin:0">Değişecek görev</label>
+    <input type="search" class="input input-sm" id="gorevAra" placeholder="Öğretmen, tarih ya da sınav ara…" style="max-width:240px" aria-label="Görev ara">
+    <select class="select" id="gorev" name="gorev" style="flex:1;min-width:280px" onchange="this.form.submit()">
+      <option value="">Seçin…</option>
+      {% for g in gorevler %}<option value="{{ g.anahtar }}"{% if sec and sec.anahtar == g.anahtar %} selected{% endif %}>{{ g.etiket }}</option>{% endfor %}
+    </select>
+    <noscript><button class="btn btn-sm btn-primary">Aç</button></noscript>
+  </div>
+</form>
+
+{% if sec %}
+<div class="grid-2">
+  <form method="post" class="panel">{% csrf_token %}<input type="hidden" name="action" value="replace"><input type="hidden" name="gorev" value="{{ sec.anahtar }}">
+    <div class="panel-head ex-toolbar"><h2>Başka öğretmene ver</h2><span class="subtle small">{{ sec.teacher.full_name }} · {{ sec.rol }} · {{ sec.etiket }}</span>
+      <input type="search" class="input input-sm" placeholder="Öğretmen ara…" data-ex-filter="#ex-adaylar tbody" style="max-width:200px"></div>
+    <div class="panel-body flush table-wrap" style="max-height:52vh;overflow:auto">
+      <table class="table table-compact ex-sortable" id="ex-adaylar">
+        <thead><tr><th></th><th data-sort>Öğretmen</th><th data-sort>Bölüm</th><th class="num" data-sort>Görev</th><th>Durum</th></tr></thead>
+        <tbody>
+          {% for a in adaylar %}
+            <tr data-search="{{ a.teacher.full_name|fold }} {{ a.teacher.department|fold }}"{% if a.engel %} class="subtle"{% endif %}>
+              <td>{% if not a.engel %}<input type="radio" name="yeni" value="{{ a.teacher.pk }}" aria-label="{{ a.teacher.full_name }}" required{% if not can.veri %} disabled{% endif %}>{% endif %}</td>
+              <td data-value="{{ a.teacher.last_name }} {{ a.teacher.first_name }}">{{ a.teacher.full_name }}</td>
+              <td>{{ a.teacher.department }}</td>
+              <td class="num" data-value="{{ a.yuk }}">{{ a.yuk }}</td>
+              <td class="small">{% if a.engel %}<span class="ex-bad">{{ a.engel|join:", " }}</span>{% elif a.uyari %}<span class="ex-warn">{{ a.uyari|join:", " }}</span>{% else %}uygun{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if can.veri %}
+    <div class="panel-body" style="display:flex;gap:8px;flex-wrap:wrap">
+      <input class="input" name="neden" maxlength="200" required placeholder="Gerekçe (ör. raporlu)" style="flex:1;min-width:200px">
+      <button class="btn btn-primary">Görevi ver</button>
+    </div>
+    {% endif %}
+  </form>
+
+  <form method="post" class="panel">{% csrf_token %}<input type="hidden" name="action" value="swap"><input type="hidden" name="gorev" value="{{ sec.anahtar }}">
+    <div class="panel-head ex-toolbar"><h2>Takas et</h2><span class="subtle small">{{ takaslar|length }} görevle takas edilebilir</span>
+      <input type="search" class="input input-sm" placeholder="Ara…" data-ex-filter="#ex-takas tbody" style="max-width:200px"></div>
+    <div class="panel-body flush table-wrap" style="max-height:52vh;overflow:auto">
+      <table class="table table-compact" id="ex-takas">
+        <thead><tr><th></th><th>Öğretmen</th><th>Görev</th></tr></thead>
+        <tbody>
+          {% for x in takaslar %}
+            <tr data-search="{{ x.teacher.full_name|fold }} {{ x.etiket|fold }}">
+              <td><input type="radio" name="diger" value="{{ x.anahtar }}" aria-label="{{ x.teacher.full_name }}" required{% if not can.veri %} disabled{% endif %}></td>
+              <td>{{ x.teacher.full_name }}</td>
+              <td class="small">{{ x.etiket }} · {{ x.rol_adi|lower }}{% if x.uyari %}<div class="ex-warn">{{ x.uyari|join:"; " }}</div>{% endif %}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="3" class="subtle">Takas edilebilecek görev yok.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if can.veri and takaslar %}
+    <div class="panel-body" style="display:flex;gap:8px;flex-wrap:wrap">
+      <input class="input" name="neden" maxlength="200" required placeholder="Gerekçe (ör. karşılıklı istek)" style="flex:1;min-width:200px">
+      <button class="btn btn-primary">Takas et</button>
+    </div>
+    {% endif %}
+  </form>
+</div>
+{% endif %}
+
+<div class="panel" style="margin-top:18px">
+  <div class="panel-head"><h2>Değişiklik kaydı</h2><span class="subtle small">son 100</span></div>
+  <div class="panel-body flush table-wrap">
+    <table class="table table-compact">
+      <thead><tr><th>Zaman</th><th>Kim</th><th>Değişiklik</th><th>Gerekçe</th></tr></thead>
+      <tbody>
+        {% for k in kayitlar %}
+          <tr><td class="nowrap">{{ k.created_at|date:"d.m.Y H:i" }}</td><td>{{ k.user|default:"–" }}</td><td class="small">{{ k.summary }}</td><td class="small">{{ k.reason }}</td></tr>
+        {% empty %}
+          <tr><td colspan="4" class="subtle">Henüz değişiklik yok.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{% asset 'sinav/exams.js' %}"></script>
+<script>
+(function () {  // görev listesini aranan sözcüklere göre daraltır
+  const ara = document.getElementById("gorevAra"), liste = document.getElementById("gorev");
+  if (!ara || !liste) return;
+  const sade = (s) => String(s || "").toLocaleLowerCase("tr");
+  ara.addEventListener("input", () => {
+    const k = sade(ara.value).split(/\s+/).filter(Boolean);
+    Array.from(liste.options).forEach((o, i) => { if (i) o.hidden = k.length > 0 && !k.every((w) => sade(o.text).includes(w)); });
+  });
+})();
+</script>{% endblock %}

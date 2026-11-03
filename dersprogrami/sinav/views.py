@@ -575,6 +575,53 @@ def proctors(request, pk, period_id):
         departments=sorted({t.department for t in teachers if t.department})))
 
 
+# --- KAMYOSİS: görev değişikliği ----------------------------------------------------------------
+
+def duty_changes(request, pk, period_id):
+    from . import gorev_degisikligi as gd
+
+    school = get_object_or_404(School, pk=pk)
+    period = _period(school, period_id)
+    back = reverse("sinav:duties", args=[school.pk, period.pk])
+    if request.method == "POST":
+        anahtar = request.POST.get("gorev", "")
+        try:
+            if request.POST.get("action") == "swap":
+                kayit = gd.takas(period, anahtar, request.POST.get("diger", ""), request.user, request.POST.get("neden"))
+            else:
+                kayit = gd.baskasina_ver(period, anahtar, _int(request.POST.get("yeni")), request.user,
+                                         request.POST.get("neden"))
+        except gd.DegisiklikHatasi as e:
+            messages.error(request, str(e))
+            return redirect(f"{back}?gorev={anahtar}")
+        messages.success(request, kayit.summary)
+        return redirect(back)
+    b = gd.Baglam(period)
+    gorevler = [{"anahtar": k, "etiket": f"{t.full_name} · {gd.etiket(r, period)}"
+                 + (f" · {ROLE_NAMES.get(rol, rol).lower()}" if rol != GOZETMEN else ""), "teacher": t}
+                for k, r, t, rol in b.gorevler()]
+    gorevler.sort(key=lambda g: (g["teacher"].last_name, g["teacher"].first_name))
+    secili = request.GET.get("gorev", "")
+    adaylar = takaslar = None
+    sec = None
+    if secili:
+        try:
+            oda, ogretmen, rol = b.bul(secili)
+        except gd.DegisiklikHatasi as e:
+            messages.error(request, str(e))
+        else:
+            sec = {"anahtar": secili, "oda": oda, "teacher": ogretmen, "rol": ROLE_NAMES.get(rol, rol),
+                   "etiket": gd.etiket(oda, period)}
+            adaylar = b.adaylar(secili)
+            takaslar = b.takaslar(secili)
+            for x in takaslar:
+                x["etiket"] = gd.etiket(x["oda"], period)
+                x["rol_adi"] = ROLE_NAMES.get(x["rol"], x["rol"])
+    return render(request, "sinav/duties.html", _nav(
+        school, period=period, gorevler=gorevler, sec=sec, adaylar=adaylar, takaslar=takaslar,
+        kayitlar=period.duty_changes.select_related("user")[:100]))
+
+
 # --- çıktılar -----------------------------------------------------------------------------------
 
 def print_view(request, pk, period_id):

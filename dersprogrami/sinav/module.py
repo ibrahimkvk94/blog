@@ -55,6 +55,7 @@ MODULE = Module(
         "results": (M.VIEW, M.DATA),
         "edit": (M.VIEW, M.DATA),
         "proctors": (M.VIEW, M.DATA),
+        "duties": (M.VIEW, M.DATA),  # KAMYOSİS: görev değişikliği
         "print": (M.VIEW, M.VIEW),
         "excel": (M.VIEW, M.VIEW),
     },
@@ -63,7 +64,7 @@ MODULE = Module(
         "periods": "Sınav dönemi ekledi", "period": "Sınav dönemini düzenledi", "solve": "Sınav programı oluşturdu",
         "results": "Sınav programı işlemi", "edit": "Sınavı düzenledi", "proctors": "Gözetmen ayarları",
         "print": "Sınav programı yazdırdı", "excel": "Sınav programı Excel",
-        "courses": "Ders sınav bilgileri",
+        "courses": "Ders sınav bilgileri", "duties": "Görev değişikliği",
     },
     order=20,
 )

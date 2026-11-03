@@ -1873,6 +1873,7 @@ details.panel > summary.panel-head h2 svg { width: 16px; height: 16px; }
 #ex-teachers tr.ex-selected td { background: var(--primary-soft); }
 /* KAMYOSİS: bölüm süzgeci ve sıralanabilir başlıklar (sinav/exams.js) */
 .ex-group-hidden { display: none; }
+.ex-warn { color: var(--warning, #b7791f); }
 table.ex-sortable th[data-sort] { white-space: nowrap; user-select: none; }
 table.ex-sortable th.ex-sort-asc::after { content: " ▲"; font-size: .7em; }
 table.ex-sortable th.ex-sort-desc::after { content: " ▼"; font-size: .7em; }

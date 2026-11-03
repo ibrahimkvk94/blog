@@ -243,3 +243,58 @@ class GorevKuraliTests(TestCase):
     def test_hafta_sonu_agirligi(self):
         self.assertEqual(exams_solver._weight(self._p([], [], weekend=frozenset({1})), (0, 1)), 5)
         self.assertEqual(exams_solver._water_level([0, 4], 6), 5)
+
+
+class GorevDegisikligiTests(TestCase):
+    def setUp(self):
+        from sinav.models import ExamPlacement, ExamRoom
+
+        inst = Institution.objects.create(name="Kurum")
+        self.school = School.objects.create(name="Program", institution=inst)
+        self.t = {ad: Teacher.objects.create(school=self.school, first_name=ad, last_name="Hoca") for ad in "ABCD"}
+        self.period = ExamPeriod.objects.create(school=self.school, name="Vize", start_date=MONDAY, end_date=MONDAY,
+                                                sessions=["09:30", "11:00"], duty_roles=True,
+                                                proctor_roles={str(self.t["D"].pk): "T"})
+        salon = Classroom.objects.create(school=self.school, name="S1", capacity=80)
+        salon2 = Classroom.objects.create(school=self.school, name="S2", capacity=80)
+        self.oda = {}
+        for i, (ad, oturum, salon_) in enumerate((("Mat", 0, salon), ("Fiz", 1, salon2))):
+            e = Exam.objects.create(period=self.period, subject=Subject.objects.create(school=self.school, name=ad))
+            pl = ExamPlacement.objects.create(exam=e, date=MONDAY, session=oturum)
+            self.oda[ad] = ExamRoom.objects.create(placement=pl, classroom=salon_, seats=20)
+        self.oda["Mat"].proctors.set([self.t["A"]])
+        self.oda["Fiz"].proctors.set([self.t["B"]])
+
+    def test_baskasina_ver_ve_kayit(self):
+        from sinav import gorev_degisikligi as gd
+
+        b = gd.Baglam(self.period)
+        anahtar = f"{self.oda['Mat'].pk}:{self.t['A'].pk}"
+        durum = {a["teacher"].first_name: a["engel"] for a in b.adaylar(anahtar)}
+        self.assertEqual(durum["C"], [])
+        self.assertEqual(durum["D"], ["gözetmen olamaz"])  # yalnızca taşıyıcı
+        with self.assertRaises(gd.DegisiklikHatasi):
+            gd.baskasina_ver(self.period, anahtar, self.t["C"].pk, None, "  ")  # gerekçe zorunlu
+        self.period.proctor_blocks = {str(self.t["C"].pk): [MONDAY.isoformat()]}
+        self.period.save()
+        with self.assertRaises(gd.DegisiklikHatasi):
+            gd.baskasina_ver(self.period, anahtar, self.t["C"].pk, None, "raporlu")  # gelemeyeceği gün
+        kayit = gd.baskasina_ver(self.period, anahtar, self.t["B"].pk, None, "raporlu")
+        self.assertEqual(list(self.oda["Mat"].proctors.all()), [self.t["B"]])
+        self.assertTrue(self.oda["Mat"].placement.__class__.objects.get(pk=self.oda["Mat"].placement_id).locked)
+        self.assertIn("A Hoca → B Hoca", kayit.summary)
+
+    def test_takas_ve_sayfa(self):
+        from sinav import gorev_degisikligi as gd
+
+        a1 = f"{self.oda['Mat'].pk}:{self.t['A'].pk}"
+        a2 = f"{self.oda['Fiz'].pk}:{self.t['B'].pk}"
+        self.assertEqual([x["anahtar"] for x in gd.Baglam(self.period).takaslar(a1)], [a2])
+        self.client.force_login(User.objects.create_superuser("yon", password="x"))
+        url = reverse("sinav:duties", args=[self.school.pk, self.period.pk])
+        self.assertContains(self.client.get(url, {"gorev": a1}), "Takas et")
+        r = self.client.post(url, {"action": "swap", "gorev": a1, "diger": a2, "neden": "karşılıklı istek"}, follow=True)
+        self.assertContains(r, "Takas: A Hoca")
+        self.assertEqual(list(self.oda["Mat"].proctors.all()), [self.t["B"]])
+        self.assertEqual(list(self.oda["Fiz"].proctors.all()), [self.t["A"]])
+        self.assertContains(self.client.get(url), "karşılıklı istek")

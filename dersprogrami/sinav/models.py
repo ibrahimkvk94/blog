@@ -209,3 +209,25 @@ class ExamCourse(models.Model):
 
     def __str__(self):
         return f"{self.code} {self.exam_type}".strip()
+
+
+class ExamDutyChange(models.Model):
+    """KAMYOSİS: program oluştuktan sonra elle yapılan görev değişikliği (başka öğretmene verme ya da takas) kaydı."""
+
+    REPLACE, SWAP = "replace", "swap"
+    KIND_CHOICES = [(REPLACE, "Başka öğretmene verildi"), (SWAP, "Takas")]
+
+    period = models.ForeignKey(ExamPeriod, on_delete=models.CASCADE, related_name="duty_changes")
+    kind = models.CharField("işlem", max_length=10, choices=KIND_CHOICES)
+    summary = models.TextField("değişiklik")
+    reason = models.CharField("gerekçe", max_length=200)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        verbose_name = "görev değişikliği"
+        verbose_name_plural = "görev değişiklikleri"
+
+    def __str__(self):
+        return self.summary
