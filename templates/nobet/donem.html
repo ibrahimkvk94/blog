@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}{{ d }} Nöbet Grupları{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">{{ d }}</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>{{ d }} nöbet grupları</h1>
+    <p class="text-secondary mb-0">
+      {% if d.durum == 'kesin' %}<span class="durum-rozet durum-kullanimda">Kesinleşti</span> · {{ d.kesin_zamani|date:"d.m.Y H:i" }}{% else %}<span class="durum-rozet durum-sirada">Taslak</span>{% if d.son_dagitim %} · son dağıtım {{ d.son_dagitim|date:"d.m.Y H:i" }}{% endif %}{% endif %}
+      · {{ atamalar|length }} kişi
+    </p>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a href="{% url 'nobet:excel' d.yil d.ay %}" class="btn btn-outline-secondary"><i class="bi bi-file-earmark-excel me-1"></i>EK-3 Excel</a>
+    {% if yonetici %}
+    <form method="post" action="{% url 'nobet:islem' d.yil d.ay %}" class="d-flex gap-2">{% csrf_token %}
+      {% if d.durum == 'taslak' %}
+        <button name="islem" value="dagit" class="btn btn-outline-primary" onclick="return confirm('Elle düzenlenmemiş atamalar silinip yeniden dağıtılacak. Elle yaptığınız değişiklikler korunur. Devam edilsin mi?')"><i class="bi bi-shuffle me-1"></i>Yeniden dağıt</button>
+        <button name="islem" value="kesinlestir" class="btn btn-primary" onclick="return confirm('{{ d }} kesinleşsin mi? Kesinleşen ay puantaja işlenir.')"><i class="bi bi-check2-circle me-1"></i>Kesinleştir</button>
+      {% else %}
+        <button name="islem" value="taslaga_al" class="btn btn-outline-secondary"><i class="bi bi-unlock me-1"></i>Taslağa al</button>
+      {% endif %}
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if onceki_taslak %}<div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2"></i><strong>{{ onceki_taslak }}</strong> henüz kesinleşmedi; o ay değişirse bu ayın dengesi de etkilenebilir.</div>{% endif %}
+{% for u in uyarilar %}
+<div class="alert alert-danger py-2"><i class="bi bi-scale me-2"></i><strong>{{ u.rutbe }}</strong> rütbesinde bu ay dahil yatılı farkı {{ u.fark }} ay ({{ u.en_az }}–{{ u.en_cok }}; sınır {{ u.sinir }}). En az: {% for p in u.az_olanlar %}{{ p.ad_soyad }}{% if not forloop.last %}, {% endif %}{% endfor %} · En çok: {% for p in u.cok_olanlar %}{{ p.ad_soyad }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+{% endfor %}
+{% if kural_disi %}<div class="alert alert-info py-2"><i class="bi bi-info-circle me-2"></i>Rütbe kuralı dışında elle yapılmış atama: {% for a in kural_disi %}{{ a.personel.ad_soyad }} ({{ a.gorev.kisa_ad }}){% if not forloop.last %}, {% endif %}{% endfor %}</div>{% endif %}
+
+{% if yonetici and d.durum == 'taslak' %}
+<div class="kart p-3 mb-3">
+  <div class="row g-3">
+    <form method="post" action="{% url 'nobet:islem' d.yil d.ay %}" class="col-12 col-xl-4">{% csrf_token %}<input type="hidden" name="islem" value="tasi">
+      <div class="small fw-semibold mb-1"><i class="bi bi-arrow-right-square me-1"></i>Başka gruba taşı</div>
+      <div class="input-group input-group-sm">
+        <select name="atama" class="form-select" required aria-label="Personel"><option value="">Personel…</option>{% for a in atamalar %}<option value="{{ a.pk }}">{{ a.personel.ad_soyad }} ({{ a.gorev.kisa_ad }})</option>{% endfor %}</select>
+        <select name="gorev" class="form-select" required aria-label="Hedef grup"><option value="">Grup…</option>{% for g in gruplar %}<option value="{{ g.pk }}">{{ g.kisa_ad }}</option>{% endfor %}</select>
+        <button class="btn btn-primary">Taşı</button>
+      </div>
+    </form>
+    <form method="post" action="{% url 'nobet:islem' d.yil d.ay %}" class="col-12 col-xl-4">{% csrf_token %}<input type="hidden" name="islem" value="degistir">
+      <div class="small fw-semibold mb-1"><i class="bi bi-arrow-left-right me-1"></i>İki kişinin yerini değiştir</div>
+      <div class="input-group input-group-sm">
+        <select name="atama1" class="form-select" required aria-label="Birinci personel"><option value="">1. kişi…</option>{% for a in atamalar %}<option value="{{ a.pk }}">{{ a.personel.ad_soyad }} ({{ a.gorev.kisa_ad }})</option>{% endfor %}</select>
+        <select name="atama2" class="form-select" required aria-label="İkinci personel"><option value="">2. kişi…</option>{% for a in atamalar %}<option value="{{ a.pk }}">{{ a.personel.ad_soyad }} ({{ a.gorev.kisa_ad }})</option>{% endfor %}</select>
+        <button class="btn btn-primary">Değiştir</button>
+      </div>
+    </form>
+    <form method="post" action="{% url 'nobet:islem' d.yil d.ay %}" class="col-12 col-xl-4">{% csrf_token %}<input type="hidden" name="islem" value="ekle">
+      <div class="small fw-semibold mb-1"><i class="bi bi-person-plus me-1"></i>Gruba ekle (açıkta kalanlar)</div>
+      <div class="input-group input-group-sm">
+        <select name="personel" class="form-select" required aria-label="Personel"><option value="">Personel…</option>{% for p in bosta %}<option value="{{ p.pk }}">{{ p.tam_ad }}</option>{% endfor %}</select>
+        <select name="gorev" class="form-select" required aria-label="Grup"><option value="">Grup…</option>{% for g in gruplar %}<option value="{{ g.pk }}">{{ g.kisa_ad }}</option>{% endfor %}</select>
+        <button class="btn btn-primary">Ekle</button>
+      </div>
+    </form>
+  </div>
+  <div class="small text-secondary mt-2"><i class="bi bi-lock me-1"></i>Elle yapılan değişiklikler kilitlenir; "Yeniden dağıt" bunları korur.</div>
+</div>
+{% endif %}
+
+<div class="row g-3">
+  {% for g, liste in gruplar.items %}
+  <div class="col-12 col-md-6 col-xl-4">
+    <div class="kart nobet-grup h-100">
+      <div class="nobet-baslik nobet-{{ g.renk }}">
+        <div class="fw-semibold">{{ g.ad }}</div>
+        <div class="d-flex flex-wrap gap-1 mt-1 small">
+          <span class="nobet-etiket {% if g.kontenjan and liste|length < g.kontenjan %}nobet-eksik{% endif %}">{{ liste|length }}{% if g.kontenjan %}/{{ g.kontenjan }}{% endif %} kişi</span>
+          {% if g.yatili %}<span class="nobet-etiket"><i class="bi bi-moon-stars"></i> Yatılı</span>{% endif %}
+          <span class="nobet-etiket">{{ g.puan|floatformat:"-1" }} puan</span>
+          {% if g.aciklama %}<span class="nobet-etiket">{{ g.aciklama }}</span>{% endif %}
+        </div>
+        <div class="small mt-1 opacity-75">{{ g.rutbe_metni }}</div>
+      </div>
+      <ol class="nobet-liste">
+        {% for a in liste %}
+        <li>
+          <span class="flex-grow-1 min-w-0">{{ a.personel.tam_ad }}<span class="nobet-yil" title="Bu nöbet yılında bu aydan önceki aylar (taslaklar dahil)">{{ a.yil_yatili }} yatılı · {{ a.yil_puan|floatformat:"-1" }} p</span></span>
+          {% if a.kilitli %}<i class="bi bi-lock-fill text-secondary" title="Elle düzenlendi"></i>{% endif %}
+          {% if yonetici and d.durum == 'taslak' %}
+          <form method="post" action="{% url 'nobet:islem' d.yil d.ay %}" class="d-inline">{% csrf_token %}<input type="hidden" name="atama" value="{{ a.pk }}">
+            {% if a.kilitli %}<button name="islem" value="kilit_ac" class="btn btn-link btn-sm p-0 text-secondary" title="Kilidi aç (yeniden dağıtımda değişebilir)"><i class="bi bi-unlock"></i></button>{% endif %}
+            <button name="islem" value="cikar" class="btn btn-link btn-sm p-0 text-danger" title="Gruptan çıkar"><i class="bi bi-x-circle"></i></button>
+          </form>
+          {% endif %}
+        </li>
+        {% empty %}
+        <li class="text-secondary small">Kimse yok{% if not g.izinli_rutbeler.all %} — görevin rütbe kuralı tanımlı değil{% endif %}.</li>
+        {% endfor %}
+      </ol>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="row g-3 mt-1">
+  <div class="col-12 col-lg-6">
+    <div class="kart p-3 h-100">
+      <h2 class="h6 mb-2"><i class="bi bi-person-dash me-1"></i>Açıkta kalan ({{ bosta|length }})</h2>
+      <p class="small text-secondary">Nöbet tutabilir ama bu ay hiçbir gruba girmedi (kontenjan doldu ya da rütbesine uygun görev yok).</p>
+      <div class="small">{% for p in bosta %}<span class="badge text-bg-light me-1 mb-1">{{ p.tam_ad }}</span>{% empty %}<span class="text-secondary">Yok.</span>{% endfor %}</div>
+    </div>
+  </div>
+  <div class="col-12 col-lg-6">
+    <div class="kart p-3 h-100">
+      <h2 class="h6 mb-2"><i class="bi bi-slash-circle me-1"></i>Muaf / tutamaz ({{ muaflar|length }})</h2>
+      <div class="small">{% for p in muaflar %}<span class="badge text-bg-light me-1 mb-1">{{ p.tam_ad }} · {{ p.muaf_nedeni }}</span>{% empty %}<span class="text-secondary">Yok.</span>{% endfor %}</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

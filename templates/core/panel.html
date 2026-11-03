@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Ana Sayfa{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>{{ selam }}, {{ gorunen_ad }}</h1>
+    <p class="text-secondary mb-0">{{ bugun|date:"d F Y, l" }}</p>
+  </div>
+</div>
+
+{% if kokler %}
+<h2 class="bolum-baslik"><i class="bi bi-list-check"></i>Yapılacaklar</h2>
+<div class="gorev-listesi mb-4">
+  {% for g in gorevler %}
+  <{% if g.url %}a href="{{ g.url }}"{% else %}div{% endif %} class="gorev gorev-{{ g.renk }}">
+    <i class="bi bi-{{ g.ikon }} gorev-ikon" aria-hidden="true"></i>
+    <div class="min-w-0">
+      <div class="gorev-ad">{{ g.ad }}</div>
+      <div class="gorev-aciklama">{{ g.aciklama }}</div>
+    </div>
+    {% if g.sayi is not None %}<div class="gorev-sayi">{{ g.sayi }}</div>{% endif %}
+    {% if g.url %}<i class="bi bi-chevron-right gorev-ok" aria-hidden="true"></i>{% endif %}
+  </{% if g.url %}a{% else %}div{% endif %}>
+  {% empty %}
+  <div class="gorev gorev-tamam"><i class="bi bi-check-circle gorev-ikon" aria-hidden="true"></i><div><div class="gorev-ad">Bekleyen işiniz yok</div></div></div>
+  {% endfor %}
+</div>
+<p class="renk-aciklama mb-4">
+  <span><span class="nokta nokta-eksik"></span>Sizden bekleniyor</span>
+  <span><span class="nokta nokta-bekliyor"></span>Başkasının kararını bekliyor</span>
+  <span><span class="nokta nokta-tamam"></span>Tamam</span>
+</p>
+
+<h2 class="bolum-baslik"><i class="bi bi-star"></i>Sık kullanılanlar</h2>
+<div class="row g-3 mb-4">
+  {% for k in kisayollar %}
+  <div class="col-6 col-md-4 col-xl-3">
+    <a href="{{ k.url }}" class="kart birim-kart"><span class="birim-ikon"><i class="bi bi-{{ k.ikon }}"></i></span><div class="birim-ad">{{ k.ad }}</div></a>
+  </div>
+  {% endfor %}
+  <div class="col-6 col-md-4 col-xl-3">
+    <a href="{% url 'core:organizasyon' %}" class="kart birim-kart"><span class="birim-ikon"><i class="bi bi-diagram-3"></i></span><div><div class="birim-ad">Tüm birimler</div><div class="birim-alt">Organizasyon şeması</div></div></a>
+  </div>
+</div>
+{% else %}
+<div class="kart p-4 text-center text-secondary">
+  <i class="bi bi-lock fs-2 d-block mb-2"></i>
+  Henüz size tanımlanmış bir birim yetkisi yok. Sistem yöneticinizle görüşün.
+</div>
+{% endif %}
+{% endblock %}

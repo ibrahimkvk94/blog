@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Nöbet puantajı{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Puantaj {{ yil_etiketi }}</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Nöbet puantajı · {{ yil_etiketi }}</h1>
+    <p class="text-secondary mb-0">Nöbet yılı Ekim'de başlar. Yatılı farkı sınırı: aynı rütbede {{ ayar.yatili_fark_siniri }} ay.</p>
+  </div>
+  <form method="get" class="d-flex gap-2">
+    <select name="yil" class="form-select" onchange="this.form.submit()" aria-label="Nöbet yılı">{% for y in yillar %}<option value="{{ y }}" {% if y == yil_basi %}selected{% endif %}>{{ y }}-{{ y|add:1 }}</option>{% endfor %}</select>
+    <select name="rutbe" class="form-select" onchange="this.form.submit()" aria-label="Rütbe"><option value="">Tüm rütbeler</option>{% for r in rutbeler %}<option value="{{ r.pk }}" {% if rutbe_sec == r.pk|stringformat:'s' %}selected{% endif %}>{{ r.metin }}</option>{% endfor %}</select>
+  </form>
+</div>
+
+{% if ozet %}
+<h2 class="bolum-baslik"><i class="bi bi-scale"></i>Rütbe bazında denge</h2>
+<div class="kart mb-4">
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead><tr><th>Rütbe</th><th class="text-end">Kişi</th><th class="text-end">Yatılı (en az–en çok)</th><th class="text-end">Fark</th><th class="text-end">Puan (en az–en çok)</th></tr></thead>
+      <tbody>
+      {% for o in ozet %}
+        <tr>
+          <td class="fw-semibold">{{ o.rutbe|default:"Rütbesiz" }}</td>
+          <td class="text-end">{{ o.kisi }}</td>
+          <td class="text-end">{{ o.yat_min }}–{{ o.yat_max }}</td>
+          <td class="text-end">{% if o.asim %}<span class="durum-rozet durum-eksik">{{ o.fark }} ay · sınır aşıldı</span>{% else %}<span class="durum-rozet durum-kullanimda">{{ o.fark }} ay</span>{% endif %}</td>
+          <td class="text-end">{{ o.puan_min|floatformat:"-1" }}–{{ o.puan_max|floatformat:"-1" }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<h2 class="bolum-baslik"><i class="bi bi-grid-3x3"></i>Kişi × ay</h2>
+<p class="small text-secondary">Kalın ve <i class="bi bi-moon-stars"></i> işaretli kutular yatılı görev; kesik çerçeveli sütunlar henüz kesinleşmemiş (taslak) aylar.</p>
+<div class="kart">
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0 puantaj-tablo">
+      <thead>
+        <tr>
+          <th>Personel</th>
+          {% for y, a, ad, d in aylar %}<th class="text-center {% if d.durum == 'taslak' %}puantaj-taslak{% endif %}">{% if d %}<a href="{% url 'nobet:donem' y a %}" class="text-reset">{{ ad }}</a>{% else %}{{ ad }}{% endif %}<div class="small fw-normal text-secondary">{{ y }}</div></th>{% endfor %}
+          <th class="text-end">Puan</th><th class="text-end">Yatılı</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for rutbe, liste in gruplar.items %}
+        <tr class="table-light"><th colspan="15">{{ rutbe|default:"Rütbesiz" }} <span class="fw-normal text-secondary">({{ liste|length }})</span></th></tr>
+        {% for p, s in liste %}
+        <tr>
+          <td class="text-nowrap">{{ p.tam_ad }}</td>
+          {% for h in s.hucreler %}
+            <td class="text-center">{% if h %}<span class="puantaj-hucre {% if h.gorev.yatili %}puantaj-yatili{% endif %} {% if h.donem.durum == 'taslak' %}puantaj-taslak{% endif %}" title="{{ h.gorev.ad }}">{% if h.gorev.yatili %}<i class="bi bi-moon-stars"></i> {% endif %}{{ h.gorev.kisa_ad }}</span>{% endif %}</td>
+          {% endfor %}
+          <td class="text-end fw-semibold">{{ s.puan|floatformat:"-1" }}</td>
+          <td class="text-end fw-semibold">{{ s.yatili }}</td>
+        </tr>
+        {% endfor %}
+      {% empty %}
+        <tr><td colspan="15" class="text-center text-secondary py-5">Bu nöbet yılında henüz atama yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

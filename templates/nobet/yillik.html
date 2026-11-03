@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Yıllık nöbet planı{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Yıllık plan {{ yil_etiketi }}</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Yıllık nöbet planı · {{ yil_etiketi }}</h1>
+    <p class="text-secondary mb-0">12 ay tek tabloda. {% if yonetici %}Bir hücreye tıklayıp o ayın görevini değiştirin; toplamlar anında güncellenir.{% endif %}</p>
+  </div>
+  <form method="get" class="d-flex gap-2">
+    <select name="yil" class="form-select" onchange="this.form.submit()" aria-label="Nöbet yılı">{% for y in yillar %}<option value="{{ y }}" {% if y == yil_basi %}selected{% endif %}>{{ y }}-{{ y|add:1 }}</option>{% endfor %}</select>
+    <select name="rutbe" class="form-select" onchange="this.form.submit()" aria-label="Rütbe"><option value="">Tüm rütbeler</option>{% for r in rutbeler %}<option value="{{ r.pk }}" {% if rutbe_sec == r.pk|stringformat:'s' %}selected{% endif %}>{{ r.metin }}</option>{% endfor %}</select>
+  </form>
+</div>
+
+{% if yonetici %}
+<form method="post" action="{% url 'nobet:yillik_olustur' %}" class="kart p-3 mb-3 d-flex flex-wrap align-items-end gap-2">
+  {% csrf_token %}<input type="hidden" name="yil" value="{{ yil_basi }}">
+  <div>
+    <label class="form-label small text-secondary mb-1" for="baslangic">Dağıtılacak aylar</label>
+    <select name="baslangic" id="baslangic" class="form-select">
+      <option value="">Yılın tamamı (taslak aylar)</option>
+      {% for m in aylar %}<option value="{{ m.y }}-{{ m.a }}">{{ m.ad }} {{ m.y }} ve sonrası</option>{% endfor %}
+    </select>
+  </div>
+  <button class="btn btn-primary" onclick="return confirm('Seçilen taslak aylar sırayla yeniden dağıtılacak. Kesinleşmiş aylar ve elle yaptığınız değişiklikler korunur. Devam edilsin mi?')"><i class="bi bi-calendar-range me-1"></i>12 aylık planı oluştur</button>
+  <span class="small text-secondary ms-md-2">Aylar sırayla dağıtılır; her ay öncekileri dikkate alarak yatılı ve puan dengesini korur.</span>
+</form>
+{% endif %}
+
+{% if ozet %}
+<div class="d-flex flex-wrap gap-2 mb-3">
+  {% for o in ozet %}
+  <div class="kart px-3 py-2 small {% if o.asim %}border-danger{% endif %}">
+    <strong>{{ o.rutbe|default:"Rütbesiz" }}</strong> · {{ o.kisi }} kişi ·
+    yatılı {{ o.yat_min }}–{{ o.yat_max }}
+    {% if o.asim %}<span class="durum-rozet durum-eksik ms-1">fark {{ o.fark }}</span>{% else %}<span class="durum-rozet durum-kullanimda ms-1">fark {{ o.fark }}</span>{% endif %}
+    · puan {{ o.puan_min|floatformat:"-1" }}–{{ o.puan_max|floatformat:"-1" }}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="kart">
+  <div class="table-responsive yil-kap">
+    <table class="table table-sm align-middle mb-0 puantaj-tablo yil-tablo">
+      <thead>
+        <tr>
+          <th class="yil-ad">Personel</th>
+          {% for m in aylar %}
+          <th class="text-center {% if m.d.durum == 'taslak' %}puantaj-taslak{% endif %}">
+            {% if m.d %}<a href="{% url 'nobet:donem' m.y m.a %}" class="text-reset">{{ m.ad }}</a>{% else %}{{ m.ad }}{% endif %}
+            {% if m.d.durum == 'kesin' %}<i class="bi bi-lock-fill text-secondary" title="Kesinleşti"></i>{% endif %}
+            <div class="small fw-normal text-secondary"><span id="ay-{{ m.y }}-{{ m.a }}">{{ m.kisi }}</span>/{{ m.kontenjan }}</div>
+          </th>
+          {% endfor %}
+          <th class="text-end">Puan</th><th class="text-end">Yatılı</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for p, s in satirlar %}
+        {% ifchanged p.rutbe %}<tr class="table-light"><th colspan="15" class="yil-ad">{{ p.rutbe|default:"Rütbesiz" }}</th></tr>{% endifchanged %}
+        <tr>
+          <td class="yil-ad text-nowrap">{{ p.ad_soyad }}{% if p.nobet_durumu != 'tutar' %} <span class="badge text-bg-light">{{ p.get_nobet_durumu_display }}</span>{% endif %}</td>
+          {% for h in s.hucreler %}
+          <td class="text-center yil-hucre {% if yonetici and h.duz %}yil-duzenle{% endif %}" data-p="{{ p.pk }}" data-y="{{ h.y }}" data-a="{{ h.a }}" data-r="{{ p.rutbe_id|default:0 }}" data-g="{{ h.at.gorev_id|default:'' }}" data-engel="{{ h.engel }}" title="{% if h.kis %}{{ h.kis }}{% if h.kis.aciklama %} · {{ h.kis.aciklama }}{% endif %}{% endif %}" {% if yonetici and h.duz %}tabindex="0" role="button" aria-label="{{ p.ad_soyad }} {{ h.a }}. ay görevini değiştir"{% endif %}>
+            {% if h.at %}<span class="puantaj-hucre {% if h.at.gorev.yatili %}puantaj-yatili{% endif %}" title="{{ h.at.gorev.ad }}{% if h.at.kilitli %} · elle düzenlendi{% endif %}">{% if h.at.gorev.yatili %}<i class="bi bi-moon-stars"></i> {% endif %}{{ h.at.gorev.kisa_ad }}</span>
+            {% elif h.muaf %}<span class="yil-engel">{{ h.muaf }}</span>
+            {% else %}<span class="yil-bos">·</span>{% endif %}
+          </td>
+          {% endfor %}
+          <td class="text-end fw-semibold" id="puan-{{ p.pk }}">{{ s.puan|floatformat:"-1" }}</td>
+          <td class="text-end fw-semibold" id="yat-{{ p.pk }}">{{ s.yatili }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="15" class="text-center text-secondary py-5">Nöbete girebilecek personel yok (rütbe bilgisi gerekli).</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<p class="small text-secondary mt-2"><i class="bi bi-moon-stars"></i> yatılı görev · kesik çerçeveli aylar taslak · <i class="bi bi-lock-fill"></i> kesinleşmiş aylar değiştirilemez (önce ay sayfasından taslağa alın).</p>
+
+{% if yonetici %}
+{% for t in sablonlar %}
+<template id="sec-{{ t.rutbe_id }}">
+  <select class="form-select form-select-sm yil-secim" data-arama="yok" aria-label="Görev seç">
+    <option value="">— Nöbet yok —</option>
+    <option value="engelle">✕ Bu ay yazılamaz (izin, kurs vb.)</option>
+    {% if t.uygun %}<optgroup label="Rütbesine uygun">{% for g in t.uygun %}<option value="{{ g.pk }}">{{ g.kisa_ad }} · {{ g.ad|truncatechars:38 }}</option>{% endfor %}</optgroup>{% endif %}
+    {% if t.diger %}<optgroup label="Kural dışı (elle)">{% for g in t.diger %}<option value="{{ g.pk }}">{{ g.kisa_ad }} · {{ g.ad|truncatechars:38 }}</option>{% endfor %}</optgroup>{% endif %}
+  </select>
+</template>
+{% endfor %}
+<form id="hucreFormu" class="d-none">{% csrf_token %}</form>
+<script>
+(function () {
+  const adres = "{% url 'nobet:yillik_hucre' %}";
+  const csrf = document.querySelector('#hucreFormu [name=csrfmiddlewaretoken]').value;
+  function ac(td) {
+    if (td.querySelector('select')) return;
+    if (td.dataset.engel === 'uzun') { alert((td.title || 'Bu ay için bir kısıtlama var') + '\n\nUzun süreli kısıtlamalar Kısıtlamalar ekranından düzenlenir.'); return; }
+    const sablon = document.getElementById('sec-' + td.dataset.r);
+    if (!sablon) return;
+    const eski = td.innerHTML;
+    let sel;
+    if (td.dataset.engel === 'ay') {
+      sel = document.createElement('select');
+      sel.className = 'form-select form-select-sm yil-secim';
+      sel.innerHTML = '<option value="-">Bu ay yazılamaz</option><option value="engel_kaldir">Engeli kaldır</option>';
+      sel.value = '-';
+    } else {
+      sel = sablon.content.firstElementChild.cloneNode(true);
+      sel.value = td.dataset.g || '';
+    }
+    td.innerHTML = '';
+    td.appendChild(sel);
+    sel.focus();
+    let bitti = false;
+    const geri = () => { if (!bitti) { bitti = true; td.innerHTML = eski; } };
+    sel.addEventListener('blur', () => setTimeout(geri, 150));
+    sel.addEventListener('keydown', e => { if (e.key === 'Escape') geri(); });
+    sel.addEventListener('change', async () => {
+      if (sel.value === '-') return;
+      bitti = true;
+      const veri = new FormData();
+      veri.append('personel', td.dataset.p); veri.append('yil', td.dataset.y); veri.append('ay', td.dataset.a); veri.append('gorev', sel.value);
+      td.innerHTML = '<span class="spinner-border spinner-border-sm text-secondary"></span>';
+      try {
+        const r = await fetch(adres, {method: 'POST', body: veri, headers: {'X-CSRFToken': csrf}});
+        const j = await r.json();
+        if (!j.ok) { alert(j.hata || 'Kaydedilemedi.'); td.innerHTML = eski; return; }
+        td.dataset.g = j.kisa ? sel.value : '';
+        td.dataset.engel = j.engel || '';
+        td.innerHTML = j.etiket ? '<span class="yil-engel">' + j.etiket + '</span>' : j.kisa
+          ? '<span class="puantaj-hucre ' + (j.yatili ? 'puantaj-yatili' : '') + (j.kural_disi ? ' yil-kural-disi' : '') + '" title="' + j.ad + ' · elle düzenlendi">' + (j.yatili ? '<i class="bi bi-moon-stars"></i> ' : '') + j.kisa + '</span>'
+          : '<span class="yil-bos">·</span>';
+        document.getElementById('puan-' + td.dataset.p).textContent = j.puan;
+        document.getElementById('yat-' + td.dataset.p).textContent = j.yatili_toplam;
+        const ay = document.getElementById('ay-' + td.dataset.y + '-' + td.dataset.a);
+        if (ay) ay.textContent = j.ay_kisi;
+      } catch (e) { alert('Bağlantı hatası.'); td.innerHTML = eski; }
+    });
+  }
+  document.querySelectorAll('.yil-duzenle').forEach(td => {
+    td.addEventListener('click', () => ac(td));
+    td.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ac(td); } });
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

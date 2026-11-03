@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Ders takibi{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Ders takibi</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Ders takibi</h1>
+    <p class="text-secondary mb-0">{% if bas %}{{ bas|date:"d.m.Y" }} – {{ bit|date:"d.m.Y" }}{% else %}{{ tarih|date:"d F Y, l" }}{% endif %}{% if y.kapsam_bolum %} · {{ y.kapsam_bolum }}{% endif %}</p>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'takip:devirler' %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left-right me-1"></i>Devir talepleri</a>
+    <a href="{% url 'takip:rapor' %}" class="btn btn-outline-secondary"><i class="bi bi-bar-chart-line me-1"></i>Yapılan ders raporu</a>
+  </div>
+</div>
+
+<form method="get" class="kart p-3 mb-3">
+  <div class="row g-2 align-items-end">
+    {% if bas %}
+    <input type="hidden" name="bas" value="{{ bas|date:'Y-m-d' }}"><input type="hidden" name="bit" value="{{ bit|date:'Y-m-d' }}">
+    <div class="col-12 col-md-auto">
+      <div class="form-label small text-secondary">Tarih aralığı</div>
+      <a class="btn btn-outline-primary" href="?"><i class="bi bi-calendar-day me-1"></i>Tek gün görünümüne dön</a>
+    </div>
+    {% else %}
+    <div class="col-12 col-md-auto">
+      <label class="form-label small text-secondary" for="tarih">Tarih</label>
+      <div class="input-group">
+        <a class="btn btn-outline-secondary" href="?tarih={{ onceki|date:'Y-m-d' }}{% if secili_bolum and not y.kapsam_bolum %}&bolum={{ secili_bolum.pk }}{% endif %}" title="Önceki gün"><i class="bi bi-chevron-left"></i></a>
+        <input type="date" class="form-control" id="tarih" name="tarih" value="{{ tarih|date:'Y-m-d' }}" onchange="this.form.submit()">
+        <a class="btn btn-outline-secondary" href="?tarih={{ sonraki|date:'Y-m-d' }}{% if secili_bolum and not y.kapsam_bolum %}&bolum={{ secili_bolum.pk }}{% endif %}" title="Sonraki gün"><i class="bi bi-chevron-right"></i></a>
+        {% if tarih != bugun %}<a class="btn btn-outline-primary" href="?">Bugün</a>{% endif %}
+      </div>
+    </div>
+    {% endif %}
+    {% if bolumler %}
+    <div class="col-6 col-md">
+      <label class="form-label small text-secondary" for="bolum">Bölüm</label>
+      <select class="form-select" id="bolum" name="bolum" onchange="this.form.kisim.value='';this.form.submit()">
+        <option value="">Tümü</option>
+        {% for b in bolumler %}<option value="{{ b.pk }}" {% if b == secili_bolum %}selected{% endif %}>{{ b.ad }}</option>{% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div class="col-6 col-md">
+      <label class="form-label small text-secondary" for="kisim">Kısım</label>
+      <select class="form-select" id="kisim" name="kisim" onchange="this.form.submit()">
+        <option value="">Tümü</option>
+        {% for k in kisimlar %}<option value="{{ k.pk }}" {% if k == secili_kisim %}selected{% endif %}>{{ k.kod }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-md-auto">
+      <label class="form-label small text-secondary" for="durum">Durum</label>
+      <select class="form-select" id="durum" name="durum" onchange="this.form.submit()">
+        <option value="">Tümü</option>
+        <option value="yapildi" {% if durum == 'yapildi' %}selected{% endif %}>Yapıldı ({{ sayilar.yapildi }})</option>
+        <option value="devir" {% if durum == 'devir' %}selected{% endif %}>Devir bekleyen ({{ sayilar.devir }})</option>
+        <option value="gelecek" {% if durum == 'gelecek' %}selected{% endif %}>Planlı ({{ sayilar.gelecek }})</option>
+      </select>
+    </div>
+  </div>
+</form>
+
+{% if tatil %}
+<div class="alert alert-info"><i class="bi bi-calendar-x me-2"></i>{{ tatil.aciklama }} — tatil günü, ders yok.</div>
+{% endif %}
+
+<form method="get" action="{% url 'takip:devir_yeni' %}" id="islemFormu">
+  <input type="hidden" name="geri" value="{{ request.get_full_path }}">
+  <div class="kart">
+    {% if y.bolum_adina %}
+    <div class="islem-cubugu d-flex flex-wrap align-items-center gap-2 p-2 border-bottom">
+      <span class="small text-secondary ms-2 me-auto"><span id="seciliSayi">0</span> ders seçili · toplam {{ satirlar|length }}</span>
+      <button class="btn btn-sm btn-outline-warning secim-gerekli" disabled title="Dersi başka bir öğretim elemanına aktarmak için talep açar"><i class="bi bi-arrow-left-right"></i> Devir talebi</button>
+    </div>
+    {% endif %}
+    <div class="yardim-satiri"><i class="bi bi-info-circle"></i> Tarihi geçen dersler kendiliğinden <strong>yapıldı</strong> sayılır.{% if y.bolum_adina %} Dersi başka bir öğretim elemanı verdiyse ya da verecekse dersleri işaretleyip <strong>Devir talebi</strong> açın.{% endif %}</div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead>
+          <tr>
+            {% if y.bolum_adina %}<th style="width:36px"><input class="form-check-input" type="checkbox" id="hepsiniSec" aria-label="Tümünü seç"></th>{% endif %}
+            {% if bas %}<th>Tarih</th>{% endif %}<th>Saat</th><th>Kısım</th><th>Ders</th><th>Öğretmen</th><th class="d-none d-lg-table-cell">Derslik</th><th>Durum</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for s in satirlar %}
+          <tr>
+            {% if y.bolum_adina %}<td>{% if s.talep_edebilir %}<input class="form-check-input satir-sec" type="checkbox" name="d" value="{{ s.anahtar }}" aria-label="Seç">{% endif %}</td>{% endif %}
+            {% if bas %}<td class="text-nowrap small">{{ s.tarih|date:"d.m D" }}</td>{% endif %}
+            <td class="text-nowrap"><strong>{{ s.hucre.saat }}</strong></td>
+            <td class="text-nowrap">{% for k in s.hucre.haftalik_ders.kisimlar.all %}{{ k.kod }}{% if not forloop.last %}, {% endif %}{% endfor %}{% for g in s.hucre.haftalik_ders.gruplar.all %} <span class="small text-secondary">{{ g.ad }}</span>{% endfor %}</td>
+            <td><span class="fw-semibold">{{ s.hucre.haftalik_ders.ders.kod }}</span> <span class="d-none d-xl-inline text-secondary">{{ s.hucre.haftalik_ders.ders.ad|truncatechars:40 }}</span></td>
+            <td>{{ s.etkin_ad }}{% if not s.etkin_personel %} <span class="badge text-bg-light" title="aSc öğretmeni personelle eşleşmemiş">eşleşmedi</span>{% endif %}</td>
+            <td class="d-none d-lg-table-cell small">{{ s.hucre.derslik|default:"–" }}</td>
+            <td>{% include "takip/_durum.html" %}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="8" class="text-center text-secondary py-5">
+            {% if tatil %}Tatil günü.{% else %}Bu gün için ders bulunamadı. Programın yayında olduğundan ve tarih aralığını kapsadığından emin olun.{% endif %}
+          </td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</form>
+{% include "takip/_secim_js.html" %}
+{% endblock %}

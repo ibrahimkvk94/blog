@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ sistem_adi }}{% endblock %} · {{ kurum_adi }}</title>
+  {% load static %}
+  <link rel="icon" href="{% static 'img/favicon.ico' %}" sizes="any">
+  <link rel="icon" type="image/png" href="{% static 'img/favicon.png' %}">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css">
+  <link rel="stylesheet" href="{% static 'css/kamyosis.css' %}?v=18">
+</head>
+<body>
+{% block body %}
+<div class="uygulama">
+  <aside class="offcanvas-lg offcanvas-start kenar" tabindex="-1" id="kenarCubugu" aria-labelledby="kenarBaslik">
+    <div class="kenar-ust">
+      <a href="{% url 'core:panel' %}" class="marka" id="kenarBaslik">
+        <img src="{% static 'img/logo_beyaz.png' %}" class="marka-logo" alt="">
+        <span>
+          <span class="marka-ad">{{ sistem_adi }}</span>
+          <span class="marka-alt">{{ kurum_adi }}</span>
+        </span>
+      </a>
+      <button type="button" class="btn-close btn-close-white d-lg-none" data-bs-dismiss="offcanvas" data-bs-target="#kenarCubugu" aria-label="Kapat"></button>
+    </div>
+    <nav class="kenar-menu">
+      <ul>
+        <li><a class="nav-link {% if request.resolver_match.view_name == 'core:panel' %}active{% endif %}" href="{% url 'core:panel' %}"><i class="bi bi-house"></i><span>Ana Sayfa</span></a></li>
+        {% if user.personel_id %}<li><a class="nav-link {% if request.resolver_match.view_name == 'takip:derslerim' %}active{% endif %}" href="{% url 'takip:derslerim' %}"><i class="bi bi-calendar-check"></i><span>Derslerim</span></a></li>{% endif %}
+      </ul>
+      {% if kisayollar %}
+      <div class="menu-baslik">Kısayollar</div>
+      <ul>
+        {% for k in kisayollar %}<li><a class="nav-link {% if request.resolver_match.view_name == k.ad_kodu %}active{% endif %}" href="{{ k.url }}"><i class="bi bi-{{ k.ikon }}"></i><span>{{ k.ad }}</span></a></li>{% endfor %}
+      </ul>
+      {% endif %}
+      <div class="menu-baslik">Birimler</div>
+      <ul>
+        {% include "partials/menu_dugum.html" with dugumler=menu %}
+        <li><a class="nav-link {% if request.resolver_match.view_name == 'core:organizasyon' %}active{% endif %}" href="{% url 'core:organizasyon' %}"><i class="bi bi-diagram-3"></i><span>Organizasyon şeması</span></a></li>
+      </ul>
+      {% if user.is_superuser %}
+      <div class="menu-baslik">Sistem</div>
+      <ul>
+        <li><a class="nav-link {% if request.resolver_match.view_name == 'core:bolum_yetkileri' %}active{% endif %}" href="{% url 'core:bolum_yetkileri' %}"><i class="bi bi-shield-check"></i><span>Bölüm yetkileri</span></a></li>
+        <li><a class="nav-link" href="{% url 'admin:index' %}"><i class="bi bi-gear"></i><span>Yönetim Paneli</span></a></li>
+      </ul>
+      {% endif %}
+    </nav>
+  </aside>
+
+  <div class="icerik-alani">
+    <header class="ust-cubuk">
+      <button class="btn btn-link text-body d-lg-none p-0 me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#kenarCubugu" aria-controls="kenarCubugu" aria-label="Menüyü aç">
+        <i class="bi bi-list fs-3"></i>
+      </button>
+      <button type="button" id="geriDugmesi" class="btn btn-light geri-btn" title="Önceki sayfaya dön" aria-label="Geri" hidden><i class="bi bi-arrow-left"></i><span class="d-none d-sm-inline ms-1">Geri</span></button>
+      <nav aria-label="breadcrumb" class="flex-grow-1 min-w-0">
+        <ol class="breadcrumb mb-0 text-truncate">
+          <li class="breadcrumb-item"><a href="{% url 'core:panel' %}" title="Ana Sayfa"><i class="bi bi-house"></i></a></li>
+          {% for y in yol %}
+            {% if forloop.first and yol|length > 2 %}
+              <li class="breadcrumb-item"><a href="{% url 'core:organizasyon' %}" title="{% for z in yol %}{{ z.ad }}{% if not forloop.last %} › {% endif %}{% endfor %}">…</a></li>
+            {% endif %}
+            {% if forloop.revcounter <= 2 %}
+              {% if forloop.last and not breadcrumb_ek %}
+                <li class="breadcrumb-item active" aria-current="page">{{ y.ad }}</li>
+              {% else %}
+                <li class="breadcrumb-item"><a href="{{ y.get_absolute_url }}">{{ y.ad }}</a></li>
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+          {% block breadcrumb_ek %}{% endblock %}
+        </ol>
+      </nav>
+      <div class="dropdown">
+        <button class="btn btn-light kullanici-btn dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+          <span class="avatar">{{ user.username|slice:":1"|upper }}</span>
+          <span class="d-none d-sm-inline">{{ user }}</span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+          <li><h6 class="dropdown-header">{{ user.bolum|default:"Bölüm atanmamış" }}</h6></li>
+          <li><a class="dropdown-item" href="{% url 'parola_degistir' %}"><i class="bi bi-key me-2"></i>Parola değiştir</a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li>
+            <form method="post" action="{% url 'logout' %}">{% csrf_token %}
+              <button class="dropdown-item text-danger"><i class="bi bi-box-arrow-right me-2"></i>Çıkış</button>
+            </form>
+          </li>
+        </ul>
+      </div>
+    </header>
+
+    <main class="icerik">
+      {% for m in messages %}
+        <div class="alert alert-{% if m.tags == 'error' %}danger{% else %}{{ m.tags|default:'info' }}{% endif %} alert-dismissible fade show" role="alert">
+          {{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Kapat"></button>
+        </div>
+      {% endfor %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+{% endblock %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+<script>
+/* Tüm seçim kutularında yazarak arama. Türkçe harfler (İ/ı/ş/ğ/ü/ö/ç) sadeleştirilerek karşılaştırılır.
+   Bir kutuda istenmiyorsa: data-arama="yok". */
+(function () {
+  if (!window.TomSelect) return;
+  const sade = s => (s || '').replace(/İ/g, 'i').replace(/I/g, 'ı').toLocaleLowerCase('tr')
+    .replace(/ı/g, 'i').replace(/ş/g, 's').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ö/g, 'o').replace(/ç/g, 'c')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  window.kamyosisAramaKutusu = function (el) {
+    if (el.tomselect || el.dataset.arama === 'yok' || el.multiple && el.size > 1) return;
+    new TomSelect(el, {
+      create: false, allowEmptyOption: true, maxOptions: null, dropdownParent: 'body',
+      searchField: [], sortField: [{field: '$order'}],
+      score: function (arama) {
+        const aranan = sade(arama).split(/\s+/).filter(Boolean);
+        return item => {
+          const metin = sade(item.text);
+          return aranan.every(p => metin.includes(p)) ? 1 : 0;
+        };
+      },
+      render: { no_results: () => '<div class="no-results px-2 py-1 text-secondary">Sonuç yok</div>' },
+      onDropdownOpen: function () { this.setTextboxValue(''); this.refreshOptions(false); },
+    });
+  };
+  document.querySelectorAll('select.form-select').forEach(window.kamyosisAramaKutusu);
+})();
+</script>
+<script>
+/* Geri düğmesi: sayfa geçmişini oturum boyunca tutar; düzenleme formlarını atlar,
+   geçmiş yoksa konum satırındaki bir üst sayfaya gider. */
+(function () {
+  const dugme = document.getElementById('geriDugmesi');
+  if (!dugme) return;
+  const ANAHTAR = 'kamyosis-gecmis', ATLA = /\/(duzenle|yeni|parola)\/?$/;
+  const su = location.pathname + location.search;
+  const oku = () => { try { return JSON.parse(sessionStorage.getItem(ANAHTAR)) || []; } catch (e) { return []; } };
+  const yaz = g => { try { sessionStorage.setItem(ANAHTAR, JSON.stringify(g.slice(-30))); } catch (e) {} };
+  let gecmis = oku();
+  if (!ATLA.test(location.pathname)) {
+    if (gecmis.at(-1) === su) { /* yenileme */ }
+    else if (gecmis.at(-2) === su) { gecmis.pop(); }  /* tarayıcının geri tuşu */
+    else { gecmis.push(su); }
+    yaz(gecmis);
+  }
+  const ust = [...document.querySelectorAll('.breadcrumb a')].at(-1);
+  if (location.pathname === '/') return;
+  dugme.hidden = false;
+  dugme.addEventListener('click', () => {
+    let g = oku();
+    while (g.length && g.at(-1) === su) g.pop();
+    const onceki = g.at(-1);
+    yaz(g);
+    location.href = onceki || (ust ? ust.href : '/');
+  });
+})();
+</script>
+</body>
+</html>

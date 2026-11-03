@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Personel nöbet durumları{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Personel durumları</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Personel nöbet durumları</h1>
+    <p class="text-secondary mb-0">Kim nöbete yazılabilir? {% if yonetici %}Düğmeye tıklayınca hemen kaydedilir.{% endif %}</p>
+  </div>
+  <a href="{% url 'nobet:kisitlamalar' %}" class="btn btn-outline-secondary"><i class="bi bi-calendar-x me-1"></i>Dönemlik kısıtlamalar</a>
+</div>
+
+{% if rutbesiz %}<div class="alert alert-warning py-2"><i class="bi bi-exclamation-triangle me-2"></i>{{ rutbesiz }} personelin rütbesi boş; rütbe girilene kadar dağıtıma girmezler. <a href="?rutbe=yok">Listele</a></div>{% endif %}
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <a href="?{% if rutbe %}rutbe={{ rutbe }}&{% endif %}{% if bolum %}bolum={{ bolum }}&{% endif %}sirala={{ sirala }}" class="nd-sayac {% if not durum %}secili{% endif %}"><span class="nd-sayi" id="sayi-hepsi">{{ toplam }}</span> Tümü</a>
+  {% for k, ad, n in sayilar %}
+  <a href="?durum={{ k }}{% if rutbe %}&rutbe={{ rutbe }}{% endif %}{% if bolum %}&bolum={{ bolum }}{% endif %}&sirala={{ sirala }}" class="nd-sayac nd-{{ k }} {% if durum == k %}secili{% endif %}">
+    <i class="bi {% if k == 'tutar' %}bi-check-circle-fill{% elif k == 'muaf' %}bi-dash-circle-fill{% else %}bi-x-circle-fill{% endif %}"></i>
+    <span class="nd-sayi" id="sayi-{{ k }}">{{ n }}</span> {{ ad }}
+  </a>
+  {% endfor %}
+</div>
+
+<form method="get" class="row g-2 mb-3 align-items-center">
+  {% if durum %}<input type="hidden" name="durum" value="{{ durum }}">{% endif %}
+  {% if sirala %}<input type="hidden" name="sirala" value="{{ sirala }}">{% endif %}
+  <div class="col-12 col-md-4"><input type="search" class="form-control" name="q" value="{{ q }}" placeholder="Ad soyad ara" aria-label="Ad soyad ara"></div>
+  <div class="col-6 col-md-3">
+    <select class="form-select" name="bolum" onchange="this.form.submit()" aria-label="Bölüm">
+      <option value="">Tüm bölümler</option>
+      {% for b in bolumler %}<option value="{{ b.pk }}" {% if bolum == b.pk|stringformat:'s' %}selected{% endif %}>{{ b.ad }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-6 col-md-3">
+    <select class="form-select" name="rutbe" onchange="this.form.submit()" aria-label="Rütbe">
+      <option value="">Tüm rütbeler</option><option value="yok" {% if rutbe == 'yok' %}selected{% endif %}>Rütbesiz</option>
+      {% for r in rutbeler %}<option value="{{ r.pk }}" {% if rutbe == r.pk|stringformat:'s' %}selected{% endif %}>{{ r.metin }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-12 col-md-2 d-flex gap-2">
+    <button class="btn btn-primary flex-grow-1"><i class="bi bi-search"></i> Ara</button>
+    {% if q or bolum or rutbe or durum %}<a href="?sirala={{ sirala }}" class="btn btn-outline-secondary" title="Filtreleri temizle"><i class="bi bi-x-lg"></i></a>{% endif %}
+  </div>
+</form>
+
+<datalist id="nedenler">{% for n in nedenler %}<option value="{{ n }}">{% endfor %}</datalist>
+{% csrf_token %}
+<div class="kart">
+  {% if yonetici %}
+  <div class="islem-cubugu d-flex flex-wrap align-items-center gap-2 p-2 border-bottom">
+    <span class="small text-secondary ms-2 me-auto"><span id="seciliSayi">0</span> kişi seçili</span>
+    <span class="small text-secondary">Seçilenleri:</span>
+    <button type="button" class="btn btn-sm nd-btn nd-tutar secim-gerekli" data-toplu="tutar" disabled><i class="bi bi-check-lg"></i> Tutar</button>
+    <button type="button" class="btn btn-sm nd-btn nd-muaf secim-gerekli" data-toplu="muaf" disabled><i class="bi bi-dash-lg"></i> Muaf</button>
+    <button type="button" class="btn btn-sm nd-btn nd-tutamaz secim-gerekli" data-toplu="tutamaz" disabled><i class="bi bi-x-lg"></i> Tutamaz</button>
+  </div>
+  {% endif %}
+  <div class="table-responsive">
+    <table class="table align-middle mb-0 nd-tablo">
+      <thead><tr>
+        {% if yonetici %}<th style="width:36px"><input class="form-check-input" type="checkbox" id="hepsiniSec" aria-label="Tümünü seç"></th>{% endif %}
+        {% for b in basliklar %}<th class="{{ b.sinif }}"><a href="{{ b.url }}" class="nd-sirala {% if b.yon %}aktif{% endif %}" title="Sırala">{{ b.ad }} <i class="bi {% if b.yon == 'artan' %}bi-sort-down-alt{% elif b.yon == 'azalan' %}bi-sort-up{% else %}bi-arrow-down-up{% endif %}"></i></a></th>{% endfor %}
+      </tr></thead>
+      <tbody>
+      {% for p in liste %}
+        <tr data-p="{{ p.pk }}" data-durum="{{ p.nobet_durumu }}" class="nd-satir nd-satir-{{ p.nobet_durumu }}">
+          {% if yonetici %}<td><input class="form-check-input satir-sec" type="checkbox" value="{{ p.pk }}" aria-label="{{ p.ad_soyad }} seç"></td>{% endif %}
+          <td>
+            <div class="fw-semibold">{{ p.ad_soyad }}</div>
+            <div class="small text-secondary d-lg-none">{% if not p.rutbe %}Rütbe yok{% if p.kunye %} · {% endif %}{% endif %}{{ p.kunye }}</div>
+          </td>
+          <td class="d-none d-lg-table-cell small">{% if p.rutbe %}{{ p.kunye }}{% else %}–{% if p.kunye %} <span class="text-secondary">{{ p.kunye }}</span>{% endif %}{% endif %}</td>
+          <td class="d-none d-md-table-cell small">{{ p.bolum.kod|default:"–" }}</td>
+          <td>
+            <div class="nd-grup" role="radiogroup" aria-label="{{ p.ad_soyad }} nöbet durumu">
+              <button type="button" class="nd-btn nd-tutar {% if p.nobet_durumu == 'tutar' %}aktif{% endif %}" data-durum="tutar" {% if not yonetici %}disabled{% endif %} role="radio" aria-checked="{% if p.nobet_durumu == 'tutar' %}true{% else %}false{% endif %}"><i class="bi bi-check-lg"></i> Tutar</button>
+              <button type="button" class="nd-btn nd-muaf {% if p.nobet_durumu == 'muaf' %}aktif{% endif %}" data-durum="muaf" {% if not yonetici %}disabled{% endif %} role="radio" aria-checked="{% if p.nobet_durumu == 'muaf' %}true{% else %}false{% endif %}"><i class="bi bi-dash-lg"></i> Muaf</button>
+              <button type="button" class="nd-btn nd-tutamaz {% if p.nobet_durumu == 'tutamaz' %}aktif{% endif %}" data-durum="tutamaz" {% if not yonetici %}disabled{% endif %} role="radio" aria-checked="{% if p.nobet_durumu == 'tutamaz' %}true{% else %}false{% endif %}"><i class="bi bi-x-lg"></i> Tutamaz</button>
+            </div>
+            <div class="nd-ayrinti {% if p.nobet_durumu == 'tutar' %}d-none{% endif %}">
+              {% if yonetici %}
+              <input class="form-control form-control-sm nd-neden" list="nedenler" placeholder="Neden (YDGG, YİGG, rapor…)" value="{{ p.nobet_muafiyet_nedeni }}" aria-label="Neden">
+              <input type="date" class="form-control form-control-sm nd-bitis {% if p.nobet_durumu != 'muaf' %}d-none{% endif %}" value="{{ p.nobet_muafiyet_bitis|date:'Y-m-d' }}" title="Muafiyet bitişi (boş = süresiz)" aria-label="Muafiyet bitişi">
+              <span class="nd-kaydedildi small text-success d-none"><i class="bi bi-check2"></i> Kaydedildi</span>
+              {% else %}
+              <span class="small text-secondary">{{ p.nobet_muafiyet_nedeni|default:"" }}{% if p.nobet_muafiyet_bitis %} · {{ p.nobet_muafiyet_bitis|date:"d.m.Y" }}'e kadar{% endif %}</span>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="text-center text-secondary py-5">Kayıt yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if yonetici %}
+<script>
+(function () {
+  const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  async function gonder(kisiler, durum, ek) {
+    const veri = new FormData();
+    kisiler.forEach(k => veri.append('personel', k));
+    veri.append('durum', durum);
+    if (ek) { veri.append('neden', ek.neden || ''); veri.append('bitis', ek.bitis || ''); }
+    const r = await fetch(location.pathname, {method: 'POST', body: veri, headers: {'X-CSRFToken': csrf, 'X-Istek': 'fetch'}});
+    const j = await r.json();
+    if (!j.ok) { alert(j.hata || 'Kaydedilemedi.'); return null; }
+    ['tutar', 'muaf', 'tutamaz'].forEach(k => { const e = document.getElementById('sayi-' + k); if (e) e.textContent = j.sayilar[k] || 0; });
+    return j;
+  }
+  function satiriGuncelle(tr, durum, bilgi) {
+    tr.dataset.durum = durum;
+    tr.className = 'nd-satir nd-satir-' + durum;
+    tr.querySelectorAll('.nd-grup .nd-btn').forEach(b => { const ak = b.dataset.durum === durum; b.classList.toggle('aktif', ak); b.setAttribute('aria-checked', ak); });
+    const ay = tr.querySelector('.nd-ayrinti');
+    ay.classList.toggle('d-none', durum === 'tutar');
+    ay.querySelector('.nd-bitis').classList.toggle('d-none', durum !== 'muaf');
+    if (bilgi) { ay.querySelector('.nd-neden').value = bilgi.neden; ay.querySelector('.nd-bitis').value = bilgi.bitis; }
+    const ok = ay.querySelector('.nd-kaydedildi');
+    ok.classList.remove('d-none');
+    clearTimeout(ok._z); ok._z = setTimeout(() => ok.classList.add('d-none'), 1500);
+  }
+  document.querySelectorAll('.nd-satir').forEach(tr => {
+    tr.querySelectorAll('.nd-grup .nd-btn').forEach(b => b.addEventListener('click', async () => {
+      if (tr.dataset.durum === b.dataset.durum) return;
+      const j = await gonder([tr.dataset.p], b.dataset.durum);
+      if (j) satiriGuncelle(tr, b.dataset.durum, j.kisiler[tr.dataset.p]);
+    }));
+    const kaydetAyrinti = async () => {
+      const ay = tr.querySelector('.nd-ayrinti');
+      const j = await gonder([tr.dataset.p], tr.dataset.durum, {neden: ay.querySelector('.nd-neden').value, bitis: ay.querySelector('.nd-bitis').value});
+      if (j) satiriGuncelle(tr, tr.dataset.durum, j.kisiler[tr.dataset.p]);
+    };
+    tr.querySelector('.nd-neden').addEventListener('change', kaydetAyrinti);
+    tr.querySelector('.nd-bitis').addEventListener('change', kaydetAyrinti);
+  });
+  document.querySelectorAll('[data-toplu]').forEach(b => b.addEventListener('click', async () => {
+    const secili = [...document.querySelectorAll('.satir-sec:checked')].map(k => k.value);
+    if (!secili.length) return;
+    const durum = b.dataset.toplu;
+    const j = await gonder(secili, durum);
+    if (!j) return;
+    secili.forEach(id => { const tr = document.querySelector('.nd-satir[data-p="' + id + '"]'); if (tr) satiriGuncelle(tr, durum, j.kisiler[id]); });
+    document.querySelectorAll('.satir-sec:checked').forEach(k => k.checked = false);
+    document.getElementById('hepsiniSec').checked = false;
+    document.querySelectorAll('.secim-gerekli').forEach(x => x.disabled = true);
+    document.getElementById('seciliSayi').textContent = 0;
+  }));
+})();
+</script>
+{% include "takip/_secim_js.html" %}
+{% endif %}
+{% endblock %}

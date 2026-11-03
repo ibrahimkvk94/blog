@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Organizasyon şeması{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Organizasyon şeması</li>{% endblock %}
+{% block content %}
+{% load static %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Organizasyon şeması</h1>
+    <p class="text-secondary mb-0">{% if user.is_superuser %}Tüm birimler ve modüllerin durumu{% else %}Erişebildiğiniz birimler{% endif %}</p>
+  </div>
+  {% if user.is_superuser %}<a href="{% url 'admin:core_birim_changelist' %}" class="btn btn-outline-secondary"><i class="bi bi-pencil me-1"></i>Ağacı düzenle</a>{% endif %}
+</div>
+
+{% if ozet %}
+<div class="d-flex flex-wrap gap-2 mb-3 small">
+  {% for kod, ad, sayi in ozet.durumlar %}<span class="durum-rozet durum-{{ kod }}">{{ sayi }} {{ ad|lower }}</span>{% endfor %}
+  <span class="text-secondary ms-2">{{ ozet.personel }} personel · {{ ozet.bolum }} bölüm · {{ ozet.kullanici }} kullanıcı</span>
+</div>
+{% endif %}
+
+<div class="org">
+  <div class="org-kok"><img src="{% static 'img/logo_beyaz.png' %}" alt="">{{ kurum_adi }}</div>
+  <div class="org-dallar">
+    {% for k in kokler %}
+    <div class="org-dal kart">
+      <a href="{{ k.get_absolute_url }}" class="org-dal-baslik"><i class="bi bi-{{ k.ikon }}"></i>{{ k.ad }}</a>
+      {% include "core/_org_dugum.html" with dugumler=k.menu_cocuklar %}
+    </div>
+    {% empty %}
+    <div class="kart p-4 text-secondary">Erişebildiğiniz bir birim yok.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
