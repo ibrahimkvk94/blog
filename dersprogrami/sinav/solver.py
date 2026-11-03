@@ -45,6 +45,7 @@ W_OVER = 12
 W_DAY_OVER = 8
 DAY_LOAD_FREE = 2
 W_SOFT = 60            # KAMYOSİS: "mümkünse görev verilmesin" oturumunda görev
+W_CARRIER_SPREAD = 10  # KAMYOSİS: taşıyıcı görevi sınırsız ama taşıyıcılar arasında yayılsın (en çok görev alan)
 ROLE_LABELS = {"A": "salon amiri", "G": "gözetmen", "T": "taşıyıcı"}
 # KAMYOSİS tercihleri
 W_ORDER = 1            # (3 × zorluk + tür sırası) × gün sırası
@@ -724,6 +725,7 @@ def _solve_proctors(p, timing, rooms, seats, limit):
     w, obj = {}, []
     per_slot = {}
     loads = {t: [] for t in p.proctors}
+    carrier_loads = {}
     day_loads = {}
     total = 0
     needs = _needs(p, units, seats)
@@ -755,6 +757,7 @@ def _solve_proctors(p, timing, rooms, seats, limit):
                 for s in slots:
                     per_slot.setdefault((tch, s), []).append(v)
                 if serbest:
+                    carrier_loads.setdefault(tch, []).append(v)
                     continue
                 loads[tch].append(v * weight)
                 day_loads.setdefault((tch, slots[0] // p.n_sessions), []).append(v * len(slots))
@@ -786,6 +789,12 @@ def _solve_proctors(p, timing, rooms, seats, limit):
         over = m.NewIntVar(0, top, f"over{tch}")
         m.Add(over >= final - level)
         obj.append(W_OVER * over)
+    if carrier_loads:
+        n_carrier = sum(len(t) for t in carrier_loads.values())
+        max_carrier = m.NewIntVar(0, n_carrier, "maxcarrier")
+        for terms in carrier_loads.values():
+            m.Add(max_carrier >= sum(terms))
+        obj.append(W_CARRIER_SPREAD * max_carrier)
     for key, terms in day_loads.items():
         if len(terms) > 1:
             over = m.NewIntVar(0, total, f"dover{key[0]}_{key[1]}")
