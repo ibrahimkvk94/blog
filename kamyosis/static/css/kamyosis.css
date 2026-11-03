@@ -280,3 +280,9 @@ a.gorev:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(15,23,4
 .btn-check:checked + .yb-hucre::before { content: "✓"; }
 .btn-check:focus-visible + .yb-hucre { outline: 2px solid #2f5d8a; outline-offset: 2px; }
 .yb-hucre.yb-fark { box-shadow: inset 0 0 0 2px #f59e0b; }
+
+/* Sıralanabilir tablo başlıkları (base.html) */
+th.sirala-baslik { cursor: pointer; user-select: none; white-space: nowrap; }
+th.sirala-baslik:hover { color: var(--bs-primary, #1f3a5f); }
+th[data-yon="artan"]::after { content: " ▲"; font-size: .7em; }
+th[data-yon="azalan"]::after { content: " ▼"; font-size: .7em; }

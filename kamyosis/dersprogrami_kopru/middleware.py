@@ -72,6 +72,16 @@ class KopruMiddleware:
         if (request.method == "POST" and response.status_code < 400 and eslesme is not None
                 and eslesme.namespace == "timetable" and eslesme.url_name == "publish"):
             self._kamyosise_aktar(request, eslesme.kwargs.get("pk"))
+        if (request.method == "POST" and response.status_code < 400 and eslesme is not None
+                and eslesme.namespace == SINAV_AD_ALANI and eslesme.url_name == "proctors"
+                and request.POST.get("action") == "exempt"):
+            # Gözetmenler sayfasında değişen görev rolleri personele yazılır (roller KAMYOSİS'te tutulur)
+            from sinav.models import ExamPeriod
+            from sinavgorev.servis import rolleri_donemden_al
+
+            period = ExamPeriod.objects.select_related("school").filter(pk=eslesme.kwargs.get("period_id")).first()
+            if period is not None:
+                rolleri_donemden_al(period)
         return response
 
     def process_view(self, request, view_func, view_args, view_kwargs):

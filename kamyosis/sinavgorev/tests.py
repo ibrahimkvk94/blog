@@ -82,6 +82,24 @@ class PuantajTestleri(TestCase):
         self.assertEqual(self.client.post(reverse("sinavgorev:roller"), {"p": [self.ayse.pk]}).status_code, 403)
         self.assertEqual(self.client.get(reverse("sinavgorev:personel", args=[self.veli.pk])).status_code, 403)
 
+    def test_modul_sayfasindaki_roller_personele_yazilir(self):
+        from dersprogrami_kopru.kunye import kunyeleri_esitle
+
+        kunyeleri_esitle()
+        self.t_ayse.refresh_from_db()
+        self.assertEqual(self.t_ayse.department, "BİL")  # bölüm süzgeci için
+        self.client.force_login(User.objects.create_superuser("kok", password="x-Parola-123"))
+        self.period.duty_roles = True
+        self.period.save()
+        url = reverse("sinav:proctors", args=[self.period.school_id, self.period.pk])
+        # Ayşe muaf (rolleri boş), Veli salon amiri + gözetmen
+        r = self.client.post(url, {"action": "exempt", "exempt": [self.t_ayse.pk],
+                               f"role-{self.t_veli.pk}-A": "1", f"role-{self.t_veli.pk}-G": "1"})
+        self.assertEqual(r.status_code, 302)
+        self.ayse.refresh_from_db()
+        self.veli.refresh_from_db()
+        self.assertEqual((self.ayse.sinav_rolleri, self.veli.sinav_rolleri), ("", "AG"))
+
     def test_roller_ve_elle_gorev(self):
         self.client.force_login(self.yonetici)
         self.client.post(reverse("sinavgorev:roller"), {"p": [self.ayse.pk, self.veli.pk], f"rol-{self.ayse.pk}-T": "1"})

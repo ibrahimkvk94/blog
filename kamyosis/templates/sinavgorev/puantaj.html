@@ -48,12 +48,12 @@
     </div>
     {% endif %}
     <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
+      <table class="table table-hover align-middle mb-0 siralanabilir">
         <thead><tr>
-          <th>Personel</th><th class="d-none d-md-table-cell">Bölüm</th>
-          {% for kod, ad in roller %}<th class="text-center" title="{{ ad }}">{{ kod }}</th>{% endfor %}
-          <th class="text-end">Hafta içi</th><th class="text-end">Hafta sonu</th><th class="text-end">Görev puanı</th>
-          <th class="text-end d-none d-lg-table-cell">Haftalık ders</th><th class="text-end d-none d-lg-table-cell">Z</th><th class="text-end">Skor</th>
+          <th data-sirala>Personel</th><th class="d-none d-md-table-cell" data-sirala>Bölüm</th>
+          {% for kod, ad in roller %}<th class="text-center" title="{{ ad }}" data-sirala>{{ kod }}</th>{% endfor %}
+          <th class="text-end" data-sirala>Hafta içi</th><th class="text-end" data-sirala>Hafta sonu</th><th class="text-end" data-sirala>Görev puanı</th>
+          <th class="text-end d-none d-lg-table-cell" data-sirala>Haftalık ders</th><th class="text-end d-none d-lg-table-cell" data-sirala>Z</th><th class="text-end" data-sirala>Skor</th>
         </tr></thead>
         <tbody>
         {% for s in satirlar %}
@@ -61,13 +61,13 @@
             <td><a class="fw-semibold text-decoration-none" href="{% url 'sinavgorev:personel' s.personel.pk %}?yil={{ bas.year }}">{{ s.personel.ad_soyad }}</a><div class="small text-secondary">{{ s.personel.kunye }}</div>
               {% if y.yonetim %}<input type="hidden" name="p" value="{{ s.personel.pk }}">{% endif %}</td>
             <td class="d-none d-md-table-cell">{{ s.personel.bolum.kod|default:"–" }}</td>
-            {% for kod, ad in roller %}<td class="text-center"><input class="form-check-input" type="checkbox" name="rol-{{ s.personel.pk }}-{{ kod }}" value="1" aria-label="{{ ad }}" {% if kod in s.personel.sinav_rolleri %}checked{% endif %} {% if not y.yonetim %}disabled{% endif %}></td>{% endfor %}
+            {% for kod, ad in roller %}<td class="text-center" data-deger="{% if kod in s.personel.sinav_rolleri %}1{% else %}0{% endif %}"><input class="form-check-input" type="checkbox" name="rol-{{ s.personel.pk }}-{{ kod }}" value="1" aria-label="{{ ad }}" {% if kod in s.personel.sinav_rolleri %}checked{% endif %} {% if not y.yonetim %}disabled{% endif %}></td>{% endfor %}
             <td class="text-end">{{ s.hi }}</td>
             <td class="text-end">{{ s.hs }}</td>
-            <td class="text-end fw-semibold">{{ s.puan|floatformat:"-1" }}</td>
-            <td class="text-end d-none d-lg-table-cell">{% if s.ders is not None %}{{ s.ders }}{% else %}<span class="text-secondary" title="Programda eşleşen öğretmen yok">–</span>{% endif %}</td>
-            <td class="text-end d-none d-lg-table-cell">{% if s.katilir %}{{ s.z|floatformat:2 }}{% else %}<span class="text-secondary">0</span>{% endif %}</td>
-            <td class="text-end fw-semibold">{{ s.skor|floatformat:2 }}</td>
+            <td class="text-end fw-semibold" data-deger="{{ s.puan|stringformat:'f' }}">{{ s.puan|floatformat:"-1" }}</td>
+            <td class="text-end d-none d-lg-table-cell" data-deger="{{ s.ders|default_if_none:'-1' }}">{% if s.ders is not None %}{{ s.ders }}{% else %}<span class="text-secondary" title="Programda eşleşen öğretmen yok">–</span>{% endif %}</td>
+            <td class="text-end d-none d-lg-table-cell" data-deger="{{ s.z|stringformat:'f' }}">{% if s.katilir %}{{ s.z|floatformat:2 }}{% else %}<span class="text-secondary">0</span>{% endif %}</td>
+            <td class="text-end fw-semibold" data-deger="{{ s.skor|stringformat:'f' }}">{{ s.skor|floatformat:2 }}</td>
           </tr>
         {% empty %}
           <tr><td colspan="11" class="text-center text-secondary py-5">Bu yıl için görev ya da görev rolü olan personel yok.</td></tr>

@@ -182,6 +182,19 @@ def geri_al(period):
     return n
 
 
+def rolleri_donemden_al(period):
+    """Sınav Planlama'nın Gözetmenler sayfasında değiştirilen rolleri personele yazar (roller KAMYOSİS'te tutulur;
+    sınav programı oluşturulurken personelden yeniden aktarılır)."""
+    degisen = 0
+    for pid, t in ogretmen_eslesmesi(period.school).items():
+        roller = period.roles_of(t.pk) if period.duty_roles else None
+        if roller is None:
+            continue
+        sayi = Personel.objects.filter(pk=pid).exclude(sinav_rolleri=roller).update(sinav_rolleri=roller)
+        degisen += sayi
+    return degisen
+
+
 def rolleri_esitle():
     """Personelin görev rollerini mazeret dönemine bağlı sınav dönemlerine yazar (rol değişikliği hemen geçsin)."""
     from sinav.models import DEFAULT_ROLES, ExamPeriod

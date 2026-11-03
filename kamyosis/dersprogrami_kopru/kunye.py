@@ -39,18 +39,20 @@ def ogretmen_eslesmesi(okul):
 
 
 def kunyeleri_esitle(okullar=None, personel_idler=None):
-    """Eşleşen öğretmenlerin "ünvan / rütbe" alanını KAMYOSİS künyesiyle günceller. Dönüş: değişen öğretmen sayısı."""
+    """Eşleşen öğretmenlerin "ünvan / rütbe" alanını KAMYOSİS künyesiyle, "bölüm" alanını personelin bölüm koduyla
+    günceller (Sınav Planlama'da bölüme göre süzmek için). Dönüş: değişen öğretmen sayısı."""
     from timetable.models import School, Teacher
 
-    personeller = {p.pk: p for p in Personel.objects.select_related("unvan", "rutbe", "sinif")}
+    personeller = {p.pk: p for p in Personel.objects.select_related("unvan", "rutbe", "sinif", "bolum")}
     degisen = 0
     for okul in (okullar if okullar is not None else School.objects.all()):
         for pk, t in ogretmen_eslesmesi(okul).items():
             if personel_idler is not None and pk not in personel_idler:
                 continue
-            kunye = personeller[pk].kunye[:100]
-            if t.title != kunye:
+            p = personeller[pk]
+            kunye, bolum = p.kunye[:100], (p.bolum.kod if p.bolum else "")[:60]
+            if (t.title, t.department) != (kunye, bolum):
                 # update(): öğretmen kayıt sinyali yeniden tetiklenmesin
-                Teacher.objects.filter(pk=t.pk).update(title=kunye)
+                Teacher.objects.filter(pk=t.pk).update(title=kunye, department=bolum)
                 degisen += 1
     return degisen
