@@ -53,7 +53,7 @@ eşleşmesi ya da modüldeki öğretmen değişince kendiliğinden; elle `manage
 2. Sınav türü **%100 UYG** olan dersler plana alınmaz (oluşturmada atlanır, sonradan UYG yapılırsa çözüme girmez).
 3. Kontenjan **program × sınıf düzeyine** girilir (ör. SVN 1. sınıf: 120) ve programın kısımlarına eşit bölünerek
    sınıfın "öğrenci sayısı" alanına yazılır; sınav öğrenci sayısı ve salon dağıtımı bundan hesaplanır. Kısmın programı
-   (`SchoolClass.program`) ve düzeyi kısa adından bir kez atanır: "10MKT" → MKT, numara 1–36 → 1. sınıf, 50–86 → 2. sınıf.
+   (`SchoolClass.program`) ve düzeyi kısa adından bir kez atanır: "10MKT" → MKT, numara 1–36 → 2. sınıf, 50–86 → 1. sınıf.
 4. **Zorluk** 1–5 (girilmezse 3): zor sınav mümkün olduğunca erken güne; eşit zorlukta MT içeren türler önce, ÇS sona.
 5. Adı aynı (parantez içi hariç) sınavlar aynı güne.
 6. Bir oturumda mümkün olduğunca tek **sınıf düzeyi** (3 haneli ders numarasının ilk rakamı: BİL103 → 1. sınıf).
