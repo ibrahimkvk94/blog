@@ -113,6 +113,7 @@ class Problem:
     prior: dict = field(default_factory=dict)        # {öğretmen: önceki görev puanı × 2}
     weekend: frozenset = frozenset()                 # hafta sonu dilimleri (görev 1,5 sayılır)
     session_years: tuple = ()                        # oturum sırası → sınıf düzeyi (ör. (2, 1, 2, 1)); boş = serbest
+    carriers_per_session: int = 0                    # rollü dönemde oturum başına taşıyıcı (0 = salon başına 1)
     programs_by_year: dict = field(default_factory=dict)  # {düzey: {bölüm, ...}}
 
     def slot_year(self, t):
@@ -173,10 +174,12 @@ def _available(p, teacher, slots):
 
 def duty_need(p, seats):
     """Salonun görevli ihtiyacı {rol: sayı}. Rolsüz: salon başına sabit gözetmen. Rollü (PPYS kuralı): 40 ve üstü
-    öğrencide 1 salon amiri; 40'tan azda 1, fazlasında her 20 öğrenciye 1 gözetmen; öğrencisi olan salona 1 taşıyıcı."""
+    öğrencide 1 salon amiri; 40'tan azda 1, fazlasında her 20 öğrenciye 1 gözetmen; öğrencisi olan salona 1 taşıyıcı.
+    KAMYOSİS: carriers_per_session verilmişse taşıyıcı salona değil oturuma atanır (bkz. _needs)."""
     if not p.duty_roles:
         return {"G": p.proctors_per_room} if p.proctors_per_room else {}
-    need = {"A": int(seats >= 40), "G": 1 if seats < 40 else -(-seats // 20), "T": int(seats > 0)}
+    need = {"A": int(seats >= 40), "G": 1 if seats < 40 else -(-seats // 20),
+            "T": int(seats > 0) if not p.carriers_per_session else 0}
     return {r: n for r, n in need.items() if n}
 
 
@@ -655,21 +658,43 @@ def _unit_need(p, e, rid, seats):
     return duty_need(p, seats), []
 
 
+def _needs(p, units, seats):
+    """{(sınav, salon): (ihtiyaç, kilitli görevliler)}. Oturum başına taşıyıcı, oturumda başlayan kilitsiz sınavların en
+    kalabalık salonuna yazılır (taşıyıcı salona değil oturuma aittir)."""
+    by_id = {e.id: e for e in p.exams}
+    out = {(eid, rid): _unit_need(p, by_id[eid], rid, seats.get((eid, rid), 0)) for eid, rid, _s in units}
+    if p.duty_roles and p.carriers_per_session:
+        reps = {}
+        for eid, rid, slots in units:
+            if out[eid, rid][1]:
+                continue
+            key = (-seats.get((eid, rid), 0), rid)
+            if slots[0] not in reps or key < reps[slots[0]][0]:
+                reps[slots[0]] = (key, (eid, rid))
+        for _key, unit in reps.values():
+            out[unit][0]["T"] = p.carriers_per_session
+    return out
+
+
 def _greedy_proctors(p, timing, rooms, seats):
     by_id = {e.id: e for e in p.exams}
     load = {t: p.prior.get(t, 0) for t in p.proctors}
+    tasima = {t: 0 for t in p.proctors}  # taşıyıcı görevleri dengeye girmez; yalnızca sırayı yaymak için
     busy = set()
     out = {}
     units = _units(p, timing, rooms)
+    needs = _needs(p, units, seats)
     for eid, rid, slots in sorted(units, key=lambda u: (u[2][0], -len(by_id[u[0]].locked_proctors))):
         e = by_id[eid]
-        need, chosen = _unit_need(p, e, rid, seats.get((eid, rid), 0))
+        need, chosen = needs[eid, rid]
+        chosen = list(chosen)
         if not chosen:
             own = set(e.teachers)
             taken = set()
             for role, n in need.items():
                 pool = sorted((t for t in p.proctors if role in p.roles.get(t, "G")),
-                              key=lambda t: (_is_soft(p, t, slots), t not in own, load[t], t))
+                              key=lambda t: (_is_soft(p, t, slots), t not in own,
+                                             tasima[t] if role == "T" and p.carriers_per_session else load[t], t))
                 for t in pool:
                     if n <= 0:
                         break
@@ -678,8 +703,11 @@ def _greedy_proctors(p, timing, rooms, seats):
                     chosen.append((t, role))
                     taken.add(t)
                     n -= 1
-        for t, _r in chosen:
-            load[t] += _weight(p, slots)
+        for t, r in chosen:
+            if r == "T" and p.carriers_per_session:
+                tasima[t] += 1
+            else:
+                load[t] += _weight(p, slots)
             for s in slots:
                 busy.add((t, s))
         out[eid, rid] = chosen
@@ -698,13 +726,17 @@ def _solve_proctors(p, timing, rooms, seats, limit):
     loads = {t: [] for t in p.proctors}
     day_loads = {}
     total = 0
+    needs = _needs(p, units, seats)
     for u, (eid, rid, slots) in enumerate(units):
         e = by_id[eid]
-        need, locked = _unit_need(p, e, rid, seats.get((eid, rid), 0))
+        need, locked = needs[eid, rid]
         hint = set(greedy.get((eid, rid), ()))
         weight = _weight(p, slots)
         for role, n in need.items():
-            total += n * weight
+            # KAMYOSİS: oturum başına taşıyıcı görevi sınırsızdır: dengeye ve günlük yüke girmez
+            serbest = role == "T" and bool(p.carriers_per_session)
+            if not serbest:
+                total += n * weight
             terms = []
             for tch in p.proctors:
                 if locked:
@@ -720,9 +752,11 @@ def _solve_proctors(p, timing, rooms, seats, limit):
                 elif _is_soft(p, tch, slots):
                     obj.append(W_SOFT * v)
                 terms.append(v)
-                loads[tch].append(v * weight)
                 for s in slots:
                     per_slot.setdefault((tch, s), []).append(v)
+                if serbest:
+                    continue
+                loads[tch].append(v * weight)
                 day_loads.setdefault((tch, slots[0] // p.n_sessions), []).append(v * len(slots))
             short = m.NewIntVar(0, n, f"short{u}_{role}")
             m.Add(sum(terms) + short == n)
@@ -807,6 +841,7 @@ def solve(p, progress=None):
         for rid, n in zip(rids, seat_split(by_id[eid].students, [caps[r] for r in rids])):
             seats[eid, rid] = n
     proctors = _solve_proctors(p, timing, rooms, seats, remaining(0.9))
+    needs = _needs(p, _units(p, timing, rooms), seats)
 
     result = Result("ok")
     for eid, t0 in timing.items():
@@ -816,10 +851,13 @@ def solve(p, progress=None):
         for rid in rids:
             duty = proctors.get((eid, rid), [])
             rows.append((rid, seats[eid, rid], [t for t, _r in duty], {t: r for t, r in duty if r != "G"}))
-            need, _locked = _unit_need(p, e, rid, seats[eid, rid])
+            need, _locked = needs[eid, rid]
             for role, want in need.items():
                 got = sum(1 for _t, r in duty if r == role)
-                if got < want:
+                if got < want and role == "T" and p.carriers_per_session:
+                    result.warnings.append(f"{_slot_label(p, t0)} oturumu: {want} taşıyıcı gerekli, {got} atanabildi "
+                                           "(taşıyıcı olabilen müsait personel yok).")
+                elif got < want:
                     result.warnings.append(f"«{e.name}» – {names[rid]}: {want} {ROLE_LABELS.get(role, role)} gerekli, "
                                            f"{got} atanabildi (müsait öğretmen yok).")
         result.placements[eid] = (t0, rows)

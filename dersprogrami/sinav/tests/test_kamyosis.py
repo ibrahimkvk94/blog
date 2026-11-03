@@ -224,6 +224,24 @@ class GorevKuraliTests(TestCase):
         self.assertEqual([rol for _t, rol in self._gorevler(r, 1)], ["G"])
         self.assertIn("kontenjanı", r.warnings[0])
 
+    def test_oturum_basina_tasiyici(self):
+        # iki salonlu iki sınav aynı oturumda: taşıyıcı salon başına değil oturum başına 2; 3 taşıyıcı adayı
+        roles = {1: "T", 2: "T", 3: "T"} | {t: "G" for t in range(4, 10)}
+        sinavlar = [exams_solver.PExam(1, "A", classes=(1,), students=30, fixed=0),
+                    exams_solver.PExam(2, "B", classes=(2,), students=30, fixed=0)]
+        p = self._p(sinavlar, roles, rooms=(40, 40), duty_roles=True, roles=roles, carriers_per_session=2)
+        r = exams_solver.solve(p)
+        gorev = self._gorevler(r, 1) + self._gorevler(r, 2)
+        self.assertEqual(sum(1 for _t, rol in gorev if rol == "T"), 2)
+        self.assertEqual(sum(1 for _t, rol in gorev if rol == "G"), 2)
+        self.assertFalse([w for w in r.warnings if "gerekli" in w])
+        # sınırsız: tek taşıyıcı adayıyla 3 ayrı oturumun her birinde görev alır
+        sinavlar = [exams_solver.PExam(i, f"S{i}", classes=(i,), students=10, fixed=i - 1) for i in (1, 2, 3)]
+        roles = {1: "T"} | {t: "G" for t in range(2, 6)}
+        p = self._p(sinavlar, roles, sessions=3, duty_roles=True, roles=roles, carriers_per_session=1)
+        r = exams_solver.solve(p)
+        self.assertEqual(sum(1 for e in (1, 2, 3) for t, rol in self._gorevler(r, e) if rol == "T" and t == 1), 3)
+
     def test_mumkunse_verilmesin(self):
         p = self._p([exams_solver.PExam(1, "S", classes=(1,), students=10)], [1, 2], soft={1: {0}})
         r = exams_solver.solve(p)

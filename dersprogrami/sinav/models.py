@@ -62,6 +62,10 @@ class ExamPeriod(models.Model):
         "görev rolleri", default=False,
         help_text="Açıksa salon başına: 40 ve üstü öğrencide 1 salon amiri; 40'tan az öğrencide 1, fazlasında her 20 "
                   "öğrenciye 1 gözetmen; öğrencisi olan salona 1 taşıyıcı. Kapalıysa salon başına sabit gözetmen sayısı.")
+    carriers_per_session = models.PositiveSmallIntegerField(
+        "oturum başına taşıyıcı", default=2,
+        help_text="Görev rolleri açıkken taşıyıcı salona değil oturuma atanır; taşıyıcı görevi sınırsızdır (dengeye "
+                  "girmez). 0 = eski kural: öğrencisi olan her salona 1 taşıyıcı.")
     # KAMYOSİS: öğretmenin alabileceği roller {"öğretmen kimliği": "AGT"}; kayıt yok = DEFAULT_ROLES, "" = görev almaz
     proctor_roles = models.JSONField(default=dict, blank=True)
     time_limit = models.PositiveSmallIntegerField("süre sınırı (sn)", default=30)

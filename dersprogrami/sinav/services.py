@@ -430,6 +430,7 @@ def build_problem(period, keep_locked=True):
         prior={k: round(2 * (v - base)) for k, v in prior.items()},
         weekend=frozenset(index[d] * n_s + s for d in dates if d.weekday() >= 5 for s in range(n_s)),
         session_years=tuple(period.session_years or ()), programs_by_year=programs_by_year(period.school),
+        carriers_per_session=period.carriers_per_session if period.duty_roles else 0,
     ), dates
 
 
@@ -547,7 +548,9 @@ def validate(period, only=None):
     blocks = proctor_blocks(period)
     soft = proctor_soft(period)
     exempt = set(period.proctor_exempt.values_list("pk", flat=True))
-    problem = exams_solver.Problem(0, 0, [], [], [], proctors_per_room=period.proctors_per_room, duty_roles=period.duty_roles)
+    problem = exams_solver.Problem(0, 0, [], [], [], proctors_per_room=period.proctors_per_room, duty_roles=period.duty_roles,
+                                   carriers_per_session=period.carriers_per_session if period.duty_roles else 0)
+    carriers = defaultdict(int)  # (tarih, oturum) → taşıyıcı sayısı
 
     def add(level, text, *exams):
         if only is None or only in {e.pk for e in exams}:
@@ -599,16 +602,22 @@ def validate(period, only=None):
                     if k == 0 and period.duty_roles and role not in period.roles_of(t.pk):
                         add("warn", f"{t.full_name} «{e.title}» sınavında {ROLE_NAMES.get(role, role).lower()} ama bu "
                                     "rolü alamaz (görevli rolleri).", e)
+        carriers[(pl.date, pl.session)] += 0
         for r in pl.rooms.all():
             have = defaultdict(int)
             for t in r.proctors.all():
                 have[r.role_of(t.pk) if period.duty_roles else GOZETMEN] += 1
+            carriers[(pl.date, pl.session)] += have["T"]
             for role, want in exams_solver.duty_need(problem, r.seats).items():
                 if have[role] < want:
                     add("warn", f"«{e.title}» – {r.classroom}: {want} {ROLE_NAMES[role].lower()} gerekli, {have[role]} var.", e)
     for (c, date), exams in per_day.items():
         if len(exams) > period.max_per_day:
             add("error", f"{c.short or c.name}: {date:%d.%m.%Y} günü {len(exams)} sınav (en fazla {period.max_per_day}).", *exams)
+    if only is None and problem.carriers_per_session:  # KAMYOSİS: oturum başına taşıyıcı
+        for (date, s), n in sorted(carriers.items()):
+            if n < problem.carriers_per_session:
+                add("warn", f"{slot_label(date, s, period)} oturumu: {problem.carriers_per_session} taşıyıcı gerekli, {n} var.")
     if only is None and period.session_years:  # KAMYOSİS: oturum düzeni
         for label, want, years, dup, missing in session_report(period, rows):
             if want is not None and set(years) - {want}:
@@ -686,7 +695,8 @@ def auto_proctors(period, placement):
     soft = proctor_soft(period)
     prior = prior_scores(period)
     pool = [t for t in proctor_pool(period) if t.pk not in busy and not span & blocks.get(t.pk, set())]
-    problem = exams_solver.Problem(0, 0, [], [], [], proctors_per_room=period.proctors_per_room, duty_roles=period.duty_roles)
+    problem = exams_solver.Problem(0, 0, [], [], [], proctors_per_room=period.proctors_per_room, duty_roles=period.duty_roles,
+                                   carriers_per_session=period.carriers_per_session if period.duty_roles else 0)
     added = 0
     taken = {t.pk for r in placement.rooms.all() for t in r.proctors.all()}
     for room in placement.rooms.all():

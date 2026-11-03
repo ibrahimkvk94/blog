@@ -56,6 +56,7 @@ class PeriodForm(StyledFormMixin, forms.ModelForm):
     class Meta:
         model = ExamPeriod
         fields = ["name", "kind", "start_date", "end_date", "exam_minutes", "max_per_day", "proctors_per_room", "duty_roles",
+                  "carriers_per_session",
                   "capacity_percent", "default_seats", "time_limit", "use_availability", "rooms"]
         widgets = {"start_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
                    "end_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
@@ -66,6 +67,7 @@ class PeriodForm(StyledFormMixin, forms.ModelForm):
         self.fields["rooms"].queryset = Classroom.objects.filter(school=school).order_by("name")
         self.fields["rooms"].label_from_instance = lambda r: f"{r} ({r.capacity or 'kapasite yok'})"
         self.fields["max_per_day"].widget.attrs.update(min=1, max=8)
+        self.fields["carriers_per_session"].required = False  # KAMYOSİS: boş = 2
         self.fields["capacity_percent"].widget.attrs.update(min=5, max=100)
         self.fields["time_limit"].widget.attrs.update(min=5, max=600)
         inst = self.instance
@@ -78,6 +80,10 @@ class PeriodForm(StyledFormMixin, forms.ModelForm):
         else:
             self.initial.setdefault("weekday_list", ["0", "1", "2", "3", "4"])
         self._style()
+
+    def clean_carriers_per_session(self):
+        value = self.cleaned_data.get("carriers_per_session")
+        return 2 if value is None else value
 
     def clean(self):
         data = super().clean()
@@ -474,7 +480,8 @@ def exam_edit(request, pk, period_id, exam_id):
     else:
         room_rows = [{"room": r, "cap": exams.exam_capacity(r, period), "on": False, "busy": None} for r in exams.exam_rooms(period)]
     rooms = list(placement.rooms.select_related("classroom").prefetch_related("proctors")) if placement else []
-    problem = exams_solver.Problem(0, 0, [], [], [], proctors_per_room=period.proctors_per_room, duty_roles=period.duty_roles)
+    problem = exams_solver.Problem(0, 0, [], [], [], proctors_per_room=period.proctors_per_room, duty_roles=period.duty_roles,
+                                   carriers_per_session=period.carriers_per_session if period.duty_roles else 0)
     for room in rooms:  # KAMYOSİS: salonun görevlileri rol rol (rolsüz dönemde yalnızca gözetmen)
         need = exams_solver.duty_need(problem, room.seats)
         current = {t.pk: (room.role_of(t.pk) if period.duty_roles else GOZETMEN) for t in room.proctors.all()}
