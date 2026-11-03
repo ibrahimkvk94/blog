@@ -16,7 +16,8 @@ from django.contrib import messages
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.forms import PasswordResetForm
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
+User = get_user_model()  # KAMYOSİS: özel kullanıcı modeli
 from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import EmailMessage
 from django.db import transaction

@@ -1,10 +1,19 @@
 """Yedekten geri yükleme, başka bilgisayardan yedek yükleme ve otomatik yedek."""
 
+import unittest
+
+from django.conf import settings
+
+if getattr(settings, "TIMETABLE_GOMULU", False):  # KAMYOSİS: başka projeye gömülüyken yedek/güncelleme kodu denenmez
+    raise unittest.SkipTest("Gömülü kurulumda (TIMETABLE_GOMULU) yedek ve sistem güncelleme kapalıdır.")
+
+
 import os
 import tempfile
 from pathlib import Path
 
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
+User = get_user_model()  # KAMYOSİS: özel kullanıcı modeli
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TransactionTestCase, override_settings
 from django.urls import reverse

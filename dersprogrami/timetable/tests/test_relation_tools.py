@@ -1,6 +1,7 @@
 """Teori + uygulama ilişki sihirbazı ve ilişki denetimi."""
 
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
+User = get_user_model()  # KAMYOSİS: özel kullanıcı modeli
 from django.test import TestCase
 from django.urls import reverse
 

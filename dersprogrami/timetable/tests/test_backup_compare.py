@@ -1,10 +1,19 @@
 """Yedekle karşılaştırma: yedekteki üretim girdisi ayrı bir veritabanına yüklenip bugünküyle karşılaştırılır."""
 
+import unittest
+
+from django.conf import settings
+
+if getattr(settings, "TIMETABLE_GOMULU", False):  # KAMYOSİS: başka projeye gömülüyken yedek/güncelleme kodu denenmez
+    raise unittest.SkipTest("Gömülü kurulumda (TIMETABLE_GOMULU) yedek ve sistem güncelleme kapalıdır.")
+
+
 import datetime
 import tempfile
 from pathlib import Path
 
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
+User = get_user_model()  # KAMYOSİS: özel kullanıcı modeli
 from django.test import TransactionTestCase, override_settings
 from django.urls import reverse
 

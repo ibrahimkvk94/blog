@@ -2,7 +2,8 @@
 
 from datetime import timedelta
 
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
+User = get_user_model()  # KAMYOSİS: özel kullanıcı modeli
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone

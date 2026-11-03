@@ -3,7 +3,8 @@ sorumlusunun onay sayfası."""
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
+User = get_user_model()  # KAMYOSİS: özel kullanıcı modeli
 from django.db.models import Q
 from django.http import Http404
 from django.shortcuts import get_object_or_404, redirect, render

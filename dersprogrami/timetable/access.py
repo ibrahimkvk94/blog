@@ -222,7 +222,7 @@ def _routes(name):
 
 
 def _deny(request, message):
-    if request.path.startswith("/api/") or request.headers.get("Content-Type", "").startswith("application/json"):
+    if "/api/" in request.path or request.headers.get("Content-Type", "").startswith("application/json"):
         return JsonResponse({"ok": False, "message": message}, status=403)
     return render(request, "timetable/forbidden.html", {"message": message}, status=403)
 
@@ -323,6 +323,7 @@ class SchoolAccessMiddleware:
         row = School.objects.filter(pk=school_id).values_list("institution_id", "name").first()
         if row:
             request.current_institution_id, request.current_program_name = row
+        perms = set(perms) | set(getattr(request, "timetable_extra_perms", ()))  # KAMYOSİS: köprünün ek yetkisi
         request.school_perms = perms
         if not perms:
             return _deny(request, "Bu kuruma ya da programa erişim yetkiniz yok.")

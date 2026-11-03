@@ -4,7 +4,8 @@ yedek karşılaştırmasının tekrarı."""
 from pathlib import Path
 from unittest import mock
 
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
+User = get_user_model()  # KAMYOSİS: özel kullanıcı modeli
 from django.core import mail
 from django.test import RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.urls import reverse

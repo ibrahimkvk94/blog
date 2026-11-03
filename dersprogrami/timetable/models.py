@@ -12,6 +12,7 @@ import datetime
 import re
 
 from django.core.exceptions import ValidationError
+from django.conf import settings
 from django.db import models
 
 DAY_NAMES = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"]
@@ -252,7 +253,7 @@ class Teacher(models.Model):
     tc_no = models.CharField("TC kimlik no", max_length=11, blank=True, help_text="ÜYBS aktarımında öğretim elemanı sütununa yazılır.")
     email = models.EmailField("e-posta", blank=True, help_text="Program değişikliği ve vekâlet bildirimleri için.")
     user = models.ForeignKey(
-        "auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="teacher_profiles",
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="teacher_profiles",
         verbose_name="kullanıcı hesabı",
         help_text="Bu hesapla giren öğretmen “İsteklerim” sayfasından gelemeyeceği saatleri bildirir.",
     )
@@ -500,7 +501,7 @@ class LeaveRequest(models.Model):
 
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="leave_requests")
     teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, related_name="leave_requests")
-    requested_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, related_name="leave_requests")
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="leave_requests")
     start_date = models.DateField("başlangıç")
     end_date = models.DateField("bitiş")
     periods = models.JSONField("saatler", default=list, blank=True)
@@ -508,7 +509,7 @@ class LeaveRequest(models.Model):
     reason = models.TextField("açıklama", blank=True)
     status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
-    decided_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
     decided_at = models.DateTimeField(null=True, blank=True)
     note = models.TextField("yanıt", blank=True)
 
@@ -557,7 +558,7 @@ class Department(models.Model):
     name = models.CharField("ad", max_length=100)
     subjects = models.ManyToManyField(Subject, blank=True, related_name="departments", verbose_name="ders adları")
     teachers = models.ManyToManyField(Teacher, blank=True, related_name="departments", verbose_name="öğretmenler")
-    users = models.ManyToManyField("auth.User", blank=True, related_name="departments", verbose_name="bölüm sorumluları")
+    users = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name="departments", verbose_name="bölüm sorumluları")
 
     class Meta:
         ordering = ["name"]
@@ -585,10 +586,10 @@ class DepartmentSubmission(models.Model):
     new_teachers = models.ManyToManyField(Teacher, blank=True, related_name="+", verbose_name="bölümün eklediği öğretmenler")
     message = models.TextField("bölümün notu", blank=True)
     reply = models.TextField("yanıt", blank=True)
-    updated_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, related_name="+")
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+")
     updated_at = models.DateTimeField(auto_now=True)
     submitted_at = models.DateTimeField(null=True, blank=True)
-    decided_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
     decided_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
@@ -610,12 +611,12 @@ class AvailabilityRequest(models.Model):
 
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="availability_requests")
     teacher = models.ForeignKey(Teacher, on_delete=models.CASCADE, related_name="availability_requests")
-    requested_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, related_name="availability_requests")
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="availability_requests")
     changes = models.JSONField(default=list)
     reason = models.TextField("gerekçe", blank=True)
     status = models.CharField(max_length=12, choices=STATUS_CHOICES, default=PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
-    decided_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
     decided_at = models.DateTimeField(null=True, blank=True)
     note = models.TextField("yanıt", blank=True)
 
@@ -768,7 +769,7 @@ class ImproveJob(models.Model):
 
     timetable = models.ForeignKey(Timetable, on_delete=models.CASCADE, related_name="improve_jobs")
     kind = models.CharField(max_length=10, choices=KIND_CHOICES, default=SCHOOL)
-    created_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=QUEUED)
     time_limit = models.PositiveIntegerField(default=1200, help_text="saniye")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -796,7 +797,7 @@ class TimetableVersion(models.Model):
     timetable = models.ForeignKey(Timetable, on_delete=models.CASCADE, related_name="versions")
     number = models.PositiveIntegerField("no")
     created_at = models.DateTimeField(auto_now_add=True)
-    user = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, verbose_name="hazırlayan")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="hazırlayan")
     note = models.CharField("not", max_length=200, blank=True)
     auto = models.BooleanField("otomatik kayıt", default=False)
     changes = models.PositiveIntegerField("değişen kart / öğretmen ataması", default=0)
@@ -1183,7 +1184,7 @@ class Event(models.Model):
     lessons = models.ManyToManyField(Lesson, blank=True, related_name="makeups", verbose_name="telafisi yapılan dersler")
     missed_date = models.DateField("telafi edilen tarih", null=True, blank=True)
     note = models.TextField("not", blank=True)
-    created_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -1282,7 +1283,7 @@ class Membership(models.Model):
     ]
     ALL = [key for key, _ in PERMISSIONS]
 
-    user = models.ForeignKey("auth.User", on_delete=models.CASCADE, related_name="memberships")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="memberships")
     institution = models.ForeignKey(Institution, on_delete=models.CASCADE, related_name="memberships")
     permissions = models.JSONField("yetkiler", default=list)
     programs = models.ManyToManyField(
@@ -1292,7 +1293,7 @@ class Membership(models.Model):
     # Açabildiği modüller (Ders Planlama, Sınav Planlama ...; bkz. modules.py). Boş = tümü.
     modules = models.JSONField("modüller", default=list, blank=True, help_text="Boş = tüm modüller.")
     granted_by = models.ForeignKey(
-        "auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="granted_memberships"
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="granted_memberships"
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -1340,7 +1341,7 @@ class AuditLog(models.Model):
     """İşlem günlüğü: kim, ne zaman, hangi kurum/programda ne yaptı."""
 
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
-    user = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
     username = models.CharField(max_length=150, blank=True)
     institution = models.ForeignKey(Institution, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
     school = models.ForeignKey(School, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
@@ -1365,7 +1366,7 @@ class EditPresence(models.Model):
 
     school = models.ForeignKey(School, on_delete=models.CASCADE, related_name="+")
     key = models.CharField(max_length=80)
-    user = models.ForeignKey("auth.User", on_delete=models.CASCADE, related_name="+")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+")
     editing = models.BooleanField(default=True)
     last_seen = models.DateTimeField(db_index=True)
 
@@ -1388,7 +1389,7 @@ class WeekArchive(models.Model):
     source = models.CharField("kaynak sürüm", max_length=200, blank=True)
     rows = models.JSONField(default=list)
     created_at = models.DateTimeField(auto_now=True)
-    user = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
 
     class Meta:
         ordering = ["-week_start"]
@@ -1434,12 +1435,12 @@ class Notification(models.Model):
     INFO, SUCCESS, WARNING, ERROR = "info", "success", "warning", "error"
     LEVEL_CHOICES = [(INFO, "Bilgi"), (SUCCESS, "Başarılı"), (WARNING, "Uyarı"), (ERROR, "Hata")]
 
-    user = models.ForeignKey("auth.User", on_delete=models.CASCADE, related_name="notifications")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")
     title = models.CharField("başlık", max_length=200)
     body = models.TextField("ileti", blank=True)
     url = models.CharField("bağlantı", max_length=300, blank=True)
     level = models.CharField("tür", max_length=10, choices=LEVEL_CHOICES, default=INFO)
-    sender = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
     broadcast = models.CharField("duyuru", max_length=36, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     read_at = models.DateTimeField(null=True, blank=True)

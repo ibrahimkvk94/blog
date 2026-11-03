@@ -81,7 +81,8 @@ class PoolGenerationTests(TestCase):
         self.assertEqual(max(cells.values()), 1)
         self.assertEqual(timetable.report["pools"]["changed"], 3)
         self.assertFalse(timetable.report["validation"]["violations"])
-        from django.contrib.auth.models import User
+        from django.contrib.auth import get_user_model
+        User = get_user_model()  # KAMYOSİS: özel kullanıcı modeli
         from django.urls import reverse
 
         self.client.force_login(User.objects.create_superuser("admin", "a@x.tr", "pw"))
