@@ -789,7 +789,10 @@ def solve(p, progress=None):
     empty = [e for e in p.exams if not e.students]
     if empty:
         result.warnings.insert(0, f"{len(empty)} sınavın öğrenci sayısı 0 (sınıfların öğrenci sayısı girilmemiş olabilir); "
-                                  "bu sınavlara tek salon verildi.")
+                                  "bu sınavlara tek salon verildi" + (
+                                      ". Görev rolleri öğrenci sayısına göre hesaplandığından bu salonlara yalnızca 1 "
+                                      "gözetmen verildi (salon amiri ve taşıyıcı yok); kontenjanı “Ders sınav bilgileri” "
+                                      "sayfasından aktarın." if p.duty_roles else "."))
     result.unplaced = [e.id for e in p.exams if e.id not in timing]
     for eid in result.unplaced:
         e = by_id[eid]

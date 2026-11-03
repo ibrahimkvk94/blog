@@ -1871,6 +1871,11 @@ details.panel > summary.panel-head h2 svg { width: 16px; height: 16px; }
 .ex-proctor-select { height: auto; padding: 4px; }
 .ex-proctor-select option.ex-opt-bad, option.ex-opt-bad { color: var(--danger-strong); }
 #ex-teachers tr.ex-selected td { background: var(--primary-soft); }
+/* KAMYOSİS: bölüm süzgeci ve sıralanabilir başlıklar (sinav/exams.js) */
+.ex-group-hidden { display: none; }
+table.ex-sortable th[data-sort] { white-space: nowrap; user-select: none; }
+table.ex-sortable th.ex-sort-asc::after { content: " ▲"; font-size: .7em; }
+table.ex-sortable th.ex-sort-desc::after { content: " ▼"; font-size: .7em; }
 .ex-block-grid td, .ex-block-grid th { text-align: center; }
 .ex-block-grid th:first-child { text-align: left; }
 .ex-block-grid td.ex-auto { background: var(--danger-soft); }

@@ -171,6 +171,14 @@ class GorevKuraliTests(TestCase):
         self.assertEqual(sorted(self._gorevler(r, 1)), [(1, "A"), (2, "G"), (3, "G"), (4, "G"), (9, "T")])
         self.assertEqual(r.status, "ok")
 
+    def test_ogrenci_sayisi_yoksa_uyarir(self):
+        roles = {t: "AGT" for t in range(1, 8)}
+        p = self._p([exams_solver.PExam(1, "S", classes=(1,), students=0)], roles, rooms=(50,), duty_roles=True,
+                    roles=roles)
+        r = exams_solver.solve(p)
+        self.assertEqual([rol for _t, rol in self._gorevler(r, 1)], ["G"])
+        self.assertIn("kontenjanı", r.warnings[0])
+
     def test_mumkunse_verilmesin(self):
         p = self._p([exams_solver.PExam(1, "S", classes=(1,), students=10)], [1, 2], soft={1: {0}})
         r = exams_solver.solve(p)

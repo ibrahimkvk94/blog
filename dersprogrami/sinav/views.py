@@ -553,7 +553,8 @@ def proctors(request, pk, period_id):
     pool = len(teachers) - len(exempt)
     return render(request, "sinav/proctors.html", _nav(
         school, period=period, rows=rows, selected=selected, grid=grid, sessions=period.session_times, pool=pool,
-        total=sum(loads.values()), role_names=[(r, ROLE_NAMES[r]) for r in ROLE_ORDER]))
+        total=sum(loads.values()), role_names=[(r, ROLE_NAMES[r]) for r in ROLE_ORDER],
+        departments=sorted({t.department for t in teachers if t.department})))
 
 
 # --- çıktılar -----------------------------------------------------------------------------------

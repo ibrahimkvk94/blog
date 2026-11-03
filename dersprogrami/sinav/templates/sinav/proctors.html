@@ -11,20 +11,22 @@
   <form method="post" class="panel">{% csrf_token %}<input type="hidden" name="action" value="exempt">
     <div class="panel-head ex-toolbar"><h2>Öğretmenler</h2>
       <input type="search" class="input input-sm" placeholder="Öğretmen ara…" data-ex-filter="#ex-teachers tbody" style="max-width:220px">
+      {% if departments %}<select class="select select-sm" data-ex-group="#ex-teachers tbody" aria-label="Bölüm" style="max-width:150px"><option value="">Tüm bölümler</option>{% for d in departments %}<option value="{{ d }}">{{ d }}</option>{% endfor %}</select>{% endif %}
       {% if can.veri %}<button class="btn btn-sm btn-primary">{% if period.duty_roles %}Muafiyet ve rolleri kaydet{% else %}Muafiyetleri kaydet{% endif %}</button>{% endif %}
     </div>
     <div class="panel-body flush table-wrap" style="max-height:70vh;overflow:auto">
-      <table class="table table-compact" id="ex-teachers">
-        <thead><tr><th>Öğretmen</th><th>Muaf</th>{% if period.duty_roles %}{% for code, name in role_names %}<th title="{{ name }} olabilir">{{ code }}</th>{% endfor %}{% endif %}<th class="num" title="Kapalı oturum (müsaitlik + işaretlenen)">Kapalı</th><th class="num" title="Mümkünse görev verilmesin">?</th><th class="num">Görev</th></tr></thead>
+      <table class="table table-compact ex-sortable" id="ex-teachers">
+        <thead><tr><th data-sort>Öğretmen</th>{% if departments %}<th data-sort>Bölüm</th>{% endif %}<th data-sort>Muaf</th>{% if period.duty_roles %}{% for code, name in role_names %}<th data-sort title="{{ name }} olabilir">{{ code }}</th>{% endfor %}{% endif %}<th class="num" data-sort title="Kapalı oturum (müsaitlik + işaretlenen)">Kapalı</th><th class="num" data-sort title="Mümkünse görev verilmesin">?</th><th class="num" data-sort>Görev</th></tr></thead>
         <tbody>
           {% for r in rows %}
-            <tr data-search="{{ r.teacher.full_name|fold }}"{% if selected and selected.pk == r.teacher.pk %} class="ex-selected"{% endif %}>
-              <td><a href="?ogretmen={{ r.teacher.pk }}">{{ r.teacher.full_name }}</a></td>
-              <td><input type="checkbox" name="exempt" value="{{ r.teacher.pk }}"{% if r.exempt %} checked{% endif %} aria-label="Gözetmenlikten muaf"{% if not can.veri %} disabled{% endif %}></td>
-              {% if period.duty_roles %}{% for code, name in role_names %}<td><input type="checkbox" name="role-{{ r.teacher.pk }}-{{ code }}" value="1"{% if code in r.roles %} checked{% endif %} aria-label="{{ name }}"{% if not can.veri %} disabled{% endif %}></td>{% endfor %}{% endif %}
-              <td class="num">{% if r.blocked %}{{ r.blocked }}{% else %}<span class="subtle">–</span>{% endif %}</td>
-              <td class="num">{% if r.soft %}{{ r.soft }}{% else %}<span class="subtle">–</span>{% endif %}</td>
-              <td class="num">{% if r.load %}<b>{{ r.load }}</b>{% else %}<span class="subtle">–</span>{% endif %}</td>
+            <tr data-search="{{ r.teacher.full_name|fold }} {{ r.teacher.department|fold }}" data-group="{{ r.teacher.department }}"{% if selected and selected.pk == r.teacher.pk %} class="ex-selected"{% endif %}>
+              <td data-value="{{ r.teacher.last_name }} {{ r.teacher.first_name }}"><a href="?ogretmen={{ r.teacher.pk }}">{{ r.teacher.full_name }}</a></td>
+              {% if departments %}<td>{{ r.teacher.department }}</td>{% endif %}
+              <td data-value="{{ r.exempt|yesno:'1,0' }}"><input type="checkbox" name="exempt" value="{{ r.teacher.pk }}" data-ex-row-exempt{% if r.exempt %} checked{% endif %} aria-label="Gözetmenlikten muaf"{% if not can.veri %} disabled{% endif %}></td>
+              {% if period.duty_roles %}{% for code, name in role_names %}<td data-value="{% if code in r.roles %}1{% else %}0{% endif %}"><input type="checkbox" name="role-{{ r.teacher.pk }}-{{ code }}" value="1" data-ex-role="{{ code }}"{% if code in r.roles %} checked{% endif %} aria-label="{{ name }}"{% if not can.veri %} disabled{% endif %}></td>{% endfor %}{% endif %}
+              <td class="num" data-value="{{ r.blocked }}">{% if r.blocked %}{{ r.blocked }}{% else %}<span class="subtle">–</span>{% endif %}</td>
+              <td class="num" data-value="{{ r.soft }}">{% if r.soft %}{{ r.soft }}{% else %}<span class="subtle">–</span>{% endif %}</td>
+              <td class="num" data-value="{{ r.load }}">{% if r.load %}<b>{{ r.load }}</b>{% else %}<span class="subtle">–</span>{% endif %}</td>
             </tr>
           {% endfor %}
         </tbody>
