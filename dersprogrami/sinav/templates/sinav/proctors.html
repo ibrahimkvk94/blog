@@ -8,11 +8,11 @@
 <p class="page-lead" style="margin-top:14px">Gözetmenlik {{ pool }} öğretmene dağıtılır (muaflar hariç). {% if period.use_availability %}Öğretmenin ders programındaki <b>yasak</b> saatleri, sınav gününün hafta gününde oturumla çakışan ders saatlerine eşlenerek kapalı sayılır.{% else %}Ders programı müsaitliği kullanılmıyor (dönem ayarı).{% endif %} Ayrıca sınav dönemine özel gelemeyeceği gün ve oturumlar aşağıdan işaretlenir.</p>
 
 <div class="grid-2">
-  <form method="post" class="panel">{% csrf_token %}<input type="hidden" name="action" value="exempt">
+  <form method="post" class="panel"{% if can.veri %} data-ex-autosave{% endif %}>{% csrf_token %}<input type="hidden" name="action" value="exempt">
     <div class="panel-head ex-toolbar"><h2>Öğretmenler</h2>
       <input type="search" class="input input-sm" placeholder="Öğretmen ara…" data-ex-filter="#ex-teachers tbody" style="max-width:220px">
       {% if departments %}<select class="select select-sm" data-ex-group="#ex-teachers tbody" aria-label="Bölüm" style="max-width:150px"><option value="">Tüm bölümler</option>{% for d in departments %}<option value="{{ d }}">{{ d }}</option>{% endfor %}</select>{% endif %}
-      {% if can.veri %}<button class="btn btn-sm btn-primary">{% if period.duty_roles %}Muafiyet ve rolleri kaydet{% else %}Muafiyetleri kaydet{% endif %}</button>{% endif %}
+      {% if can.veri %}<span class="subtle small" data-ex-autosave-status>Değişiklikler anında kaydedilir</span>{% endif %}
     </div>
     <div class="panel-body flush table-wrap" style="max-height:70vh;overflow:auto">
       <table class="table table-compact ex-sortable" id="ex-teachers">
@@ -22,7 +22,7 @@
             <tr data-search="{{ r.teacher.full_name|fold }} {{ r.teacher.department|fold }}" data-group="{{ r.teacher.department }}"{% if selected and selected.pk == r.teacher.pk %} class="ex-selected"{% endif %}>
               <td data-value="{{ r.teacher.last_name }} {{ r.teacher.first_name }}"><a href="?ogretmen={{ r.teacher.pk }}">{{ r.teacher.full_name }}</a></td>
               {% if departments %}<td>{{ r.teacher.department }}</td>{% endif %}
-              <td data-value="{{ r.exempt|yesno:'1,0' }}"><input type="checkbox" name="exempt" value="{{ r.teacher.pk }}" data-ex-row-exempt{% if r.exempt %} checked{% endif %} aria-label="Gözetmenlikten muaf"{% if not can.veri %} disabled{% endif %}></td>
+              <td data-value="{{ r.exempt|yesno:'1,0' }}" data-teacher="{{ r.teacher.pk }}"><input type="checkbox" name="exempt" value="{{ r.teacher.pk }}" data-ex-row-exempt{% if r.exempt %} checked{% endif %} aria-label="Gözetmenlikten muaf"{% if not can.veri %} disabled{% endif %}></td>
               {% if period.duty_roles %}{% for code, name in role_names %}<td data-value="{% if code in r.roles %}1{% else %}0{% endif %}"><input type="checkbox" name="role-{{ r.teacher.pk }}-{{ code }}" value="1" data-ex-role="{{ code }}"{% if code in r.roles %} checked{% endif %} aria-label="{{ name }}"{% if not can.veri %} disabled{% endif %}></td>{% endfor %}{% endif %}
               <td class="num" data-value="{{ r.blocked }}">{% if r.blocked %}{{ r.blocked }}{% else %}<span class="subtle">–</span>{% endif %}</td>
               <td class="num" data-value="{{ r.soft }}">{% if r.soft %}{{ r.soft }}{% else %}<span class="subtle">–</span>{% endif %}</td>

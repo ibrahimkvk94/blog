@@ -283,6 +283,8 @@ class SchoolClass(models.Model):
     name = models.CharField("ad", max_length=50)
     short = models.CharField("kısa ad", max_length=30, blank=True, help_text="Ana görünüm ve çıktılarda kullanılır (ör. 1SVN).")
     grade = models.PositiveSmallIntegerField("sınıf seviyesi", null=True, blank=True)
+    # KAMYOSİS: kısmın programı (ör. "1SVN" → SVN); kontenjan program × sınıf düzeyine girilir (sinav/ders_bilgileri.py)
+    program = models.CharField("program", max_length=30, blank=True)
     home_classroom = models.ForeignKey(
         Classroom, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="sınıf dersliği"
     )

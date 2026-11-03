@@ -83,6 +83,36 @@
     roles.forEach((r) => r.addEventListener("change", () => { if (r.checked) box.checked = false; }));
   });
 
+  // ---- KAMYOSİS: Gözetmenler: muaf / rol kutusu değişince o öğretmen anında kaydedilir (form[data-ex-autosave]) ----
+  $$("form[data-ex-autosave]").forEach((form) => {
+    const status = form.querySelector("[data-ex-autosave-status]");
+    const token = form.querySelector("[name=csrfmiddlewaretoken]");
+    const show = (text, bad) => { if (status) { status.textContent = text; status.style.color = bad ? "var(--danger, #c0392b)" : ""; } };
+    form.addEventListener("submit", (e) => e.preventDefault());  // kayıt düğmesi yok; Enter formu göndermesin
+    form.addEventListener("change", (e) => {
+      const box = e.target;
+      if (!box.matches("[data-ex-row-exempt], [data-ex-role]")) return;
+      const row = box.closest("tr");
+      const exempt = row.querySelector("[data-ex-row-exempt]");
+      const body = new FormData();
+      body.append("csrfmiddlewaretoken", token ? token.value : "");
+      body.append("action", "duty");
+      body.append("teacher", exempt.closest("td").dataset.teacher);
+      body.append("exempt", exempt.checked ? "1" : "0");
+      body.append("roles", $$("[data-ex-role]", row).filter((r) => r.checked).map((r) => r.dataset.exRole).join(""));
+      show("Kaydediliyor…");
+      fetch(location.pathname, { method: "POST", body, headers: { "X-Requested-With": "fetch" }, credentials: "same-origin" })
+        .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+        .then(() => {
+          exempt.closest("td").dataset.value = exempt.checked ? "1" : "0";
+          $$("[data-ex-role]", row).forEach((r) => { r.closest("td").dataset.value = r.checked ? "1" : "0"; });
+          const name = row.querySelector("td a");
+          show("Kaydedildi: " + (name ? name.textContent : ""));
+        })
+        .catch(() => show("Kaydedilemedi — sayfayı yenileyip tekrar deneyin.", true));
+    });
+  });
+
   // ---- açılır menü (details.dropdown): dışarı tıklanınca kapanır --------------------------------
   document.addEventListener("click", (e) => {
     $$("details.dropdown[open]").forEach((d) => { if (!d.contains(e.target)) d.open = false; });

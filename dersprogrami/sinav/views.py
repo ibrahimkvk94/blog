@@ -488,6 +488,24 @@ def proctors(request, pk, period_id):
     if request.method == "POST":
         action = request.POST.get("action")
         back = reverse("sinav:proctors", args=[school.pk, period.pk])
+        if action == "duty":  # KAMYOSİS: tek öğretmenin muaflığı ve rolleri, kutuya tıklanınca anında kaydedilir
+            teacher = exams.teacher_of(period, _int(request.POST.get("teacher")))
+            if teacher is None:
+                raise Http404
+            if request.POST.get("exempt") == "1":
+                period.proctor_exempt.add(teacher)
+            else:
+                period.proctor_exempt.remove(teacher)
+            if period.duty_roles:
+                roles = dict(period.proctor_roles or {})
+                chosen = "".join(r for r in ROLE_ORDER if r in request.POST.get("roles", ""))
+                if chosen == DEFAULT_ROLES:
+                    roles.pop(str(teacher.pk), None)
+                else:
+                    roles[str(teacher.pk)] = chosen
+                period.proctor_roles = roles
+                period.save(update_fields=["proctor_roles"])
+            return JsonResponse({"ok": True, "exempt": request.POST.get("exempt") == "1", "roles": period.roles_of(teacher.pk)})
         if action == "exempt":
             ids = {_int(x) for x in request.POST.getlist("exempt")}
             period.proctor_exempt.set([t for t in teachers if t.pk in ids])

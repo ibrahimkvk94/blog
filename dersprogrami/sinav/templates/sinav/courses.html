@@ -52,7 +52,7 @@
 {% if can.veri %}
 <form method="post" enctype="multipart/form-data" class="panel" style="margin-bottom:18px">{% csrf_token %}
   <input type="hidden" name="action" value="import_courses">
-  <div class="panel-head"><h2>{% include "timetable/icon.html" with name="upload" %} Sınav türlerini Excel'den aktar</h2></div>
+  <div class="panel-head"><h2>Sınav türlerini Excel'den aktar</h2></div>
   <div class="panel-body">
     <p class="small" style="margin-top:0">Başlık satırında <b>Ders kodu</b> ve <b>Sınav türü</b> sütunları olmalı; <b>Zorluk</b> sütunu isteğe bağlı. En kolayı “Excel'e aktar” ile mevcut listeyi indirip doldurmak.</p>
     <input type="file" name="dosya" accept=".xlsx" required> <button class="btn btn-sm btn-primary">Aktar</button>
@@ -62,22 +62,36 @@
 
 <form method="post" class="panel" style="margin-bottom:18px" id="kontenjan">{% csrf_token %}
   <div class="panel-head ex-toolbar">
-    <h2>Kısım kontenjanları</h2>
-    <span class="subtle small">Sınavın öğrenci sayısı ve salon dağıtımı bu sayılarla hesaplanır</span>
+    <h2>Program kontenjanları</h2>
+    <span class="subtle small">Program × sınıf toplamı girilir, programın kısımlarına eşit bölünür; sınavların öğrenci sayısı ve salon dağıtımı bundan hesaplanır</span>
     <div class="ex-tools">
       {% if can.veri %}<button class="btn btn-sm btn-primary" name="action" value="save_quotas">{% include "timetable/icon.html" with name="check" %} Kaydet</button>{% endif %}
       <a class="btn btn-sm" href="?indir=kontenjan">{% include "timetable/icon.html" with name="upload" %} Excel'e aktar</a>
     </div>
   </div>
+  {% if atanabilir and can.veri %}
+  <div class="panel-body" style="border-bottom:1px solid var(--border)">
+    <p class="small" style="margin:0 0 8px">{{ atanabilir }} kısmın programı atanmamış. Kısa adındaki sayıdan sonrası program olur (<b>10MKT</b> → MKT), sayı 1–36 ise 1. sınıf, 50–86 ise 2. sınıf.</p>
+    <button class="btn btn-sm" name="action" value="assign_programs">Kısımlara program ve sınıf ata</button>
+  </div>
+  {% endif %}
   <div class="panel-body flush table-wrap">
     <table class="table table-compact">
-      <thead><tr><th>Kısım</th><th>Ad</th><th class="num">Kontenjan</th></tr></thead>
+      <thead><tr><th>Program</th><th>Sınıf</th><th>Kısımlar</th><th class="num">Kontenjan</th></tr></thead>
       <tbody>
-        {% for c in classes %}
+        {% for g in gruplar %}
           <tr>
-            <td class="nowrap"><b>{{ c.short|default:c.name }}</b></td>
-            <td>{{ c.name }}</td>
-            <td class="num"><input class="input input-sm ex-num" type="number" min="0" name="kontenjan-{{ c.pk }}" value="{{ c.student_count|default:0 }}"{% if not can.veri %} disabled{% endif %}></td>
+            <td class="nowrap"><b>{{ g.program }}</b></td>
+            <td class="nowrap">{% if g.sinif %}{{ g.sinif }}. sınıf{% else %}<span class="subtle">–</span>{% endif %}</td>
+            <td class="small">{% for c in g.kisimlar %}{{ c.short|default:c.name }}{% if c.student_count %} <span class="subtle">({{ c.student_count }})</span>{% endif %}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
+            <td class="num"><input class="input input-sm ex-num" type="number" min="0" name="kontenjan-{{ g.anahtar }}" value="{{ g.toplam }}" aria-label="{{ g.program }} {{ g.sinif }}. sınıf kontenjanı"{% if not can.veri %} disabled{% endif %}></td>
+          </tr>
+        {% endfor %}
+        {% for c in programsiz %}
+          <tr>
+            <td class="nowrap subtle">programsız</td><td></td>
+            <td class="small"><b>{{ c.short|default:c.name }}</b> {% if c.short %}<span class="subtle">{{ c.name }}</span>{% endif %}</td>
+            <td class="num"><input class="input input-sm ex-num" type="number" min="0" name="kontenjan-{{ c.pk }}" value="{{ c.student_count|default:0 }}" aria-label="{{ c.name }} kontenjanı"{% if not can.veri %} disabled{% endif %}></td>
           </tr>
         {% endfor %}
       </tbody>
@@ -88,9 +102,9 @@
 {% if can.veri %}
 <form method="post" enctype="multipart/form-data" class="panel">{% csrf_token %}
   <input type="hidden" name="action" value="import_quotas">
-  <div class="panel-head"><h2>{% include "timetable/icon.html" with name="upload" %} Kontenjanları Excel'den aktar</h2></div>
+  <div class="panel-head"><h2>Kontenjanları Excel'den aktar</h2></div>
   <div class="panel-body">
-    <p class="small" style="margin-top:0">Başlık satırında kısım (ör. <b>Kısım</b>) ve <b>Kontenjan</b> sütunları olmalı. Kısım, kısa adıyla (1SVN) ya da adıyla eşleşir.</p>
+    <p class="small" style="margin-top:0">Başlık satırında <b>Program</b> (ör. SVN), <b>Sınıf</b> (1 ya da 2) ve <b>Kontenjan</b> sütunları olmalı; toplam programın kısımlarına eşit bölünür. Programı olmayan kısım için Program boş bırakılıp <b>Kısım</b> sütununa kısa adı yazılır. “Excel'e aktar” bu biçimde dosya verir.</p>
     <input type="file" name="dosya" accept=".xlsx" required> <button class="btn btn-sm btn-primary">Aktar</button>
   </div>
 </form>

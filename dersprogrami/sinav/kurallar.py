@@ -83,6 +83,35 @@ def sinif_yili(kod):
     return int(m.group(1)) if m else None
 
 
+_KISIM = re.compile(r"^\s*(\d+)\s*([^\d\s].*?)\s*$")
+# Kısım numarası → sınıf düzeyi (KAMYOSİS kısım numaralandırması)
+KISIM_ARALIKLARI = ((1, 36, 1), (50, 86, 2))
+
+
+def kisim_bilgisi(kisa_ad):
+    """Kısım kısa adından (program, sınıf düzeyi): "10MKT" → ("MKT", 1), "56SVN" → ("SVN", 2).
+    Program sayıdan sonraki kısımdır; sınıf düzeyi numaradan (1–36 → 1, 50–86 → 2; aralık dışı None).
+    Biçime uymayan ad ("Hazırlık 1") → ("", None)."""
+    m = _KISIM.match(kisa_ad or "")
+    if not m:
+        return "", None
+    no = int(m.group(1))
+    return buyuk(m.group(2)), next((s for bas, son, s in KISIM_ARALIKLARI if bas <= no <= son), None)
+
+
+def buyuk(metin):
+    """Türkçe büyük harf: "inş" → "İNŞ"."""
+    return (metin or "").replace("i", "İ").replace("ı", "I").upper()
+
+
+def kontenjan_dagit(toplam, siniflar):
+    """Programın kontenjanını kısımlara eşit böler (artan ilk kısımlara): {sınıf kimliği: öğrenci}."""
+    if not siniflar:
+        return {}
+    pay, artan = divmod(max(0, toplam), len(siniflar))
+    return {c.pk: pay + (1 if i < artan else 0) for i, c in enumerate(siniflar)}
+
+
 def bilgiler(institution_id):
     """{ders kodu: ExamCourse} — kurumun ders sınav bilgileri."""
     from .models import ExamCourse

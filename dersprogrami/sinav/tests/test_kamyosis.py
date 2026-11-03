@@ -45,6 +45,19 @@ class KuralTests(TestCase):
         self.assertEqual((kurallar.zorluk(None), kurallar.zorluk("5"), kurallar.zorluk(9)), (3, 5, 3))
 
 
+class KisimProgramiTests(TestCase):
+    def test_kisim_bilgisi(self):
+        self.assertEqual(kurallar.kisim_bilgisi("10MKT"), ("MKT", 1))
+        self.assertEqual(kurallar.kisim_bilgisi("56SVN"), ("SVN", 2))
+        self.assertEqual(kurallar.kisim_bilgisi("13İNŞ"), ("İNŞ", 1))
+        self.assertEqual(kurallar.kisim_bilgisi("40ELN"), ("ELN", None))  # aralık dışı
+        self.assertEqual(kurallar.kisim_bilgisi("Hazırlık 1"), ("", None))
+
+    def test_dagitim(self):
+        siniflar = [SchoolClass(pk=i) for i in (1, 2, 3)]
+        self.assertEqual(kurallar.kontenjan_dagit(100, siniflar), {1: 34, 2: 33, 3: 33})
+
+
 class UretimTests(TestCase):
     def setUp(self):
         inst = Institution.objects.create(name="Kurum")
@@ -95,6 +108,38 @@ class UretimTests(TestCase):
         self.assertEqual((self.c1.student_count, self.c2.student_count), (45, 25))
         r = self.client.get(url, {"indir": "dersler"})
         self.assertEqual(r["Content-Type"].split(";")[0], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    def test_gozetmen_aninda_kayit(self):
+        t = Teacher.objects.create(school=self.school, first_name="Ali", last_name="Kaya")
+        self.period.duty_roles = True
+        self.period.save()
+        self.client.force_login(User.objects.create_superuser("yon", password="x"))
+        url = reverse("sinav:proctors", args=[self.school.pk, self.period.pk])
+        r = self.client.post(url, {"action": "duty", "teacher": t.pk, "exempt": "0", "roles": "AG"})
+        self.assertEqual(r.json(), {"ok": True, "exempt": False, "roles": "AG"})
+        r = self.client.post(url, {"action": "duty", "teacher": t.pk, "exempt": "1", "roles": ""})
+        self.period.refresh_from_db()
+        self.assertEqual((self.period.roles_of(t.pk), list(self.period.proctor_exempt.all())), ("", [t]))
+
+    def test_program_kontenjani(self):
+        exams.generate_from_lessons(self.period)
+        u = User.objects.create_superuser("yon", password="x")
+        self.client.force_login(u)
+        url = reverse("sinav:courses", args=[self.school.pk])
+        self.assertContains(self.client.get(url), "Kısımlara program ve sınıf ata")
+        self.client.post(url, {"action": "assign_programs"})
+        self.c1.refresh_from_db()
+        self.assertEqual((self.c1.program, self.c1.grade), ("SVN", 1))
+        self.client.post(url, {"action": "save_quotas", "kontenjan-SVN|1": "81"})
+        self.c1.refresh_from_db()
+        self.c2.refresh_from_db()
+        self.assertEqual((self.c1.student_count, self.c2.student_count), (41, 40))
+        self.assertEqual(Exam.objects.get(period=self.period).student_count, 81)  # sınav sayısı yenilendi
+        dosya = _xlsx([["Program", "Sınıf", "Kontenjan"], ["svn", "1. sınıf", 60], ["MKT", 2, 10]])
+        r = self.client.post(url, {"action": "import_quotas", "dosya": dosya}, follow=True)
+        self.assertContains(r, "MKT 2. sınıf")
+        self.c1.refresh_from_db()
+        self.assertEqual(self.c1.student_count, 30)
 
 
 def _problem(exams_, days=3, sessions=1, rooms=(200,)):
