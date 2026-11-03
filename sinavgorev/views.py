@@ -83,6 +83,7 @@ def puantaj(request):
         okullar=okullar, okul=okul, satirlar=satirlar, ist=istatistik, donemler=donemler, elle=list(elle),
         bolumler=Bolum.objects.filter(aktif=True) if y.kapsam_bolum is None else [], secili_bolum=bolum,
         roller=ROLLER, personeller=Personel.objects.filter(aktif=True).order_by("ad_soyad") if y.yonetim else [],
+        amir_adayi=len(servis.amir_adaylari()) if y.yonetim else 0,
         bugun=timezone.localdate(),
     ))
 
@@ -151,6 +152,17 @@ def elle_sil(request, pk):
     g.delete()
     messages.success(request, "Elle eklenen görev silindi.")
     return redirect(f"{reverse('sinavgorev:puantaj')}?yil={servis.yil_baslangici(g.tarih).year}")
+
+
+@require_POST
+@login_required
+def amir_ata(request):
+    _yonetim(request)
+    n = servis.kurala_gore_amir_ata()
+    messages.success(request, f"{n} personele salon amiri rolü eklendi (Dr.Öğt.Üyesi ve üstü unvan, Yzb. üstü rütbe)."
+                     if n else "Kurala uyup salon amiri olmayan personel yok.")
+    return redirect(request.POST.get("geri") if url_has_allowed_host_and_scheme(
+        request.POST.get("geri", ""), allowed_hosts={request.get_host()}) else "sinavgorev:puantaj")
 
 
 @require_POST

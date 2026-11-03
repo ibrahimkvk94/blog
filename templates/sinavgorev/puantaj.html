@@ -32,6 +32,7 @@
   </div>
 </form>
 
+{% if amir_adayi %}<form method="post" action="{% url 'sinavgorev:amir_ata' %}" id="amirFormu" onsubmit="return confirm('{{ amir_adayi }} personele salon amiri (A) rolü eklenecek. Devam edilsin mi?')">{% csrf_token %}<input type="hidden" name="geri" value="{{ request.get_full_path }}"></form>{% endif %}
 <form method="post" action="{% url 'sinavgorev:roller' %}" id="rolFormu">
   {% csrf_token %}
   <input type="hidden" name="geri" value="{{ request.get_full_path }}">
@@ -44,6 +45,7 @@
     {% if y.yonetim %}
     <div class="islem-cubugu d-flex flex-wrap align-items-center gap-2 p-2 border-bottom d-print-none">
       <span class="small text-secondary ms-2 me-auto" id="rolDurumu">Rol kutuları tıklanınca kaydedilir ve sınav dönemlerine hemen işlenir.</span>
+      {% if amir_adayi %}<button class="btn btn-sm btn-outline-primary" form="amirFormu" title="Dr.Öğt.Üyesi, Doç.Dr., Prof.Dr. unvanlı ya da Yzb. üstü rütbeli personele A rolü eklenir"><i class="bi bi-person-badge me-1"></i>Kurala göre salon amiri ata ({{ amir_adayi }} kişi)</button>{% endif %}
     </div>
     {% endif %}
     <div class="table-responsive">

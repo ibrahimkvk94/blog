@@ -11,4 +11,5 @@ urlpatterns = [
     path("elle/", views.elle_ekle, name="elle_ekle"),
     path("elle/<int:pk>/sil/", views.elle_sil, name="elle_sil"),
     path("roller/", views.roller, name="roller"),
+    path("amir-ata/", views.amir_ata, name="amir_ata"),
 ]

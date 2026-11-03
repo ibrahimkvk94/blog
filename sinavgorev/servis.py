@@ -8,6 +8,8 @@
 - Gözetmen dağıtımı (Sınav Planlama) onceki_puanlar() ile her öğretmenin yıl içindeki skorunu (dağıtılan dönem
   hariç) alır ve yeni görevleri skoru düşükten başlayarak dengeler.
 - Bölüm kapsamlı kullanıcı yalnızca kendi bölümünü görür; işleme, elle görev ve rol değişikliği yönetim yetkisidir.
+- Salon amiri kuralı (Mehmet, 03.11.2026): unvanı Dr.Öğt.Üyesi (ve Doç.Dr., Prof.Dr.) ya da rütbesi Yzb. üstü (Bnb. ve
+  yukarısı) olan personele "Kurala göre salon amiri ata" ile A rolü eklenir; kalan düzenleme elle yapılır.
 """
 
 import datetime
@@ -52,6 +54,38 @@ def yetki(request):
             y.goruntule = False
     request._puantaj_yetkisi = y
     return y
+
+
+# ---------------------------------------------------------------- salon amiri kuralı
+
+AMIR_UNVANLARI = {"dröğtüyesi", "doçdr", "profdr"}
+AMIR_RUTBELERI = {"bnb", "yb", "alb", "tuğg", "tümg", "korg", "org"}
+
+
+def _sade(metin):
+    return "".join((metin or "").replace(".", " ").split()).replace("İ", "i").casefold()
+
+
+def amir_olmali(p):
+    return (_sade(getattr(p.unvan, "metin", "")) in AMIR_UNVANLARI
+            or _sade(getattr(p.rutbe, "metin", "")) in AMIR_RUTBELERI)
+
+
+def amir_adaylari():
+    """Kurala uyan, sınav görevi alan (rolü boş olmayan) ve henüz salon amiri olmayan aktif personel."""
+    qs = Personel.objects.filter(aktif=True).exclude(sinav_rolleri="").select_related("unvan", "rutbe")
+    return [p for p in qs if "A" not in p.sinav_rolleri and amir_olmali(p)]
+
+
+def kurala_gore_amir_ata():
+    """Adaylara A rolünü ekler (diğer rolleri değişmez). Dönüş: güncellenen personel sayısı."""
+    adaylar = amir_adaylari()
+    for p in adaylar:
+        p.sinav_rolleri = "".join(r for r in "AGT" if r in p.sinav_rolleri + "A")
+        p.save(update_fields=["sinav_rolleri"])
+    if adaylar:
+        rolleri_esitle()
+    return len(adaylar)
 
 
 # ---------------------------------------------------------------- yıl

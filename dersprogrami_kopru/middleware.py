@@ -83,6 +83,16 @@ class KopruMiddleware:
             if period is not None:
                 tek = request.POST.get("teacher") if request.POST.get("action") == "duty" else None
                 rolleri_donemden_al(period, ogretmenler={int(tek)} if tek and tek.isdigit() else None)
+        if (request.method == "POST" and response.status_code < 400 and eslesme is not None
+                and eslesme.namespace == SINAV_AD_ALANI and eslesme.url_name == "duties"):
+            # görev değişikliği: dönem puantaja işlenmişse puantaj güncel görevlerle yenilenir
+            from sinav.models import ExamPeriod
+            from sinavgorev.models import IslenenDonem
+            from sinavgorev.servis import isle
+
+            period = ExamPeriod.objects.select_related("school").filter(pk=eslesme.kwargs.get("period_id")).first()
+            if period is not None and IslenenDonem.objects.filter(sinav_donemi=period).exists():
+                isle(period, request.user)
         return response
 
     def process_view(self, request, view_func, view_args, view_kwargs):
