@@ -15,6 +15,9 @@ Zaman dilimi (slot) = gün sırası × oturum sayısı + oturum. Çözüm üç a
    (en yüksek yük ve ortalamanın üstü cezalı, günde ikiden fazla görev cezalı).
 
 Her aşamada açgözlü bir başlangıç çözümü ipucu olarak verilir; CP-SAT süre içinde çözüm bulamazsa o kullanılır.
+
+KAMYOSİS tercihleri (zamanlama aşaması, bkz. kurallar.py): zorluğu yüksek sınav erken güne (eşit zorlukta MT önce,
+ÇS sonra), adı aynı (parantez hariç) sınavlar aynı güne, bir oturuma tek sınıf düzeyi (1. / 2. sınıf).
 """
 
 import math
@@ -36,6 +39,11 @@ W_MAX_LOAD = 30
 W_OVER = 12
 W_DAY_OVER = 8
 DAY_LOAD_FREE = 2
+# KAMYOSİS tercihleri
+W_ORDER = 1            # (3 × zorluk + tür sırası) × gün sırası
+W_SAME_NAME_DAY = 300  # adı aynı sınavların kullandığı her fazladan gün
+W_MIXED_YEAR = 60      # bir oturumda birden çok sınıf düzeyi
+TYPE_RANK = {"MT": 2, "": 1, "ÇS": 0}
 
 
 @dataclass
@@ -52,6 +60,17 @@ class PExam:
     locked_rooms: tuple = ()          # kilitli yerleşimin salonları (değişmez)
     locked_proctors: dict = field(default_factory=dict)  # {salon: (öğretmen, ...)}
     student_ids: frozenset = frozenset()
+    # KAMYOSİS: zorluk (1–5), tür ailesi ("MT", "ÇS", ""), sınıf düzeyi (1, 2 …; None = bilinmiyor),
+    # parantez içi hariç ad (aynı ad aynı güne)
+    difficulty: int = 3
+    family: str = ""
+    year: int | None = None
+    base_name: str = ""
+
+    @property
+    def priority(self):
+        """Erken yerleşme önceliği: zorluk, eşitse tür (MT > diğer > ÇS)."""
+        return 3 * self.difficulty + TYPE_RANK.get(self.family, 1)
 
 
 @dataclass
@@ -202,7 +221,7 @@ def _greedy_timing(p, need):
     seats, rooms, proctors = [0] * T, [0] * T, [0] * T
     class_busy, class_day = set(), {}
     out = {}
-    order = sorted(range(len(p.exams)), key=lambda i: (p.exams[i].fixed is None, -need[p.exams[i].id],
+    order = sorted(range(len(p.exams)), key=lambda i: (p.exams[i].fixed is None, -p.exams[i].priority, -need[p.exams[i].id],
                                                        -len(p.exams[i].classes), -p.exams[i].students))
     for i in order:
         e = p.exams[i]
@@ -219,6 +238,7 @@ def _greedy_timing(p, need):
             if p.proctors_per_room and any(proctors[s] + k * p.proctors_per_room > free[s] for s in span):
                 continue
             load = max(rooms[s] for s in span) + sum(class_day.get((c, t // S), 0) for c in e.classes) * 2
+            load += (t // S) * e.priority / 3  # KAMYOSİS: zor sınav erken güne
             if best is None or load < best[0]:
                 best = (load, t)
         if best is None:
@@ -340,6 +360,8 @@ def _solve_timing(p, limit):
                 m.Add(clash >= sum(terms) - 1)
                 obj.append(W_TEACHER_CLASH * clash)
 
+    obj += _kamyosis_terms(m, p, x, occ, day_start)
+
     m.Minimize(sum(obj))
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = max(1.0, limit)
@@ -352,6 +374,53 @@ def _solve_timing(p, limit):
         if solver.Value(v):
             timing[p.exams[i].id] = t
     return timing, status
+
+
+def _kamyosis_terms(m, p, x, occ, day_start):
+    """KAMYOSİS tercihleri: zorluk/tür sırası, aynı ad aynı gün, oturumda tek sınıf düzeyi. Amaç terimleri döner."""
+    S, T = p.n_sessions, p.n_slots
+    obj = []
+    # zor sınav (eşitse MT) erken güne: başlangıç gününün sırası × öncelik
+    for (i, t), v in x.items():
+        if t // S:
+            obj.append(W_ORDER * p.exams[i].priority * (t // S) * v)
+    # adı aynı sınavlar aynı güne: grubun kullandığı gün sayısı − 1
+    by_name = {}
+    for i, e in enumerate(p.exams):
+        if e.base_name:
+            by_name.setdefault(e.base_name, []).append(i)
+    for n, ids in enumerate(by_name.values()):
+        if len(ids) < 2:
+            continue
+        used = []
+        for d in range(p.n_days):
+            starts = [v for i in ids for v in day_start.get((i, d), [])]
+            if starts:
+                u = m.NewBoolVar(f"nd{n}_{d}")
+                for v in starts:
+                    m.AddImplication(v, u)
+                used.append(u)
+        if len(used) > 1:
+            extra = m.NewIntVar(0, len(used), f"ne{n}")
+            m.Add(extra >= sum(used) - 1)
+            obj.append(W_SAME_NAME_DAY * extra)
+    # oturumda tek sınıf düzeyi: oturumdaki düzey sayısı − 1
+    years = sorted({e.year for e in p.exams if e.year is not None})
+    if len(years) > 1:
+        for t in range(T):
+            present = []
+            for y in years:
+                terms = [v for i, e in enumerate(p.exams) if e.year == y for v in occ(i, t)]
+                if terms:
+                    h = m.NewBoolVar(f"yr{t}_{y}")
+                    for v in terms:
+                        m.AddImplication(v, h)
+                    present.append(h)
+            if len(present) > 1:
+                mixed = m.NewIntVar(0, len(present), f"ym{t}")
+                m.Add(mixed >= sum(present) - 1)
+                obj.append(W_MIXED_YEAR * mixed)
+    return obj
 
 
 # --- 2. salonlar --------------------------------------------------------------------------------

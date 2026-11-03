@@ -25,6 +25,7 @@ def _settings(s, tt):
 NAV_GROUPS = [
     ("sinav", "Sınav planlama", [
         ("Sınav dönemleri", "calendar", _sinav("periods"), {"sinavlar"}, None, True),
+        ("Ders sınav bilgileri", "list", _sinav("courses"), {"sinav-bilgileri"}, None, True),  # KAMYOSİS
     ]),
     # Ders Planlama ile ortak veri: sınavlar derslerden üretilir, salonlar derslik, gözetmenler öğretmendir.
     ("ortak", "Ortak veri", [
@@ -48,6 +49,7 @@ MODULE = Module(
     nav_groups=NAV_GROUPS,
     routes={
         "periods": (M.VIEW, M.DATA),
+        "courses": (M.VIEW, M.DATA),  # KAMYOSİS: ders sınav bilgileri ve kontenjanlar
         "period": (M.VIEW, M.DATA),
         "solve": (M.VIEW, M.DATA),
         "results": (M.VIEW, M.DATA),
@@ -61,6 +63,7 @@ MODULE = Module(
         "periods": "Sınav dönemi ekledi", "period": "Sınav dönemini düzenledi", "solve": "Sınav programı oluşturdu",
         "results": "Sınav programı işlemi", "edit": "Sınavı düzenledi", "proctors": "Gözetmen ayarları",
         "print": "Sınav programı yazdırdı", "excel": "Sınav programı Excel",
+        "courses": "Ders sınav bilgileri",
     },
     order=20,
 )

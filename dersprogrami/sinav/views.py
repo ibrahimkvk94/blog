@@ -14,6 +14,7 @@ from timetable.forms import ChipSelectMultiple, StyledFormMixin
 from timetable.models import DAY_NAMES, Classroom, School, SchoolClass, Subject, Teacher
 
 from . import excel as exam_excel
+from . import kurallar
 from . import services as exams
 from .models import Exam, ExamPeriod, ExamPlacement
 
@@ -215,13 +216,22 @@ def period_page(request, pk, period_id):
             _exam_list_action(request, period, action)
             return redirect(back + (f"?q={request.POST.get('q')}" if request.POST.get("q") else ""))
     rows = list(period.exams.select_related("subject", "placement").prefetch_related("classes", "teachers", "lessons"))
-    subjects = [{"subject": s, "lessons": lessons, "classes": sorted({c.short or c.name for l in lessons for c in l.classes.all()})}
-                for s, lessons in exams.subject_groups(school)] if tab == "sinavlar" else []
+    # KAMYOSİS: ders kodu grupları, kodun sınav türü ve zorluğu
+    info = kurallar.bilgiler(school.institution_id)
+    subjects = [{"code": code, "name": name, "lessons": lessons, "uyg": code in info and kurallar.plana_alinmaz(info[code].exam_type),
+                 "classes": sorted({c.short or c.name for l in lessons for c in l.classes.all()})}
+                for code, name, _s, lessons in exams.course_groups(school)] if tab == "sinavlar" else []
     for row in rows:
         row.placed = hasattr(row, "placement")
+        course = info.get(row.code or kurallar.ders_kodu(row.subject))
+        row.kod = row.code or kurallar.ders_kodu(row.subject)
+        row.tur = course.exam_type if course else ""
+        row.zorluk = course.difficulty if course else kurallar.VARSAYILAN_ZORLUK
+        row.uyg = kurallar.plana_alinmaz(row.tur)
     return render(request, "sinav/period.html", _nav(
         school, period=period, tab=tab, form=form, rows=rows, subjects=subjects,
-        multi_subjects=[s for s in subjects if len(s["lessons"]) > 1],
+        multi_subjects=[s for s in subjects if len(s["lessons"]) > 1 and not s["uyg"]],
+        uyg_count=sum(1 for s in subjects if s["uyg"]),
         total_students=sum(r.student_count for r in rows if not r.excluded),
         sessions=list(enumerate(period.session_times)), slots=len(period.slots())))
 
@@ -274,7 +284,7 @@ def _exam_list_action(request, period, action):
         if subject is None:
             messages.error(request, "Ders adı seçin.")
         else:
-            Exam.objects.create(period=period, subject=subject)
+            Exam.objects.create(period=period, subject=subject, code=kurallar.ders_kodu(subject))
             messages.success(request, f"«{subject}» sınavı eklendi; sınıflarını ve öğrenci sayısını düzenleyin.")
 
 

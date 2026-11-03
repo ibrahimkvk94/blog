@@ -18,6 +18,7 @@ from django.utils import timezone
 
 from timetable.models import DAY_NAMES, Availability, Classroom, Lesson, Teacher
 
+from . import kurallar
 from . import solver as exams_solver
 from .models import Exam, ExamPeriod, ExamPlacement, ExamRoom
 
@@ -133,31 +134,52 @@ def subject_groups(school):
     return sorted(groups.items(), key=lambda kv: kv[0].name.casefold())
 
 
+def course_groups(school):
+    """KAMYOSİS: ders kodu → kısımları (sınıfı olan dersler). [(kod, ad, ders adı, [ders, ...]), ...] koda göre sıralı.
+    Aynı kodlu farklı ders adları (ör. bölüme göre ayrı yazılmış) tek gruptur; ad en çok kullanılanıdır."""
+    groups = defaultdict(list)
+    for lesson in _lesson_qs(school):
+        if lesson.classes.all():
+            groups[kurallar.ders_kodu(lesson.subject)].append(lesson)
+    out = []
+    for code, lessons in groups.items():
+        counts = defaultdict(int)
+        for lesson in lessons:
+            counts[lesson.subject] += 1
+        subject = max(counts, key=lambda s: (counts[s], -s.pk))
+        out.append((code, subject.name, subject, lessons))
+    return sorted(out, key=lambda g: g[0].casefold())
+
+
 def generate_from_lessons(period, separate=(), replace=True):
-    """Her ders adı için bir ortak sınav (tüm kısımları) üretir; separate'teki ders adlarında her kısım (ders)
-    ayrı sınav olur. replace=False ise yalnızca henüz sınavı olmayan ders adları eklenir. Dönüş: eklenen sayı."""
+    """KAMYOSİS: her ders kodu için bir ortak sınav (tüm kısımları) üretir; separate'teki kodlarda (ya da ders adı
+    kimliklerinde) her kısım (ders) ayrı sınav olur. Sınav türü %100 UYG olan dersler atlanır. replace=False ise
+    yalnızca henüz sınavı olmayan kodlar eklenir. Dönüş: eklenen sayı."""
     school = period.school
     sizes = class_sizes(school)
-    separate = {int(s) for s in separate}
+    separate = {str(s) for s in separate}
+    info = kurallar.bilgiler(school.institution_id)
     with transaction.atomic():
         if replace:
             period.exams.all().delete()
             existing = set()
         else:
-            existing = set(period.exams.values_list("subject_id", flat=True))
+            existing = set(period.exams.values_list("code", flat=True)) | {
+                kurallar.ders_kodu(e.subject) for e in period.exams.filter(code="").select_related("subject")}
         created = 0
-        for subject, lessons in subject_groups(school):
-            if subject.pk in existing:
+        for code, _name, subject, lessons in course_groups(school):
+            if code in existing or (code in info and kurallar.plana_alinmaz(info[code].exam_type)):
                 continue
-            parts = [[lesson] for lesson in lessons] if subject.pk in separate else [lessons]
+            ayri = code in separate or any(str(lesson.subject_id) in separate for lesson in lessons)
+            parts = [[lesson] for lesson in lessons] if ayri else [lessons]
             for part in parts:
-                _create_exam(period, subject, part, sizes)
+                _create_exam(period, part[0].subject if ayri else subject, part, sizes, code=code)
                 created += 1
     return created
 
 
-def _create_exam(period, subject, lessons, sizes, name=""):
-    exam = Exam.objects.create(period=period, subject=subject, name=name,
+def _create_exam(period, subject, lessons, sizes, name="", code=""):
+    exam = Exam.objects.create(period=period, subject=subject, name=name, code=code or kurallar.ders_kodu(subject),
                                student_count=lessons_student_count(lessons, sizes))
     exam.lessons.set(lessons)
     exam.classes.set({c.pk for lesson in lessons for c in lesson.classes.all()})
@@ -203,7 +225,7 @@ def split(period, exam_id):
             # birden çok sınıflı dersin yalnızca bu sınıfın payı sayılır
             count = lessons_student_count(own, sizes, only_class=c.pk) if own else sizes.get(c.pk, 0)
             new = Exam.objects.create(period=period, subject=exam.subject, name=exam.name, duration=exam.duration,
-                                      note=exam.note, student_count=count)
+                                      note=exam.note, student_count=count, code=exam.code)
             new.classes.set([c])
             new.lessons.set(own)
             new.teachers.set({t.pk for lesson in own for t in lesson.teachers.all()} or set(exam.teachers.values_list("pk", flat=True)))
@@ -296,8 +318,14 @@ def build_problem(period, keep_locked=True):
     room_ids = {r.pk for r in rooms}
     exams = (period.exams.filter(excluded=False).select_related("subject", "placement")
              .prefetch_related("classes", "teachers", "allowed_rooms", "lessons__students", "placement__rooms__proctors"))
+    info = kurallar.bilgiler(period.school.institution_id)
     p_exams = []
     for e in exams:
+        # KAMYOSİS: türü %100 UYG olan dersin sınavı yapılmaz; zorluk, tür, sınıf düzeyi ve temel ad çözücüye geçer
+        code = e.code or kurallar.ders_kodu(e.subject)
+        course = info.get(code)
+        if course is not None and kurallar.plana_alinmaz(course.exam_type):
+            continue
         fixed = slot_of(e.fixed_date, e.fixed_session) if e.fixed_date else None
         if e.fixed_date and e.fixed_session is None:
             fixed = -1 if e.fixed_date not in index else None
@@ -316,6 +344,9 @@ def build_problem(period, keep_locked=True):
             teachers=tuple(t.pk for t in e.teachers.all()), fixed=fixed, rooms_needed=e.rooms_needed,
             allowed_rooms=tuple(r.pk for r in e.allowed_rooms.all()), locked_rooms=locked_rooms,
             locked_proctors=locked_proctors, student_ids=students,
+            difficulty=kurallar.zorluk(course.difficulty if course else None),
+            family=kurallar.tur_ailesi(course.exam_type if course else ""),
+            year=kurallar.sinif_yili(code), base_name=kurallar.temel_ad(e.title),
         ))
     pool = proctor_pool(period)
     blocks = proctor_blocks(period)

@@ -41,22 +41,23 @@
 
 {% if can.veri %}
 <details class="panel" style="margin-bottom:18px"{% if not rows %} open{% endif %}>
-  <summary class="panel-head"><h2>{% include "timetable/icon.html" with name="sparkles" %} Derslerden oluştur</h2><span class="subtle small">Her ders adı için bir sınav; aynı ders adının kısımları ortak sınavda birleşir</span></summary>
+  <summary class="panel-head"><h2>{% include "timetable/icon.html" with name="sparkles" %} Derslerden oluştur</h2><span class="subtle small">Her ders kodu için bir sınav; aynı kodlu kısımlar ortak sınavda birleşir, %100 UYG dersler atlanır</span></summary>
   <div class="panel-body">
     <form method="post" data-confirm="Sınavlar derslerden oluşturulsun mu? “Yeniden oluştur” seçiliyse mevcut sınavlar ve yerleşimleri silinir.">{% csrf_token %}
       <input type="hidden" name="action" value="from_lessons">
       <div class="seg-radio" style="margin-bottom:12px">
         <label><input type="radio" name="mode" value="replace"{% if not rows %} checked{% endif %}> Yeniden oluştur (mevcut sınavlar silinir)</label>
-        <label><input type="radio" name="mode" value="add"{% if rows %} checked{% endif %}> Yalnızca sınavı olmayan ders adlarını ekle</label>
+        <label><input type="radio" name="mode" value="add"{% if rows %} checked{% endif %}> Yalnızca sınavı olmayan ders kodlarını ekle</label>
       </div>
+      <p class="small" style="margin:0 0 10px">Sınav türü, zorluk ve kısım kontenjanları: <a href="{% url 'sinav:courses' school.pk %}">Ders sınav bilgileri</a>{% if uyg_count %} · {{ uyg_count }} ders %100 UYG olduğu için atlanacak{% endif %}.</p>
       {% if multi_subjects %}
-        <p class="small" style="margin:0 0 6px">Birden çok kısmı olan ders adları varsayılan olarak <b>ortak sınav</b> olur. Kısımları ayrı ayrı sınav yapılacak dersleri işaretleyin:</p>
-        <input type="search" class="input input-sm" placeholder="Ders adı ara…" data-ex-filter="#ex-subjects" style="max-width:280px;margin-bottom:8px">
+        <p class="small" style="margin:0 0 6px">Birden çok kısmı olan ders kodları varsayılan olarak <b>ortak sınav</b> olur. Kısımları ayrı ayrı sınav yapılacak dersleri işaretleyin:</p>
+        <input type="search" class="input input-sm" placeholder="Ders kodu ya da adı ara…" data-ex-filter="#ex-subjects" style="max-width:280px;margin-bottom:8px">
         <div class="ex-subjects" id="ex-subjects">
           {% for s in multi_subjects %}
-            <label class="ex-subject" data-search="{{ s.subject.name|fold }} {{ s.subject.short|fold }}">
-              <input type="checkbox" name="separate" value="{{ s.subject.pk }}">
-              <span><b>{{ s.subject.name }}</b> <span class="subtle small">{{ s.lessons|length }} kısım · {{ s.classes|join:", "|truncatechars:80 }}</span></span>
+            <label class="ex-subject" data-search="{{ s.name|fold }} {{ s.code|fold }}">
+              <input type="checkbox" name="separate" value="{{ s.code }}">
+              <span><b>{{ s.code }}</b> {{ s.name }} <span class="subtle small">{{ s.lessons|length }} kısım · {{ s.classes|join:", "|truncatechars:80 }}</span></span>
             </label>
           {% endfor %}
         </div>
@@ -92,14 +93,17 @@
     <table class="table table-compact" id="ex-table">
       <thead><tr>
         <th style="width:28px"><input type="checkbox" data-ex-all aria-label="Tümünü seç"></th>
-        <th>Sınav</th><th>Sınıflar</th><th>Dersin öğretmeni</th><th class="num">Öğrenci</th><th class="num">Süre</th><th>Sabit</th><th>Yapılmaz</th><th>Yerleşim</th>
+        <th>Kod</th><th>Sınav</th><th>Sınıflar</th><th>Tür</th><th class="num" title="Zorluk (1–5)">Zor.</th><th>Dersin öğretmeni</th><th class="num">Öğrenci</th><th class="num">Süre</th><th>Sabit</th><th>Yapılmaz</th><th>Yerleşim</th>
       </tr></thead>
       <tbody>
         {% for e in rows %}
-          <tr class="{% if e.excluded %}ex-off{% endif %}" data-search="{{ e.title|fold }} {% for c in e.classes.all %}{{ c.name|fold }} {{ c.short|fold }} {% endfor %}{% for t in e.teachers.all %}{{ t.full_name|fold }} {% endfor %}">
+          <tr class="{% if e.excluded %}ex-off{% endif %}" data-search="{{ e.kod|fold }} {{ e.title|fold }} {% for c in e.classes.all %}{{ c.name|fold }} {{ c.short|fold }} {% endfor %}{% for t in e.teachers.all %}{{ t.full_name|fold }} {% endfor %}">
             <td><input type="checkbox" name="sel" value="{{ e.pk }}" aria-label="Seç"><input type="hidden" name="row" value="{{ e.pk }}"></td>
-            <td><a href="{% url 'sinav:edit' school.pk period.pk e.pk %}"><b>{{ e.title }}</b></a>{% if e.note %}<div class="subtle small">{{ e.note }}</div>{% endif %}</td>
+            <td class="nowrap small">{{ e.kod }}</td>
+            <td><a href="{% url 'sinav:edit' school.pk period.pk e.pk %}"><b>{{ e.title }}</b></a>{% if e.uyg %} <span class="pill warn" title="Sınav türü %100 UYG: programa alınmaz">UYG</span>{% endif %}{% if e.note %}<div class="subtle small">{{ e.note }}</div>{% endif %}</td>
             <td class="small">{% for c in e.classes.all %}{{ c.short|default:c.name }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="subtle">—</span>{% endfor %}</td>
+            <td class="small nowrap">{{ e.tur|default:"—" }}</td>
+            <td class="num">{{ e.zorluk }}</td>
             <td class="small">{% for t in e.teachers.all %}{{ t.full_name }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="subtle">—</span>{% endfor %}</td>
             <td class="num"><input class="input input-sm ex-num" type="number" min="0" name="count-{{ e.pk }}" value="{{ e.student_count }}" title="{% if e.count_manual %}Elle girildi{% else %}Sınıflardan hesaplandı{% endif %}"{% if e.count_manual %} data-manual{% endif %}></td>
             <td class="num"><input class="input input-sm ex-num" type="number" min="1" max="{{ period.session_times|length }}" name="duration-{{ e.pk }}" value="{{ e.duration }}" title="Oturum sayısı"></td>

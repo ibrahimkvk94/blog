@@ -10,6 +10,7 @@ Ders Planlama'nın ortak verisine (program, ders adı, sınıf, ders, öğretmen
 
 import datetime
 
+from django.conf import settings
 from django.db import models
 
 DEFAULT_SESSIONS = ["09:30", "11:00", "13:30", "15:00"]
@@ -55,7 +56,7 @@ class ExamPeriod(models.Model):
     report = models.JSONField(default=dict, blank=True)
     started_at = models.DateTimeField(null=True, blank=True)
     finished_at = models.DateTimeField(null=True, blank=True)
-    requested_by = models.ForeignKey("auth.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -99,6 +100,8 @@ class ExamPeriod(models.Model):
 class Exam(models.Model):
     period = models.ForeignKey(ExamPeriod, on_delete=models.CASCADE, related_name="exams")
     subject = models.ForeignKey("timetable.Subject", on_delete=models.CASCADE, related_name="exams", verbose_name="ders adı")
+    # KAMYOSİS: sınavlar ders koduna göre oluşur; tür ve zorluk ExamCourse'tan bu kodla okunur (bkz. kurallar.py)
+    code = models.CharField("ders kodu", max_length=60, blank=True, db_index=True)
     name = models.CharField("ad", max_length=200, blank=True, help_text="Boş = ders adı")
     classes = models.ManyToManyField("timetable.SchoolClass", blank=True, related_name="exams", verbose_name="sınıflar")
     lessons = models.ManyToManyField("timetable.Lesson", blank=True, related_name="exams", verbose_name="kaynak dersler")
@@ -154,3 +157,22 @@ class ExamRoom(models.Model):
         db_table = "timetable_examroom"
         verbose_name = "sınav salonu"
         verbose_name_plural = "sınav salonları"
+
+
+class ExamCourse(models.Model):
+    """KAMYOSİS: dersin (ders kodu) sınav bilgisi — sınav türü ve zorluk. Kurum düzeyindedir; her dönem yeniden
+    girilmez. Excel'den aktarılır, "Ders sınav bilgileri" sayfasından düzenlenir (bkz. kurallar.py)."""
+
+    institution = models.ForeignKey("timetable.Institution", on_delete=models.CASCADE, related_name="exam_courses")
+    code = models.CharField("ders kodu", max_length=60)
+    exam_type = models.CharField("sınav türü", max_length=80, blank=True, help_text="Ör. %100 MT, %40 MT + %60 UYG, %100 UYG")
+    difficulty = models.PositiveSmallIntegerField("zorluk", default=3, help_text="1–5; 5 olanlar mümkün olduğunca önce yerleşir")
+
+    class Meta:
+        ordering = ["code"]
+        constraints = [models.UniqueConstraint(fields=["institution", "code"], name="sinav_examcourse_tekil")]
+        verbose_name = "ders sınav bilgisi"
+        verbose_name_plural = "ders sınav bilgileri"
+
+    def __str__(self):
+        return f"{self.code} {self.exam_type}".strip()
