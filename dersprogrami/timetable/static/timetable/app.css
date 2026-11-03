@@ -307,6 +307,12 @@ input[type=color].input { padding: 3px; width: 80px; }
 .av-cell.av-no { background: #dc2626; border-color: #b91c1c; }
 .av-cell.av-maybe { background: #f59e0b; border-color: #d97706; }
 .legend .lg-ok { background: #e9f7ee; } .legend .lg-no { background: #dc2626; } .legend .lg-maybe { background: #f59e0b; }
+/* Programda dersi olan saat: gri. Yasak/koşullu ise rengi kalır, altta gri şerit dersi gösterir. */
+.av-cell.av-planned { background: #d5d9e0; border-color: #a6adba; }
+.av-cell.av-planned.av-no { background: #dc2626; border-color: #b91c1c; }
+.av-cell.av-planned.av-maybe { background: #f59e0b; border-color: #d97706; }
+.av-cell.av-planned.av-no, .av-cell.av-planned.av-maybe { box-shadow: inset 0 -6px 0 rgba(55, 65, 81, .55); }
+.legend .lg-planned { background: #d5d9e0; }
 .avail { overflow-x: auto; }
 
 .division-list { display: flex; flex-direction: column; gap: 8px; }
@@ -1354,6 +1360,10 @@ td.empty, td.subtle[colspan] { text-align: center; padding: 22px 12px; color: va
 :root[data-theme="dark"] .legend .lg-warn { background: rgba(245, 158, 11, .4); }
 :root[data-theme="dark"] .legend .lg-conflict { background: rgba(239, 68, 68, .4); }
 :root[data-theme="dark"] .av-cell, :root[data-theme="dark"] .legend .lg-ok { background: rgba(34, 197, 94, .16); color: var(--text); }
+:root[data-theme="dark"] .av-cell.av-no { background: #dc2626; color: #fff; }
+:root[data-theme="dark"] .av-cell.av-maybe { background: #f59e0b; color: #fff; }
+:root[data-theme="dark"] .av-cell.rq-closed { background: repeating-linear-gradient(45deg, var(--surface-2), var(--surface-2) 4px, var(--border) 4px, var(--border) 5px); }
+:root[data-theme="dark"] .av-cell.av-planned:not(.av-no):not(.av-maybe), :root[data-theme="dark"] .legend .lg-planned { background: rgba(148, 163, 184, .42); border-color: rgba(148, 163, 184, .6); }
 :root[data-theme="dark"] .rel-map .av-cell.map-on { background: rgba(34, 197, 94, .3); border-color: rgba(74, 222, 128, .5); }
 :root[data-theme="dark"] .quick-table tr.has-hours,
 :root[data-theme="dark"] .dist-table tbody tr:hover > *,

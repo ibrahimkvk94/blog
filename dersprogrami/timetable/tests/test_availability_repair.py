@@ -48,6 +48,39 @@ class AvailabilityRepairTests(TestCase):
         for p in periods:
             Availability.objects.create(school=self.school, teacher=teacher, day=0, period=p, state=Availability.NO)
 
+    # --- mazeret ızgaralarında dersli saatler ------------------------------------------------------
+
+    def test_planned_cells_are_grey_in_availability_grids(self):
+        """Programda dersi olan saatler müsaitlik / istek ızgaralarında gri görünür (üzerinde ders adı)."""
+        from timetable.models import Classroom
+
+        self.fiz.length = 2
+        self.fiz.save()
+        room = Classroom.objects.create(school=self.school, name="Lab")
+        self.kim.classroom = room
+        self.kim.save()
+        self.assertEqual(ar.planned_cells(self.school, "teacher", self.can.pk),
+                         ({(0, 1): "FİZ · 10-A", (0, 2): "FİZ · 10-A"}, self.tt))
+        self.assertEqual(ar.planned_cells(self.school, "school_class", self.a.pk)[0],
+                         {(0, 0): "MAT · Ahmet Er", (0, 1): "FİZ · Can Ak", (0, 2): "FİZ · Can Ak"})
+        self.assertEqual(ar.planned_cells(self.school, "classroom", room.pk)[0], {(0, 0): "KİM · 10-B · Ali Kaya"})
+        self.assertEqual(ar.planned_cells(self.school, "school", None), ({}, None))  # okul geneli: gri yok
+
+        page = self.client.get(reverse("timetable:data_edit", args=[self.school.pk, "ogretmenler", self.can.pk]))
+        self.assertEqual(page.context["availability"]["planned"], {"0-1": "FİZ · 10-A", "0-2": "FİZ · 10-A"})
+        self.assertContains(page, "Dersi var")
+
+        user = User.objects.create_user("can", password="pw")
+        self.can.user = user
+        self.can.save()
+        self.client.force_login(user)
+        page = self.client.get(reverse("timetable:my_requests"))  # öğretmenin kendi mazeret ızgarası
+        self.assertContains(page, "dersi var: FİZ · 10-A", count=2)
+        self.assertContains(page, " av-planned", count=2)
+
+        self.tt.cards.all().delete()  # programda ders yoksa gri ve açıklama da yok
+        self.assertNotContains(self.client.get(reverse("timetable:my_requests")), "Dersi var")
+
     # --- tespit ------------------------------------------------------------------------------------
 
     def test_detection_lists_only_newly_conflicting_cards(self):

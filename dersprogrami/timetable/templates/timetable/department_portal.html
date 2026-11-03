@@ -21,10 +21,10 @@
         <select class="select select-sm" onchange="location.href='?sekme=mazeret&ogretmen='+this.value" aria-label="Öğretmen">
           {% for p in people %}<option value="{{ p.pk }}"{% if p.pk == teacher.pk %} selected{% endif %}>{{ p.full_name }}</option>{% endfor %}
         </select>
-        <div class="legend"><span><i class="lg-ok"></i>Gelebilir</span><span><i class="lg-no"></i>Gelemez</span><span><i class="lg-maybe"></i>Tercih etmez</span><span><i class="lg-changed"></i>İstek</span></div>
+        <div class="legend"><span><i class="lg-ok"></i>Gelebilir</span><span><i class="lg-no"></i>Gelemez</span><span><i class="lg-maybe"></i>Tercih etmez</span><span><i class="lg-changed"></i>İstek</span>{% if grid.planned_in %}<span title="Bu saatte {{ grid.planned_in }} programında dersi var"><i class="lg-planned"></i>Dersi var</span>{% endif %}</div>
       </div>
       <div class="panel-body">
-        <p class="subtle small" style="margin-top:0">Hücreye tıklayın: gelebilir → gelemez → tercih etmez. Kalın çerçeveli hücreler kayıtlı müsaitlikten farklı olanlardır. Taralı saatler okul genelinde kapalıdır.</p>
+        <p class="subtle small" style="margin-top:0">Hücreye tıklayın: gelebilir → gelemez → tercih etmez. Kalın çerçeveli hücreler kayıtlı müsaitlikten farklı olanlardır. Taralı saatler okul genelinde kapalıdır; gri saatlerde programda dersi var.</p>
         {% include "timetable/request_grid.html" with editable=True %}
         <label class="label" for="rq-reason" style="margin-top:14px">Mazeret / gerekçe</label>
         <textarea class="input" id="rq-reason" name="reason" rows="2" placeholder="Ör. Salı öğleden sonra lisansüstü dersi var.">{{ pending.reason }}</textarea>

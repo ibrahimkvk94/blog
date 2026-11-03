@@ -14,9 +14,9 @@
   <form method="post" class="panel" id="rq-form">
     {% csrf_token %}<input type="hidden" name="ogretmen" value="{{ teacher.pk }}">
     <div class="panel-head"><h2>{{ teacher.full_name }} · {{ teacher.school.name }}</h2>
-      <div class="legend"><span><i class="lg-ok"></i>Gelebilirim</span><span><i class="lg-no"></i>Gelemem</span><span><i class="lg-maybe"></i>Tercih etmem</span><span><i class="lg-changed"></i>İstek</span></div></div>
+      <div class="legend"><span><i class="lg-ok"></i>Gelebilirim</span><span><i class="lg-no"></i>Gelemem</span><span><i class="lg-maybe"></i>Tercih etmem</span><span><i class="lg-changed"></i>İstek</span>{% if grid.planned_in %}<span title="Bu saatte {{ grid.planned_in }} programında dersi var"><i class="lg-planned"></i>Dersi var</span>{% endif %}</div></div>
     <div class="panel-body">
-      <p class="subtle small" style="margin-top:0">Hücreye tıklayın: gelebilirim → gelemem → tercih etmem. Kalın çerçeveli hücreler kayıtlı müsaitliğinizden farklı olanlardır; program sorumlusu onaylayınca geçerli olur. Taralı saatler okul genelinde kapalıdır.</p>
+      <p class="subtle small" style="margin-top:0">Hücreye tıklayın: gelebilirim → gelemem → tercih etmem. Kalın çerçeveli hücreler kayıtlı müsaitliğinizden farklı olanlardır; program sorumlusu onaylayınca geçerli olur. Taralı saatler okul genelinde kapalıdır; gri saatlerde programda dersiniz var.</p>
       {% include "timetable/request_grid.html" with editable=True %}
       <label class="label" for="rq-reason" style="margin-top:14px">Gerekçe <span class="subtle">(isteğe bağlı)</span></label>
       <textarea class="input" id="rq-reason" name="reason" rows="2" placeholder="Ör. Salı öğleden sonra yüksek lisans dersim var.">{{ pending.reason }}</textarea>

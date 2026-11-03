@@ -5,7 +5,7 @@
       <tr><th><span class="av-head av-day" style="cursor:default">{{ row.day }}</span></th>
         {% for c in row.cells %}
           <td>{% if c.closed %}<span class="av-cell rq-closed" title="Okul genelinde kapalı saat"></span>
-            {% else %}<button type="button" class="av-cell{% if c.state %} av-{{ c.state }}{% endif %}{% if c.changed %} rq-changed{% endif %}" data-current="{{ c.current }}"{% if not editable %} disabled{% endif %} title="{{ row.day }} {{ c.period|add:1 }}. saat">{% if c.changed and not c.state %}✓{% elif c.state == 'maybe' %}?{% endif %}</button>{% if editable %}<input type="hidden" name="h-{{ c.day }}-{{ c.period }}" value="{{ c.state }}">{% endif %}{% endif %}</td>
+            {% else %}<button type="button" class="av-cell{% if c.state %} av-{{ c.state }}{% endif %}{% if c.changed %} rq-changed{% endif %}{% if c.planned %} av-planned{% endif %}" data-current="{{ c.current }}"{% if c.planned %} data-planned{% endif %}{% if not editable %} disabled{% endif %} title="{{ row.day }} {{ c.period|add:1 }}. saat{% if c.planned %} · dersi var: {{ c.planned }}{% endif %}">{% if c.changed and not c.state %}✓{% elif c.state == 'maybe' %}?{% endif %}</button>{% if editable %}<input type="hidden" name="h-{{ c.day }}-{{ c.period }}" value="{{ c.state }}">{% endif %}{% endif %}</td>
         {% endfor %}
       </tr>
     {% endfor %}

@@ -117,6 +117,41 @@ def conflicts(timetable, entities=None):
     return out
 
 
+PLANNED_FILTERS = {
+    "teacher": "lesson__teachers",
+    "school_class": "lesson__classes",
+    "subject": "lesson__subject",
+    "lesson": "lesson",
+}
+
+
+def planned_cells(school, field, obj_id):
+    """Müsaitlik (mazeret) ızgarasında gri gösterilecek saatler: varlığın üzerinde çalışılan programda dersi olan
+    hücreler. Dönüş: ({(gün, saat): "MAT · 1SVN", ...}, program); program yoksa ({}, None)."""
+    if not obj_id or field not in PLANNED_FILTERS and field != "classroom":
+        return {}, None
+    timetable = school.current_timetable()
+    if timetable is None or not timetable.has_grid:
+        return {}, None
+    qs = timetable.cards.filter(day__isnull=False).select_related("lesson__subject").prefetch_related("lesson__teachers", "lesson__classes")
+    if field in PLANNED_FILTERS:
+        qs = qs.filter(**{PLANNED_FILTERS[field]: obj_id}).distinct()
+    cells = defaultdict(list)
+    for card in qs:
+        if field == "classroom" and obj_id not in card.room_ids:
+            continue
+        lesson = card.lesson
+        parts = [lesson.subject.short or lesson.subject.name]
+        if field != "school_class":
+            parts.append(", ".join(c.short or c.name for c in lesson.classes.all()))
+        if field != "teacher":
+            parts.append(", ".join(t.full_name for t in lesson.teachers.all()))
+        text = " · ".join(filter(None, parts))
+        for i in range(card.length):
+            cells[(card.day, card.period + i)].append(text)
+    return {key: ", ".join(dict.fromkeys(texts)) for key, texts in cells.items()}, timetable
+
+
 class Watch:
     """Müsaitlik kaydından önce oluşturulur; kayıttan sonra report() yeni kapalı saate düşen kartları uyarı
     olarak döndürür (yoksa boş metin)."""

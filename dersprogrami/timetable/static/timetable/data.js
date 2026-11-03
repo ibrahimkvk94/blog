@@ -207,6 +207,7 @@
   if (availBox) {
     const data = readJSON("availability-data");
     const states = Object.assign({}, data.states);
+    const planned = data.planned || {};  // programda dersi olan saatler: gri, üzerine gelince ders
     const input = $("input[name=availability]", availBox);
     const grid = $(".avail-grid", availBox);
     const NEXT = { "": "no", no: "maybe", maybe: "" };
@@ -214,9 +215,11 @@
     const paint = () => {
       $$(".av-cell", grid).forEach((c) => {
         const s = states[c.dataset.key] || "";
-        c.className = "av-cell" + (s ? " av-" + s : "");
+        const lesson = planned[c.dataset.key];
+        c.className = "av-cell" + (s ? " av-" + s : "") + (lesson ? " av-planned" : "");
         c.textContent = s === "no" ? "✕" : s === "maybe" ? "?" : "";
-        c.setAttribute("aria-label", c.dataset.label + ": " + (s === "no" ? "yasak" : s === "maybe" ? "koşullu" : "uygun"));
+        c.setAttribute("aria-label", c.dataset.label + ": " + (s === "no" ? "yasak" : s === "maybe" ? "koşullu" : "uygun") + (lesson ? ", dersi var: " + lesson : ""));
+        c.title = c.dataset.label + (lesson ? " · dersi var: " + lesson : "");
       });
       save();
     };

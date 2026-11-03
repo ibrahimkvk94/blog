@@ -6,7 +6,7 @@
   const cells = [...form.querySelectorAll(".rq-edit button.av-cell")];
   const paint = (b) => {
     const input = b.nextElementSibling, state = input.value, changed = state !== b.dataset.current;
-    b.className = "av-cell" + (state ? " av-" + state : "") + (changed ? " rq-changed" : "");
+    b.className = "av-cell" + (state ? " av-" + state : "") + (changed ? " rq-changed" : "") + ("planned" in b.dataset ? " av-planned" : "");
     b.textContent = changed && !state ? "✓" : state === "maybe" ? "?" : "";
   };
   const count = () => {

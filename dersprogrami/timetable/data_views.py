@@ -423,10 +423,14 @@ def _availability_grid(school, field, obj):
     if obj is not None:
         for a in _availability_qs(school, field, obj):
             states[f"{a.day}-{a.period}"] = a.state
+    # Programda dersi olan saatler gri görünür (üzerine gelince hangi ders olduğu yazar).
+    planned, timetable = availability_repair.planned_cells(school, field, obj.pk if obj is not None else None)
     return {
         "days": school.day_names,
         "periods": [{"name": p.name, "start": p.start_time.strftime("%H:%M") if p.start_time else ""} for p in school.periods.all()],
         "states": states,
+        "planned": {f"{d}-{p}": text for (d, p), text in planned.items()},
+        "planned_in": timetable.name if timetable else "",
     }
 
 

@@ -39,8 +39,12 @@ def pending_of(teacher):
 
 
 def grid(teacher, desired=None):
-    """Izgara satırları: gün başına hücreler {day, period, state, current, closed, changed}."""
+    """Izgara satırları: gün başına hücreler {day, period, state, current, closed, changed, planned}. planned:
+    öğretmenin üzerinde çalışılan programda o saatteki dersi (gri gösterilir)."""
+    from .availability_repair import planned_cells
+
     school = teacher.school
+    planned, timetable = planned_cells(school, "teacher", teacher.pk)
     periods = list(school.periods.all())
     closed = school_closed(school)
     current = current_states(teacher)
@@ -52,9 +56,9 @@ def grid(teacher, desired=None):
             key = (d, p.index)
             state = desired.get(key, "")
             cells.append({"day": d, "period": p.index, "state": state, "current": current.get(key, ""),
-                          "closed": key in closed, "changed": state != current.get(key, "")})
+                          "closed": key in closed, "changed": state != current.get(key, ""), "planned": planned.get(key, "")})
         rows.append({"day": name, "cells": cells})
-    return {"periods": periods, "rows": rows}
+    return {"periods": periods, "rows": rows, "planned_in": timetable.name if planned else ""}
 
 
 def desired_with_pending(teacher):

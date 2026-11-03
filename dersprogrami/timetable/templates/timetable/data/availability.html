@@ -5,7 +5,7 @@
       <p>{% if availability_help %}{{ availability_help }} {% endif %}Hücreye tıklayın: uygun → yasak → koşullu (?). Gün ya da saat başlığı tüm satırı/sütunu değiştirir.</p>
     </div>
     <div class="legend">
-      <span><i class="lg-ok"></i>Uygun</span><span><i class="lg-no"></i>Yasak</span><span><i class="lg-maybe"></i>Koşullu</span>
+      <span><i class="lg-ok"></i>Uygun</span><span><i class="lg-no"></i>Yasak</span><span><i class="lg-maybe"></i>Koşullu</span>{% if availability.planned_in %}<span title="Bu saatte {{ availability.planned_in }} programında dersi var"><i class="lg-planned"></i>Dersi var</span>{% endif %}
     </div>
   </div>
   <div class="fsec-body">

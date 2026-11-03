@@ -46,7 +46,7 @@
     <div class="panel-body rq-review">
       <div>
         {% include "timetable/request_grid.html" with grid=item.grid editable=False %}
-        <div class="legend" style="margin-top:8px"><span><i class="lg-ok"></i>Uygun</span><span><i class="lg-no"></i>Gelemem</span><span><i class="lg-maybe"></i>Tercih etmem</span><span><i class="lg-changed"></i>İstenen değişiklik</span></div>
+        <div class="legend" style="margin-top:8px"><span><i class="lg-ok"></i>Uygun</span><span><i class="lg-no"></i>Gelemem</span><span><i class="lg-maybe"></i>Tercih etmem</span><span><i class="lg-changed"></i>İstenen değişiklik</span>{% if item.grid.planned_in %}<span title="Bu saatte {{ item.grid.planned_in }} programında dersi var"><i class="lg-planned"></i>Dersi var</span>{% endif %}</div>
       </div>
       <div>
         <div class="label">İstenen değişiklikler <span class="pill">{{ item.items|length }}</span></div>
