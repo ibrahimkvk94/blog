@@ -85,12 +85,12 @@ def sinif_yili(kod):
 
 _KISIM = re.compile(r"^\s*(\d+)\s*([^\d\s].*?)\s*$")
 # Kısım numarası → sınıf düzeyi (KAMYOSİS kısım numaralandırması)
-KISIM_ARALIKLARI = ((1, 36, 1), (50, 86, 2))
+KISIM_ARALIKLARI = ((1, 36, 2), (50, 86, 1))
 
 
 def kisim_bilgisi(kisa_ad):
-    """Kısım kısa adından (program, sınıf düzeyi): "10MKT" → ("MKT", 1), "56SVN" → ("SVN", 2).
-    Program sayıdan sonraki kısımdır; sınıf düzeyi numaradan (1–36 → 1, 50–86 → 2; aralık dışı None).
+    """Kısım kısa adından (program, sınıf düzeyi): "10MKT" → ("MKT", 2), "56SVN" → ("SVN", 1).
+    Program sayıdan sonraki kısımdır; sınıf düzeyi numaradan (1–36 → 2. sınıf, 50–86 → 1. sınıf; aralık dışı None).
     Biçime uymayan ad ("Hazırlık 1") → ("", None)."""
     m = _KISIM.match(kisa_ad or "")
     if not m:

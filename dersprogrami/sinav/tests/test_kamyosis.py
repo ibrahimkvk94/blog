@@ -47,9 +47,9 @@ class KuralTests(TestCase):
 
 class KisimProgramiTests(TestCase):
     def test_kisim_bilgisi(self):
-        self.assertEqual(kurallar.kisim_bilgisi("10MKT"), ("MKT", 1))
-        self.assertEqual(kurallar.kisim_bilgisi("56SVN"), ("SVN", 2))
-        self.assertEqual(kurallar.kisim_bilgisi("13İNŞ"), ("İNŞ", 1))
+        self.assertEqual(kurallar.kisim_bilgisi("10MKT"), ("MKT", 2))
+        self.assertEqual(kurallar.kisim_bilgisi("56SVN"), ("SVN", 1))
+        self.assertEqual(kurallar.kisim_bilgisi("13İNŞ"), ("İNŞ", 2))
         self.assertEqual(kurallar.kisim_bilgisi("40ELN"), ("ELN", None))  # aralık dışı
         self.assertEqual(kurallar.kisim_bilgisi("Hazırlık 1"), ("", None))
 
@@ -129,15 +129,15 @@ class UretimTests(TestCase):
         self.assertContains(self.client.get(url), "Kısımlara program ve sınıf ata")
         self.client.post(url, {"action": "assign_programs"})
         self.c1.refresh_from_db()
-        self.assertEqual((self.c1.program, self.c1.grade), ("SVN", 1))
-        self.client.post(url, {"action": "save_quotas", "kontenjan-SVN|1": "81"})
+        self.assertEqual((self.c1.program, self.c1.grade), ("SVN", 2))
+        self.client.post(url, {"action": "save_quotas", "kontenjan-SVN|2": "81"})
         self.c1.refresh_from_db()
         self.c2.refresh_from_db()
         self.assertEqual((self.c1.student_count, self.c2.student_count), (41, 40))
         self.assertEqual(Exam.objects.get(period=self.period).student_count, 81)  # sınav sayısı yenilendi
-        dosya = _xlsx([["Program", "Sınıf", "Kontenjan"], ["svn", "1. sınıf", 60], ["MKT", 2, 10]])
+        dosya = _xlsx([["Program", "Sınıf", "Kontenjan"], ["svn", "2. sınıf", 60], ["MKT", 1, 10]])
         r = self.client.post(url, {"action": "import_quotas", "dosya": dosya}, follow=True)
-        self.assertContains(r, "MKT 2. sınıf")
+        self.assertContains(r, "MKT 1. sınıf")
         self.c1.refresh_from_db()
         self.assertEqual(self.c1.student_count, 30)
 
