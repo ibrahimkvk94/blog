@@ -99,6 +99,15 @@ class PuantajTestleri(TestCase):
         self.ayse.refresh_from_db()
         self.veli.refresh_from_db()
         self.assertEqual((self.ayse.sinav_rolleri, self.veli.sinav_rolleri), ("", "AG"))
+        # kutuya tıklanınca anında kayıt (tek öğretmen)
+        r = self.client.post(url, {"action": "duty", "teacher": self.t_ayse.pk, "exempt": "0", "roles": "GT"})
+        self.assertTrue(r.json()["ok"])
+        self.ayse.refresh_from_db()
+        self.assertEqual(self.ayse.sinav_rolleri, "GT")
+        # puantaj sayfasındaki kutu
+        r = self.client.post(reverse("sinavgorev:roller"), {"p": [self.veli.pk], f"rol-{self.veli.pk}-T": "1"},
+                             HTTP_X_REQUESTED_WITH="fetch")
+        self.assertEqual(r.json(), {"ok": True, "degisen": 1})
 
     def test_roller_ve_elle_gorev(self):
         self.client.force_login(self.yonetici)
