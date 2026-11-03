@@ -13,6 +13,9 @@ Zaman dilimi (slot) = gün sırası × oturum sayısı + oturum. Çözüm üç a
 3. Gözetmenler: her salona gereken sayıda öğretmen; öğretmen aynı anda iki salonda olamaz, müsait olmadığı
    oturumda görev almaz. Tercihler: dersin kendi öğretmeni sınavında bulunsun, yük öğretmenlere dengeli dağılsın
    (en yüksek yük ve ortalamanın üstü cezalı, günde ikiden fazla görev cezalı).
+   KAMYOSİS: görev rolleri açıksa salon başına salon amiri / gözetmen / taşıyıcı ihtiyacı öğrenci sayısından
+   hesaplanır (duty_need) ve öğretmen yalnızca alabileceği rolde görevlendirilir; "mümkünse verilmesin" oturumu
+   cezalıdır; yük, öğretmenin önceki görev puanı (prior) üstüne eklenerek dengelenir; hafta sonu görevi 1,5 sayılır.
 
 Her aşamada açgözlü bir başlangıç çözümü ipucu olarak verilir; CP-SAT süre içinde çözüm bulamazsa o kullanılır.
 
@@ -39,6 +42,8 @@ W_MAX_LOAD = 30
 W_OVER = 12
 W_DAY_OVER = 8
 DAY_LOAD_FREE = 2
+W_SOFT = 60            # KAMYOSİS: "mümkünse görev verilmesin" oturumunda görev
+ROLE_LABELS = {"A": "salon amiri", "G": "gözetmen", "T": "taşıyıcı"}
 # KAMYOSİS tercihleri
 W_ORDER = 1            # (3 × zorluk + tür sırası) × gün sırası
 W_SAME_NAME_DAY = 300  # adı aynı sınavların kullandığı her fazladan gün
@@ -58,7 +63,7 @@ class PExam:
     rooms_needed: int | None = None
     allowed_rooms: tuple = ()         # boş = tümü
     locked_rooms: tuple = ()          # kilitli yerleşimin salonları (değişmez)
-    locked_proctors: dict = field(default_factory=dict)  # {salon: (öğretmen, ...)}
+    locked_proctors: dict = field(default_factory=dict)  # {salon: ((öğretmen, rol), ...)}
     student_ids: frozenset = frozenset()
     # KAMYOSİS: zorluk (1–5), tür ailesi ("MT", "ÇS", ""), sınıf düzeyi (1, 2 …; None = bilinmiyor),
     # parantez içi hariç ad (aynı ad aynı güne)
@@ -95,6 +100,12 @@ class Problem:
     slot_names: list = field(default_factory=list)   # dilim → "03.11.2026 Salı 09:30"
     capacity_percent: int = 50
     workers: int = 8
+    # KAMYOSİS görev kuralları
+    duty_roles: bool = False                         # salon amiri / gözetmen / taşıyıcı
+    roles: dict = field(default_factory=dict)        # {öğretmen: "AGT"}; kayıt yok = "G"
+    soft: dict = field(default_factory=dict)         # {öğretmen: {dilim, ...}} mümkünse görev verilmesin
+    prior: dict = field(default_factory=dict)        # {öğretmen: önceki görev puanı × 2}
+    weekend: frozenset = frozenset()                 # hafta sonu dilimleri (görev 1,5 sayılır)
 
     @property
     def n_slots(self):
@@ -106,7 +117,7 @@ class Result:
     status: str                       # ok / partial / failed
     errors: list = field(default_factory=list)
     warnings: list = field(default_factory=list)
-    # {sınav: (başlangıç dilimi, [(salon, oturan, [öğretmen, ...]), ...])}
+    # {sınav: (başlangıç dilimi, [(salon, oturan, [öğretmen, ...], {öğretmen: rol}), ...])}
     placements: dict = field(default_factory=dict)
     unplaced: list = field(default_factory=list)
     stats: dict = field(default_factory=dict)
@@ -147,6 +158,55 @@ def _available(p, teacher, slots):
     return not any(t in blocked for t in slots)
 
 
+def duty_need(p, seats):
+    """Salonun görevli ihtiyacı {rol: sayı}. Rolsüz: salon başına sabit gözetmen. Rollü (PPYS kuralı): 40 ve üstü
+    öğrencide 1 salon amiri; 40'tan azda 1, fazlasında her 20 öğrenciye 1 gözetmen; öğrencisi olan salona 1 taşıyıcı."""
+    if not p.duty_roles:
+        return {"G": p.proctors_per_room} if p.proctors_per_room else {}
+    need = {"A": int(seats >= 40), "G": 1 if seats < 40 else -(-seats // 20), "T": int(seats > 0)}
+    return {r: n for r, n in need.items() if n}
+
+
+def _duty_pool(p):
+    return [t for t in p.proctors if p.roles.get(t, "G")]
+
+
+def _duties_on(p):
+    return p.duty_roles or bool(p.proctors_per_room)
+
+
+def _duty_estimate(p, e, k):
+    """Zamanlama aşaması için sınavın görevli sayısı tahmini (k salona eşit bölünmüş öğrenciyle)."""
+    if not k or not _duties_on(p):
+        return 0
+    per = -(-e.students // k) if e.students else 0
+    return k * sum(duty_need(p, per).values())
+
+
+def _weight(p, slots):
+    """Görev puanı × 2: hafta içi oturum 2, hafta sonu 3."""
+    return sum(3 if s in p.weekend else 2 for s in slots)
+
+
+def _is_soft(p, teacher, slots):
+    soft = p.soft.get(teacher) or ()
+    return any(t in soft for t in slots)
+
+
+def _water_level(priors, total):
+    """Önceki puanların üstüne toplam yük dağıtılınca ulaşılacak eşit düzey (en küçük L: Σ max(0, L − önceki) ≥ toplam)."""
+    if not priors:
+        return 0
+    lo, hi = 0, max(priors) + total + 1
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if sum(max(0, mid - x) for x in priors) >= total:
+            hi = mid
+        else:
+            lo = mid + 1
+    return lo
+
+
 def _slot_label(p, t):
     if 0 <= t < len(p.slot_names):
         return p.slot_names[t]
@@ -163,8 +223,8 @@ def precheck(p):
     if not p.rooms:
         return ["Sınav salonu yok: dersliklerin kapasitesini girin ya da dönem ayarlarında “kapasitesiz derslikte sınav "
                 "kapasitesi” verin."]
-    if p.proctors_per_room and not p.proctors:
-        errors.append("Gözetmen olabilecek öğretmen yok (hepsi muaf).")
+    if _duties_on(p) and not _duty_pool(p):
+        errors.append("Gözetmen olabilecek öğretmen yok (hepsi muaf ya da görev rolü yok).")
     for e in p.exams:
         if e.duration > p.n_sessions:
             errors.append(f"«{e.name}»: süresi {e.duration} oturum, günde yalnızca {p.n_sessions} oturum var.")
@@ -217,7 +277,8 @@ def _greedy_timing(p, need):
     """Başlangıç çözümü: büyük ve çok sınıflı sınavlar önce, kuralları bozmayan ilk (en az dolu) oturuma."""
     S, T = p.n_sessions, p.n_slots
     total_cap = sum(r.capacity for r in p.rooms)
-    free = [sum(1 for tch in p.proctors if t not in (p.unavailable.get(tch) or ())) for t in range(T)]
+    pool = _duty_pool(p)
+    free = [sum(1 for tch in pool if t not in (p.unavailable.get(tch) or ())) for t in range(T)]
     seats, rooms, proctors = [0] * T, [0] * T, [0] * T
     class_busy, class_day = set(), {}
     out = {}
@@ -235,7 +296,8 @@ def _greedy_timing(p, need):
                 continue
             if any(seats[s] + e.students > total_cap or rooms[s] + k > len(p.rooms) for s in span):
                 continue
-            if p.proctors_per_room and any(proctors[s] + k * p.proctors_per_room > free[s] for s in span):
+            duty = _duty_estimate(p, e, k)
+            if duty and any(proctors[s] + duty > free[s] for s in span):
                 continue
             load = max(rooms[s] for s in span) + sum(class_day.get((c, t // S), 0) for c in e.classes) * 2
             load += (t // S) * e.priority / 3  # KAMYOSİS: zor sınav erken güne
@@ -248,7 +310,7 @@ def _greedy_timing(p, need):
         for s in range(t, t + e.duration):
             seats[s] += e.students
             rooms[s] += k
-            proctors[s] += k * p.proctors_per_room
+            proctors[s] += _duty_estimate(p, e, k)
             for c in e.classes:
                 class_busy.add((c, s))
         for c in e.classes:
@@ -341,9 +403,9 @@ def _solve_timing(p, limit):
             continue
         m.Add(sum(v * p.exams[i].students for i, v in cover[t]) <= total_cap)
         m.Add(sum(v * need[p.exams[i].id] for i, v in cover[t]) <= n_rooms)
-        if p.proctors_per_room:
-            free = sum(1 for tch in p.proctors if t not in (p.unavailable.get(tch) or ()))
-            m.Add(sum(v * need[p.exams[i].id] * p.proctors_per_room for i, v in cover[t]) <= free)
+        if _duties_on(p):
+            free = sum(1 for tch in _duty_pool(p) if t not in (p.unavailable.get(tch) or ()))
+            m.Add(sum(v * _duty_estimate(p, p.exams[i], need[p.exams[i].id]) for i, v in cover[t]) <= free)
 
     # aynı öğretmenin iki sınavı aynı anda olmasın (tercih)
     by_teacher = {}
@@ -538,68 +600,94 @@ def _units(p, timing, rooms):
     return units
 
 
-def _greedy_proctors(p, timing, rooms):
+def _locked(p, e, rid):
+    """Kilitli yerleşimdeki salonun görevlileri [(öğretmen, rol)] (problemdeki öğretmenler)."""
+    known = set(p.proctors)
+    return [(t, r) for t, r in e.locked_proctors.get(rid, ()) if t in known]
+
+
+def _unit_need(p, e, rid, seats):
+    locked = _locked(p, e, rid)
+    if locked:
+        need = {}
+        for _t, r in locked:
+            need[r] = need.get(r, 0) + 1
+        return need, locked
+    return duty_need(p, seats), []
+
+
+def _greedy_proctors(p, timing, rooms, seats):
     by_id = {e.id: e for e in p.exams}
-    ppr = p.proctors_per_room
-    load = {t: 0 for t in p.proctors}
+    load = {t: p.prior.get(t, 0) for t in p.proctors}
     busy = set()
     out = {}
     units = _units(p, timing, rooms)
     for eid, rid, slots in sorted(units, key=lambda u: (u[2][0], -len(by_id[u[0]].locked_proctors))):
         e = by_id[eid]
-        locked = list(e.locked_proctors.get(rid, ()))
-        chosen = [t for t in locked if t in load][:ppr] if locked else []
-        if not locked:
-            own = [t for t in e.teachers if t in load]
-            pool = sorted(p.proctors, key=lambda t: (t not in own, load[t], t))
-            for t in pool:
-                if len(chosen) >= ppr:
-                    break
-                if any((t, s) in busy for s in slots) or not _available(p, t, slots):
-                    continue
-                chosen.append(t)
-        for t in chosen:
-            load[t] += len(slots)
+        need, chosen = _unit_need(p, e, rid, seats.get((eid, rid), 0))
+        if not chosen:
+            own = set(e.teachers)
+            taken = set()
+            for role, n in need.items():
+                pool = sorted((t for t in p.proctors if role in p.roles.get(t, "G")),
+                              key=lambda t: (_is_soft(p, t, slots), t not in own, load[t], t))
+                for t in pool:
+                    if n <= 0:
+                        break
+                    if t in taken or any((t, s) in busy for s in slots) or not _available(p, t, slots):
+                        continue
+                    chosen.append((t, role))
+                    taken.add(t)
+                    n -= 1
+        for t, _r in chosen:
+            load[t] += _weight(p, slots)
             for s in slots:
                 busy.add((t, s))
         out[eid, rid] = chosen
     return out
 
 
-def _solve_proctors(p, timing, rooms, limit):
-    ppr = p.proctors_per_room
+def _solve_proctors(p, timing, rooms, seats, limit):
     units = _units(p, timing, rooms)
-    if not ppr or not units:
+    if not _duties_on(p) or not units:
         return {(eid, rid): [] for eid, rid, _ in units}
     by_id = {e.id: e for e in p.exams}
-    greedy = _greedy_proctors(p, timing, rooms)
+    greedy = _greedy_proctors(p, timing, rooms, seats)
     m = cp_model.CpModel()
     w, obj = {}, []
     per_slot = {}
     loads = {t: [] for t in p.proctors}
     day_loads = {}
+    total = 0
     for u, (eid, rid, slots) in enumerate(units):
         e = by_id[eid]
-        locked = [t for t in e.locked_proctors.get(rid, ()) if t in loads]
-        terms = []
-        for tch in p.proctors:
-            if locked and tch not in locked:
-                continue
-            if not locked and not _available(p, tch, slots):
-                continue
-            v = m.NewBoolVar(f"w{u}_{tch}")
-            w[u, tch] = v
-            m.AddHint(v, int(tch in greedy.get((eid, rid), ())))
-            if locked:
-                m.Add(v == 1)
-            terms.append(v)
-            loads[tch].append(v * len(slots))
-            for s in slots:
-                per_slot.setdefault((tch, s), []).append(v)
-            day_loads.setdefault((tch, slots[0] // p.n_sessions), []).append(v * len(slots))
-        short = m.NewIntVar(0, ppr, f"short{u}")
-        m.Add(sum(terms) + short == (len(locked) if locked else ppr))
-        obj.append(W_SHORT * short)
+        need, locked = _unit_need(p, e, rid, seats.get((eid, rid), 0))
+        hint = set(greedy.get((eid, rid), ()))
+        weight = _weight(p, slots)
+        for role, n in need.items():
+            total += n * weight
+            terms = []
+            for tch in p.proctors:
+                if locked:
+                    if (tch, role) not in locked:
+                        continue
+                elif role not in p.roles.get(tch, "G") or not _available(p, tch, slots):
+                    continue
+                v = m.NewBoolVar(f"w{u}_{role}_{tch}")
+                w[u, role, tch] = v
+                m.AddHint(v, int((tch, role) in hint))
+                if locked:
+                    m.Add(v == 1)
+                elif _is_soft(p, tch, slots):
+                    obj.append(W_SOFT * v)
+                terms.append(v)
+                loads[tch].append(v * weight)
+                for s in slots:
+                    per_slot.setdefault((tch, s), []).append(v)
+                day_loads.setdefault((tch, slots[0] // p.n_sessions), []).append(v * len(slots))
+            short = m.NewIntVar(0, n, f"short{u}_{role}")
+            m.Add(sum(terms) + short == n)
+            obj.append(W_SHORT * short)
     for terms in per_slot.values():
         if len(terms) > 1:
             m.Add(sum(terms) <= 1)
@@ -608,21 +696,22 @@ def _solve_proctors(p, timing, rooms, limit):
         e = by_id[eid]
         if not e.teachers:
             continue
-        terms = [w[u, t] for u, (e2, _r, _s) in enumerate(units) if e2 == eid for t in e.teachers if (u, t) in w]
+        terms = [v for (u, _r, t), v in w.items() if units[u][0] == eid and t in e.teachers]
         if terms:
             own = m.NewBoolVar(f"own{eid}")
             m.Add(own <= sum(terms))
             obj.append(W_OWN * (1 - own))
-    total = sum(len(s) for _e, _r, s in units) * ppr
-    target = math.ceil(total / max(1, len(p.proctors)))
-    max_load = m.NewIntVar(0, total, "maxload")
+    # denge: önceki puan + bu dönemin yükü eşit düzeye yaklaşsın (önceki puan yoksa ortalama)
+    active = [t for t, terms in loads.items() if terms]
+    level = _water_level([p.prior.get(t, 0) for t in active], total)
+    top = total + max((p.prior.get(t, 0) for t in active), default=0)
+    max_load = m.NewIntVar(0, top, "maxload")
     obj.append(W_MAX_LOAD * max_load)
-    for tch, terms in loads.items():
-        if not terms:
-            continue
-        m.Add(max_load >= sum(terms))
-        over = m.NewIntVar(0, total, f"over{tch}")
-        m.Add(over >= sum(terms) - target)
+    for tch in active:
+        final = p.prior.get(tch, 0) + sum(loads[tch])
+        m.Add(max_load >= final)
+        over = m.NewIntVar(0, top, f"over{tch}")
+        m.Add(over >= final - level)
         obj.append(W_OVER * over)
     for key, terms in day_loads.items():
         if len(terms) > 1:
@@ -636,9 +725,10 @@ def _solve_proctors(p, timing, rooms, limit):
     status = solver.Solve(m)
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         return greedy
-    out = {}
-    for u, (eid, rid, _s) in enumerate(units):
-        out[eid, rid] = [t for t in p.proctors if (u, t) in w and solver.Value(w[u, t])]
+    out = {(eid, rid): [] for eid, rid, _s in units}
+    for (u, role, tch), v in w.items():
+        if solver.Value(v):
+            out[units[u][0], units[u][1]].append((tch, role))
     return out
 
 
@@ -670,24 +760,32 @@ def solve(p, progress=None):
     rooms = _solve_rooms(p, timing, remaining(0.4))
     if progress:
         progress("Gözetmenler atanıyor…")
-    proctors = _solve_proctors(p, timing, rooms, remaining(0.9))
-
     by_id = {e.id: e for e in p.exams}
     caps = {r.id: r.capacity for r in p.rooms}
     names = {r.id: r.name for r in p.rooms}
+    seats = {}
+    for eid, rids in rooms.items():
+        for rid, n in zip(rids, seat_split(by_id[eid].students, [caps[r] for r in rids])):
+            seats[eid, rid] = n
+    proctors = _solve_proctors(p, timing, rooms, seats, remaining(0.9))
+
     result = Result("ok")
     for eid, t0 in timing.items():
         e = by_id[eid]
         rids = rooms.get(eid, [])
-        seats = seat_split(e.students, [caps[r] for r in rids])
-        result.placements[eid] = (t0, [(rid, seats[k], proctors.get((eid, rid), [])) for k, rid in enumerate(rids)])
+        rows = []
+        for rid in rids:
+            duty = proctors.get((eid, rid), [])
+            rows.append((rid, seats[eid, rid], [t for t, _r in duty], {t: r for t, r in duty if r != "G"}))
+            need, _locked = _unit_need(p, e, rid, seats[eid, rid])
+            for role, want in need.items():
+                got = sum(1 for _t, r in duty if r == role)
+                if got < want:
+                    result.warnings.append(f"«{e.name}» – {names[rid]}: {want} {ROLE_LABELS.get(role, role)} gerekli, "
+                                           f"{got} atanabildi (müsait öğretmen yok).")
+        result.placements[eid] = (t0, rows)
         if not rids:
             result.warnings.append(f"«{e.name}» ({_slot_label(p, t0)}): uygun salon bulunamadı.")
-        for rid in rids:
-            got = len(proctors.get((eid, rid), []))
-            want = len(e.locked_proctors.get(rid, ())) or p.proctors_per_room
-            if got < want:
-                result.warnings.append(f"«{e.name}» – {names[rid]}: {want} gözetmen gerekli, {got} atanabildi (müsait öğretmen yok).")
     empty = [e for e in p.exams if not e.students]
     if empty:
         result.warnings.insert(0, f"{len(empty)} sınavın öğrenci sayısı 0 (sınıfların öğrenci sayısı girilmemiş olabilir); "
@@ -708,8 +806,8 @@ def solve(p, progress=None):
         result.status = "partial"
     loads = {}
     for _t0, rows in result.placements.values():
-        for _rid, _seats, teachers in rows:
-            for t in teachers:
+        for row in rows:
+            for t in row[2]:
                 loads[t] = loads.get(t, 0) + 1
     result.stats = {
         "exams": len(p.exams), "placed": len(timing), "rooms_used": sum(len(r) for r in rooms.values()),

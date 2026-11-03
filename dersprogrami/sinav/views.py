@@ -16,7 +16,8 @@ from timetable.models import DAY_NAMES, Classroom, School, SchoolClass, Subject,
 from . import excel as exam_excel
 from . import kurallar
 from . import services as exams
-from .models import Exam, ExamPeriod, ExamPlacement
+from . import solver as exams_solver
+from .models import DEFAULT_ROLES, GOZETMEN, ROLE_NAMES, ROLE_ORDER, Exam, ExamPeriod, ExamPlacement
 
 VIEWS = [("takvim", "Takvim"), ("siniflar", "Sınıflar"), ("gozetmenler", "Gözetmenler"), ("salonlar", "Salonlar")]
 
@@ -50,7 +51,7 @@ class PeriodForm(StyledFormMixin, forms.ModelForm):
 
     class Meta:
         model = ExamPeriod
-        fields = ["name", "kind", "start_date", "end_date", "exam_minutes", "max_per_day", "proctors_per_room",
+        fields = ["name", "kind", "start_date", "end_date", "exam_minutes", "max_per_day", "proctors_per_room", "duty_roles",
                   "capacity_percent", "default_seats", "time_limit", "use_availability", "rooms"]
         widgets = {"start_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
                    "end_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
@@ -399,9 +400,17 @@ def exam_edit(request, pk, period_id, exam_id):
             _warn(request, period, exam)
             return redirect(back)
         elif action == "proctors" and placement is not None:
+            valid = set(Teacher.objects.filter(school=school).values_list("pk", flat=True))
             for room in placement.rooms.all():
-                ids = [i for i in (_int(x) for x in request.POST.getlist(f"proctors-{room.pk}")) if i]
-                room.proctors.set(Teacher.objects.filter(school=school, pk__in=ids))
+                chosen = {}
+                for role in (ROLE_ORDER if period.duty_roles else (GOZETMEN,)):
+                    names = [f"proctors-{room.pk}-{role}"] + ([f"proctors-{room.pk}"] if role == GOZETMEN else [])
+                    for i in (_int(x) for n in names for x in request.POST.getlist(n)):
+                        if i in valid and i not in chosen:
+                            chosen[i] = role
+                room.proctors.set(list(chosen))
+                room.roles = {str(t): r for t, r in chosen.items() if r != GOZETMEN}
+                room.save(update_fields=["roles"])
             messages.success(request, "Gözetmenler kaydedildi.")
             _warn(request, period, exam)
             return redirect(back)
@@ -430,6 +439,7 @@ def exam_edit(request, pk, period_id, exam_id):
         for r in exams.exam_rooms(period):
             room_rows.append({"room": r, "cap": exams.exam_capacity(r, period), "on": r.pk in chosen, "busy": busy_rooms.get(r.pk)})
         blocks = exams.proctor_blocks(period)
+        soft = exams.proctor_soft(period)
         exempt = set(period.proctor_exempt.values_list("pk", flat=True))
         loads = exams.teacher_loads(period)
         own = set(exam.teachers.values_list("pk", flat=True))
@@ -442,17 +452,26 @@ def exam_edit(request, pk, period_id, exam_id):
                 notes.append(f"dolu: {busy_teachers[t.pk]}")
             if span & blocks.get(t.pk, set()):
                 notes.append("müsait değil")
+            elif span & soft.get(t.pk, set()):
+                notes.append("mümkünse verilmesin")
             if t.pk in exempt:
                 notes.append("muaf")
-            teacher_rows.append({"teacher": t, "notes": notes, "load": loads.get(t.pk, 0),
+            teacher_rows.append({"teacher": t, "notes": notes, "load": loads.get(t.pk, 0), "roles": period.roles_of(t.pk),
                                  "bad": any(n.startswith(("dolu", "müsait", "muaf")) for n in notes)})
         teacher_rows.sort(key=lambda r: (r["bad"], "dersin öğretmeni" not in r["notes"], r["load"], r["teacher"].last_name))
     else:
         room_rows = [{"room": r, "cap": exams.exam_capacity(r, period), "on": False, "busy": None} for r in exams.exam_rooms(period)]
+    rooms = list(placement.rooms.select_related("classroom").prefetch_related("proctors")) if placement else []
+    problem = exams_solver.Problem(0, 0, [], [], [], proctors_per_room=period.proctors_per_room, duty_roles=period.duty_roles)
+    for room in rooms:  # KAMYOSİS: salonun görevlileri rol rol (rolsüz dönemde yalnızca gözetmen)
+        need = exams_solver.duty_need(problem, room.seats)
+        current = {t.pk: (room.role_of(t.pk) if period.duty_roles else GOZETMEN) for t in room.proctors.all()}
+        room.groups = [{"role": r, "name": ROLE_NAMES[r], "need": need.get(r, 0),
+                        "selected": {t for t, role in current.items() if role == r}}
+                       for r in (ROLE_ORDER if period.duty_roles else (GOZETMEN,))]
     return render(request, "sinav/edit.html", _nav(
         school, period=period, exam=exam, form=form, placement=placement, slots=slots, room_rows=room_rows,
-        teacher_rows=teacher_rows, issues=exams.validate(period, only=exam.pk) if placement else [],
-        rooms=list(placement.rooms.select_related("classroom").prefetch_related("proctors")) if placement else []))
+        teacher_rows=teacher_rows, issues=exams.validate(period, only=exam.pk) if placement else [], rooms=rooms))
 
 
 def _warn(request, period, exam):
@@ -472,6 +491,14 @@ def proctors(request, pk, period_id):
         if action == "exempt":
             ids = {_int(x) for x in request.POST.getlist("exempt")}
             period.proctor_exempt.set([t for t in teachers if t.pk in ids])
+            if period.duty_roles:  # KAMYOSİS: alabileceği görev rolleri
+                roles = {}
+                for t in teachers:
+                    chosen = "".join(r for r in ROLE_ORDER if request.POST.get(f"role-{t.pk}-{r}"))
+                    if chosen != DEFAULT_ROLES:
+                        roles[str(t.pk)] = chosen
+                period.proctor_roles = roles
+                period.save(update_fields=["proctor_roles"])
             messages.success(request, f"Muafiyetler kaydedildi ({len(ids - {None})} öğretmen muaf).")
             return redirect(back)
         if action == "blocks":
@@ -505,24 +532,28 @@ def proctors(request, pk, period_id):
     exempt = set(period.proctor_exempt.values_list("pk", flat=True))
     loads = exams.teacher_loads(period)
     blocks = exams.proctor_blocks(period)
+    soft = exams.proctor_soft(period)
     marked = {int(k): v for k, v in (period.proctor_blocks or {}).items()}
     rows = [{"teacher": t, "exempt": t.pk in exempt, "load": loads.get(t.pk, 0), "blocked": len(blocks.get(t.pk, ())),
-             "marked": len(marked.get(t.pk, []))} for t in teachers]
+             "soft": len(soft.get(t.pk, ())), "marked": len(marked.get(t.pk, [])), "roles": period.roles_of(t.pk)}
+            for t in teachers]
     selected = exams.teacher_of(period, _int(request.GET.get("ogretmen")))
     grid = None
     if selected is not None:
         mine = set(marked.get(selected.pk, []))
         auto = blocks.get(selected.pk, set())
+        maybe = soft.get(selected.pk, set())
         grid = []
         for d in period.dates():
             whole = d.isoformat() in mine
             grid.append({"date": d, "day": DAY_NAMES[d.weekday()], "cells": [
-                {"value": f"{d.isoformat()}#{s}", "on": whole or f"{d.isoformat()}#{s}" in mine, "auto": (d, s) in auto}
+                {"value": f"{d.isoformat()}#{s}", "on": whole or f"{d.isoformat()}#{s}" in mine, "auto": (d, s) in auto,
+                 "soft": (d, s) in maybe}
                 for s in range(len(period.session_times))]})
     pool = len(teachers) - len(exempt)
     return render(request, "sinav/proctors.html", _nav(
         school, period=period, rows=rows, selected=selected, grid=grid, sessions=period.session_times, pool=pool,
-        total=sum(loads.values())))
+        total=sum(loads.values()), role_names=[(r, ROLE_NAMES[r]) for r in ROLE_ORDER]))
 
 
 # --- çıktılar -----------------------------------------------------------------------------------

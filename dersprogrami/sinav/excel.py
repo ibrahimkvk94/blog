@@ -22,12 +22,17 @@ def _classes(pl):
     return ", ".join(c.short or c.name for c in pl.exam.classes.all())
 
 
+def _duties(room):
+    """Görevliler; salon amiri ve taşıyıcı rolü parantezde."""
+    return ", ".join(t.full_name + (f" ({name.lower()})" if code != "G" else "") for t, code, name in room.duties)
+
+
 def _rooms(pl, with_proctors=False):
     parts = []
     for r in pl.rooms.all():
         text = f"{r.classroom} ({r.seats})"
         if with_proctors and r.proctors.all():
-            text += ": " + ", ".join(t.full_name for t in r.proctors.all())
+            text += ": " + _duties(r)
         parts.append(text)
     return "\n".join(parts)
 
@@ -56,13 +61,15 @@ def build(period):
     _table(ws, start, ["Sınıf", "Tarih", "Gün", "Saat", "Sınav", "Salonlar"], data, widths=[14, 12, 11, 12, 34, 34])
 
     ws = wb.create_sheet("Gözetmenler")
-    start = _header(ws, f"{period.name} – Gözetmen listesi", info, span=7)
+    start = _header(ws, f"{period.name} – Gözetmen listesi", info, span=8)
     data = []
     for t, items in exams.by_teacher(period, rows):
-        for k, (pl, room) in enumerate(items):
+        for k, (pl, room, role) in enumerate(items):
             data.append([t.full_name if k == 0 else "", len(items) if k == 0 else None, pl.date.strftime("%d.%m.%Y"),
-                         DAY_NAMES[pl.date.weekday()], _time(period, pl), pl.exam.title, str(room.classroom)])
-    _table(ws, start, ["Öğretmen", "Görev", "Tarih", "Gün", "Saat", "Sınav", "Salon"], data, widths=[28, 8, 12, 11, 12, 34, 16])
+                         DAY_NAMES[pl.date.weekday()], _time(period, pl), pl.exam.title, str(room.classroom),
+                         role or "gözetmen"])
+    _table(ws, start, ["Öğretmen", "Görev", "Tarih", "Gün", "Saat", "Sınav", "Salon", "Rol"], data,
+           widths=[28, 8, 12, 11, 12, 34, 16, 14])
 
     ws = wb.create_sheet("Salonlar")
     start = _header(ws, f"{period.name} – Salonlar", info, span=7)
@@ -70,7 +77,7 @@ def build(period):
     for room, items in exams.by_room(period, rows):
         for pl, r in items:
             data.append([str(room), pl.date.strftime("%d.%m.%Y"), DAY_NAMES[pl.date.weekday()], _time(period, pl),
-                         pl.exam.title, r.seats, ", ".join(t.full_name for t in r.proctors.all())])
+                         pl.exam.title, r.seats, _duties(r)])
     _table(ws, start, ["Salon", "Tarih", "Gün", "Saat", "Sınav", "Öğrenci", "Gözetmenler"], data, widths=[16, 12, 11, 12, 34, 9, 40])
 
     out = BytesIO()

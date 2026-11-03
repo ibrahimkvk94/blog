@@ -58,19 +58,21 @@
 
     {% if placement %}
     <div class="panel">
-      <div class="panel-head"><h2>Gözetmenler</h2><span class="subtle small">salon başına {{ period.proctors_per_room }}</span></div>
+      <div class="panel-head"><h2>Gözetmenler</h2><span class="subtle small">{% if period.duty_roles %}salon amiri / gözetmen / taşıyıcı{% else %}salon başına {{ period.proctors_per_room }}{% endif %}</span></div>
       <div class="panel-body">
         {% if rooms %}
         <form method="post">{% csrf_token %}<input type="hidden" name="action" value="proctors">
           {% for room in rooms %}
+            {% for g in room.groups %}
             <div class="form-row">
-              <label class="label" for="pr-{{ room.pk }}">{{ room.classroom }} <span class="subtle small">({{ room.seats }} öğrenci)</span></label>
-              <select class="select ex-proctor-select" id="pr-{{ room.pk }}" name="proctors-{{ room.pk }}" multiple size="6"{% if not can.veri %} disabled{% endif %}>
+              <label class="label" for="pr-{{ room.pk }}-{{ g.role }}">{{ room.classroom }} <span class="subtle small">({{ room.seats }} öğrenci){% if period.duty_roles %} · {{ g.name }} · gereken {{ g.need }}{% endif %}</span></label>
+              <select class="select ex-proctor-select" id="pr-{{ room.pk }}-{{ g.role }}" name="proctors-{{ room.pk }}-{{ g.role }}" multiple size="{% if period.duty_roles %}4{% else %}6{% endif %}"{% if not can.veri %} disabled{% endif %}>
                 {% for row in teacher_rows %}
-                  <option value="{{ row.teacher.pk }}"{% for t in room.proctors.all %}{% if t.pk == row.teacher.pk %} selected{% endif %}{% endfor %}{% if row.bad %} class="ex-opt-bad"{% endif %}>{{ row.teacher.full_name }} · {{ row.load }} görev{% if row.notes %} · {{ row.notes|join:", " }}{% endif %}</option>
+                  <option value="{{ row.teacher.pk }}"{% if row.teacher.pk in g.selected %} selected{% endif %}{% if row.bad or g.role not in row.roles %} class="ex-opt-bad"{% endif %}>{{ row.teacher.full_name }} · {{ row.load }} görev{% if row.notes %} · {{ row.notes|join:", " }}{% endif %}{% if g.role not in row.roles %} · bu rolü almaz{% endif %}</option>
                 {% endfor %}
               </select>
             </div>
+            {% endfor %}
           {% endfor %}
           {% if can.veri %}
           <div class="subtle small" style="margin:-6px 0 10px">Ctrl ile birden çok seçin. Liste müsait ve yükü az olandan başlar; çakışan seçimler kaydedilir ama uyarı verilir.</div>

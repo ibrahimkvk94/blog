@@ -6,6 +6,11 @@ programındaki "yasak" hücreleri sınav gününün hafta gününe ve oturum saa
 (oturum başlangıcı + oturum süresi, ders saatlerinin başlangıç–bitişiyle karşılaştırılır; ders saatlerinin saati
 girilmemişse oturumlar günün ders saatlerine sırayla, orantılı dağıtılır). Ayrıca sınav dönemi için öğretmenin
 gelemeyeceği gün/oturumlar "Gözetmenler" sayfasında işaretlenir; muaf öğretmenlere görev verilmez.
+
+KAMYOSİS: "mümkünse görev verilmesin" oturumları (proctor_soft) cezalıdır; görev rolleri açıksa salonun salon amiri /
+gözetmen / taşıyıcı ihtiyacı öğrenci sayısından çıkar (solver.duty_need) ve öğretmen yalnızca alabileceği rolde
+görevlendirilir. settings.SINAV_GOREVLI_PUANI bir işleve ("paket.modul.islev") işaret ediyorsa işlev(dönem)
+{öğretmen kimliği: önceki görev puanı} döndürür; dağıtım bu puanın üstüne dengelenir (hafta sonu görevi 1,5 sayılır).
 """
 
 import datetime
@@ -15,12 +20,13 @@ from collections import defaultdict
 from django.conf import settings
 from django.db import close_old_connections, connection, transaction
 from django.utils import timezone
+from django.utils.module_loading import import_string
 
 from timetable.models import DAY_NAMES, Availability, Classroom, Lesson, Teacher
 
 from . import kurallar
 from . import solver as exams_solver
-from .models import Exam, ExamPeriod, ExamPlacement, ExamRoom
+from .models import GOZETMEN, ROLE_NAMES, Exam, ExamPeriod, ExamPlacement, ExamRoom
 
 STALE_GRACE = 180  # süre sınırından bu kadar saniye sonra hâlâ "çalışıyor" ise yarıda kalmış sayılır
 
@@ -282,8 +288,16 @@ def proctor_blocks(period):
             for tid, cells in rows.items():
                 if any((wd, p) in cells for p in hits):
                     blocked[tid].add((date, s))
+    for tid, cells in _marked(period, period.proctor_blocks).items():
+        blocked[tid] |= cells
+    return blocked
+
+
+def _marked(period, data):
+    """{"öğretmen": ["2026-11-02", "2026-11-03#1"]} → {öğretmen: {(tarih, oturum), ...}} ("#n" yoksa tüm gün)."""
     n = len(period.session_times)
-    for tid, items in (period.proctor_blocks or {}).items():
+    out = defaultdict(set)
+    for tid, items in (data or {}).items():
         for item in items:
             text, _, sess = str(item).partition("#")
             try:
@@ -292,8 +306,21 @@ def proctor_blocks(period):
                 continue
             sessions = [int(sess)] if sess.isdigit() else range(n)
             for s in sessions:
-                blocked[int(tid)].add((date, s))
-    return blocked
+                out[int(tid)].add((date, s))
+    return out
+
+
+def proctor_soft(period):
+    """KAMYOSİS: {öğretmen: {(tarih, oturum)}} "mümkünse görev verilmesin" oturumları."""
+    return _marked(period, period.proctor_soft)
+
+
+def prior_scores(period):
+    """KAMYOSİS: {öğretmen kimliği: önceki görev puanı} (settings.SINAV_GOREVLI_PUANI işlevinden; yoksa boş)."""
+    path = getattr(settings, "SINAV_GOREVLI_PUANI", None)
+    if not path:
+        return {}
+    return import_string(path)(period) or {}
 
 
 def proctor_pool(period):
@@ -336,7 +363,8 @@ def build_problem(period, keep_locked=True):
             if t >= 0:
                 fixed = t
                 locked_rooms = tuple(r.classroom_id for r in placement.rooms.all() if r.classroom_id in room_ids)
-                locked_proctors = {r.classroom_id: tuple(t.pk for t in r.proctors.all()) for r in placement.rooms.all()}
+                locked_proctors = {r.classroom_id: tuple((t.pk, r.role_of(t.pk)) for t in r.proctors.all())
+                                   for r in placement.rooms.all()}
         students = frozenset(s.pk for lesson in e.lessons.all() if lesson.elective for s in lesson.students.all())
         p_exams.append(exams_solver.PExam(
             id=e.pk, name=e.title + (f" ({', '.join(c.short or c.name for c in e.classes.all())})" if e.classes.all() else ""),
@@ -351,6 +379,9 @@ def build_problem(period, keep_locked=True):
     pool = proctor_pool(period)
     blocks = proctor_blocks(period)
     unavailable = {t.pk: {slot_of(d, s) for d, s in blocks.get(t.pk, ())} - {-1} for t in pool}
+    soft = proctor_soft(period)
+    prior = {int(k): float(v) for k, v in prior_scores(period).items()}
+    base = min(prior.values(), default=0)  # yalnızca farklar önemli; en düşük puan 0 olsun (z puanı eksi olabilir)
     return exams_solver.Problem(
         n_days=len(dates), n_sessions=n_s, exams=p_exams,
         rooms=[exams_solver.PRoom(r.pk, str(r), exam_capacity(r, period)) for r in rooms],
@@ -359,6 +390,10 @@ def build_problem(period, keep_locked=True):
         class_names={c.pk: c.short or c.name for c in period.school.classes.all()},
         slot_names=[slot_label(d, s, period) for d in dates for s in range(n_s)],
         capacity_percent=period.capacity_percent,
+        duty_roles=period.duty_roles, roles={t.pk: period.roles_of(t.pk) for t in pool},
+        soft={t.pk: {slot_of(d, s) for d, s in soft.get(t.pk, ())} - {-1} for t in pool},
+        prior={k: round(2 * (v - base)) for k, v in prior.items()},
+        weekend=frozenset(index[d] * n_s + s for d in dates if d.weekday() >= 5 for s in range(n_s)),
     ), dates
 
 
@@ -372,8 +407,9 @@ def save_result(period, result, dates):
             if eid in locked:
                 continue
             placement = ExamPlacement.objects.create(exam_id=eid, date=dates[t0 // n_s], session=t0 % n_s)
-            for rid, seats, teachers in rows:
-                room = ExamRoom.objects.create(placement=placement, classroom_id=rid, seats=seats)
+            for rid, seats, teachers, roles in rows:
+                room = ExamRoom.objects.create(placement=placement, classroom_id=rid, seats=seats,
+                                               roles={str(t): r for t, r in roles.items()})
                 room.proctors.set(teachers)
 
 
@@ -473,7 +509,9 @@ def validate(period, only=None):
     dates = set(period.dates())
     n_s = len(period.session_times)
     blocks = proctor_blocks(period)
+    soft = proctor_soft(period)
     exempt = set(period.proctor_exempt.values_list("pk", flat=True))
+    problem = exams_solver.Problem(0, 0, [], [], [], proctors_per_room=period.proctors_per_room, duty_roles=period.duty_roles)
 
     def add(level, text, *exams):
         if only is None or only in {e.pk for e in exams}:
@@ -516,11 +554,22 @@ def validate(period, only=None):
                     by_slot_teacher[(pl.date, s, t.pk)] = (e.pk, r.classroom_id)
                     if (pl.date, s) in blocks.get(t.pk, ()):
                         add("warn", f"{t.full_name} {label} oturumunda müsait değil ama «{e.title}» sınavında gözetmen.", e)
+                    elif (pl.date, s) in soft.get(t.pk, ()):
+                        add("warn", f"{t.full_name} {label} oturumu için “mümkünse görev verilmesin” demiş; «{e.title}» "
+                                    "sınavında görevli.", e)
                     if t.pk in exempt:
                         add("warn", f"{t.full_name} gözetmenlikten muaf ama «{e.title}» sınavında görevli.", e)
+                    role = r.role_of(t.pk)
+                    if k == 0 and period.duty_roles and role not in period.roles_of(t.pk):
+                        add("warn", f"{t.full_name} «{e.title}» sınavında {ROLE_NAMES.get(role, role).lower()} ama bu "
+                                    "rolü alamaz (görevli rolleri).", e)
         for r in pl.rooms.all():
-            if len(r.proctors.all()) < period.proctors_per_room:
-                add("warn", f"«{e.title}» – {r.classroom}: {period.proctors_per_room} gözetmen gerekli, {len(r.proctors.all())} var.", e)
+            have = defaultdict(int)
+            for t in r.proctors.all():
+                have[r.role_of(t.pk) if period.duty_roles else GOZETMEN] += 1
+            for role, want in exams_solver.duty_need(problem, r.seats).items():
+                if have[role] < want:
+                    add("warn", f"«{e.title}» – {r.classroom}: {want} {ROLE_NAMES[role].lower()} gerekli, {have[role]} var.", e)
     for (c, date), exams in per_day.items():
         if len(exams) > period.max_per_day:
             add("error", f"{c.short or c.name}: {date:%d.%m.%Y} günü {len(exams)} sınav (en fazla {period.max_per_day}).", *exams)
@@ -589,21 +638,35 @@ def auto_proctors(period, placement):
             load[t.pk] += 1
     own = set(exam.teachers.values_list("pk", flat=True))
     span = {(placement.date, placement.session + k) for k in range(max(1, exam.duration))}
+    soft = proctor_soft(period)
+    prior = prior_scores(period)
     pool = [t for t in proctor_pool(period) if t.pk not in busy and not span & blocks.get(t.pk, set())]
+    problem = exams_solver.Problem(0, 0, [], [], [], proctors_per_room=period.proctors_per_room, duty_roles=period.duty_roles)
     added = 0
     taken = {t.pk for r in placement.rooms.all() for t in r.proctors.all()}
     for room in placement.rooms.all():
-        need = period.proctors_per_room - room.proctors.count()
-        for t in sorted(pool, key=lambda t: (t.pk not in own, load[t.pk], t.last_name)):
-            if need <= 0:
-                break
-            if t.pk in taken:
-                continue
-            room.proctors.add(t)
-            taken.add(t.pk)
-            load[t.pk] += 1
-            need -= 1
-            added += 1
+        have = defaultdict(int)
+        for t in room.proctors.all():
+            have[room.role_of(t.pk) if period.duty_roles else GOZETMEN] += 1
+        roles = dict(room.roles or {})
+        for role, want in exams_solver.duty_need(problem, room.seats).items():
+            need = want - have[role]
+            for t in sorted(pool, key=lambda t: (bool(span & soft.get(t.pk, set())), t.pk not in own,
+                                                 load[t.pk] + float(prior.get(t.pk, 0)), t.last_name)):
+                if need <= 0:
+                    break
+                if t.pk in taken or role not in period.roles_of(t.pk):
+                    continue
+                room.proctors.add(t)
+                if role != GOZETMEN:
+                    roles[str(t.pk)] = role
+                taken.add(t.pk)
+                load[t.pk] += 1
+                need -= 1
+                added += 1
+        if roles != (room.roles or {}):
+            room.roles = roles
+            room.save(update_fields=["roles"])
     return added
 
 
@@ -674,13 +737,14 @@ def by_class(period, rows=None):
 
 
 def by_teacher(period, rows=None):
-    """Gözetmenlik listesi: [(öğretmen, [(yerleşim, salon), ...])] çoktan aza."""
+    """Gözetmenlik listesi: [(öğretmen, [(yerleşim, salon, rol adı), ...])] çoktan aza. Rol adı gözetmen için boş."""
     rows = placements(period) if rows is None else rows
     out = defaultdict(list)
     for pl in rows:
         for r in pl.rooms.all():
             for t in r.proctors.all():
-                out[t].append((pl, r))
+                role = r.role_of(t.pk)
+                out[t].append((pl, r, "" if role == GOZETMEN else ROLE_NAMES.get(role, role).lower()))
     return sorted(out.items(), key=lambda kv: (-len(kv[1]), kv[0].last_name, kv[0].first_name))
 
 

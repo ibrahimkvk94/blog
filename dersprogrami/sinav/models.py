@@ -15,6 +15,12 @@ from django.db import models
 
 DEFAULT_SESSIONS = ["09:30", "11:00", "13:30", "15:00"]
 
+# Görev rolleri (KAMYOSİS, PPYS SPS kuralı): salon amiri, gözetmen, taşıyıcı. Rolsüz dönemde herkes gözetmendir.
+AMIR, GOZETMEN, TASIYICI = "A", "G", "T"
+ROLE_NAMES = {AMIR: "Salon amiri", GOZETMEN: "Gözetmen", TASIYICI: "Taşıyıcı"}
+ROLE_ORDER = (AMIR, GOZETMEN, TASIYICI)
+DEFAULT_ROLES = GOZETMEN + TASIYICI  # rolleri girilmemiş öğretmen: gözetmen ve taşıyıcı olabilir, salon amiri olamaz
+
 
 class ExamPeriod(models.Model):
     VIZE, FINAL, BUT, OTHER = "vize", "final", "butunleme", "diger"
@@ -50,6 +56,14 @@ class ExamPeriod(models.Model):
     # Öğretmenin gözetmenlik yapamayacağı gün/oturumlar: {"öğretmen kimliği": ["2026-11-02", "2026-11-03#1", ...]}
     # ("#n" yalnızca o günün n. oturumu, 0'dan başlar).
     proctor_blocks = models.JSONField(default=dict, blank=True)
+    # KAMYOSİS: "mümkünse görev verilmesin" oturumları (biçim proctor_blocks ile aynı); çözücü yalnızca gerekirse kullanır
+    proctor_soft = models.JSONField(default=dict, blank=True)
+    duty_roles = models.BooleanField(
+        "görev rolleri", default=False,
+        help_text="Açıksa salon başına: 40 ve üstü öğrencide 1 salon amiri; 40'tan az öğrencide 1, fazlasında her 20 "
+                  "öğrenciye 1 gözetmen; öğrencisi olan salona 1 taşıyıcı. Kapalıysa salon başına sabit gözetmen sayısı.")
+    # KAMYOSİS: öğretmenin alabileceği roller {"öğretmen kimliği": "AGT"}; kayıt yok = DEFAULT_ROLES, "" = görev almaz
+    proctor_roles = models.JSONField(default=dict, blank=True)
     time_limit = models.PositiveSmallIntegerField("süre sınırı (sn)", default=30)
 
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=IDLE, blank=True)
@@ -95,6 +109,13 @@ class ExamPeriod(models.Model):
     @property
     def is_running(self):
         return self.status == self.RUNNING
+
+    def roles_of(self, teacher_id):
+        """Öğretmenin bu dönemde alabileceği roller ("AGT" alt kümesi). Rolsüz dönemde gözetmen olabilen herkes."""
+        roles = (self.proctor_roles or {}).get(str(teacher_id), DEFAULT_ROLES)
+        if not self.duty_roles:
+            return GOZETMEN if roles else ""
+        return "".join(r for r in ROLE_ORDER if r in roles)
 
 
 class Exam(models.Model):
@@ -151,12 +172,24 @@ class ExamRoom(models.Model):
     classroom = models.ForeignKey("timetable.Classroom", on_delete=models.CASCADE, related_name="+", verbose_name="salon")
     seats = models.PositiveIntegerField("öğrenci", default=0)
     proctors = models.ManyToManyField("timetable.Teacher", blank=True, related_name="proctorings", verbose_name="gözetmenler")
+    # KAMYOSİS: görevlinin rolü {"öğretmen kimliği": "A" | "T"}; kayıt yok = gözetmen
+    roles = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ["classroom__name"]
         db_table = "timetable_examroom"
         verbose_name = "sınav salonu"
         verbose_name_plural = "sınav salonları"
+
+    def role_of(self, teacher_id):
+        return (self.roles or {}).get(str(teacher_id), GOZETMEN)
+
+    @property
+    def duties(self):
+        """[(öğretmen, rol kodu, rol adı)] salon amiri, gözetmen, taşıyıcı sırasıyla (proctors önceden yüklenmiş olmalı)."""
+        rows = [(t, self.role_of(t.pk)) for t in self.proctors.all()]
+        rows.sort(key=lambda r: (ROLE_ORDER.index(r[1]) if r[1] in ROLE_ORDER else 9, r[0].last_name, r[0].first_name))
+        return [(t, r, ROLE_NAMES.get(r, r)) for t, r in rows]
 
 
 class ExamCourse(models.Model):

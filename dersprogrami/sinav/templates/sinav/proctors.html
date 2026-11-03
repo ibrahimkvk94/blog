@@ -11,17 +11,19 @@
   <form method="post" class="panel">{% csrf_token %}<input type="hidden" name="action" value="exempt">
     <div class="panel-head ex-toolbar"><h2>Öğretmenler</h2>
       <input type="search" class="input input-sm" placeholder="Öğretmen ara…" data-ex-filter="#ex-teachers tbody" style="max-width:220px">
-      {% if can.veri %}<button class="btn btn-sm btn-primary">Muafiyetleri kaydet</button>{% endif %}
+      {% if can.veri %}<button class="btn btn-sm btn-primary">{% if period.duty_roles %}Muafiyet ve rolleri kaydet{% else %}Muafiyetleri kaydet{% endif %}</button>{% endif %}
     </div>
     <div class="panel-body flush table-wrap" style="max-height:70vh;overflow:auto">
       <table class="table table-compact" id="ex-teachers">
-        <thead><tr><th>Öğretmen</th><th>Muaf</th><th class="num" title="Kapalı oturum (müsaitlik + işaretlenen)">Kapalı</th><th class="num">Görev</th></tr></thead>
+        <thead><tr><th>Öğretmen</th><th>Muaf</th>{% if period.duty_roles %}{% for code, name in role_names %}<th title="{{ name }} olabilir">{{ code }}</th>{% endfor %}{% endif %}<th class="num" title="Kapalı oturum (müsaitlik + işaretlenen)">Kapalı</th><th class="num" title="Mümkünse görev verilmesin">?</th><th class="num">Görev</th></tr></thead>
         <tbody>
           {% for r in rows %}
             <tr data-search="{{ r.teacher.full_name|fold }}"{% if selected and selected.pk == r.teacher.pk %} class="ex-selected"{% endif %}>
               <td><a href="?ogretmen={{ r.teacher.pk }}">{{ r.teacher.full_name }}</a></td>
               <td><input type="checkbox" name="exempt" value="{{ r.teacher.pk }}"{% if r.exempt %} checked{% endif %} aria-label="Gözetmenlikten muaf"{% if not can.veri %} disabled{% endif %}></td>
+              {% if period.duty_roles %}{% for code, name in role_names %}<td><input type="checkbox" name="role-{{ r.teacher.pk }}-{{ code }}" value="1"{% if code in r.roles %} checked{% endif %} aria-label="{{ name }}"{% if not can.veri %} disabled{% endif %}></td>{% endfor %}{% endif %}
               <td class="num">{% if r.blocked %}{{ r.blocked }}{% else %}<span class="subtle">–</span>{% endif %}</td>
+              <td class="num">{% if r.soft %}{{ r.soft }}{% else %}<span class="subtle">–</span>{% endif %}</td>
               <td class="num">{% if r.load %}<b>{{ r.load }}</b>{% else %}<span class="subtle">–</span>{% endif %}</td>
             </tr>
           {% endfor %}
@@ -40,12 +42,12 @@
             <tbody>
               {% for row in grid %}
                 <tr><th class="nowrap">{{ row.date|date:"d.m" }} <span class="subtle small">{{ row.day }}</span></th>
-                  {% for c in row.cells %}<td class="{% if c.auto and not c.on %}ex-auto{% endif %}"><label class="ex-cell"><input type="checkbox" name="block" value="{{ c.value }}"{% if c.on %} checked{% endif %}{% if not can.veri %} disabled{% endif %}>{% if c.auto and not c.on %}<span class="subtle small" title="Ders programı müsaitliğinden kapalı">DP</span>{% endif %}</label></td>{% endfor %}
+                  {% for c in row.cells %}<td class="{% if c.auto and not c.on %}ex-auto{% endif %}"><label class="ex-cell"><input type="checkbox" name="block" value="{{ c.value }}"{% if c.on %} checked{% endif %}{% if not can.veri %} disabled{% endif %}>{% if c.auto and not c.on %}<span class="subtle small" title="Ders programı müsaitliğinden kapalı">DP</span>{% elif c.soft and not c.on %}<span class="subtle small" title="Mümkünse görev verilmesin">?</span>{% endif %}</label></td>{% endfor %}
                 </tr>
               {% endfor %}
             </tbody>
           </table></div>
-          <p class="subtle small">“DP” = ders programındaki yasak saatten kapalı (burada değiştirilmez; öğretmenin müsaitliğinden ya da dönem ayarından kapatılır).</p>
+          <p class="subtle small">“DP” = ders programındaki yasak saatten kapalı (burada değiştirilmez; öğretmenin müsaitliğinden ya da dönem ayarından kapatılır). “?” = mümkünse görev verilmesin (gerekirse verilir).</p>
           {% if can.veri %}<button class="btn btn-primary">Kaydet</button>{% endif %}
         </form>
       </div>

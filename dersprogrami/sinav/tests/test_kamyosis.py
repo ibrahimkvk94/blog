@@ -137,3 +137,56 @@ class CozucuTercihTests(TestCase):
         self.assertEqual(oturum[1], oturum[2])
         self.assertEqual(oturum[3], oturum[4])
         self.assertNotEqual(oturum[1], oturum[3])
+
+
+class GorevKuraliTests(TestCase):
+    """Görev rolleri (salon amiri / gözetmen / taşıyıcı), "mümkünse verilmesin", önceki puanla denge."""
+
+    def _p(self, exams_, proctors, rooms=(100,), days=1, sessions=1, **kw):
+        return exams_solver.Problem(
+            n_days=days, n_sessions=sessions, exams=exams_,
+            rooms=[exams_solver.PRoom(i, f"S{i}", c) for i, c in enumerate(rooms)],
+            proctors=list(proctors), max_per_day=2, proctors_per_room=1, time_limit=10, workers=2, **kw)
+
+    def _gorevler(self, r, eid):
+        _t0, rows = r.placements[eid]
+        out = []
+        for _rid, _seats, teachers, roles in rows:
+            out += [(t, roles.get(t, "G")) for t in teachers]
+        return out
+
+    def test_ihtiyac(self):
+        p = self._p([], [], duty_roles=True)
+        self.assertEqual(exams_solver.duty_need(p, 0), {"G": 1})
+        self.assertEqual(exams_solver.duty_need(p, 39), {"G": 1, "T": 1})
+        self.assertEqual(exams_solver.duty_need(p, 40), {"A": 1, "G": 2, "T": 1})
+        self.assertEqual(exams_solver.duty_need(p, 61), {"A": 1, "G": 4, "T": 1})
+        self.assertEqual(exams_solver.duty_need(self._p([], []), 61), {"G": 1})
+
+    def test_roller_uygun_ogretmene(self):
+        # 45 öğrenci: 1 amir, 3 gözetmen, 1 taşıyıcı; yalnızca 1 amir olabilir, 9 taşıyıcı olabilir
+        roles = {1: "A", 9: "T", 2: "G", 3: "G", 4: "G"}
+        p = self._p([exams_solver.PExam(1, "S", classes=(1,), students=45)], roles, duty_roles=True, roles=roles)
+        r = exams_solver.solve(p)
+        self.assertEqual(sorted(self._gorevler(r, 1)), [(1, "A"), (2, "G"), (3, "G"), (4, "G"), (9, "T")])
+        self.assertEqual(r.status, "ok")
+
+    def test_mumkunse_verilmesin(self):
+        p = self._p([exams_solver.PExam(1, "S", classes=(1,), students=10)], [1, 2], soft={1: {0}})
+        r = exams_solver.solve(p)
+        self.assertEqual(self._gorevler(r, 1), [(2, "G")])
+        # tek seçenek oysa yine de verilir
+        p = self._p([exams_solver.PExam(1, "S", classes=(1,), students=10)], [1], soft={1: {0}})
+        self.assertEqual(self._gorevler(exams_solver.solve(p), 1), [(1, "G")])
+
+    def test_onceki_puan_dengesi(self):
+        # 2 oturum, 2 öğretmen, oturum başına 1 gözetmen: önceki puanı yüksek olan görev almaz
+        exams_ = [exams_solver.PExam(1, "A", classes=(1,), students=10, fixed=0),
+                  exams_solver.PExam(2, "B", classes=(2,), students=10, fixed=1)]
+        p = self._p(exams_, [1, 2], sessions=2, prior={1: 8})
+        r = exams_solver.solve(p)
+        self.assertEqual(self._gorevler(r, 1) + self._gorevler(r, 2), [(2, "G"), (2, "G")])
+
+    def test_hafta_sonu_agirligi(self):
+        self.assertEqual(exams_solver._weight(self._p([], [], weekend=frozenset({1})), (0, 1)), 5)
+        self.assertEqual(exams_solver._water_level([0, 4], 6), 5)

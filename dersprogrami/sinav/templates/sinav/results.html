@@ -110,7 +110,7 @@
         <tr data-search="{{ t.full_name|fold }}">
           <td class="nowrap">{{ t.full_name }}</td>
           <td class="num"><b>{{ items|length }}</b></td>
-          <td>{% for pl, room in items %}<a class="ex-duty" href="{% url 'sinav:edit' school.pk period.pk pl.exam_id %}">{{ pl.date|date:"d.m" }} {% include "sinav/time.html" %} · {{ pl.exam.title }} · {{ room.classroom }}</a>{% endfor %}</td>
+          <td>{% for pl, room, role in items %}<a class="ex-duty" href="{% url 'sinav:edit' school.pk period.pk pl.exam_id %}">{{ pl.date|date:"d.m" }} {% include "sinav/time.html" %} · {{ pl.exam.title }} · {{ room.classroom }}{% if role %} · {{ role }}{% endif %}</a>{% endfor %}</td>
         </tr>
       {% endfor %}
     </tbody>
@@ -127,7 +127,7 @@
         {% for pl, r in items %}
           <tr><td class="nowrap small">{{ pl.date|date:"d.m D" }}</td><td class="nowrap small">{% include "sinav/time.html" %}</td>
             <td><a href="{% url 'sinav:edit' school.pk period.pk pl.exam_id %}">{{ pl.exam.title }}</a> <span class="subtle small">{{ r.seats }} öğr.</span></td>
-            <td class="small">{% for t in r.proctors.all %}{{ t.full_name }}{% if not forloop.last %}, {% endif %}{% empty %}<span class="ex-bad">gözetmen yok</span>{% endfor %}</td></tr>
+            <td class="small">{% for t, code, name in r.duties %}{{ t.full_name }}{% if code != "G" %} ({{ name|lower }}){% endif %}{% if not forloop.last %}, {% endif %}{% empty %}<span class="ex-bad">gözetmen yok</span>{% endfor %}</td></tr>
         {% endfor %}
       </table></div>
     </div>
