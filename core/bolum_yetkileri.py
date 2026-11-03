@@ -15,8 +15,8 @@ from .models import Birim, Yetki
 
 GORUR, DUZENLER = Yetki.GORUNTULEME, Yetki.DUZENLEME
 SEVIYELER = [(GORUR, "Görür"), (DUZENLER, "Düzenler")]
-# Bölüm hesabı bu modüllerde zaten yalnızca görür (köprü kendi bölümü kapsamını salt okunur sayar).
-YALNIZ_GORUR = {"program-hazirlama"}
+# Bölüm hesabı bu modüllerde zaten yalnızca görür (köprü ve puantaj kendi bölümü kapsamını salt okunur sayar).
+YALNIZ_GORUR = {"program-hazirlama", "sinav-gorev-puantaji"}
 
 
 def bolum_hesaplari():

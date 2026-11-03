@@ -122,7 +122,8 @@ class BolumYetkileriTestleri(TestCase):
         self.assertIn("ders-planlari", slugs)
         self.assertIn("ders-mazeretleri", slugs)
         self.assertNotIn("plan-program", slugs)  # başlıklar sütun olmaz, yalnızca modüller
-        self.assertNotIn("sinav-mazeretleri", slugs)  # planlandı
+        self.assertIn("sinav-mazeretleri", slugs)
+        self.assertNotIn("belge-istekleri", slugs)  # planlandı
         self.assertEqual([s["bolum"].kod for s in satirlar], ["ASK", "TEM"])
         ask = satirlar[0]
         self.assertEqual([u.username for u in ask["hesaplar"]], ["ask1", "ask2"])

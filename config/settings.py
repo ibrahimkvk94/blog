@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     "nobet",
     "aktarim",
     "mazeret",
+    "sinavgorev",
     "timetable",  # Ders Programı modülü: Ders Planlama + ortak veri (bkz. docs/dersprogrami_modulu.md)
     "sinav",  # Ders Programı modülü: Sınav Planlama
     "dersprogrami_kopru",
@@ -149,6 +150,7 @@ SISTEM_ADI = "KAMYOSİS"
 # --- Ders Programı modülü (timetable) ---
 # "thread": üretim web sürecinde çalışır (geliştirme). yayinla.py "worker" yapar ve ayrı `manage.py calisan`
 # sürecini başlatır; böylece uzun üretimler siteyi yavaşlatmaz ve sunucu yeniden başlasa da sürer.
+SINAV_GOREVLI_PUANI = "sinavgorev.servis.onceki_puanlar"  # gözetmen dağıtımı yıl içindeki görev skoruna göre dengelenir
 TIMETABLE_GOMULU = True  # modül başka projeye gömülü: yedek/güncelleme testleri atlanır
 TIMETABLE_JOB_BACKEND = os.environ.get("TIMETABLE_JOB_BACKEND", "thread")
 TIMETABLE_RUN_IN_BACKGROUND = True

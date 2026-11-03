@@ -82,6 +82,12 @@ class KopruMiddleware:
             if request.user.is_authenticated:
                 sadece_sinav(request)  # menü süzmesi için
                 self._sinav_yetkisi(request)
+                if request.method == "POST" and (eslesme.url_name == "solve" or (
+                        eslesme.url_name == "edit" and request.POST.get("action") == "auto_proctors")):
+                    # gözetmen dağıtımından hemen önce sınav mazeretleri ve görev rolleri güncel olsun
+                    from mazeret.servis import sinav_donemini_esitle
+
+                    sinav_donemini_esitle(view_kwargs.get("period_id"))
             return None
         if eslesme.namespace != "timetable":
             return None

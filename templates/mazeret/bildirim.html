@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ personel.ad_soyad }} · Ders mazereti{% endblock %}
+{% block title %}{{ personel.ad_soyad }} · {{ tur.tekil }}{% endblock %}
 {% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">{{ personel.ad_soyad }}</li>{% endblock %}
 {% block content %}
 <div class="sayfa-baslik">
@@ -28,34 +28,38 @@
     <div class="islem-cubugu d-flex flex-wrap align-items-center gap-2 p-2 border-bottom">
       <span class="small text-secondary ms-2">İşaret:</span>
       <div class="btn-group btn-group-sm" role="group" aria-label="İşaret seçimi">
-        <input type="radio" class="btn-check" name="firca" id="fircaYasak" value="no" checked><label class="btn btn-outline-danger" for="fircaYasak">✗ Ders verilemez</label>
+        <input type="radio" class="btn-check" name="firca" id="fircaYasak" value="no" checked><label class="btn btn-outline-danger" for="fircaYasak">✗ {{ tur.yasak_metni|capfirst }}</label>
         <input type="radio" class="btn-check" name="firca" id="fircaKosullu" value="maybe"><label class="btn btn-outline-warning" for="fircaKosullu">? Mümkünse verilmesin</label>
         <input type="radio" class="btn-check" name="firca" id="fircaUygun" value=""><label class="btn btn-outline-success" for="fircaUygun">✓ Uygun</label>
       </div>
       <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" id="mzTemizle"><i class="bi bi-eraser"></i> Tümünü uygun yap</button>
     </div>
-    <div class="yardim-satiri"><i class="bi bi-info-circle"></i> Hücreye tıklayınca seçili işaret konur (aynı işarete tekrar tıklamak kaldırır). Gün adına ya da saat başlığına tıklamak tüm satırı ya da sütunu işaretler. Boş hücre = uygun.</div>
+    <div class="yardim-satiri"><i class="bi bi-info-circle"></i> Hücreye tıklayınca seçili işaret konur (aynı işarete tekrar tıklamak kaldırır). {% if tur.kod == 'sinav' %}Tarihe ya da oturum saatine{% else %}Gün adına ya da saat başlığına{% endif %} tıklamak tüm satırı ya da sütunu işaretler. Boş hücre = uygun.</div>
     {% endif %}
     <div class="table-responsive">
       <table class="mz-izgara {% if degistirebilir %}mz-duzenle{% endif %}">
         <thead>
           <tr>
             <th></th>
-            {% for s in saatler %}<th><button type="button" class="mz-baslik" data-sutun="{{ forloop.counter0 }}" {% if not degistirebilir %}disabled{% endif %}>{{ s }}. saat</button></th>{% endfor %}
+            {% for s in sutunlar %}<th><button type="button" class="mz-baslik" data-sutun="{{ forloop.counter0 }}" {% if not degistirebilir %}disabled{% endif %}>{{ s }}</button></th>{% endfor %}
           </tr>
         </thead>
         <tbody>
-          {% for g, gun in gunler %}
+          {% for etiket, hucreler in satirlar %}
+          {% with g=forloop.counter0 %}
           <tr>
-            <th><button type="button" class="mz-baslik" data-satir="{{ g }}" {% if not degistirebilir %}disabled{% endif %}>{{ gun }}</button></th>
-            {% for s in saatler %}<td><button type="button" class="mz-hucre" data-k="{{ g }}-{{ forloop.counter0 }}" aria-label="{{ gun }} {{ s.no }}. saat" {% if not degistirebilir %}disabled{% endif %}></button></td>{% endfor %}
+            <th><button type="button" class="mz-baslik" data-satir="{{ g }}" {% if not degistirebilir %}disabled{% endif %}>{{ etiket }}</button></th>
+            {% for k, aciklama in hucreler %}<td><button type="button" class="mz-hucre" data-k="{{ k }}" data-satir="{{ g }}" data-sutun="{{ forloop.counter0 }}" aria-label="{{ aciklama }}" {% if not degistirebilir %}disabled{% endif %}></button></td>{% endfor %}
           </tr>
+          {% endwith %}
+          {% empty %}
+          <tr><td class="text-secondary p-3">Izgara boş: dönemin günleri ya da oturumları tanımlı değil.</td></tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
     <div class="d-flex flex-wrap gap-3 px-3 py-2 border-top small text-secondary">
-      <span><span class="mz-ornek mz-no">✗</span> ders verilemez <strong id="sayYasak">0</strong></span>
+      <span><span class="mz-ornek mz-no">✗</span> {{ tur.yasak_metni }} <strong id="sayYasak">0</strong></span>
       <span><span class="mz-ornek mz-maybe">?</span> mümkünse verilmesin <strong id="sayKosullu">0</strong></span>
       <span><span class="mz-ornek">✓</span> uygun</span>
     </div>
@@ -63,7 +67,7 @@
 
   <div class="kart p-3 mb-3">
     <label class="form-label small text-secondary" for="aciklama">Açıklama (isteğe bağlı)</label>
-    <textarea class="form-control" id="aciklama" name="aciklama" rows="2" {% if not degistirebilir %}disabled{% endif %} placeholder="ör. Salı öğleden sonra lisansüstü dersi">{{ b.aciklama }}</textarea>
+    <textarea class="form-control" id="aciklama" name="aciklama" rows="2" {% if not degistirebilir %}disabled{% endif %} placeholder="{% if tur.kod == 'sinav' %}ör. 12 Kasım öğleden sonra hastane randevusu{% else %}ör. Salı öğleden sonra lisansüstü dersi{% endif %}">{{ b.aciklama }}</textarea>
   </div>
 
   {% if degistirebilir %}
@@ -78,7 +82,7 @@
 <div class="kart">
   <div class="yardim-satiri"><i class="bi bi-clock-history"></i> Değişiklik geçmişi</div>
   <ul class="list-unstyled mb-0 small">
-    {% for g in gecmis %}<li class="px-3 py-2 border-bottom">{{ g.zaman|date:"d.m.Y H:i" }} · {{ g.kullanici|default:"–" }} · {% if g.hucreler %}{{ g.hucreler|length }} saat işaretli{% else %}mazereti yok{% endif %}</li>{% endfor %}
+    {% for g in gecmis %}<li class="px-3 py-2 border-bottom">{{ g.zaman|date:"d.m.Y H:i" }} · {{ g.kullanici|default:"–" }} · {% if g.hucreler %}{{ g.hucreler|length }} {{ tur.birim_adi }} işaretli{% else %}mazereti yok{% endif %}</li>{% endfor %}
   </ul>
 </div>
 {% endif %}
@@ -115,9 +119,9 @@
   if (document.querySelector('.mz-duzenle')) {
     hucreler.forEach(h => h.addEventListener('click', () => uygula([h])));
     document.querySelectorAll('.mz-baslik[data-satir]').forEach(b => b.addEventListener('click', () =>
-      uygula(hucreler.filter(h => h.dataset.k.split('-')[0] === b.dataset.satir))));
+      uygula(hucreler.filter(h => h.dataset.satir === b.dataset.satir))));
     document.querySelectorAll('.mz-baslik[data-sutun]').forEach(b => b.addEventListener('click', () =>
-      uygula(hucreler.filter(h => h.dataset.k.split('-')[1] === b.dataset.sutun))));
+      uygula(hucreler.filter(h => h.dataset.sutun === b.dataset.sutun))));
     document.getElementById('mzTemizle').addEventListener('click', () => { durum = {}; ciz(); });
   }
   ciz();

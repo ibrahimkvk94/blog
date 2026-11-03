@@ -19,11 +19,13 @@ def _kisayollar(request):
             ("program:tablo", "Haftalık program", "table"),
             ("takip:devirler", "Devir talepleri", "arrow-left-right"),
         ]
-    try:
-        if etkin_yetki(request, birim_bul(request, "ders-mazeretleri"))[0] >= GORUNTULEME:
-            sonuc.append(("mazeret:ders", "Ders mazeretleri", "calendar-x"))
-    except Http404:
-        pass
+    for slug, url, etiket, ikon in (("ders-mazeretleri", "mazeret:ders", "Ders mazeretleri", "calendar-x"),
+                                    ("sinav-mazeretleri", "mazeret:sinav", "Sınav mazeretleri", "calendar2-x")):
+        try:
+            if etkin_yetki(request, birim_bul(request, slug))[0] >= GORUNTULEME:
+                sonuc.append((url, etiket, ikon))
+        except Http404:
+            pass
     if personel:
         sonuc.append(("personel:liste", "Personel", "person-vcard"))
     return [{"url": reverse(ad), "ad": etiket, "ikon": ikon, "ad_kodu": ad} for ad, etiket, ikon in sonuc]

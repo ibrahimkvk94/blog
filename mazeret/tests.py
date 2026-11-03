@@ -1,3 +1,4 @@
+import datetime
 import json
 
 from django.test import TestCase
@@ -6,10 +7,11 @@ from django.urls import reverse
 from accounts.models import User
 from core.models import Birim, Yetki
 from personel.models import Bolum, Personel
+from sinav.models import ExamPeriod
 from timetable.models import Availability, Period, School, Teacher
 
 from . import servis
-from .models import DersMazeretBildirimi, DersMazeretDonemi, DersMazeretGecmisi
+from .models import DersMazeretBildirimi, DersMazeretDonemi, DersMazeretGecmisi, SinavMazeretDonemi
 from .servis import MazeretHatasi
 
 
@@ -47,7 +49,8 @@ class DersMazeretiTestleri(TestCase):
         grup = Birim.objects.get(slug="mazeretler")
         self.assertEqual(grup.ust.slug, "plan-program")
         self.assertEqual(Birim.objects.get(slug="ders-mazeretleri").ust, grup)
-        self.assertEqual(Birim.objects.get(slug="sinav-mazeretleri").durum, Birim.PLANLANDI)
+        sinav = Birim.objects.get(slug="sinav-mazeretleri")
+        self.assertEqual((sinav.ust, sinav.durum, sinav.modul_url), (grup, Birim.KULLANIMDA, "mazeret:sinav"))
 
     def test_bolum_yalniz_kendi_personelini_gorur(self):
         y = yetki(self.bilci)
@@ -129,3 +132,80 @@ class DersMazeretiTestleri(TestCase):
         self.assertContains(r, "Ders mazeretleri")  # menü kısayolu
         servis.toplu_mazeretsiz(self.bilci, yetki(self.bilci), self.donem, [self.ayse, self.ali])
         self.assertNotContains(self.client.get(reverse("core:panel")), "Ders mazereti bildirilmemiş personel")
+
+
+class SinavMazeretiTestleri(TestCase):
+    """Oturum bazında sınav mazereti ve Sınav Planlama'ya aktarım."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.bil = Bolum.objects.create(ad="Bilgisayar Teknolojisi", kod="BİL")
+        cls.elk = Bolum.objects.create(ad="Elektrik", kod="ELK")
+        cls.ayse = Personel.objects.create(ad_soyad="Ayşe YILMAZ", bolum=cls.bil, sinav_rolleri="AG")
+        cls.ali = Personel.objects.create(ad_soyad="Ali KAYA", bolum=cls.bil)
+        cls.veli = Personel.objects.create(ad_soyad="Veli ÇELİK", bolum=cls.elk)
+        plan = Birim.objects.get(slug="plan-program")
+        cls.bilci = User.objects.create_user("bil", password="x-Parola-123", bolum=cls.bil)
+        Yetki.objects.create(kullanici=cls.bilci, birim=plan, seviye=Yetki.DUZENLEME, kapsam=Yetki.BOLUM)
+        cls.yonetici = User.objects.create_user("yon", password="x-Parola-123")
+        Yetki.objects.create(kullanici=cls.yonetici, birim=plan, seviye=Yetki.YONETIM, kapsam=Yetki.TUM)
+        cls.okul = School.objects.create(name="Güz programı")
+        cls.t_ayse = Teacher.objects.create(school=cls.okul, first_name="Ayşe", last_name="Yılmaz")
+        cls.t_ali = Teacher.objects.create(school=cls.okul, first_name="Ali", last_name="Kaya")
+        cls.period = ExamPeriod.objects.create(
+            school=cls.okul, name="Güz vize", start_date=datetime.date(2026, 11, 2), end_date=datetime.date(2026, 11, 4),
+            sessions=["09:30", "13:30"])
+        cls.donem = SinavMazeretDonemi.objects.create(ad="Güz vize", sinav_donemi=cls.period)
+
+    def test_izgara_ve_aktarim(self):
+        self.client.force_login(self.bilci)
+        url = reverse("mazeret:sinav_bildirim", args=[self.donem.pk, self.ayse.pk])
+        r = self.client.get(url)
+        self.assertContains(r, "Görev verilemez")
+        self.assertContains(r, 'class="mz-hucre"', count=6)  # 3 gün × 2 oturum
+        self.assertContains(r, "02.11.2026 Pazartesi")
+        hucreler = {"2026-11-02 09:30": "no", "2026-11-03 09:30": "no", "2026-11-03 13:30": "no",
+                    "2026-11-04 13:30": "maybe", "2026-11-05 09:30": "no"}  # son gün dönemde yok
+        r = self.client.post(url, {"hucreler": json.dumps(hucreler), "surum": "0"}, follow=True)
+        self.assertContains(r, "gözetmen müsaitliği güncellendi")
+        self.period.refresh_from_db()
+        k = str(self.t_ayse.pk)
+        self.assertEqual(self.period.proctor_blocks[k], ["2026-11-02#0", "2026-11-03"])
+        self.assertEqual(self.period.proctor_soft[k], ["2026-11-04#1"])
+        # bildirim "mazereti yok" olunca işaretler kalkar
+        self.client.post(url, {"hucreler": "{}", "surum": "1"})
+        self.period.refresh_from_db()
+        self.assertNotIn(k, self.period.proctor_blocks)
+        self.assertNotIn(k, self.period.proctor_soft)
+
+    def test_bolum_baska_bolumu_goremez(self):
+        self.client.force_login(self.bilci)
+        r = self.client.get(reverse("mazeret:sinav"))
+        self.assertContains(r, "Ayşe YILMAZ")
+        self.assertNotContains(r, "Veli ÇELİK")
+        url = reverse("mazeret:sinav_bildirim", args=[self.donem.pk, self.veli.pk])
+        self.assertEqual(self.client.get(url).status_code, 404)
+
+    def test_tum_donem_aktarimi_bildirimsizi_kapatir_rolleri_yazar(self):
+        y = servis.yetki(SahteIstek(self.yonetici), servis.TURLER["sinav"])
+        servis.kaydet(self.yonetici, y, self.donem, self.ayse, {}, okunan_surum=0)
+        servis.sinav_donemini_esitle(self.period.pk)  # sınav programı oluşturulmadan önce çağrılır
+        self.period.refresh_from_db()
+        self.assertTrue(self.period.duty_roles)
+        self.assertEqual(self.period.proctor_blocks, {str(self.t_ali.pk): ["2026-11-02", "2026-11-03", "2026-11-04"]})
+        self.assertEqual(self.period.roles_of(self.t_ayse.pk), "AG")
+        self.assertEqual(self.period.roles_of(self.t_ali.pk), "GT")
+        # ayar kapalıysa bildirimsize dokunulmaz
+        self.donem.bildirimsize_gorev_yok = False
+        self.donem.save()
+        self.period.proctor_blocks = {}
+        self.period.save()
+        servis.sinava_aktar(self.donem)
+        self.period.refresh_from_db()
+        self.assertEqual(self.period.proctor_blocks, {})
+
+    def test_ana_sayfa_eksik_bildirim(self):
+        self.client.force_login(self.bilci)
+        r = self.client.get(reverse("core:panel"))
+        self.assertContains(r, "Sınav mazereti bildirilmemiş personel")
+        self.assertContains(r, "Sınav mazeretleri")
