@@ -182,11 +182,13 @@ def geri_al(period):
     return n
 
 
-def rolleri_donemden_al(period):
+def rolleri_donemden_al(period, ogretmenler=None):
     """Sınav Planlama'nın Gözetmenler sayfasında değiştirilen rolleri personele yazar (roller KAMYOSİS'te tutulur;
     sınav programı oluşturulurken personelden yeniden aktarılır)."""
     degisen = 0
     for pid, t in ogretmen_eslesmesi(period.school).items():
+        if ogretmenler is not None and t.pk not in ogretmenler:
+            continue
         roller = period.roles_of(t.pk) if period.duty_roles else None
         if roller is None:
             continue

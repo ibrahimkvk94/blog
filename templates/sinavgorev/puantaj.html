@@ -32,7 +32,7 @@
   </div>
 </form>
 
-<form method="post" action="{% url 'sinavgorev:roller' %}">
+<form method="post" action="{% url 'sinavgorev:roller' %}" id="rolFormu">
   {% csrf_token %}
   <input type="hidden" name="geri" value="{{ request.get_full_path }}">
   <div class="kart mb-3">
@@ -43,8 +43,7 @@
     </div>
     {% if y.yonetim %}
     <div class="islem-cubugu d-flex flex-wrap align-items-center gap-2 p-2 border-bottom d-print-none">
-      <span class="small text-secondary ms-2 me-auto">Rol kutularını değiştirip kaydedin; sınav dönemlerine hemen işlenir.</span>
-      <button class="btn btn-sm btn-primary"><i class="bi bi-check2 me-1"></i>Rolleri kaydet</button>
+      <span class="small text-secondary ms-2 me-auto" id="rolDurumu">Rol kutuları tıklanınca kaydedilir ve sınav dönemlerine hemen işlenir.</span>
     </div>
     {% endif %}
     <div class="table-responsive">
@@ -79,6 +78,32 @@
 </form>
 
 {% if y.yonetim %}
+<script>
+/* Rol kutusu değişince yalnızca o personel kaydedilir */
+(function () {
+  const form = document.getElementById('rolFormu'), durum = document.getElementById('rolDurumu');
+  if (!form) return;
+  form.addEventListener('submit', e => e.preventDefault());
+  form.addEventListener('change', e => {
+    const kutu = e.target;
+    if (!kutu.name || !kutu.name.startsWith('rol-')) return;
+    const satir = kutu.closest('tr'), pk = kutu.name.split('-')[1];
+    const veri = new FormData();
+    veri.append('csrfmiddlewaretoken', form.querySelector('[name=csrfmiddlewaretoken]').value);
+    veri.append('p', pk);
+    satir.querySelectorAll('input[name^="rol-"]').forEach(k => { if (k.checked) veri.append(k.name, '1'); });
+    durum.textContent = 'Kaydediliyor…';
+    fetch(form.action, { method: 'POST', body: veri, headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(() => {
+        kutu.closest('td').dataset.deger = kutu.checked ? '1' : '0';
+        durum.classList.remove('text-danger');
+        durum.textContent = 'Kaydedildi: ' + satir.querySelector('td a').textContent.trim();
+      })
+      .catch(() => { durum.classList.add('text-danger'); durum.textContent = 'Kaydedilemedi — sayfayı yenileyip tekrar deneyin.'; });
+  });
+})();
+</script>
 <div class="row g-3 d-print-none">
   <div class="col-xl-7">
     <div class="kart h-100">
