@@ -93,11 +93,11 @@
     {% endif %}
     <div class="yardim-satiri"><i class="bi bi-info-circle"></i> Personelin adına tıklayıp {% if tur.kod == 'sinav' %}sınav günleri × oturumlar{% else %}haftalık{% endif %} tabloyu doldurun: <strong>✗</strong> {{ tur.yasak_metni }}, <strong>?</strong> mümkünse verilmesin, boş = uygun. Mazereti olmayan personel için de bildirim yapılmalıdır{% if tur.kod == 'sinav' and donem.bildirimsize_gorev_yok %}; bildirimi olmayan personele sınav görevi verilmez{% endif %}.</div>
     <div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">
+      <table class="table table-hover align-middle mb-0 siralanabilir">
         <thead>
           <tr>
             {% if degistirebilir %}<th style="width:36px"><input class="form-check-input" type="checkbox" id="hepsiniSec" aria-label="Tümünü seç"></th>{% endif %}
-            <th>Personel</th><th class="d-none d-md-table-cell">Bölüm</th><th>Durum</th><th class="d-none d-lg-table-cell">Son değişiklik</th>
+            <th data-sirala>Personel</th><th class="d-none d-md-table-cell" data-sirala>Bölüm</th><th data-sirala>Durum</th><th class="d-none d-lg-table-cell" data-sirala>Son değişiklik</th>
           </tr>
         </thead>
         <tbody>
@@ -107,12 +107,12 @@
             <td><a href="{% url u.bildirim donem.pk p.pk %}?geri={{ request.get_full_path|urlencode }}" class="fw-semibold text-decoration-none">{{ p.ad_soyad }}</a>
               <div class="small text-secondary">{{ p.kunye }}</div></td>
             <td class="d-none d-md-table-cell">{{ p.bolum.kod|default:"–" }}</td>
-            <td>
+            <td data-deger="{% if p.mazeret_durumu == 'yok' %}0{% elif p.mazeret_durumu == 'mazeretsiz' %}1{% else %}2{% endif %}{{ p.bildirim.yasak_sayisi|stringformat:'03d' }}">
               {% if p.mazeret_durumu == 'yok' %}<span class="durum-rozet durum-eksik">Bildirim yok</span>
               {% elif p.mazeret_durumu == 'mazeretsiz' %}<span class="durum-rozet durum-kullanimda">Mazereti yok</span>
               {% else %}<span class="durum-rozet durum-sirada">{% if p.bildirim.yasak_sayisi %}✗ {{ p.bildirim.yasak_sayisi }} {{ tur.birim_adi }}{% endif %}{% if p.bildirim.yasak_sayisi and p.bildirim.kosullu_sayisi %} · {% endif %}{% if p.bildirim.kosullu_sayisi %}? {{ p.bildirim.kosullu_sayisi }} {{ tur.birim_adi }}{% endif %}</span>{% endif %}
             </td>
-            <td class="d-none d-lg-table-cell small text-secondary">{% if p.bildirim %}{{ p.bildirim.guncelleme|date:"d.m.Y H:i" }} · {{ p.bildirim.bildiren|default:"–" }}{% endif %}</td>
+            <td class="d-none d-lg-table-cell small text-secondary" data-deger="{{ p.bildirim.guncelleme|date:'Y-m-d H:i'|default:'' }}">{% if p.bildirim %}{{ p.bildirim.guncelleme|date:"d.m.Y H:i" }} · {{ p.bildirim.bildiren|default:"–" }}{% endif %}</td>
           </tr>
         {% empty %}
           <tr><td colspan="5" class="text-center text-secondary py-5">Bu filtrede personel yok.</td></tr>
