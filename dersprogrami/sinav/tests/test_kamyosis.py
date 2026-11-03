@@ -298,3 +298,38 @@ class GorevDegisikligiTests(TestCase):
         self.assertEqual(list(self.oda["Mat"].proctors.all()), [self.t["B"]])
         self.assertEqual(list(self.oda["Fiz"].proctors.all()), [self.t["A"]])
         self.assertContains(self.client.get(url), "karşılıklı istek")
+
+
+class OturumDuzeniTests(TestCase):
+    """Oturum düzeni 2,1,…: her oturum bir düzeyin; o düzeyin her bölümü tam bir sınavda."""
+
+    def test_duzen_mukerrer_eksik(self):
+        E = exams_solver.PExam
+        sinavlar = [
+            E(1, "Mat 1", classes=(10, 11, 12), students=10, year=1, programs=frozenset({"SVN", "MKT", "ELN"})),
+            E(2, "Fiz 1", classes=(10, 11, 12), students=10, year=1, programs=frozenset({"SVN", "MKT", "ELN"})),
+            E(3, "Taktik", classes=(20,), students=10, year=2, programs=frozenset({"SVN"})),
+            E(4, "Hidrolik", classes=(21,), students=10, year=2, programs=frozenset({"MKT"})),
+            E(5, "Analog", classes=(22,), students=10, year=2, programs=frozenset({"ELN"})),
+            E(6, "Malzeme", classes=(23,), students=10, year=2, programs=frozenset({"MKT"})),  # MKT'nin başka kısmı
+        ]
+        p = exams_solver.Problem(
+            n_days=1, n_sessions=4, exams=sinavlar, rooms=[exams_solver.PRoom(i, f"S{i}", 100) for i in range(4)],
+            proctors=[], max_per_day=2, proctors_per_room=0, time_limit=10, workers=2,
+            session_years=(2, 1, 2, 1), programs_by_year={1: {"SVN", "MKT", "ELN"}, 2: {"SVN", "MKT", "ELN"}})
+        r = exams_solver.solve(p)
+        oturum = {eid: t for eid, (t, _) in r.placements.items()}
+        self.assertEqual(len(oturum), 6)
+        for eid in (1, 2):
+            self.assertIn(oturum[eid], (1, 3))  # 1. sınıf oturumları
+        for eid in (3, 4, 5, 6):
+            self.assertIn(oturum[eid], (0, 2))  # 2. sınıf oturumları
+        self.assertNotEqual(oturum[4], oturum[6])  # MKT'nin iki sınavı aynı oturumda değil (mükerrer yok)
+        # eksik bölüm en az: iki 2. sınıf oturumunda toplam 6 bölüm yerinden 4 sınav → en az 2 eksik
+        eksik = sum(3 - len({pr for e in sinavlar if oturum[e.id] == t for pr in e.programs}) for t in (0, 2))
+        self.assertEqual(eksik, 2)
+
+    def test_duzey_kisimdan(self):
+        siniflar = [SchoolClass(grade=2), SchoolClass(grade=2)]
+        self.assertEqual(kurallar.sinav_duzeyi(siniflar, "TEM101"), 2)
+        self.assertEqual(kurallar.sinav_duzeyi([SchoolClass(grade=1), SchoolClass(grade=2)], "TEM101"), 1)  # karışık: koddan

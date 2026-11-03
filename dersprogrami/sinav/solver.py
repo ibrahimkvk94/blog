@@ -20,7 +20,9 @@ Zaman dilimi (slot) = gün sırası × oturum sayısı + oturum. Çözüm üç a
 Her aşamada açgözlü bir başlangıç çözümü ipucu olarak verilir; CP-SAT süre içinde çözüm bulamazsa o kullanılır.
 
 KAMYOSİS tercihleri (zamanlama aşaması, bkz. kurallar.py): zorluğu yüksek sınav erken güne (eşit zorlukta MT önce,
-ÇS sonra), adı aynı (parantez hariç) sınavlar aynı güne, bir oturuma tek sınıf düzeyi (1. / 2. sınıf).
+ÇS sonra), adı aynı (parantez hariç) sınavlar aynı güne, bir oturuma tek sınıf düzeyi (1. / 2. sınıf). Oturum düzeni
+verilmişse (ör. 2,1,2,1) her oturum o düzeyin sınavlarına ayrılır; o oturumda düzeyin her bölümü (programı) tam bir
+sınavda olsun: aynı bölümün iki sınavı (mükerrer) ve sınavı olmayan bölüm (eksik) cezalıdır.
 """
 
 import math
@@ -49,6 +51,9 @@ W_ORDER = 1            # (3 × zorluk + tür sırası) × gün sırası
 W_SAME_NAME_DAY = 300  # adı aynı sınavların kullandığı her fazladan gün
 W_MIXED_YEAR = 60      # bir oturumda birden çok sınıf düzeyi
 TYPE_RANK = {"MT": 2, "": 1, "ÇS": 0}
+W_PATTERN = 5000       # sınav, oturum düzenindeki düzeyin dışındaki oturumda
+W_DUP_PROGRAM = 3000   # aynı oturumda aynı bölümün ikinci sınavı
+W_MISSING_PROGRAM = 150  # düzeyin oturumunda sınavı olmayan bölüm
 
 
 @dataclass
@@ -71,6 +76,7 @@ class PExam:
     family: str = ""
     year: int | None = None
     base_name: str = ""
+    programs: frozenset = frozenset()  # KAMYOSİS: sınavın bölümleri (kısımların programı)
 
     @property
     def priority(self):
@@ -106,6 +112,13 @@ class Problem:
     soft: dict = field(default_factory=dict)         # {öğretmen: {dilim, ...}} mümkünse görev verilmesin
     prior: dict = field(default_factory=dict)        # {öğretmen: önceki görev puanı × 2}
     weekend: frozenset = frozenset()                 # hafta sonu dilimleri (görev 1,5 sayılır)
+    session_years: tuple = ()                        # oturum sırası → sınıf düzeyi (ör. (2, 1, 2, 1)); boş = serbest
+    programs_by_year: dict = field(default_factory=dict)  # {düzey: {bölüm, ...}}
+
+    def slot_year(self, t):
+        """Oturum düzenine göre bu dilimin sınıf düzeyi (yoksa None)."""
+        s = t % self.n_sessions if self.n_sessions else 0
+        return self.session_years[s] if s < len(self.session_years) else None
 
     @property
     def n_slots(self):
@@ -301,6 +314,8 @@ def _greedy_timing(p, need):
                 continue
             load = max(rooms[s] for s in span) + sum(class_day.get((c, t // S), 0) for c in e.classes) * 2
             load += (t // S) * e.priority / 3  # KAMYOSİS: zor sınav erken güne
+            if e.year is not None and p.slot_year(t) not in (None, e.year):
+                load += 1000  # KAMYOSİS: oturum düzeni
             if best is None or load < best[0]:
                 best = (load, t)
         if best is None:
@@ -466,6 +481,30 @@ def _kamyosis_terms(m, p, x, occ, day_start):
             extra = m.NewIntVar(0, len(used), f"ne{n}")
             m.Add(extra >= sum(used) - 1)
             obj.append(W_SAME_NAME_DAY * extra)
+    # oturum düzeni: sınav kendi düzeyinin oturumunda
+    if p.session_years:
+        for (i, t), v in x.items():
+            want = p.slot_year(t)
+            if want is not None and p.exams[i].year not in (None, want):
+                obj.append(W_PATTERN * v)
+    # bölümler: oturumda aynı bölümün tek sınavı (mükerrer yok), düzeyin oturumunda her bölüm (eksik yok)
+    by_program = {}
+    for i, e in enumerate(p.exams):
+        for pr in e.programs:
+            by_program.setdefault(pr, []).append(i)
+    for pr, ids in by_program.items():
+        year = next((y for y, prs in p.programs_by_year.items() if pr in prs), None)
+        for t in range(T):
+            terms = [v for i in ids for v in occ(i, t)]
+            if len(terms) > 1:
+                dup = m.NewIntVar(0, len(terms), f"pd{t}_{len(obj)}")
+                m.Add(dup >= sum(terms) - 1)
+                obj.append(W_DUP_PROGRAM * dup)
+            if p.session_years and year is not None and p.slot_year(t) == year:
+                if terms:
+                    here = m.NewBoolVar(f"ph{t}_{len(obj)}")
+                    m.Add(here <= sum(terms))
+                    obj.append(W_MISSING_PROGRAM * (1 - here))
     # oturumda tek sınıf düzeyi: oturumdaki düzey sayısı − 1
     years = sorted({e.year for e in p.exams if e.year is not None})
     if len(years) > 1:

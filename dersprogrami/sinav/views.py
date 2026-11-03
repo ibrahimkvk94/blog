@@ -46,6 +46,10 @@ class PeriodForm(StyledFormMixin, forms.ModelForm):
                                     help_text="Virgülle ayırın, ör. 09:30, 11:00, 13:30, 15:00")
     excluded_text = forms.CharField(label="Hariç günler (tatil)", required=False, widget=forms.Textarea(attrs={"rows": 2}),
                                     help_text="Ör. 29.10.2026, 10.11.2026 — virgülle ya da satır satır")
+    session_years_text = forms.CharField(
+        label="Oturum düzeni (sınıf düzeyi)", required=False,
+        help_text="Ör. 2,1,2,1: 1. oturum 2. sınıflar, 2. oturum 1. sınıflar, 3. oturum 2. sınıflar, 4. oturum 1. sınıflar. "
+                  "Her oturumda o düzeyin her bölümünden bir sınav olması tercih edilir. Boş = serbest.")
     weekday_list = forms.MultipleChoiceField(label="Sınav günleri", required=False, widget=ChipSelectMultiple(searchable=False),
                                              choices=[(str(i), n) for i, n in enumerate(DAY_NAMES)])
 
@@ -70,6 +74,7 @@ class PeriodForm(StyledFormMixin, forms.ModelForm):
             self.initial.setdefault("excluded_text", ", ".join(
                 datetime.date.fromisoformat(d).strftime("%d.%m.%Y") for d in inst.excluded_dates or []))
             self.initial.setdefault("weekday_list", [str(d) for d in inst.active_weekdays])
+            self.initial.setdefault("session_years_text", ",".join(str(y) for y in inst.session_years or []))
         else:
             self.initial.setdefault("weekday_list", ["0", "1", "2", "3", "4"])
         self._style()
@@ -89,6 +94,12 @@ class PeriodForm(StyledFormMixin, forms.ModelForm):
             self.add_error("sessions_text", "Günde en fazla 10 oturum olabilir.")
         data["sessions"] = sessions
         data["excluded"] = exams.parse_dates(data.get("excluded_text"))
+        years = [p.strip() for p in str(data.get("session_years_text") or "").replace(";", ",").split(",") if p.strip()]
+        if any(not y.isdigit() or not 1 <= int(y) <= 9 for y in years):
+            self.add_error("session_years_text", "Virgülle ayrılmış sınıf düzeyleri girin (ör. 2,1,2,1).")
+        elif sessions and len(years) > len(sessions):
+            self.add_error("session_years_text", f"Günde {len(sessions)} oturum var; en fazla {len(sessions)} düzey girin.")
+        data["session_years"] = [int(y) for y in years if y.isdigit()]
         if data.get("time_limit") is not None and not 5 <= data["time_limit"] <= 600:
             self.add_error("time_limit", "5 ile 600 saniye arasında olmalı.")
         if data.get("capacity_percent") is not None and not 1 <= data["capacity_percent"] <= 100:
@@ -101,6 +112,7 @@ class PeriodForm(StyledFormMixin, forms.ModelForm):
         inst = super().save(commit=False)
         inst.sessions = self.cleaned_data["sessions"]
         inst.excluded_dates = self.cleaned_data["excluded"]
+        inst.session_years = self.cleaned_data.get("session_years", [])
         days = sorted({int(d) for d in self.cleaned_data.get("weekday_list") or []})
         inst.weekdays = [] if days == [0, 1, 2, 3, 4] else days
         if commit:

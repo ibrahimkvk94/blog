@@ -65,6 +65,8 @@ class ExamPeriod(models.Model):
     # KAMYOSİS: öğretmenin alabileceği roller {"öğretmen kimliği": "AGT"}; kayıt yok = DEFAULT_ROLES, "" = görev almaz
     proctor_roles = models.JSONField(default=dict, blank=True)
     time_limit = models.PositiveSmallIntegerField("süre sınırı (sn)", default=30)
+    # KAMYOSİS: oturum sırasına göre sınıf düzeyi, ör. [2, 1, 2, 1] → 1. oturum 2. sınıflar, 2. oturum 1. sınıflar …
+    session_years = models.JSONField("oturum düzeni", default=list, blank=True)
 
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=IDLE, blank=True)
     report = models.JSONField(default=dict, blank=True)

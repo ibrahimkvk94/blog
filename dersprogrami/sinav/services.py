@@ -323,6 +323,40 @@ def prior_scores(period):
     return import_string(path)(period) or {}
 
 
+def programs_by_year(school):
+    """KAMYOSİS: {sınıf düzeyi: {bölüm (program), ...}} — kısımların programı ve düzeyinden."""
+    out = defaultdict(set)
+    for grade, program in school.classes.exclude(program="").values_list("grade", "program"):
+        if grade is not None:
+            out[grade].add(program)
+    return dict(out)
+
+
+def session_report(period, rows=None):
+    """KAMYOSİS: oturum düzeni denetimi: [(etiket, beklenen düzey, düzeyler, mükerrer bölümler, eksik bölümler)]."""
+    rows = placements(period) if rows is None else rows
+    pattern = list(period.session_years or [])
+    by_year = programs_by_year(period.school)
+    slots = defaultdict(list)
+    for pl in rows:
+        for k in range(max(1, pl.exam.duration)):
+            slots[(pl.date, pl.session + k)].append(pl.exam)
+    out = []
+    for (date, s), exams_ in sorted(slots.items()):
+        want = pattern[s] if s < len(pattern) else None
+        years, count = set(), defaultdict(set)
+        for e in exams_:
+            for c in e.classes.all():
+                if c.program and c.grade is not None:
+                    years.add(c.grade)
+                    count[c.program].add(e.pk)
+        dup = sorted(pr for pr, es in count.items() if len(es) > 1)
+        target = want if want is not None else (next(iter(years)) if len(years) == 1 else None)
+        missing = sorted(by_year.get(target, set()) - set(count)) if target is not None else []
+        out.append((slot_label(date, s, period), want, sorted(years), dup, missing))
+    return out
+
+
 def proctor_pool(period):
     exempt = set(period.proctor_exempt.values_list("pk", flat=True))
     return [t for t in period.school.teachers.all() if t.pk not in exempt]
@@ -374,7 +408,8 @@ def build_problem(period, keep_locked=True):
             locked_proctors=locked_proctors, student_ids=students,
             difficulty=kurallar.zorluk(course.difficulty if course else None),
             family=kurallar.tur_ailesi(course.exam_type if course else ""),
-            year=kurallar.sinif_yili(code), base_name=kurallar.temel_ad(e.title),
+            year=kurallar.sinav_duzeyi(e.classes.all(), code), base_name=kurallar.temel_ad(e.title),
+            programs=frozenset(c.program for c in e.classes.all() if c.program),
         ))
     pool = proctor_pool(period)
     blocks = proctor_blocks(period)
@@ -394,6 +429,7 @@ def build_problem(period, keep_locked=True):
         soft={t.pk: {slot_of(d, s) for d, s in soft.get(t.pk, ())} - {-1} for t in pool},
         prior={k: round(2 * (v - base)) for k, v in prior.items()},
         weekend=frozenset(index[d] * n_s + s for d in dates if d.weekday() >= 5 for s in range(n_s)),
+        session_years=tuple(period.session_years or ()), programs_by_year=programs_by_year(period.school),
     ), dates
 
 
@@ -573,6 +609,15 @@ def validate(period, only=None):
     for (c, date), exams in per_day.items():
         if len(exams) > period.max_per_day:
             add("error", f"{c.short or c.name}: {date:%d.%m.%Y} günü {len(exams)} sınav (en fazla {period.max_per_day}).", *exams)
+    if only is None and period.session_years:  # KAMYOSİS: oturum düzeni
+        for label, want, years, dup, missing in session_report(period, rows):
+            if want is not None and set(years) - {want}:
+                add("warn", f"{label}: oturum {want}. sınıflara ayrılmış ama "
+                            f"{', '.join(f'{y}. sınıf' for y in sorted(set(years) - {want}))} sınavı var.")
+            if dup:
+                add("warn", f"{label}: aynı bölümün birden çok sınavı (mükerrer): {', '.join(dup)}.")
+            if missing:
+                add("warn", f"{label}: sınavı olmayan bölüm (eksik): {', '.join(missing)}.")
     placed = {pl.exam_id for pl in rows}
     if only is None:
         for e in period.exams.filter(excluded=False).exclude(pk__in=placed).select_related("subject"):

@@ -77,6 +77,14 @@ def temel_ad(ad):
     return " ".join(_PARANTEZ.sub(" ", ad or "").casefold().split())
 
 
+def sinav_duzeyi(siniflar, kod):
+    """Sınavın sınıf düzeyi: kısımların düzeyi (hepsi aynıysa), yoksa ders kodundan (sinif_yili)."""
+    duzeyler = {c.grade for c in siniflar if c.grade is not None}
+    if len(duzeyler) == 1:
+        return duzeyler.pop()
+    return sinif_yili(kod)
+
+
 def sinif_yili(kod):
     """Ders numarasının (3 hane) ilk rakamı sınıf düzeyidir: BİL103 → 1, ASK201 → 2; T3 gibi kodlarda None."""
     m = _YIL.search(kod or "")
