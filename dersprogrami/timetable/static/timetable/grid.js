@@ -1175,13 +1175,43 @@
     viewDialog.showModal();
   }
 
+  // Düzenleme penceresi: ders / öğretmen / sınıf / derslik kaydı sayfadan çıkmadan, düzenleyicinin gömülü
+  // halinde (?gomulu=1) açılır. Kaydedilince tablo yenilenir; müsaitlik uyarısı varsa pencere açık kalır.
+  const editDialog = $("#edit-dialog");
+  const editFrame = () => $("#edit-body iframe");
+  function openEditor(url, title) {
+    $("#edit-title").textContent = title;
+    const [path, hash] = url.split("#");
+    const src = path + (path.includes("?") ? "&" : "?") + "gomulu=1" + (hash ? "#" + hash : "");
+    $("#edit-body").innerHTML = '<iframe class="edit-frame" title="' + esc(title) + '" src="' + esc(src) + '"></iframe>';
+    editDialog.showModal();
+  }
+  function closeEditor(force) {
+    const frame = editFrame();
+    const editor = frame && frame.contentWindow && frame.contentWindow.Editor;
+    if (!force && editor && editor.isDirty() && !confirm("Kaydedilmemiş değişiklikler var. Kaydetmeden kapatılsın mı?")) return;
+    editDialog.close();
+    $("#edit-body").innerHTML = "";
+  }
+  $("[data-edit-close]").addEventListener("click", () => closeEditor(false));
+  editDialog.addEventListener("cancel", (e) => { e.preventDefault(); closeEditor(false); });
+  window.addEventListener("message", (e) => {
+    const frame = editFrame();
+    if (!frame || e.source !== frame.contentWindow || e.origin !== location.origin) return;
+    const msg = e.data || {};
+    if (msg.type === "editor:cancel") closeEditor(true);
+    if (msg.type === "editor:saved") {
+      load();
+      if (!msg.alert) { closeEditor(true); toast(msg.message); }
+    }
+  });
+
   async function cardMenu(card, rowId, x, y) {
     select(card.id);
     showMenu(x, y, [{ head: card.subject + " (" + card.classes + ")" }, { label: "Yükleniyor…", disabled: true }]);
     let info;
     try { info = await api(urlFor(cfg.infoUrl, card.id)); } catch (e) { hideMenu(); toast(e.message, "error"); return; }
     const placed = card.day != null;
-    const back = "?back=" + encodeURIComponent(location.pathname);
     const items = [
       { head: card.subject + " (" + card.classes + ")" },
       { label: "Kaldır", hint: "bekleyenlere al", disabled: !placed || card.locked, action: () => unplaceCard(card.id) },
@@ -1202,7 +1232,7 @@
         })).concat([{ sep: true }, { label: "Dersliği boşalt", disabled: !card.room, action: () => run(api(urlFor(cfg.roomUrl, card.id), { method: "POST", body: JSON.stringify({ room: null }) }), true) }]),
       });
     }
-    items.push({ label: "Dersi güncelle", action: () => { location.href = info.lesson_url + back; } });
+    items.push({ label: "Dersi güncelle", action: () => openEditor(info.lesson_url, "Dersi güncelle: " + info.label) });
     items.push({ label: "Hızlı değişiklik yap", hint: "öğretmen", action: () => quickChange(card, info) });
     items.push({ sep: true });
     items.push({
@@ -1218,9 +1248,9 @@
         .concat(info.rooms.filter((r) => r.current).map((r) => ({ label: "✓ " + r.name, action: () => showTimetable("derslik", r.id, r.name) }))),
     });
     items.push({
-      label: "Düzenle / müsaitlik", sub: [{ label: "Ders adı: " + info.subject.name, action: () => { location.href = info.subject.url; } }]
-        .concat(info.teachers.map((t) => ({ label: "Öğretmen: " + t.name, action: () => { location.href = t.url; } })))
-        .concat(info.classes.map((k) => ({ label: "Sınıf: " + k.name, action: () => { location.href = k.url; } }))),
+      label: "Düzenle / müsaitlik", sub: [{ label: "Ders adı: " + info.subject.name, action: () => openEditor(info.subject.url, "Ders adı: " + info.subject.name) }]
+        .concat(info.teachers.map((t) => ({ label: "Öğretmen: " + t.name, action: () => openEditor(t.url, "Öğretmen: " + t.name) })))
+        .concat(info.classes.map((k) => ({ label: "Sınıf: " + k.name, action: () => openEditor(k.url, "Sınıf: " + k.name) }))),
     });
     if (ctx.hidden) return; // kullanıcı bu arada kapattıysa
     showMenu(x, y, items);
@@ -1236,7 +1266,7 @@
     showMenu(x, y, [
       { head: KIND_ENTITY[state.kind] + ": " + row.label },
       { label: "Zaman tablosu", action: () => showTimetable(state.kind, row.id, row.label) },
-      { label: "Bilgileri / müsaitliği düzenle", action: () => { location.href = urlFor(cfg.entityUrl[state.kind], row.id); } },
+      { label: "Bilgileri / müsaitliği düzenle", action: () => openEditor(urlFor(cfg.entityUrl[state.kind], row.id), KIND_ENTITY[state.kind] + ": " + row.label) },
       { label: "Dersleri", disabled: !param, action: () => { location.href = cfg.lessonsUrl + "?" + param + "=" + row.id; } },
       { sep: true },
       { label: "Satırı temizle", hint: "kilitsiz kartlar bekleyenlere", action: () => { if (confirm(row.label + " satırındaki kilitsiz kartlar kaldırılsın mı?")) rowAction(row.id, "clear"); } },

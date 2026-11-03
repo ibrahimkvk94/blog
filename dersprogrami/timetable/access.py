@@ -351,7 +351,8 @@ class SchoolAccessMiddleware:
 def can(request):
     """Şablonlar için: {{ can.veri }}, açık modül ve kenar çubuğundaki program / modül değiştirici."""
     perms = getattr(request, "school_perms", set())
-    context = {"can": {p: p in perms for p in M.ALL}, "module": modules.current(request)}
+    context = {"can": {p: p in perms for p in M.ALL}, "module": modules.current(request),
+               "embedded": request.GET.get("gomulu") == "1"}  # başka sayfanın penceresinde, menüsüz
     school_id = getattr(request, "current_school_id", None)
     if school_id and request.user.is_authenticated:
         institution_id = School.objects.filter(pk=school_id).values_list("institution_id", flat=True).first()

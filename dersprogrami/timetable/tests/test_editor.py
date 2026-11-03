@@ -83,6 +83,37 @@ class EditorTests(TestCase):
         self.assertEqual(page.context["navigator"]["title"], "1.KISIM dersleri")
         self.assertEqual(len(page.context["navigator"]["items"]), 1)
 
+    def test_embedded_editor_for_the_main_view_window(self):
+        """Ana görünümün sağ tık penceresi: ?gomulu=1 menüsüz açılır, aynı kökenden çerçevelenebilir, kaydı JSON'dur."""
+        subject = self.school.subjects.create(name="Matematik", short="MAT")
+        cls = SchoolClass.objects.get(name="1.KISIM")
+        teacher = Teacher.objects.create(school=self.school, first_name="Ali", last_name="Kaya")
+        lesson = Lesson.objects.create(school=self.school, subject=subject, periods_per_week=2)
+        lesson.classes.add(cls)
+        for url in (self.url("lesson_edit", lesson.pk), self.url("data_edit", "ogretmenler", teacher.pk)):
+            normal = self.client.get(url)
+            self.assertIn('class="sidebar"', normal.content.decode())
+            self.assertNotIn("data-embed-cancel", normal.content.decode())
+            page = self.client.get(url + "?gomulu=1")
+            html = page.content.decode()
+            self.assertEqual(page["X-Frame-Options"], "SAMEORIGIN")
+            self.assertIn('<body class="embedded">', html)
+            self.assertIn('<base target="_top">', html)
+            self.assertNotIn('class="sidebar"', html)
+            self.assertNotIn("data-nav-list", html)  # kayıt listesi yok
+            self.assertNotIn("Kaydet ve yeni", html)
+            self.assertIn("data-embed-cancel", html)
+            self.assertIn('data-tab="musaitlik"', html)  # müsaitlik (mazeret) sekmesi pencerede de var
+        response = self.client.post(self.url("lesson_edit", lesson.pk) + "?gomulu=1",
+                                    {"subject": subject.pk, "classes": [cls.pk], "teachers": [teacher.pk],
+                                     "periods_per_week": "3", "card_length": "1"}, **FETCH)
+        self.assertTrue(response.json()["ok"])
+        self.assertEqual(list(lesson.teachers.all()), [teacher])
+        response = self.client.post(self.url("data_edit", "ogretmenler", teacher.pk) + "?gomulu=1",
+                                    {"first_name": "Ali", "last_name": "Kaya", "availability": json.dumps({"0-0": "no"})}, **FETCH)
+        self.assertTrue(response.json()["ok"])
+        self.assertEqual(list(teacher.availabilities.values_list("day", "period")), [(0, 0)])
+
 
 class GridDeltaTests(TestCase):
     @classmethod

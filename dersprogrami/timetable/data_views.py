@@ -14,6 +14,7 @@ from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.html import format_html
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.views.decorators.http import require_POST
 
 from . import availability_repair, forms, importer
@@ -766,6 +767,7 @@ def _state_token(school, entity, obj):
     return make_token(_record_values(school, entity, fresh, entity.form(instance=fresh, school=school)))
 
 
+@xframe_options_sameorigin  # ana görünümdeki düzenleme penceresinde açılır (?gomulu=1)
 def entity_edit(request, pk, slug, obj_id=None):
     from . import concurrency
     from django.template.loader import render_to_string
@@ -1289,6 +1291,7 @@ def _teacher_hints(school):
     return {"teaching": {k: sorted(v) for k, v in teaching.items()}, "branch": dict(branch), "loads": dict(loads)}
 
 
+@xframe_options_sameorigin
 def lesson_edit(request, pk, lesson_id=None):
     school = _school(pk)
     lesson = get_object_or_404(Lesson, pk=lesson_id, school=school) if lesson_id else None

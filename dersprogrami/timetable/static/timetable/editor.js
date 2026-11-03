@@ -1,5 +1,8 @@
 /* Kayıt düzenleyici: sekmeler, kaydedilmemiş değişiklik takibi, sayfadan çıkmadan kaydetme (alan hataları
- * yerinde gösterilir), kayıt listesinde arama ve önceki/sonraki kayda geçiş. data.js'ten sonra yüklenir. */
+ * yerinde gösterilir), kayıt listesinde arama ve önceki/sonraki kayda geçiş. data.js'ten sonra yüklenir.
+ *
+ * Gömülü açılış (?gomulu=1, ana görünümün düzenleme penceresi): kayıt ve İptal ana sayfaya postMessage ile
+ * bildirilir ({type: "editor:saved" | "editor:cancel"}); pencereyi ana sayfa kapatır. */
 (function () {
   "use strict";
   const root = document.querySelector("[data-editor]");
@@ -9,6 +12,10 @@
   const form = document.getElementById(root.dataset.form);
   const state = $("[data-state]", root);
   const revert = $("[data-revert]", root);
+  const embedded = root.hasAttribute("data-embedded") && window.parent !== window;
+  const tell = (msg) => { if (embedded) window.parent.postMessage(msg, location.origin); };
+  // Gömülü sayfada adres değişse de (yeni bölünme sonrası yenileme) gömülü kalınır.
+  const keepEmbedded = (url) => (embedded ? url.replace(/(#.*)?$/, (h) => (url.includes("?") ? "&" : "?") + "gomulu=1" + h) : url);
 
   function toast(message, kind) {
     const t = document.createElement("div");
@@ -144,7 +151,7 @@
     }
     dirty = false;
     if (data.next) { location.href = data.next; return; }
-    if (data.reload) { location.href = data.url + location.hash; return; }
+    if (data.reload) { tell({ type: "editor:saved", message: data.message, alert: true }); location.href = keepEmbedded(data.url) + location.hash; return; }
     const token = $("[data-record-state]", form);
     if (token && data.state) token.value = data.state;  // kaydedilen hal yeni karşılaştırma noktası
     baseline = snapshot();
@@ -153,6 +160,8 @@
     check();
     toast(data.message, "ok");
     showAvailabilityAlert(data.alert);
+    // Uyarı varsa pencere açık kalır (onarma düğmesi görünsün); yoksa ana sayfa pencereyi kapatır.
+    tell({ type: "editor:saved", message: data.message, alert: !!data.alert });
     if (data.title) $("[data-rec-title]").textContent = data.title;
     $("[data-rec-sub]").textContent = data.sub || "";
     const item = $(".rec-item.active", root);
@@ -167,6 +176,14 @@
     baseline = snapshot();
   }
   form.addEventListener("submit", (e) => { e.preventDefault(); save(e.submitter); });
+  const cancel = $("[data-embed-cancel]", root);
+  if (cancel) cancel.addEventListener("click", () => {
+    if (dirty && !confirm("Kaydedilmemiş değişiklikler var. Kaydetmeden kapatılsın mı?")) return;
+    dirty = false;
+    tell({ type: "editor:cancel" });
+  });
+  // Ana sayfa pencereyi kapatırken sorar (Kapat ✕ / Esc).
+  window.Editor = { isDirty: () => dirty };
   // Çakışma kutusundaki "Güncel hali yükle": değişiklikler bilerek bırakılıyor, ayrıca sorulmaz.
   form.addEventListener("click", (e) => { if (e.target.closest("[data-conflict-reload]")) dirty = false; });
   document.addEventListener("keydown", (e) => {

@@ -9,7 +9,7 @@
     </table>
     <div class="conflict-actions">
       <button type="submit" class="btn btn-sm btn-primary" name="_yine_de" value="1">Yine de kaydet</button>
-      <a class="btn btn-sm" href="{{ request.path }}" data-conflict-reload>Güncel hali yükle</a>
+      <a class="btn btn-sm" href="{{ request.get_full_path }}" target="_self" data-conflict-reload>Güncel hali yükle</a>
     </div>
   </div>
 </div>
