@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Ders mazeretleri{% endblock %}
+{% block title %}{{ tur.baslik }}{% endblock %}
 {% block content %}
 <div class="sayfa-baslik">
   <div>
-    <h1>Ders mazeretleri</h1>
+    <h1>{{ tur.baslik }}</h1>
     <p class="text-secondary mb-0">
       {% if donem %}{{ donem.ad }} · {% if donem.acik_mi %}<span class="durum-rozet durum-kullanimda">Bildirime açık</span>{% if donem.son_bildirim %} son gün {{ donem.son_bildirim|date:"d.m.Y H:i" }}{% endif %}{% else %}<span class="durum-rozet durum-planlandi">Bildirime kapalı</span>{% endif %}{% endif %}
       {% if y.kapsam_bolum %} · {{ y.kapsam_bolum }}{% endif %}
@@ -11,25 +11,27 @@
   </div>
   {% if y.yonetim and not y.kapsam_bolum %}
   <div class="d-flex gap-2 flex-wrap">
-    {% if donem and donem.okul %}
-    <form method="post" action="{% url 'mazeret:aktar' donem.pk %}" onsubmit="return confirm('Bu dönemin tüm bildirimleri “{{ donem.okul|escapejs }}” programındaki öğretmen müsaitliklerine yazılacak (eşleşen öğretmenlerin mevcut müsaitliği değişir). Devam edilsin mi?')">
+    {% if donem and hedef %}
+    <form method="post" action="{% url u.aktar donem.pk %}" onsubmit="return confirm('Bu dönemin tüm bildirimleri aktarılacak: {{ hedef|escapejs }} (eşleşen öğretmenlerin mevcut işaretleri değişir{% if tur.kod == 'sinav' %}; görev rolleri de işlenir{% if donem.bildirimsize_gorev_yok %}, bildirimi olmayan personele görev verilmez{% endif %}{% endif %}). Devam edilsin mi?')">
       {% csrf_token %}
-      <button class="btn btn-outline-primary"><i class="bi bi-box-arrow-right me-1"></i>Program Hazırlama'ya aktar</button>
+      <button class="btn btn-outline-primary"><i class="bi bi-box-arrow-right me-1"></i>{% if tur.kod == 'sinav' %}Sınav Planlama'ya aktar{% else %}Program Hazırlama'ya aktar{% endif %}</button>
     </form>
     {% endif %}
-    <a href="{% url 'admin:mazeret_dersmazeretdonemi_changelist' %}" class="btn btn-outline-secondary"><i class="bi bi-gear me-1"></i>Dönemler</a>
+    <a href="{% url admin_liste %}" class="btn btn-outline-secondary"><i class="bi bi-gear me-1"></i>Dönemler</a>
   </div>
   {% endif %}
 </div>
 
 {% if not donem %}
 <div class="kart p-5 text-center text-secondary">
-  <i class="bi bi-calendar-x fs-2 d-block mb-2"></i>Henüz ders mazeret dönemi açılmamış.
-  {% if y.yonetim and not y.kapsam_bolum %}<div class="mt-3"><a class="btn btn-primary" href="{% url 'admin:mazeret_dersmazeretdonemi_add' %}">Dönem aç</a></div>{% endif %}
+  <i class="bi bi-calendar-x fs-2 d-block mb-2"></i>Henüz {{ tur.tekil|lower }} dönemi açılmamış.
+  {% if y.yonetim and not y.kapsam_bolum %}<div class="mt-3"><a class="btn btn-primary" href="{% url admin_ekle %}">Dönem aç</a></div>{% endif %}
 </div>
 {% else %}
 
 {% if donem.aciklama %}<div class="alert alert-info py-2"><i class="bi bi-info-circle me-2"></i>{{ donem.aciklama|linebreaksbr }}</div>{% endif %}
+{% if tur.kod == 'sinav' and not donem.sinav_donemi %}<div class="alert alert-warning py-2"><i class="bi bi-exclamation-triangle me-2"></i>Bu dönem Sınav Planlama'daki bir sınav dönemine bağlı değil; bildirim ızgarası boş görünür. Yönetim Paneli → Sınav mazeret dönemleri'nden sınav dönemini seçin.</div>{% endif %}
+{% if gecersiz %}<div class="alert alert-warning py-2"><i class="bi bi-exclamation-triangle me-2"></i>Sınav döneminin günleri ya da oturum saatleri sonradan değişmiş: bildirimlerdeki {{ gecersiz }} işaret artık ızgarada yok ve aktarılmıyor. İlgili personelin bildirimini yeniden açıp kaydettirin.</div>{% endif %}
 
 <div class="d-flex flex-wrap gap-2 mb-3">
   <a href="?donem={{ donem.pk }}{% if secili_bolum %}&bolum={{ secili_bolum.pk }}{% endif %}" class="nd-sayac {% if not durum %}secili{% endif %}"><span class="nd-sayi">{{ toplam }}</span> Tümü</a>
@@ -79,7 +81,7 @@
 </div>
 {% endif %}
 
-<form method="post" action="{% url 'mazeret:toplu' donem.pk %}" onsubmit="return confirm('Seçilen ve henüz bildirimi olmayan personel için “mazereti yok” kaydedilecek. Devam edilsin mi?')">
+<form method="post" action="{% url u.toplu donem.pk %}" onsubmit="return confirm('Seçilen ve henüz bildirimi olmayan personel için “mazereti yok” kaydedilecek. Devam edilsin mi?')">
   {% csrf_token %}
   <input type="hidden" name="geri" value="{{ request.get_full_path }}">
   <div class="kart">
@@ -89,7 +91,7 @@
       <button class="btn btn-sm btn-outline-success secim-gerekli" disabled title="Bildirimi olmayan seçili personel için boş şablon kaydeder"><i class="bi bi-check2-all"></i> Mazereti yok olarak kaydet</button>
     </div>
     {% endif %}
-    <div class="yardim-satiri"><i class="bi bi-info-circle"></i> Personelin adına tıklayıp haftalık tabloyu doldurun: <strong>✗</strong> ders verilemez, <strong>?</strong> mümkünse verilmesin, boş = uygun. Mazereti olmayan personel için de bildirim yapılmalıdır.</div>
+    <div class="yardim-satiri"><i class="bi bi-info-circle"></i> Personelin adına tıklayıp {% if tur.kod == 'sinav' %}sınav günleri × oturumlar{% else %}haftalık{% endif %} tabloyu doldurun: <strong>✗</strong> {{ tur.yasak_metni }}, <strong>?</strong> mümkünse verilmesin, boş = uygun. Mazereti olmayan personel için de bildirim yapılmalıdır{% if tur.kod == 'sinav' and donem.bildirimsize_gorev_yok %}; bildirimi olmayan personele sınav görevi verilmez{% endif %}.</div>
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <thead>
@@ -102,13 +104,13 @@
         {% for p in satirlar %}
           <tr>
             {% if degistirebilir %}<td>{% if not p.bildirim %}<input class="form-check-input satir-sec" type="checkbox" name="p" value="{{ p.pk }}" aria-label="Seç">{% endif %}</td>{% endif %}
-            <td><a href="{% url 'mazeret:bildirim' donem.pk p.pk %}?geri={{ request.get_full_path|urlencode }}" class="fw-semibold text-decoration-none">{{ p.ad_soyad }}</a>
+            <td><a href="{% url u.bildirim donem.pk p.pk %}?geri={{ request.get_full_path|urlencode }}" class="fw-semibold text-decoration-none">{{ p.ad_soyad }}</a>
               <div class="small text-secondary">{{ p.kunye }}</div></td>
             <td class="d-none d-md-table-cell">{{ p.bolum.kod|default:"–" }}</td>
             <td>
               {% if p.mazeret_durumu == 'yok' %}<span class="durum-rozet durum-eksik">Bildirim yok</span>
               {% elif p.mazeret_durumu == 'mazeretsiz' %}<span class="durum-rozet durum-kullanimda">Mazereti yok</span>
-              {% else %}<span class="durum-rozet durum-sirada">{% if p.bildirim.yasak_sayisi %}✗ {{ p.bildirim.yasak_sayisi }} saat{% endif %}{% if p.bildirim.yasak_sayisi and p.bildirim.kosullu_sayisi %} · {% endif %}{% if p.bildirim.kosullu_sayisi %}? {{ p.bildirim.kosullu_sayisi }} saat{% endif %}</span>{% endif %}
+              {% else %}<span class="durum-rozet durum-sirada">{% if p.bildirim.yasak_sayisi %}✗ {{ p.bildirim.yasak_sayisi }} {{ tur.birim_adi }}{% endif %}{% if p.bildirim.yasak_sayisi and p.bildirim.kosullu_sayisi %} · {% endif %}{% if p.bildirim.kosullu_sayisi %}? {{ p.bildirim.kosullu_sayisi }} {{ tur.birim_adi }}{% endif %}</span>{% endif %}
             </td>
             <td class="d-none d-lg-table-cell small text-secondary">{% if p.bildirim %}{{ p.bildirim.guncelleme|date:"d.m.Y H:i" }} · {{ p.bildirim.bildiren|default:"–" }}{% endif %}</td>
           </tr>

@@ -1,3 +1,5 @@
+"""Ders ve sınav mazereti sayfaları. İki tür aynı görünümleri kullanır; tür url'den gelir (servis.TURLER)."""
+
 import json
 
 from django.contrib import messages
@@ -12,15 +14,15 @@ from core.yetki import birim_bul, yol
 from personel.models import Bolum
 
 from . import servis
-from .models import DersMazeretBildirimi, DersMazeretDonemi
-from .servis import MazeretHatasi
+from .servis import TURLER, MazeretHatasi
 
 DURUM_FILTRELERI = [("yok", "Bildirim yok"), ("mazeretsiz", "Mazereti yok"), ("mazeretli", "Mazeretli")]
 
 
-def _baglam(request, **ek):
-    request.birim = birim_bul(request, servis.BIRIM_DERS)
-    return {"yol": yol(request, request.birim), "y": servis.yetki(request), "breadcrumb_ek": True, **ek}  # ek ile ezilebilir
+def _baglam(request, tur, **ek):
+    request.birim = birim_bul(request, tur.birim)
+    return {"yol": yol(request, request.birim), "y": servis.yetki(request, tur), "tur": tur, "breadcrumb_ek": True,
+            "u": {ad: tur.url(ad) for ad in ("liste", "bildirim", "toplu", "aktar")}, **ek}  # ek ile ezilebilir
 
 
 def _geri(request, varsayilan):
@@ -30,24 +32,29 @@ def _geri(request, varsayilan):
     return redirect(varsayilan)
 
 
-def _donem(request):
-    donemler = list(DersMazeretDonemi.objects.select_related("okul"))
+def _donem(request, tur):
+    donemler = list(tur.donem_modeli.objects.all())
     secili = request.GET.get("donem") or request.POST.get("donem")
     donem = next((d for d in donemler if str(d.pk) == secili), donemler[0] if donemler else None)
     return donem, donemler
 
 
+def _liste_url(tur, donem):
+    return f"{reverse(tur.url('liste'))}?donem={donem.pk}"
+
+
 @login_required
-def ders(request):
-    y = servis.yetki(request)
+def liste(request, tur):
+    tur = TURLER[tur]
+    y = servis.yetki(request, tur)
     if not y.goruntule:
         raise PermissionDenied
-    donem, donemler = _donem(request)
+    donem, donemler = _donem(request, tur)
     bolum = None
     if y.kapsam_bolum is None and request.GET.get("bolum", "").isdigit():
         bolum = Bolum.objects.filter(pk=request.GET["bolum"]).first()
     durum = request.GET.get("durum", "")
-    satirlar, sayilar, bolum_ozeti = [], {}, []
+    satirlar, sayilar, bolum_ozeti, gecersiz = [], {}, [], 0
     if donem:
         bildirimler = {b.personel_id: b for b in donem.bildirimler.select_related("bildiren")}
         tum = list(servis.personeller(y, bolum))
@@ -64,22 +71,27 @@ def ders(request):
                 o["toplam"] += 1
                 o["bildirilen"] += p.bildirim is not None
             bolum_ozeti = sorted(ozet.values(), key=lambda o: (o["bolum"] is None, getattr(o["bolum"], "ad", "")))
-    return render(request, "mazeret/ders.html", _baglam(
-        request, breadcrumb_ek=False, donem=donem, donemler=donemler, satirlar=satirlar, sayilar=sayilar, durum=durum,
-        filtreler=DURUM_FILTRELERI, toplam=sum(sayilar.values()), bolum_ozeti=bolum_ozeti,
+        if tur.kod == "sinav" and y.yonetim:
+            gecersiz = servis.gecersiz_isaretler(donem)
+    return render(request, "mazeret/liste.html", _baglam(
+        request, tur, breadcrumb_ek=False, donem=donem, donemler=donemler, satirlar=satirlar, sayilar=sayilar,
+        durum=durum, filtreler=DURUM_FILTRELERI, toplam=sum(sayilar.values()), bolum_ozeti=bolum_ozeti,
         bolumler=Bolum.objects.filter(aktif=True) if y.kapsam_bolum is None else [], secili_bolum=bolum,
         degistirebilir=bool(donem) and servis.degistirebilir_mi(y, donem),
+        hedef=servis.hedef_adi(tur, donem) if donem else None, gecersiz=gecersiz,
+        admin_liste=f"admin:mazeret_{tur.model_adi}_changelist", admin_ekle=f"admin:mazeret_{tur.model_adi}_add",
     ))
 
 
 @login_required
-def bildirim(request, donem_pk, personel_pk):
-    y = servis.yetki(request)
-    donem = get_object_or_404(DersMazeretDonemi, pk=donem_pk)
+def bildirim(request, donem_pk, personel_pk, tur):
+    tur = TURLER[tur]
+    y = servis.yetki(request, tur)
+    donem = get_object_or_404(tur.donem_modeli, pk=donem_pk)
     personel = servis.kapsamdaki_personel(y, personel_pk)
-    b = DersMazeretBildirimi.objects.filter(donem=donem, personel=personel).select_related("bildiren").first()
+    b = donem.bildirimler.filter(personel=personel).select_related("bildiren").first()
     degistirebilir = servis.degistirebilir_mi(y, donem)
-    liste_url = f"{reverse('mazeret:ders')}?donem={donem.pk}"
+    liste_url = _liste_url(tur, donem)
     geri = request.GET.get("geri", "")
     if not url_has_allowed_host_and_scheme(geri, allowed_hosts={request.get_host()}):
         geri = ""
@@ -93,17 +105,19 @@ def bildirim(request, donem_pk, personel_pk):
         except MazeretHatasi as e:
             messages.error(request, str(e))
         else:
-            b = DersMazeretBildirimi.objects.get(donem=donem, personel=personel)
-            ozet = f"{b.yasak_sayisi} saat ✗, {b.kosullu_sayisi} saat ?" if b.hucreler else "mazereti yok"
+            b = donem.bildirimler.get(personel=personel)
+            ozet = (f"{b.yasak_sayisi} {tur.birim_adi} ✗, {b.kosullu_sayisi} {tur.birim_adi} ?" if b.hucreler
+                    else "mazereti yok")
             messages.success(request, f"{personel.ad_soyad}: bildirim kaydedildi ({ozet}).")
-            if donem.okul_id:
-                aktarilan, _ = servis.programa_aktar(donem, [b])
+            hedef = servis.hedef_adi(tur, donem)
+            if hedef:
+                aktarilan, _ = servis.aktar(tur, donem, [b])
                 if aktarilan:
-                    messages.info(request, f"Program Hazırlama'da “{donem.okul}” programındaki müsaitliğe işlendi.")
+                    messages.info(request, f"{hedef} güncellendi.")
                 else:
-                    messages.warning(request, f"Program Hazırlama'da “{donem.okul}” programında bu personelle eşleşen öğretmen bulunamadı; müsaitliğe işlenmedi.")
+                    messages.warning(request, f"{hedef} güncellenmedi: bu personelle eşleşen öğretmen bulunamadı.")
             if request.POST.get("sonraki"):
-                return redirect("mazeret:bildirim", donem_pk=donem.pk, personel_pk=request.POST["sonraki"])
+                return redirect(tur.url("bildirim"), donem_pk=donem.pk, personel_pk=request.POST["sonraki"])
             return _geri(request, liste_url)
         return redirect(request.get_full_path())
     # Aynı listede sıradaki bildirimsiz personel ("Kaydet ve sıradaki")
@@ -112,10 +126,10 @@ def bildirim(request, donem_pk, personel_pk):
         bildirimli = set(donem.bildirimler.values_list("personel_id", flat=True))
         kapsam = [p for p in servis.personeller(y, personel.bolum if y.kapsam_bolum is None else None)]
         sonraki = next((p for p in kapsam if p.pk not in bildirimli and p.pk != personel.pk), None)
+    sutunlar, satirlar = donem.izgara()
     return render(request, "mazeret/bildirim.html", _baglam(
-        request, donem=donem, personel=personel, b=b, degistirebilir=degistirebilir, sonraki=sonraki,
-        # Saat aralığı yazılmaz: Cuma öğle arası farklı olduğu için yanıltıcı olur.
-        saatler=range(1, donem.saat_sayisi + 1), gunler=list(enumerate(donem.gunler)),
+        request, tur, donem=donem, personel=personel, b=b, degistirebilir=degistirebilir, sonraki=sonraki,
+        sutunlar=sutunlar, satirlar=satirlar,
         hucreler_json=json.dumps(b.hucreler if b else {}), liste_url=liste_url, geri=geri,
         gecmis=list(b.gecmis.select_related("kullanici")[:10]) if b else [],
     ))
@@ -123,9 +137,10 @@ def bildirim(request, donem_pk, personel_pk):
 
 @require_POST
 @login_required
-def toplu(request, donem_pk):
-    y = servis.yetki(request)
-    donem = get_object_or_404(DersMazeretDonemi, pk=donem_pk)
+def toplu(request, donem_pk, tur):
+    tur = TURLER[tur]
+    y = servis.yetki(request, tur)
+    donem = get_object_or_404(tur.donem_modeli, pk=donem_pk)
     secilen = [servis.kapsamdaki_personel(y, pk) for pk in request.POST.getlist("p") if pk.isdigit()]
     if not secilen:
         messages.error(request, "Hiç personel seçilmedi.")
@@ -138,24 +153,26 @@ def toplu(request, donem_pk):
             atlanan = len(secilen) - len(yapilan)
             messages.success(request, f"{len(yapilan)} personel için “mazereti yok” kaydedildi."
                              + (f" {atlanan} personelin zaten bildirimi vardı, değiştirilmedi." if atlanan else ""))
-            if yapilan and donem.okul_id:
-                servis.programa_aktar(donem, yapilan)
-    return _geri(request, f"{reverse('mazeret:ders')}?donem={donem.pk}")
+            if yapilan and servis.hedef_adi(tur, donem):
+                servis.aktar(tur, donem, yapilan)
+    return _geri(request, _liste_url(tur, donem))
 
 
 @require_POST
 @login_required
-def aktar(request, donem_pk):
-    y = servis.yetki(request)
+def aktar(request, donem_pk, tur):
+    tur = TURLER[tur]
+    y = servis.yetki(request, tur)
     if not y.yonetim or y.kapsam_bolum is not None:
         raise PermissionDenied
-    donem = get_object_or_404(DersMazeretDonemi, pk=donem_pk)
-    if donem.okul is None:
-        messages.error(request, "Bu dönem bir Program Hazırlama programına bağlı değil (Yönetim Paneli → Ders mazeret dönemleri).")
+    donem = get_object_or_404(tur.donem_modeli, pk=donem_pk)
+    hedef = servis.hedef_adi(tur, donem)
+    if hedef is None:
+        messages.error(request, "Bu dönem bağlı bir programa / sınav dönemine bağlı değil (Yönetim Paneli → mazeret dönemleri).")
     else:
-        aktarilan, eslesmeyen = servis.programa_aktar(donem)
-        messages.success(request, f"{len(aktarilan)} personelin mazereti “{donem.okul}” programına aktarıldı.")
+        aktarilan, eslesmeyen = servis.aktar(tur, donem)
+        messages.success(request, f"{len(aktarilan)} personelin mazereti aktarıldı: {hedef}.")
         if eslesmeyen:
             adlar = ", ".join(b.personel.ad_soyad for b in eslesmeyen[:15]) + (" …" if len(eslesmeyen) > 15 else "")
             messages.warning(request, f"{len(eslesmeyen)} personel programdaki bir öğretmenle eşleşmedi: {adlar}")
-    return redirect(f"{reverse('mazeret:ders')}?donem={donem.pk}")
+    return redirect(_liste_url(tur, donem))

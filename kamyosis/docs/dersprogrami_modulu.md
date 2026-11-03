@@ -61,6 +61,25 @@ Excel'den girilir, Excel'e aktarılır (`sinav/ders_bilgileri.py`). 4–6 çöz�
 (`solver._kamyosis_terms`; ağırlıklar `W_ORDER`, `W_SAME_NAME_DAY`, `W_MIXED_YEAR`). Öğrenci bazlı planlama
 henüz yapılmadı.
 
+## Sınav görevleri: mazeret, roller, puantaj (PPYS SMS / SPS / STS)
+
+- **Sınav mazereti** (KAMYOSİS `mazeret` uygulaması, Plan Program → Mazeretler → Sınav Mazeretleri): dönem, Sınav
+  Planlama'daki bir sınav dönemine bağlanır (Yönetim Paneli → Sınav mazeret dönemleri). Izgara = dönemin günleri ×
+  oturum saatleri; ✗ görev verilemez, ? mümkünse verilmesin. Her kayıt dönemin `proctor_blocks` / `proctor_soft`
+  alanına yazılır (eşleme ad soyadla). Sınav programı oluşturulmadan hemen önce (ve "Eksikleri otomatik ata"da)
+  köprü dönemin tamamını yeniden aktarır: bildirimi olmayan personelin tüm oturumları kapanır (dönem ayarı), personelin
+  görev rolleri `proctor_roles`'e yazılır ve rol kuralı (`duty_roles`) açılır.
+- **Görev rolleri** (ortak kod): rol kuralı açık dönemde salon başına 40 ve üstü öğrencide 1 salon amiri; 40'tan azda 1,
+  fazlasında her 20 öğrenciye 1 gözetmen; öğrencisi olan salona 1 taşıyıcı (`solver.duty_need`). Personelin
+  alabileceği roller KAMYOSİS'te `Personel.sinav_rolleri` (varsayılan "GT"; boş = görev verilmez), puantaj sayfasından
+  değiştirilir. Görevlinin rolü `ExamRoom.roles`'tadır (kayıt yok = gözetmen).
+- **Puantaj** (KAMYOSİS `sinavgorev`, Plan Program → Sınav Görev Puantajı): sınav dönemi "puantaja işlenince" görevleri
+  `SinavGorevi` olarak kopyalanır (her oturum ayrı görev); Sınav Planlama dışındaki görevler elle eklenir. Hafta içi 1,
+  hafta sonu 1,5 puan; yıl 1 Ekim'de başlar. Skor = puan + z (haftalık ders saatinin z puanı, seçilen programdan).
+- **Dengeli dağıtım**: `settings.SINAV_GOREVLI_PUANI` → `sinavgorev.servis.onceki_puanlar`; çözücü her öğretmenin yıl
+  içindeki skorunun (dağıtılan dönem hariç) üstüne yükü eşitler, hafta sonu oturumunu 1,5 sayar, "?" oturumuna
+  ancak gerekirse görev verir (`W_SOFT`).
+
 ## KAMYOSİS'e aktarım
 
 Modülde bir program **yayınlandığında** KAMYOSİS'te otomatik olarak **taslak** bir program sürümü oluşur
@@ -109,6 +128,9 @@ açıklamasıyla işaretli):
 3. Yedek ve sistem güncelleme testleri `TIMETABLE_GOMULU` ayarı açıkken atlanır.
 4. `sinav`: KAMYOSİS sınav kuralları (yukarıda) — `kurallar.py`, `ders_bilgileri.py`, `templates/sinav/courses.html`,
    `tests/test_kamyosis.py`, `migrations/0002_kamyosis_sinav_kurallari.py` ve işaretli yerler.
+5. `sinav`: görev rolleri, "mümkünse verilmesin" oturumları, önceki puanla denge (yukarıda) —
+   `migrations/0003_kamyosis_gorev_rolleri.py`, `solver.duty_need` ve gözetmen aşaması, `services.prior_scores` /
+   `proctor_soft`, düzenleme ve Gözetmenler sayfalarında rol seçimi, çıktılarda rol adı.
 
 `templates/timetable/` altındaki `base.html`, `nav/ribbon.html`, `home.html`, `school_list.html`, `institution.html`
 KAMYOSİS sürümleriyle ezilir; `araclar/dersprogrami/sablon_uyarla.py` ile modülün dosyalarından üretilir.

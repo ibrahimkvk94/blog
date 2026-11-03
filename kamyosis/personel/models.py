@@ -83,6 +83,12 @@ class Personel(models.Model):
         "Muafiyet bitişi", null=True, blank=True,
         help_text="Geçici muafiyetlerde: bu tarihten sonra başlayan aylarda personel yeniden nöbete yazılır.",
     )
+    # Sınav görevi rolleri (PPYS SPS spRol): A salon amiri, G gözetmen, T taşıyıcı; boş = sınav görevi verilmez
+    SINAV_ROLLERI = [("A", "Salon amiri"), ("G", "Gözetmen"), ("T", "Taşıyıcı")]
+    sinav_rolleri = models.CharField(
+        "Sınav görev rolleri", max_length=3, default="GT", blank=True,
+        help_text="A = salon amiri, G = gözetmen, T = taşıyıcı (ör. AG). Boş = sınav görevi verilmez.",
+    )
 
     eski_id = models.IntegerField("Access ID", unique=True, null=True, blank=True, editable=False)
     olusturma = models.DateTimeField(auto_now_add=True)
