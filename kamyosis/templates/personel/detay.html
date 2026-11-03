@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% load personel_etiketleri %}
+{% block title %}{{ p.ad_soyad }}{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">{{ p.ad_soyad }}</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div class="d-flex align-items-center gap-3">
+    <span class="avatar buyuk">{{ p.ad_soyad|slice:":1"|upper }}</span>
+    <div>
+      <h1>{{ p.ad_soyad }}</h1>
+      <p class="text-secondary mb-0">{{ p.tam_ad }}</p>
+    </div>
+  </div>
+  {% if duzenleyebilir %}
+  <a href="{% url 'personel:duzenle' p.pk %}" class="btn btn-primary"><i class="bi bi-pencil me-1"></i>Düzenle</a>
+  {% endif %}
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-lg-8">
+    <div class="kart p-4">
+      <h2 class="h6 text-secondary text-uppercase mb-3">Kimlik ve görev bilgileri</h2>
+      <dl class="row mb-0 bilgi-listesi">
+        <dt class="col-sm-4">T.C. kimlik no</dt><dd class="col-sm-8 font-monospace">{% if duzenleyebilir %}{{ p.personel_kodu|default:"–" }}{% else %}{{ p.personel_kodu|maskele }}{% endif %}</dd>
+        <dt class="col-sm-4">Sicil no</dt><dd class="col-sm-8">{{ p.sicil|default:"–" }}</dd>
+        <dt class="col-sm-4">Bölüm</dt><dd class="col-sm-8">{{ p.bolum|default:"–" }}</dd>
+        <dt class="col-sm-4">Unvan</dt><dd class="col-sm-8">{{ p.unvan|default:"–" }}</dd>
+        <dt class="col-sm-4">Rütbe</dt><dd class="col-sm-8">{{ p.rutbe|default:"–" }}</dd>
+        <dt class="col-sm-4">Sınıf</dt><dd class="col-sm-8">{{ p.sinif|default:"–" }}</dd>
+        <dt class="col-sm-4">Durum</dt><dd class="col-sm-8">{% if p.aktif %}<span class="badge text-bg-success">Aktif</span>{% else %}<span class="badge text-bg-secondary">Pasif</span>{% endif %}</dd>
+      </dl>
+    </div>
+  </div>
+  <div class="col-12 col-lg-4">
+    <div class="kart p-4">
+      <h2 class="h6 text-secondary text-uppercase mb-3">Kayıt</h2>
+      <dl class="mb-0 bilgi-listesi">
+        <dt>Oluşturulma</dt><dd>{{ p.olusturma|date:"d.m.Y H:i" }}</dd>
+        <dt>Son güncelleme</dt><dd>{{ p.guncelleme|date:"d.m.Y H:i" }}</dd>
+        {% if p.eski_id %}<dt>Kaynak</dt><dd>PPYS'den aktarıldı</dd>{% endif %}
+      </dl>
+    </div>
+  </div>
+</div>
+{% endblock %}

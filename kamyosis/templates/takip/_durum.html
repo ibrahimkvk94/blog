@@ -1,0 +1,4 @@
+{% if s.durum == 'devir' %}<span class="durum-rozet durum-sirada"><i class="bi bi-arrow-left-right"></i> Devir {{ s.devir.get_durum_display|lower }}</span>
+{% elif s.durum == 'yapildi' %}<span class="durum-rozet durum-kullanimda"><i class="bi bi-check2"></i> Yapıldı</span>
+{% else %}<span class="durum-rozet durum-planlandi">Planlı</span>{% endif %}
+{% if s.devir.durum == 'kesin' %}<div class="small text-secondary mt-1"><i class="bi bi-arrow-left-right"></i> {{ s.ogretmen }} yerine</div>{% endif %}

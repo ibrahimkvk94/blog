@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block title %}Yetkisiz erişim{% endblock %}
+{% block content %}
+<div class="kart p-5 text-center">
+  <i class="bi bi-shield-lock fs-1 text-danger d-block mb-3"></i>
+  <h1 class="h4">Bu sayfaya erişim yetkiniz yok</h1>
+  <p class="text-secondary">Yetki tanımlanması gerektiğini düşünüyorsanız sistem yöneticinizle görüşün.</p>
+  <a href="{% url 'core:panel' %}" class="btn btn-primary">Ana panele dön</a>
+</div>
+{% endblock %}

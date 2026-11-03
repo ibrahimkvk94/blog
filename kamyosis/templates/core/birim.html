@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ b.ad }}{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div class="d-flex align-items-center gap-3">
+    <span class="birim-ikon buyuk"><i class="bi bi-{{ b.ikon }}"></i></span>
+    <div>
+      <h1>{{ b.ad }}</h1>
+      <p class="text-secondary mb-0">{{ b.get_tur_display }}</p>
+    </div>
+  </div>
+</div>
+
+{% if cocuklar %}
+  {% if b.aciklama %}<p class="text-secondary">{{ b.aciklama }}</p>{% endif %}
+  <div class="row g-3">
+    {% for c in cocuklar %}
+    <div class="col-12 col-md-6 col-xl-4">
+      <a href="{{ c.get_absolute_url }}" class="kart birim-kart">
+        <span class="birim-ikon"><i class="bi bi-{{ c.ikon }}"></i></span>
+        <div class="min-w-0">
+          <div class="birim-ad">{{ c.ad }}</div>
+          {% if c.cocuklar %}
+            <div class="birim-alt">{{ c.cocuklar|length }} alt birim</div>
+          {% else %}
+            <span class="durum-rozet durum-{{ c.durum }}">{{ c.get_durum_display }}</span>
+          {% endif %}
+        </div>
+        <i class="bi bi-chevron-right ms-auto text-secondary"></i>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="kart p-4">
+    <span class="durum-rozet durum-{{ b.durum }} mb-3">{{ b.get_durum_display }}</span>
+    <h2 class="h5">Bu modül henüz hazır değil</h2>
+    {% if b.aciklama %}
+      <p class="mb-0">{{ b.aciklama|linebreaksbr }}</p>
+    {% else %}
+      <p class="mb-0 text-secondary">Kapsamı belirlendiğinde burada açıklanacak.</p>
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}

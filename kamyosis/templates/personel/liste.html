@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% load personel_etiketleri %}
+{% block title %}Personel{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Personel</h1>
+    <p class="text-secondary mb-0">{{ toplam }} kayıt{% if request.yetki_kapsam == 'bolum' %} · {{ user.bolum }}{% endif %}</p>
+  </div>
+  {% if duzenleyebilir %}
+  <a href="{% url 'personel:ekle' %}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Yeni personel</a>
+  {% endif %}
+</div>
+
+<form class="kart p-3 mb-3" method="get" role="search">
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-md">
+      <label class="form-label small text-secondary" for="q">Ara</label>
+      <input type="search" class="form-control" id="q" name="q" value="{{ q }}" placeholder="{% if duzenleyebilir %}Ad, T.C. kimlik no veya sicil{% else %}Ad veya sicil{% endif %}">
+    </div>
+    {% if bolumler %}
+    <div class="col-6 col-md-3">
+      <label class="form-label small text-secondary" for="bolum">Bölüm</label>
+      <select class="form-select" id="bolum" name="bolum">
+        <option value="">Tümü</option>
+        {% for b in bolumler %}<option value="{{ b.pk }}" {% if secili_bolum == b.pk|stringformat:'s' %}selected{% endif %}>{{ b.ad }}</option>{% endfor %}
+      </select>
+    </div>
+    {% endif %}
+    <div class="col-6 col-md-2">
+      <label class="form-label small text-secondary" for="rutbe">Rütbe</label>
+      <select class="form-select" id="rutbe" name="rutbe">
+        <option value="">Tümü</option>
+        {% for r in rutbeler %}<option value="{{ r.pk }}" {% if secili_rutbe == r.pk|stringformat:'s' %}selected{% endif %}>{{ r.metin }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-md-2">
+      <label class="form-label small text-secondary" for="durum">Durum</label>
+      <select class="form-select" id="durum" name="durum">
+        <option value="aktif" {% if durum == 'aktif' %}selected{% endif %}>Aktif</option>
+        <option value="pasif" {% if durum == 'pasif' %}selected{% endif %}>Pasif</option>
+        <option value="hepsi" {% if durum == 'hepsi' %}selected{% endif %}>Hepsi</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-auto d-flex gap-2">
+      <button class="btn btn-primary flex-grow-1"><i class="bi bi-funnel me-1"></i>Filtrele</button>
+      <a href="{% url 'personel:liste' %}" class="btn btn-outline-secondary" title="Filtreleri temizle"><i class="bi bi-x-lg"></i></a>
+    </div>
+  </div>
+</form>
+
+<div class="kart">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Ad soyad</th>
+          <th class="d-none d-md-table-cell">T.C. kimlik no</th>
+          <th>Bölüm</th>
+          <th class="d-none d-lg-table-cell">Rütbe</th>
+          <th class="d-none d-lg-table-cell">Unvan</th>
+          <th class="text-end"><span class="visually-hidden">İşlem</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in sayfa %}
+        <tr>
+          <td>
+            <a href="{% url 'personel:detay' p.pk %}" class="fw-semibold text-decoration-none">{{ p.ad_soyad }}</a>
+            {% if not p.aktif %}<span class="badge text-bg-secondary ms-1">Pasif</span>{% endif %}
+          </td>
+          <td class="d-none d-md-table-cell font-monospace small">{{ p.personel_kodu|maskele }}</td>
+          <td>{% if p.bolum %}{{ p.bolum.kod|default:p.bolum.ad }}{% else %}<span class="badge text-bg-warning">Bölüm yok</span>{% endif %}</td>
+          <td class="d-none d-lg-table-cell">{{ p.rutbe|default:"–" }}</td>
+          <td class="d-none d-lg-table-cell">{{ p.unvan|default:"–" }}</td>
+          <td class="text-end text-nowrap">
+            <a href="{% url 'personel:detay' p.pk %}" class="btn btn-sm btn-outline-secondary" title="Görüntüle"><i class="bi bi-eye"></i></a>
+            {% if duzenleyebilir %}<a href="{% url 'personel:duzenle' p.pk %}" class="btn btn-sm btn-outline-primary" title="Düzenle"><i class="bi bi-pencil"></i></a>{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center text-secondary py-5">Kayıt bulunamadı.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if sayfa.paginator.num_pages > 1 %}
+  <nav class="p-3 border-top d-flex justify-content-between align-items-center" aria-label="Sayfalar">
+    <span class="small text-secondary">Sayfa {{ sayfa.number }} / {{ sayfa.paginator.num_pages }}</span>
+    <ul class="pagination pagination-sm mb-0">
+      {% if sayfa.has_previous %}<li class="page-item"><a class="page-link" href="?{{ sorgu }}&sayfa={{ sayfa.previous_page_number }}">Önceki</a></li>{% endif %}
+      {% if sayfa.has_next %}<li class="page-item"><a class="page-link" href="?{{ sorgu }}&sayfa={{ sayfa.next_page_number }}">Sonraki</a></li>{% endif %}
+    </ul>
+  </nav>
+  {% endif %}
+</div>
+{% endblock %}

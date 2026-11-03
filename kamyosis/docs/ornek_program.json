@@ -1,0 +1,69 @@
+{
+  "bicim": "kamyosis-program",
+  "surum": 1,
+  "kaynak": {
+    "uygulama": "DersProgrami",
+    "olusturma": "2026-11-03T14:05:00+03:00",
+    "aciklama": "Örnek dosya: iki kısım, üç ders"
+  },
+  "program": {
+    "id": "prg-3",
+    "ad": "2026-2027 Güz – örnek",
+    "donem": "2026-2027 Güz",
+    "onerilen_baslangic": "2026-11-09"
+  },
+  "ders_saatleri": [
+    { "no": 1, "baslangic": "08:20", "bitis": "09:00" },
+    { "no": 2, "baslangic": "09:10", "bitis": "09:50" },
+    { "no": 3, "baslangic": "10:00", "bitis": "10:40" }
+  ],
+  "dersler": [
+    { "id": "d-bil103", "kod": "BİL103", "ad": "Algoritma ve Programlamaya Giriş" },
+    { "id": "d-ydl201", "kod": "YDL201", "ad": "İngilizce 3" },
+    { "id": "d-tbe201", "kod": "TBE201", "ad": "Temel Beden Eğitimi 3" }
+  ],
+  "ogretmenler": [
+    { "id": "o-1", "ad_soyad": "Ayşe YILMAZ", "kisa_ad": "A. YILMAZ" },
+    { "id": "o-2", "ad_soyad": "Mehmet DEMİR", "kisa_ad": "M. DEMİR", "sicil": "2019-114" },
+    { "id": "o-3", "ad_soyad": "Ali KAYA" }
+  ],
+  "derslikler": [
+    { "id": "r-lab1", "ad": "BİL-Bilgisayar Dershanesi 1", "kapasite": 30 },
+    { "id": "r-spor1", "ad": "Spor Salonu 1", "kapasite": null }
+  ],
+  "kisimlar": [
+    { "id": "k-1bil", "kod": "1BİL", "ad": "18.KISIM", "tur": "normal", "sinif": 1 },
+    { "id": "k-2bil", "kod": "2BİL", "ad": "19.KISIM", "tur": "normal", "sinif": 2 }
+  ],
+  "gruplar": [
+    { "id": "g-1bil-1", "kisim_id": "k-1bil", "ad": "Grup 1", "bolunme": "1" },
+    { "id": "g-1bil-2", "kisim_id": "k-1bil", "ad": "Grup 2", "bolunme": "1" }
+  ],
+  "haftalik_dersler": [
+    {
+      "id": "h-1", "ders_id": "d-bil103", "kisim_idleri": ["k-1bil"], "grup_idleri": ["g-1bil-1"],
+      "ogretmen_idleri": ["o-1"], "haftalik_saat": 2, "blok": 2
+    },
+    {
+      "id": "h-2", "ders_id": "d-bil103", "kisim_idleri": ["k-1bil"], "grup_idleri": ["g-1bil-2"],
+      "ogretmen_idleri": ["o-2"], "haftalik_saat": 2, "blok": 2
+    },
+    {
+      "id": "h-3", "ders_id": "d-ydl201", "kisim_idleri": ["k-2bil"], "grup_idleri": [],
+      "ogretmen_idleri": ["o-2", "o-3"], "haftalik_saat": 1, "blok": 1
+    },
+    {
+      "id": "h-4", "ders_id": "d-tbe201", "kisim_idleri": ["k-2bil"], "grup_idleri": [],
+      "ogretmen_idleri": ["o-3"], "haftalik_saat": 2, "blok": 2
+    }
+  ],
+  "yerlesim": [
+    { "haftalik_ders_id": "h-1", "gun": 1, "saat": 1, "derslik_id": "r-lab1" },
+    { "haftalik_ders_id": "h-1", "gun": 1, "saat": 2, "derslik_id": "r-lab1" },
+    { "haftalik_ders_id": "h-2", "gun": 3, "saat": 1, "derslik_id": "r-lab1" },
+    { "haftalik_ders_id": "h-2", "gun": 3, "saat": 2, "derslik_id": "r-lab1" },
+    { "haftalik_ders_id": "h-3", "gun": 2, "saat": 3, "derslik_id": null },
+    { "haftalik_ders_id": "h-4", "gun": 5, "saat": 1, "derslik_id": "r-spor1" },
+    { "haftalik_ders_id": "h-4", "gun": 5, "saat": 2, "derslik_id": "r-spor1" }
+  ]
+}

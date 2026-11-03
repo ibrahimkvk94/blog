@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Nöbet Grupları{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div class="d-flex align-items-center gap-3">
+    <span class="birim-ikon buyuk"><i class="bi bi-people-fill"></i></span>
+    <div>
+      <h1>Nöbet Grupları</h1>
+      <p class="text-secondary mb-0">Aylık nöbet grupları (EK-3) ve yıllık puantaj</p>
+    </div>
+  </div>
+</div>
+
+{% if rutbesiz %}
+<div class="alert alert-warning d-flex align-items-center gap-2">
+  <i class="bi bi-exclamation-triangle fs-5"></i>
+  <div><strong>{{ rutbesiz }}</strong> personelin rütbesi boş; rütbe kuralları uygulanamadığı için dağıtıma girmiyorlar. Rütbeler nöbet Excel'inden aktarılacak.</div>
+</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-12 col-lg-5">
+    {% if yonetici %}
+    <form method="post" class="kart p-4 h-100">
+      {% csrf_token %}
+      <h2 class="h6 text-secondary text-uppercase mb-3"><i class="bi bi-plus-circle me-1"></i>Yeni ay oluştur</h2>
+      <div class="row g-2">
+        <div class="col-7">
+          <label class="form-label small text-secondary" for="ay">Ay</label>
+          <select class="form-select" id="ay" name="ay">{% for no, ad in aylar %}<option value="{{ no }}" {% if no == sonraki_ay %}selected{% endif %}>{{ ad }}</option>{% endfor %}</select>
+        </div>
+        <div class="col-5">
+          <label class="form-label small text-secondary" for="yil">Yıl</label>
+          <select class="form-select" id="yil" name="yil">{% for y in yillar %}<option value="{{ y }}" {% if y == sonraki_yil %}selected{% endif %}>{{ y }}</option>{% endfor %}</select>
+        </div>
+      </div>
+      <p class="small text-secondary mt-3 mb-3">Personel rütbe kurallarına göre otomatik dağıtılır; sonuç taslak olarak gelir, elle düzeltip kesinleştirirsiniz.</p>
+      <button class="btn btn-primary w-100"><i class="bi bi-magic me-1"></i>Grupları oluştur</button>
+    </form>
+    {% endif %}
+  </div>
+  <div class="col-12 col-lg-7">
+    <div class="row g-3">
+      <div class="col-6"><div class="kart istatistik"><span class="istatistik-ikon"><i class="bi bi-diagram-3"></i></span><div><div class="istatistik-deger">{{ gorev_sayisi }}</div><div class="istatistik-ad">Nöbet görevi</div></div></div></div>
+      <div class="col-6"><div class="kart istatistik"><span class="istatistik-ikon"><i class="bi bi-person-check"></i></span><div><div class="istatistik-deger">{{ tutar }}</div><div class="istatistik-ad">Nöbete girebilen personel</div></div></div></div>
+      <div class="col-6"><a href="{% url 'nobet:yillik' %}" class="kart birim-kart"><span class="birim-ikon"><i class="bi bi-calendar-range"></i></span><div><div class="birim-ad">Yıllık plan</div><div class="birim-alt">12 ay tek tabloda, elle düzenleme</div></div></a></div>
+      <div class="col-6"><a href="{% url 'nobet:puantaj' %}" class="kart birim-kart"><span class="birim-ikon"><i class="bi bi-bar-chart-steps"></i></span><div><div class="birim-ad">Puantaj</div><div class="birim-alt">Yıllık adalet tablosu</div></div></a></div>
+      <div class="col-6"><a href="{% url 'nobet:kisitlamalar' %}" class="kart birim-kart"><span class="birim-ikon"><i class="bi bi-calendar-x"></i></span><div><div class="birim-ad">Kısıtlamalar</div><div class="birim-alt">İzin, kurs, tayin, YDGG…</div></div></a></div>
+      <div class="col-6"><a href="{% url 'nobet:personel' %}" class="kart birim-kart"><span class="birim-ikon"><i class="bi bi-person-gear"></i></span><div><div class="birim-ad">Personel durumları</div><div class="birim-alt">Tutar / Muaf / Tutamaz</div></div></a></div>
+      {% if user.is_superuser %}
+      <div class="col-6"><a href="{% url 'admin:nobet_nobetgorevi_changelist' %}" class="kart birim-kart"><span class="birim-ikon"><i class="bi bi-sliders"></i></span><div><div class="birim-ad">Görev tanımları</div><div class="birim-alt">Rütbe, kontenjan, yatılı, puan</div></div></a></div>
+      <div class="col-6"><a href="{% url 'admin:nobet_nobetayari_changelist' %}" class="kart birim-kart"><span class="birim-ikon"><i class="bi bi-gear"></i></span><div><div class="birim-ad">Ayarlar</div><div class="birim-alt">Yatılı farkı sınırı {{ ayar.yatili_fark_siniri }} ay</div></div></a></div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<h2 class="bolum-baslik"><i class="bi bi-calendar3"></i>Aylar</h2>
+<div class="kart">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>Ay</th><th>Durum</th><th class="text-end">Kişi</th><th class="d-none d-md-table-cell">Kesinleşme</th><th></th></tr></thead>
+      <tbody>
+      {% for d in donemler %}
+        <tr>
+          <td><a href="{% url 'nobet:donem' d.yil d.ay %}" class="fw-semibold text-decoration-none">{{ d }}</a></td>
+          <td>{% if d.durum == 'kesin' %}<span class="durum-rozet durum-kullanimda">Kesinleşti</span>{% else %}<span class="durum-rozet durum-sirada">Taslak</span>{% endif %}</td>
+          <td class="text-end">{{ d.kisi }}</td>
+          <td class="d-none d-md-table-cell small text-secondary">{{ d.kesin_zamani|date:"d.m.Y H:i"|default:"–" }}</td>
+          <td class="text-end"><a href="{% url 'nobet:excel' d.yil d.ay %}" class="btn btn-sm btn-outline-secondary" title="EK-3 Excel"><i class="bi bi-file-earmark-excel"></i></a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="text-center text-secondary py-5">Henüz nöbet ayı oluşturulmadı.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

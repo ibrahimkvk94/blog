@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Nöbet kısıtlamaları{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Kısıtlamalar</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Nöbet kısıtlamaları</h1>
+    <p class="text-secondary mb-0">İzin, kurs, görevlendirme, tayin, açığa alınma, YDGG gibi dönemler. Dönemle kesişen her ayda personel nöbete yazılmaz.</p>
+  </div>
+  <a href="{% url 'nobet:yillik' %}" class="btn btn-outline-secondary"><i class="bi bi-calendar-range me-1"></i>Yıllık plan</a>
+</div>
+
+{% if yonetici %}
+<form method="post" class="kart p-3 mb-3">
+  {% csrf_token %}
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-lg-3">
+      <label class="form-label small text-secondary" for="personel">Personel</label>
+      <select class="form-select" id="personel" name="personel" required>
+        <option value="">Seçin…</option>
+        {% for p in personeller %}<option value="{{ p.pk }}">{{ p.tam_ad }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="col-6 col-lg-2">
+      <label class="form-label small text-secondary" for="tur">Tür</label>
+      <select class="form-select" id="tur" name="tur">{% for k, ad in turler %}<option value="{{ k }}">{{ ad }}</option>{% endfor %}</select>
+    </div>
+    <div class="col-6 col-lg-2">
+      <label class="form-label small text-secondary" for="baslangic">Başlangıç</label>
+      <input type="date" class="form-control" id="baslangic" name="baslangic" value="{{ bugun|date:'Y-m-d' }}" required>
+    </div>
+    <div class="col-6 col-lg-2">
+      <label class="form-label small text-secondary" for="bitis">Bitiş <span class="fw-normal">(boş = süresiz)</span></label>
+      <input type="date" class="form-control" id="bitis" name="bitis">
+    </div>
+    <div class="col-6 col-lg">
+      <label class="form-label small text-secondary" for="aciklama">Açıklama</label>
+      <input class="form-control" id="aciklama" name="aciklama" placeholder="ör. Ankara'ya tayin">
+    </div>
+    <div class="col-12 col-lg-auto"><button class="btn btn-primary w-100"><i class="bi bi-plus-lg me-1"></i>Ekle</button></div>
+  </div>
+  <div class="small text-secondary mt-2"><i class="bi bi-info-circle me-1"></i>Eklenen dönem, taslak aylarda kişinin mevcut nöbet atamasını da kaldırır. Kesinleşmiş aylara dokunulmaz. Tek bir ay için yıllık plandaki hücreden "Bu ay yazılamaz" da seçebilirsiniz.</div>
+</form>
+{% endif %}
+
+<form method="get" class="d-flex flex-wrap gap-2 mb-3">
+  <input type="search" name="q" value="{{ q }}" class="form-control" style="max-width:260px" placeholder="Ad ara" aria-label="Ad ara">
+  <select name="tur" class="form-select" style="max-width:220px" aria-label="Tür" onchange="this.form.submit()"><option value="">Tüm türler</option>{% for k, ad in turler %}<option value="{{ k }}" {% if tur == k %}selected{% endif %}>{{ ad }}</option>{% endfor %}</select>
+  <select name="durum" class="form-select" style="max-width:200px" aria-label="Zaman" onchange="this.form.submit()">
+    <option value="guncel" {% if durum == 'guncel' %}selected{% endif %}>Güncel ve ileri</option>
+    <option value="gecmis" {% if durum == 'gecmis' %}selected{% endif %}>Geçmiş</option>
+    <option value="hepsi" {% if durum == 'hepsi' %}selected{% endif %}>Hepsi</option>
+  </select>
+  <button class="btn btn-outline-secondary"><i class="bi bi-search"></i></button>
+</form>
+
+<div class="kart">
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead><tr><th>Personel</th><th>Tür</th><th>Dönem</th><th class="d-none d-md-table-cell">Açıklama</th><th class="d-none d-lg-table-cell">Giren</th><th></th></tr></thead>
+      <tbody>
+      {% for k in liste %}
+        <tr>
+          <td><div class="fw-semibold">{{ k.personel.ad_soyad }}</div><div class="small text-secondary">{{ k.personel.rutbe|default:"" }}</div></td>
+          <td><span class="yil-engel">{{ k.etiket }}</span> <span class="small">{{ k.get_tur_display }}</span></td>
+          <td class="text-nowrap small">{{ k.baslangic|date:"d.m.Y" }} – {% if k.bitis %}{{ k.bitis|date:"d.m.Y" }}{% else %}süresiz{% endif %}</td>
+          <td class="d-none d-md-table-cell small">{{ k.aciklama|default:"–" }}</td>
+          <td class="d-none d-lg-table-cell small text-secondary">{{ k.olusturan|default:"–" }}</td>
+          <td class="text-end">
+            {% if yonetici %}
+            <form method="post" onsubmit="return confirm('Bu kısıtlama silinsin mi?')">{% csrf_token %}<input type="hidden" name="sil" value="{{ k.pk }}"><input type="hidden" name="sorgu" value="{{ sorgu }}">
+              <button class="btn btn-sm btn-outline-danger" title="Sil"><i class="bi bi-trash"></i></button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="text-center text-secondary py-5">Kısıtlama yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

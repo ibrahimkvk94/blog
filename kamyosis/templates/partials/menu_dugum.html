@@ -1,0 +1,17 @@
+{% for d in dugumler %}
+<li>
+  {% if d.menu_cocuklar %}
+    <a class="nav-link {% if not d.acik %}collapsed{% endif %}" data-bs-toggle="collapse" href="#m-{{ d.slug }}" role="button" aria-expanded="{{ d.acik|yesno:'true,false' }}" aria-controls="m-{{ d.slug }}">
+      <i class="bi bi-{{ d.ikon }}"></i><span>{{ d.ad }}</span><i class="bi bi-chevron-down ok"></i>
+    </a>
+    <ul class="collapse {% if d.acik %}show{% endif %}" id="m-{{ d.slug }}">
+      {% include "partials/menu_dugum.html" with dugumler=d.menu_cocuklar %}
+    </ul>
+  {% else %}
+    <a class="nav-link {% if d.secili %}active{% endif %}" href="{{ d.get_absolute_url }}">
+      <i class="bi bi-{{ d.ikon }}"></i><span>{{ d.ad }}</span>
+      {% if d.durum != 'kullanimda' %}<span class="durum-nokta" title="{{ d.get_durum_display }}"></span>{% endif %}
+    </a>
+  {% endif %}
+</li>
+{% endfor %}

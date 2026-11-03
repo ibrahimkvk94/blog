@@ -1,0 +1,19 @@
+<script>
+(function () {
+  const kutular = () => Array.from(document.querySelectorAll('.satir-sec'));
+  const hepsi = document.getElementById('hepsiniSec');
+  function guncelle() {
+    const n = kutular().filter(k => k.checked).length;
+    const sayac = document.getElementById('seciliSayi');
+    if (sayac) sayac.textContent = n;
+    document.querySelectorAll('.secim-gerekli').forEach(b => b.disabled = n === 0);
+    if (hepsi) { hepsi.checked = n > 0 && n === kutular().length; hepsi.indeterminate = n > 0 && n < kutular().length; }
+  }
+  if (hepsi) hepsi.addEventListener('change', () => { kutular().forEach(k => k.checked = hepsi.checked); guncelle(); });
+  document.querySelectorAll('[data-gun-sec]').forEach(b => b.addEventListener('change', () => {
+    document.querySelectorAll('.satir-sec[data-gun="' + b.dataset.gunSec + '"]').forEach(k => k.checked = b.checked); guncelle();
+  }));
+  kutular().forEach(k => k.addEventListener('change', guncelle));
+  guncelle();
+})();
+</script>
