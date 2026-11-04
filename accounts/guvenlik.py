@@ -1,7 +1,8 @@
 """Giriş güvenliği: hatalı deneme kilidi ve internetten (Tailscale Funnel) erişim kuralları.
 
 - Aynı kullanıcı adıyla art arda hatalı giriş (parola ya da iki adımlı doğrulama kodu) sınırı aşınca o kullanıcı adı
-  bir süre kilitlenir (GuvenlikAyari). Sayaç önbellekte tutulur; sunucu yeniden başlarsa sıfırlanır.
+  kilitlenir; kilit her seferinde uzar: ilk kilit 1 dk, sonra 3, 9, 27 … dk (GuvenlikAyari: süre × katsayı^n).
+  Başarılı giriş sayacı sıfırlar. Sayaç önbellekte 24 saat tutulur; sunucu yeniden başlarsa sıfırlanır.
 - İstek dış adresten (settings.DIS_ADRESLER ya da *.ts.net) geliyorsa "dış erişim" sayılır; ayar açıksa dışarıdan
   yalnızca iki adımlı doğrulaması açık kullanıcılar girebilir. Kurum ağından giriş bundan etkilenmez.
 """
@@ -17,29 +18,34 @@ def _anahtar(kullanici_adi):
     return f"giris_hata:{(kullanici_adi or '').strip().casefold()}"
 
 
-def kilit_kalan_dk(kullanici_adi):
-    """Kullanıcı adı kilitliyse kalan dakika (en az 1), değilse 0."""
-    from .models import GuvenlikAyari
+HAFIZA = 24 * 60 * 60  # kilit geçmişi bu kadar saniye tutulur (sonraki kilit daha uzun olsun diye)
 
-    ayar = GuvenlikAyari.al()
+
+def kilit_kalan_dk(kullanici_adi):
+    """Kullanıcı adı kilitliyse kalan dakika (yukarı yuvarlanmış, en az 1), değilse 0."""
     kayit = cache.get(_anahtar(kullanici_adi))
-    if not kayit or kayit["sayi"] < ayar.giris_deneme_siniri:
-        return 0
-    kalan = kayit["bitis"] - time.time()
-    return max(1, int(kalan // 60) + 1) if kalan > 0 else 0
+    kalan = (kayit or {}).get("kilit_bitis", 0) - time.time()
+    return max(1, -int(-kalan // 60)) if kalan > 0 else 0
+
+
+def kilit_suresi_sn(ayar, kilit_sayisi):
+    """n. kilidin süresi: ilk kilit = kilit süresi, sonrakiler katsayı kadar uzar (1, 3, 9, 27 … dk)."""
+    return int(ayar.kilit_suresi_dk * 60 * ayar.kilit_katsayisi ** max(0, kilit_sayisi - 1))
 
 
 def hatali_deneme(kullanici_adi):
     from .models import GuvenlikAyari
 
-    if not kullanici_adi:
+    if not kullanici_adi or kilit_kalan_dk(kullanici_adi):
         return
     ayar = GuvenlikAyari.al()
-    sure = ayar.kilit_suresi_dk * 60
-    kayit = cache.get(_anahtar(kullanici_adi)) or {"sayi": 0}
+    kayit = cache.get(_anahtar(kullanici_adi)) or {"sayi": 0, "kilit_sayisi": 0, "kilit_bitis": 0}
     kayit["sayi"] += 1
-    kayit["bitis"] = time.time() + sure
-    cache.set(_anahtar(kullanici_adi), kayit, sure)
+    if kayit["sayi"] >= ayar.giris_deneme_siniri:
+        kayit["kilit_sayisi"] += 1
+        kayit["kilit_bitis"] = time.time() + kilit_suresi_sn(ayar, kayit["kilit_sayisi"])
+        kayit["sayi"] = 0
+    cache.set(_anahtar(kullanici_adi), kayit, max(HAFIZA, int(kayit["kilit_bitis"] - time.time()) + 60))
 
 
 def basarili_giris(kullanici_adi):

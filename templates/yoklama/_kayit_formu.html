@@ -1,0 +1,43 @@
+{# Kayıt formu (ekle / düzenle). Değişkenler: turler, k (düzenlenen kayıt, isteğe bağlı), varsayilan_tarih #}
+<div class="yk-form" data-yk-form>
+  <div class="mb-3">
+    <label class="form-label small text-secondary">Tür</label>
+    <div class="yk-tur-secim">
+      {% for t in turler %}
+      <input type="radio" class="btn-check" name="tur" id="tur-{{ onek|default:'f' }}-{{ t.pk }}" value="{{ t.pk }}" {% if k and k.tur_id == t.pk %}checked{% elif not k and forloop.first %}checked{% endif %} required>
+      <label class="yk-tur-dugme" for="tur-{{ onek|default:'f' }}-{{ t.pk }}" style="--renk: {{ t.renk }}"><span class="yk-nokta"></span>{{ t.ad }}</label>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="mb-3">
+    <div class="btn-group btn-group-sm" role="group" aria-label="Süre biçimi">
+      <input type="radio" class="btn-check" name="bicim" id="bicim-tam-{{ onek|default:'f' }}" value="tam" {% if not k or k.tam_gun %}checked{% endif %} data-bicim>
+      <label class="btn btn-outline-primary" for="bicim-tam-{{ onek|default:'f' }}"><i class="bi bi-calendar-range me-1"></i>Gün(ler)</label>
+      <input type="radio" class="btn-check" name="bicim" id="bicim-saat-{{ onek|default:'f' }}" value="saat" {% if k and not k.tam_gun %}checked{% endif %} data-bicim>
+      <label class="btn btn-outline-primary" for="bicim-saat-{{ onek|default:'f' }}"><i class="bi bi-clock me-1"></i>Saatlik</label>
+    </div>
+  </div>
+  <div class="row g-2 mb-3">
+    <div class="col-6 col-md-4">
+      <label class="form-label small text-secondary" for="bas-{{ onek|default:'f' }}">Başlangıç tarihi</label>
+      <input type="date" class="form-control" id="bas-{{ onek|default:'f' }}" name="bas_tarih" value="{% if k %}{{ k.yerel_bas|date:'Y-m-d' }}{% else %}{{ varsayilan_tarih|date:'Y-m-d' }}{% endif %}" required data-bas-tarih>
+    </div>
+    <div class="col-6 col-md-4" data-sadece="tam">
+      <label class="form-label small text-secondary" for="bit-{{ onek|default:'f' }}">Bitiş tarihi (dahil)</label>
+      <input type="date" class="form-control" id="bit-{{ onek|default:'f' }}" name="bit_tarih" value="{% if k and k.tam_gun %}{{ k.son_gun|date:'Y-m-d' }}{% else %}{{ varsayilan_tarih|date:'Y-m-d' }}{% endif %}" data-bit-tarih>
+    </div>
+    <div class="col-3 col-md-2" data-sadece="saat">
+      <label class="form-label small text-secondary" for="bs-{{ onek|default:'f' }}">Başlangıç</label>
+      <input type="time" class="form-control" id="bs-{{ onek|default:'f' }}" name="bas_saat" value="{% if k and not k.tam_gun %}{{ k.yerel_bas|date:'H:i' }}{% else %}08:30{% endif %}">
+    </div>
+    <div class="col-3 col-md-2" data-sadece="saat">
+      <label class="form-label small text-secondary" for="bt-{{ onek|default:'f' }}">Bitiş</label>
+      <input type="time" class="form-control" id="bt-{{ onek|default:'f' }}" name="bit_saat" value="{% if k and not k.tam_gun %}{{ k.yerel_bit|date:'H:i' }}{% else %}17:00{% endif %}">
+    </div>
+  </div>
+  <div class="small text-secondary mb-3" data-sure aria-live="polite"></div>
+  <div class="mb-1">
+    <label class="form-label small text-secondary" for="ac-{{ onek|default:'f' }}">Açıklama (isteğe bağlı)</label>
+    <input type="text" class="form-control" id="ac-{{ onek|default:'f' }}" name="aciklama" maxlength="300" value="{{ k.aciklama|default:'' }}" placeholder="ör. Ankara'da kurs, hastane raporu no …">
+  </div>
+</div>

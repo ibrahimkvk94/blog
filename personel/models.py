@@ -83,6 +83,9 @@ class Personel(models.Model):
         "Muafiyet bitişi", null=True, blank=True,
         help_text="Geçici muafiyetlerde: bu tarihten sonra başlayan aylarda personel yeniden nöbete yazılır.",
     )
+    fotograf = models.ImageField(
+        "Fotoğraf", upload_to="personel/", blank=True, editable=False,
+        help_text="Personel yoklaması kartında gösterilir; yüklenirken 600 piksele küçültülür (yoklama/foto.py).")
     # Sınav görevi rolleri (PPYS SPS spRol): A salon amiri, G gözetmen, T taşıyıcı; boş = sınav görevi verilmez
     SINAV_ROLLERI = [("A", "Salon amiri"), ("G", "Gözetmen"), ("T", "Taşıyıcı")]
     sinav_rolleri = models.CharField(

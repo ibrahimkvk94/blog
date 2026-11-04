@@ -58,7 +58,9 @@ class GuvenlikAyari(models.Model):
                   "girebilir. Kurum ağından giriş etkilenmez.")
     giris_deneme_siniri = models.PositiveSmallIntegerField(
         "Hatalı giriş sınırı", default=5, help_text="Aynı kullanıcı adıyla bu kadar hatalı denemeden sonra kilit.")
-    kilit_suresi_dk = models.PositiveSmallIntegerField("Kilit süresi (dakika)", default=15)
+    kilit_suresi_dk = models.PositiveSmallIntegerField(
+        "İlk kilit süresi (dakika)", default=1, help_text="Sınır her aşıldığında kilit katsayı kadar uzar: 1, 3, 9 … dk.")
+    kilit_katsayisi = models.PositiveSmallIntegerField("Kilit artış katsayısı", default=3)
 
     class Meta:
         verbose_name = "Güvenlik ayarları"
