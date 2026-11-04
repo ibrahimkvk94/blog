@@ -134,3 +134,31 @@ class GunlukOnay(models.Model):
 
     def __str__(self):
         return f"{self.bolum} · {self.tarih:%d.%m.%Y}"
+
+
+class PersonelGrubu(models.Model):
+    """Günlük yoklama formundaki sütun (ve "Görevi") için elle atama. Kayıt yoksa grup künyeden otomatik bulunur."""
+
+    GENERAL, OE_SIVIL, OE_SUBAY, OE_ASTSUBAY, SUBAY, ASTSUBAY, SIVIL_MEMUR = (
+        "general", "oe_sivil", "oe_subay", "oe_astsubay", "subay", "astsubay", "sivil_memur")
+    GRUPLAR = [
+        (GENERAL, "General / Amiral"),
+        (OE_SIVIL, "Öğretim elemanı (sivil)"),
+        (OE_SUBAY, "Öğretim elemanı (subay)"),
+        (OE_ASTSUBAY, "Öğretim elemanı (astsubay)"),
+        (SUBAY, "Subay (Yd.Sb. dahil)"),
+        (ASTSUBAY, "Astsubay (Yd.Asb. dahil)"),
+        (SIVIL_MEMUR, "Sivil memur"),
+    ]
+
+    personel = models.OneToOneField(Personel, on_delete=models.CASCADE, related_name="yoklama_grubu")
+    grup = models.CharField("Yoklama grubu", max_length=12, choices=GRUPLAR, blank=True,
+                            help_text="Boş: künyeden otomatik.")
+    gorev = models.CharField("Görevi", max_length=80, blank=True, help_text="Boş: otomatik (ör. Öğretim Elemanı (BSB)).")
+
+    class Meta:
+        verbose_name = "Yoklama grubu"
+        verbose_name_plural = "Yoklama grupları"
+
+    def __str__(self):
+        return f"{self.personel.ad_soyad} · {self.get_grup_display() or 'otomatik'}"

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import GunlukOnay, IzinTuru, YoklamaGecmisi, YoklamaKaydi
+from .models import GunlukOnay, IzinTuru, PersonelGrubu, YoklamaGecmisi, YoklamaKaydi
 
 
 @admin.register(IzinTuru)
@@ -37,3 +37,11 @@ class YoklamaGecmisiAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+@admin.register(PersonelGrubu)
+class PersonelGrubuAdmin(admin.ModelAdmin):
+    list_display = ["personel", "grup", "gorev"]
+    list_filter = ["grup"]
+    search_fields = ["personel__ad_soyad", "gorev"]
+    raw_id_fields = ["personel"]
