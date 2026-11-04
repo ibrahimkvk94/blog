@@ -16,7 +16,7 @@ from core.yetki import birim_bul, yol
 from personel.models import Bolum
 
 from . import foto, servis
-from .models import RENKLER, GunlukOnay, IzinTuru, YoklamaGecmisi, YoklamaKaydi
+from .models import RENKLER, GunlukOnay, IzinTuru, PersonelGrubu, YoklamaGecmisi, YoklamaKaydi
 from .servis import YoklamaHatasi
 
 
@@ -338,3 +338,68 @@ def gecmis(request):
         qs = qs.filter(onay_sonrasi=True)
     return render(request, "yoklama/gecmis.html", _baglam(request, islemler=list(qs[:300]),
                                                           onay_sonrasi=request.GET.get("onay_sonrasi") == "1"))
+
+
+# ---------------------------------------------------------------- günlük yoklama formu (resmî biçim)
+
+@login_required
+def yoklama_formu(request):
+    """Kurumun günlük yoklama formu: ekranda yazdırılabilir, ?excel=1 ile Excel (aralıkta her gün ayrı sayfa)."""
+    from . import form as yform
+
+    y = _goruntule(request)
+    bugun = timezone.localdate()
+    tarih = _tarih(request.GET.get("tarih"), bugun)
+    bolum = _secili_bolum(request, y)
+    kisiler = list(servis.personeller(y, bolum))
+    if request.GET.get("excel") == "1":
+        bit = _tarih(request.GET.get("bit"), tarih)
+        return yform.excel(yform.gun_listesi(tarih, bit), kisiler, bolum)
+    f = yform.gunluk(tarih, kisiler, bolum)
+    return render(request, "yoklama/form.html", _baglam(
+        request, tarih=tarih, secili_bolum=bolum, bolum_listesi=servis.bolumler(y), f=f,
+        bos_satirlar=range(len(f["beyan"]) + 1, max(yform.EN_AZ_BEYAN_SATIRI, len(f["beyan"])) + 1), dun=tarih - datetime.timedelta(days=1),
+        yarin=tarih + datetime.timedelta(days=1), sutunlar=yform.SUTUNLAR))
+
+
+@login_required
+def gruplar(request):
+    """İdari işler yetkilisi: personelin yoklama formundaki sütunu ve "Görevi" metni (boş = otomatik)."""
+    from . import form as yform
+
+    y = _yonetim(request)
+    kisiler = list(servis.personeller(y))
+    ata = yform.atamalar(kisiler)
+    gecerli = {g for g, _ in PersonelGrubu.GRUPLAR}
+    if request.method == "POST":
+        degisen = 0
+        for p in kisiler:
+            if f"grup-{p.pk}" not in request.POST:  # sayfa açıldıktan sonra eklenen personel: dokunma
+                continue
+            grup = request.POST.get(f"grup-{p.pk}", "")
+            gorev = request.POST.get(f"gorev-{p.pk}", "").strip()[:80]
+            if grup not in gecerli:
+                grup = ""
+            if grup == yform.otomatik_grup(p):
+                grup = ""  # otomatikle aynıysa atama tutma; künye değişince kendiliğinden güncellensin
+            eski = ata.get(p.pk)
+            if (eski.grup if eski else "", eski.gorev if eski else "") == (grup, gorev):
+                continue
+            if grup or gorev:
+                PersonelGrubu.objects.update_or_create(personel=p, defaults={"grup": grup, "gorev": gorev})
+            elif eski:
+                eski.delete()
+            degisen += 1
+        messages.success(request, f"{degisen} personelin yoklama grubu güncellendi." if degisen else "Değişiklik yok.")
+        return redirect(request.get_full_path())
+    satirlar, sayilar = [], dict.fromkeys(yform.SUTUNLAR, 0)
+    for p in kisiler:
+        a = ata.get(p.pk)
+        oto = yform.otomatik_grup(p)
+        grup, gorev = yform.grup_ve_gorev(p, a)
+        sayilar[grup] += 1
+        satirlar.append({"p": p, "oto": oto, "oto_ad": yform.GRUP_ADI[oto], "grup": grup, "elle": bool(a and a.grup),
+                         "gorev": a.gorev if a else "", "oto_gorev": yform.otomatik_gorev(p, grup)})
+    return render(request, "yoklama/gruplar.html", _baglam(
+        request, satirlar=satirlar, gruplar=PersonelGrubu.GRUPLAR,
+        sayilar=[(g, ad, sayilar[g]) for g, ad in PersonelGrubu.GRUPLAR]))

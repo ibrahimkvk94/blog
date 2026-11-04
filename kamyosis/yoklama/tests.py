@@ -246,3 +246,119 @@ class YoklamaTestleri(TestCase):
         self.assertNotContains(self.client.get(reverse("core:panel")), "Bugünün personel yoklaması verilmedi")
         self.client.force_login(self.iiy)
         self.assertContains(self.client.get(reverse("core:panel")), "Yoklama vermeyen bölüm")
+
+
+@override_settings(MEDIA_ROOT=MEDYA)
+class YoklamaFormuTestleri(TestCase):
+    """Günlük yoklama formu (resmî biçim): gruplar, sayım, beyan, Excel, yetki."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from personel.models import Secenek
+
+        R, S, U = Secenek.RUTBE, Secenek.SINIF, Secenek.UNVAN
+        sec = lambda tur, metin, sira=0: Secenek.objects.create(tur=tur, metin=metin, sira=sira)
+        cls.ask = Bolum.objects.create(ad="Askeri Bilimler", kod="ASK")
+        cls.tem = Bolum.objects.create(ad="Temel Bilimler", kod="TEM")
+        utgm, alb, bcvs, tugg = sec(R, "Ütğm.", 9), sec(R, "Alb.", 14), sec(R, "Asb.Kd.Bçvş.", 6), sec(R, "Tuğg.", 15)
+        og, topcu = sec(S, "Öğ."), sec(S, "Topçu")
+        ogtgor = sec(U, "Öğt.Gör.")
+        P = Personel.objects.create
+        cls.oe_subay = P(ad_soyad="Ali KAYA", bolum=cls.ask, sinif=og, rutbe=utgm)
+        cls.oe_alb = P(ad_soyad="Can DEMİR", bolum=cls.ask, sinif=og, rutbe=alb)
+        cls.oe_asb = P(ad_soyad="Veli ÇELİK", bolum=cls.ask, sinif=topcu, rutbe=bcvs)
+        cls.oe_sivil = P(ad_soyad="Ayşe YILMAZ", bolum=cls.tem, unvan=ogtgor)
+        cls.subay = P(ad_soyad="Mert ARSLAN", sinif=topcu, rutbe=utgm)
+        cls.asb = P(ad_soyad="Eren KOÇ", rutbe=bcvs)
+        cls.memur = P(ad_soyad="Elif ŞAHİN")
+        cls.general = P(ad_soyad="Kemal ÖZ", rutbe=tugg)
+        birim = Birim.objects.get(slug="personel-yoklamasi")
+        cls.askci = User.objects.create_user("ask", password="x-Parola-123", bolum=cls.ask)
+        Yetki.objects.create(kullanici=cls.askci, birim=birim, seviye=Yetki.DUZENLEME, kapsam=Yetki.BOLUM)
+        cls.iiy = User.objects.create_user("iiy", password="x-Parola-123")
+        Yetki.objects.create(kullanici=cls.iiy, birim=birim, seviye=Yetki.YONETIM, kapsam=Yetki.TUM)
+        cls.yillik = IzinTuru.objects.get(ad="Yıllık izin")
+        cls.rapor = IzinTuru.objects.get(ad="Raporlu")
+
+    def y(self, user):
+        return servis.yetki(SahteIstek(user))
+
+    def test_otomatik_gruplar(self):
+        from . import form
+        from .models import PersonelGrubu as G
+
+        beklenen = {self.oe_subay: G.OE_SUBAY, self.oe_alb: G.OE_SUBAY, self.oe_asb: G.OE_ASTSUBAY,
+                    self.oe_sivil: G.OE_SIVIL, self.subay: G.SUBAY, self.asb: G.ASTSUBAY,
+                    self.memur: G.SIVIL_MEMUR, self.general: G.GENERAL}
+        for p, g in beklenen.items():
+            self.assertEqual(form.otomatik_grup(p), g, p.ad_soyad)
+        self.assertEqual(form.otomatik_gorev(self.oe_subay, G.OE_SUBAY), "Öğretim Elemanı (ASK)")
+
+    def test_sayim_ve_beyan(self):
+        from . import form
+
+        iiy = self.y(self.iiy)
+        servis.ekle(self.iiy, iiy, self.oe_subay, self.yillik, *servis.aralik(True, GUN, GUN + datetime.timedelta(days=2)))
+        servis.ekle(self.iiy, iiy, self.oe_alb, self.rapor, *servis.aralik(True, GUN))
+        servis.ekle(self.iiy, iiy, self.memur, self.rapor, *servis.aralik(False, GUN, None, datetime.time(13), datetime.time(15)))
+        f = form.gunluk(GUN, list(servis.personeller(iiy)))
+        genel, gayri, hazir = (s["degerler"] for s in f["sayim"])
+        # sütunlar: general, öe sivil, öe subay, öe astsubay, subay, astsubay, sivil memur, toplam
+        self.assertEqual(genel, [1, 1, 2, 1, 1, 1, 1, 8])
+        self.assertEqual(gayri, [0, 0, 2, 0, 0, 0, 0, 2])   # saatlik izin gayri mevcut sayılmaz
+        self.assertEqual(hazir, [1, 1, 0, 1, 1, 1, 1, 6])
+        self.assertEqual([b["personel"] for b in f["beyan"]], [self.oe_alb, self.oe_subay])  # kıdem sırası
+        b = f["beyan"][1]
+        self.assertEqual((b["sebep"], b["ayrilis"], b["katilis"]), ("Yıllık izin", "10.11.2026", "13.11.2026"))
+        self.assertEqual(len(f["saatlik"]), 1)
+        self.assertIn("PERSONEL YOKLAMASI (GÜNLÜK)", f["baslik"])
+        self.assertIn("MÜDÜRLÜĞÜ", f["baslik"])
+
+    def test_elle_grup_ve_gorev(self):
+        from . import form
+        from .models import PersonelGrubu
+
+        self.client.force_login(self.iiy)
+        r = self.client.get(reverse("yoklama:gruplar"))
+        self.assertEqual(r.status_code, 200)
+        veri = {f"grup-{p.pk}": form.otomatik_grup(p) for p in Personel.objects.all()}
+        veri[f"grup-{self.subay.pk}"] = PersonelGrubu.OE_SUBAY
+        veri[f"gorev-{self.memur.pk}"] = "Müdürlük Sekreteri"
+        self.client.post(reverse("yoklama:gruplar"), veri)
+        self.assertEqual(PersonelGrubu.objects.count(), 2)
+        self.assertEqual(form.grup_ve_gorev(self.subay, PersonelGrubu.objects.get(personel=self.subay))[0],
+                         PersonelGrubu.OE_SUBAY)
+        # otomatiğe geri alınca atama silinir; formda olmayan kişiye dokunulmaz
+        veri[f"grup-{self.subay.pk}"] = PersonelGrubu.SUBAY
+        veri.pop(f"grup-{self.memur.pk}")
+        veri.pop(f"gorev-{self.memur.pk}")
+        self.client.post(reverse("yoklama:gruplar"), veri)
+        self.assertEqual(list(PersonelGrubu.objects.values_list("personel", flat=True)), [self.memur.pk])
+
+    def test_ekran_excel_ve_yetki(self):
+        from openpyxl import load_workbook
+
+        servis.ekle(self.iiy, self.y(self.iiy), self.oe_sivil, self.yillik, *servis.aralik(True, GUN))
+        servis.ekle(self.iiy, self.y(self.iiy), self.oe_subay, self.rapor, *servis.aralik(True, GUN))
+        self.client.force_login(self.iiy)
+        r = self.client.get(reverse("yoklama:form"), {"tarih": GUN.isoformat()})
+        self.assertContains(r, "GAYRİ MEVCUT BEYANI")
+        self.assertContains(r, "Ayşe YILMAZ")
+        r = self.client.get(reverse("yoklama:form"), {"tarih": GUN.isoformat(), "bit": "2026-11-12", "excel": "1"})
+        self.assertEqual(r.status_code, 200)
+        wb = load_workbook(io.BytesIO(r.content))
+        self.assertEqual(wb.sheetnames, ["10.11.2026", "11.11.2026", "12.11.2026"])
+        ws = wb["10.11.2026"]
+        self.assertEqual(ws["I2"].value, "10.11.2026")
+        self.assertEqual([ws.cell(row=r_, column=10).value for r_ in (5, 6, 7)], [8, 2, 6])
+        self.assertIn("Ayşe YILMAZ", ws["C11"].value)   # sütun sırası: öğretim elemanı (sivil) önce
+        self.assertIn("Ali KAYA", ws["C12"].value)
+        self.assertEqual((ws["E12"].value, ws["G12"].value), ("Öğretim Elemanı (ASK)", "Raporlu"))
+        self.assertEqual(ws["B30"].value, 20)  # en az 20 beyan satırı (boş form gibi)
+        # bölüm hesabı: yalnız kendi bölümü, grupları düzenleyemez
+        self.client.force_login(self.askci)
+        r = self.client.get(reverse("yoklama:form"), {"tarih": GUN.isoformat(), "bolum": self.tem.pk})
+        self.assertNotContains(r, "Ayşe YILMAZ")
+        self.assertContains(r, "ASKERİ BİLİMLER BÖLÜMÜ")
+        self.assertEqual(r.context["f"]["sayim"][0]["degerler"][-1], 3)
+        self.assertEqual(self.client.get(reverse("yoklama:gruplar")).status_code, 403)
