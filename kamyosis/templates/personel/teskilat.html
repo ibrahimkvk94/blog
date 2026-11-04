@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Teşkilat şeması · Personel kartları{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Teşkilat şeması</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Teşkilat şeması</h1>
+    <p class="text-secondary mb-0">Birime tıklayın: personeli, sorumlusu ve alt birimleri açılır.{% if yonetici %} Personeli birimlere oradan atayın.{% endif %}</p>
+  </div>
+</div>
+{% include "personel/_sekmeler.html" %}
+
+{% if bos %}
+<div class="kart p-5 text-center text-secondary">Teşkilat şeması henüz girilmedi.</div>
+{% endif %}
+
+{% for kok in kokler %}
+<div class="tk-sema">
+  <div class="tk-kok-satir">
+    <a class="tk-kutu tk-mudurluk" href="{% url 'personel:teskilat_birimi' kok.pk %}">
+      <span class="tk-ad">{{ kok.ad }}</span>
+      {% if kok.sorumlu %}<span class="tk-sorumlu">{{ kok.sorumlu.tam_ad }}</span>{% endif %}
+    </a>
+  </div>
+  {% if kok.yardimcilar %}
+  <div class="tk-hat"></div>
+  <div class="tk-yardimcilar">
+    {% for y in kok.yardimcilar %}
+    <a class="tk-kutu tk-yardimci" href="{% url 'personel:teskilat_birimi' y.pk %}">
+      <span class="tk-ad">{{ y.ad }}</span>
+      <span class="tk-sorumlu">{% if y.sorumlu %}{{ y.sorumlu.tam_ad }}{% else %}atanmadı{% endif %}</span>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if kok.kollar %}
+  <div class="tk-hat"></div>
+  <div class="tk-kollar">
+    {% for kol in kok.kollar %}
+    <div class="tk-kol {% if kol.tur == 'baskanliklar' %}tk-kol-genis{% endif %}">
+      <a class="tk-kutu tk-kol-bas" href="{% url 'personel:teskilat_birimi' kol.pk %}">
+        <span class="tk-ad">{{ kol.ad }}</span>
+        {% if kol.sorumlu %}<span class="tk-sorumlu">{{ kol.sorumlu.tam_ad }}</span>{% endif %}
+      </a>
+      {% if kol.tur == 'baskanliklar' %}
+        <div class="tk-bolumler">
+          {% for c in kol.cocuklar %}
+          <a class="tk-bolum" href="{% url 'personel:teskilat_birimi' c.pk %}">
+            <span class="tk-ad">{{ c.ad }}</span>
+            <span class="tk-alt"><i class="bi bi-person-badge me-1"></i>{% if c.sorumlu %}{{ c.sorumlu.ad_soyad }}{% else %}başkan seçilmedi{% endif %}</span>
+            <span class="tk-sayi">{{ c.sayi }}</span>
+          </a>
+          {% endfor %}
+        </div>
+      {% else %}
+        {% for c in kol.cocuklar %}
+        <div class="tk-sube">
+          <a class="tk-sube-bas" href="{% url 'personel:teskilat_birimi' c.pk %}">
+            <span class="tk-ad">{{ c.ad }}</span>
+            <span class="tk-sayi">{{ c.sayi }}</span>
+          </a>
+          {% if c.sorumlu %}<div class="tk-alt px-2"><i class="bi bi-person-badge me-1"></i>{{ c.sorumlu.tam_ad }}</div>{% endif %}
+          {% if c.cocuklar %}
+          <div class="tk-kisimlar">
+            {% for k in c.cocuklar %}<a class="tk-kisim" href="{% url 'personel:teskilat_birimi' k.pk %}">{{ k.ad }}{% if k.sayi %} <span class="tk-sayi">{{ k.sayi }}</span>{% endif %}</a>{% endfor %}
+          </div>
+          {% endif %}
+        </div>
+        {% empty %}
+        <div class="small text-secondary px-1">Alt birim yok.</div>
+        {% endfor %}
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endblock %}

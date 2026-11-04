@@ -1,39 +1,82 @@
 {% extends "base.html" %}
-{% load personel_etiketleri %}
-{% block title %}{{ p.ad_soyad }}{% endblock %}
+{% load personel_etiketleri yoklama_etiketleri %}
+{% block title %}{{ p.ad_soyad }} · Personel kartı{% endblock %}
 {% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">{{ p.ad_soyad }}</li>{% endblock %}
 {% block content %}
-<div class="sayfa-baslik">
-  <div class="d-flex align-items-center gap-3">
-    <span class="avatar buyuk">{{ p.ad_soyad|slice:":1"|upper }}</span>
-    <div>
-      <h1>{{ p.ad_soyad }}</h1>
-      <p class="text-secondary mb-0">{{ p.tam_ad }}</p>
+
+<div class="kart yk-profil mb-3">
+  <div class="d-flex flex-wrap gap-4 align-items-start">
+    <div class="text-center">
+      {% include "personel/_foto.html" with p=p buyuk=True %}
+      {% if yonetici %}
+      <div class="mt-2 d-print-none">
+        <form method="post" action="{% url 'personel:fotograf_yukle' p.pk %}" enctype="multipart/form-data" class="d-inline" id="fotoFormu">
+          {% csrf_token %}
+          <label class="btn btn-sm btn-outline-light" title="Fotoğraf yükle"><i class="bi bi-camera"></i><input type="file" name="fotograf" accept="image/*" hidden onchange="this.form.submit()"></label>
+        </form>
+        {% if p.fotograf %}<form method="post" action="{% url 'personel:fotograf_yukle' p.pk %}" class="d-inline" onsubmit="return confirm('Fotoğraf kaldırılsın mı?')">{% csrf_token %}<input type="hidden" name="islem" value="kaldir"><button class="btn btn-sm btn-outline-light" title="Fotoğrafı kaldır"><i class="bi bi-trash"></i></button></form>{% endif %}
+      </div>
+      {% endif %}
     </div>
+    {% isaretler p as isaret_listesi %}
+    {% if isaret_listesi %}
+    <div class="yk-isaretler" aria-label="Rütbe, sınıf, unvan ve görev işaretleri">
+      {% for svg, etiket in isaret_listesi %}<figure>{{ svg }}<figcaption>{{ etiket }}</figcaption></figure>{% endfor %}
+    </div>
+    {% endif %}
+    <div class="flex-grow-1 min-w-0">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <div class="ad">{{ p.ad_soyad }}</div>
+        {% if not p.aktif %}<span class="badge text-bg-secondary">Pasif</span>{% endif %}
+      </div>
+      <div class="kunye">{{ p.kunye|default:"" }}{% if p.gorev_unvani %} · {{ p.gorev_unvani }}{% endif %}</div>
+      {% if teskilat_yeri %}<div class="small mt-1" style="color:#c9d4e2"><i class="bi bi-diagram-3 me-1"></i>{% for b in teskilat_yeri %}{% if not forloop.first %} › {% endif %}<a class="text-reset" href="{% url 'personel:teskilat_birimi' b.pk %}">{{ b.ad }}</a>{% endfor %}</div>{% endif %}
+      <dl>
+        <div><dt>Bölüm</dt><dd>{{ p.bolum|default:"–" }}</dd></div>
+        <div><dt>Sicil no</dt><dd>{{ p.sicil|default:"–" }}</dd></div>
+        {% if yonetici %}<div><dt>T.C. kimlik no</dt><dd class="font-monospace">{{ p.personel_kodu|default:"–" }}</dd></div>{% endif %}
+        <div><dt>Rütbe</dt><dd>{{ p.rutbe|default:"–" }}</dd></div>
+        <div><dt>Sınıf</dt><dd>{{ p.sinif|default:"–" }}</dd></div>
+        <div><dt>Unvan</dt><dd>{{ p.unvan|default:"–" }}</dd></div>
+      </dl>
+    </div>
+    {% if duzenleyebilir %}
+    <div class="ms-lg-auto d-print-none"><a href="{% url 'personel:duzenle' p.pk %}" class="btn btn-light"><i class="bi bi-pencil me-1"></i>Düzenle</a></div>
+    {% endif %}
   </div>
-  {% if duzenleyebilir %}
-  <a href="{% url 'personel:duzenle' p.pk %}" class="btn btn-primary"><i class="bi bi-pencil me-1"></i>Düzenle</a>
-  {% endif %}
 </div>
 
 <div class="row g-3">
-  <div class="col-12 col-lg-8">
-    <div class="kart p-4">
-      <h2 class="h6 text-secondary text-uppercase mb-3">Kimlik ve görev bilgileri</h2>
-      <dl class="row mb-0 bilgi-listesi">
-        <dt class="col-sm-4">T.C. kimlik no</dt><dd class="col-sm-8 font-monospace">{% if duzenleyebilir %}{{ p.personel_kodu|default:"–" }}{% else %}{{ p.personel_kodu|maskele }}{% endif %}</dd>
-        <dt class="col-sm-4">Sicil no</dt><dd class="col-sm-8">{{ p.sicil|default:"–" }}</dd>
-        <dt class="col-sm-4">Bölüm</dt><dd class="col-sm-8">{{ p.bolum|default:"–" }}</dd>
-        <dt class="col-sm-4">Unvan</dt><dd class="col-sm-8">{{ p.unvan|default:"–" }}</dd>
-        <dt class="col-sm-4">Rütbe</dt><dd class="col-sm-8">{{ p.rutbe|default:"–" }}</dd>
-        <dt class="col-sm-4">Sınıf</dt><dd class="col-sm-8">{{ p.sinif|default:"–" }}</dd>
-        <dt class="col-sm-4">Durum</dt><dd class="col-sm-8">{% if p.aktif %}<span class="badge text-bg-success">Aktif</span>{% else %}<span class="badge text-bg-secondary">Pasif</span>{% endif %}</dd>
+  <div class="col-12 col-xl-4">
+    <div class="kart p-3 h-100">
+      <h2 class="h6 fw-bold mb-3"><i class="bi bi-briefcase me-1"></i>Teşkilat ve görev</h2>
+      <dl class="mb-0 bilgi-listesi">
+        <dt>Görev unvanı</dt><dd>{{ p.gorev_unvani|default:"–" }}{% if baskan_mi %} <span class="durum-rozet durum-kullanimda">Bölüm başkanı</span>{% endif %}{% if p.idari_kadro %} <span class="durum-rozet durum-sirada">İdari kadro</span>{% endif %}</dd>
+        <dt>Teşkilattaki yeri</dt><dd>{% for b in teskilat_yeri %}{% if not forloop.first %} › {% endif %}{{ b.ad }}{% empty %}–{% endfor %}</dd>
+        <dt>Derse girebilir</dt><dd>{% if p.derse_girebilir %}<i class="bi bi-check-circle-fill text-success me-1"></i>Evet{% else %}<i class="bi bi-x-circle-fill text-danger me-1"></i>Hayır{% endif %}</dd>
+        <dt>Sınav görevi alabilir</dt><dd>{% if p.sinav_gorevi_alabilir %}<i class="bi bi-check-circle-fill text-success me-1"></i>Evet{% else %}<i class="bi bi-x-circle-fill text-danger me-1"></i>Hayır{% endif %}</dd>
+        <dt>Durum</dt><dd>{% if p.aktif %}<span class="badge text-bg-success">Aktif</span>{% else %}<span class="badge text-bg-secondary">Pasif</span>{% endif %}</dd>
       </dl>
     </div>
   </div>
-  <div class="col-12 col-lg-4">
-    <div class="kart p-4">
-      <h2 class="h6 text-secondary text-uppercase mb-3">Kayıt</h2>
+  {% if yonetici %}
+    {% for grup, alanlar in kart_bilgileri %}
+    <div class="col-12 col-md-6 col-xl-4">
+      <div class="kart p-3 h-100">
+        <h2 class="h6 fw-bold mb-3"><i class="bi bi-card-text me-1"></i>{{ grup }}</h2>
+        <dl class="mb-0 bilgi-listesi">
+          {% for a, deger, gosterim in alanlar %}
+          <dt>{{ a.ad }}</dt>
+          <dd>{% if not gosterim %}<span class="text-secondary">–</span>{% elif a.tur == 'telefon' %}<a href="tel:{{ deger }}">{{ gosterim }}</a>{% elif a.tur == 'eposta' %}<a href="mailto:{{ deger }}">{{ gosterim }}</a>{% else %}{{ gosterim|linebreaksbr }}{% endif %}</dd>
+          {% endfor %}
+        </dl>
+      </div>
+    </div>
+    {% endfor %}
+  {% endif %}
+  <div class="col-12 col-md-6 col-xl-4">
+    <div class="kart p-3 h-100">
+      <h2 class="h6 fw-bold mb-3"><i class="bi bi-clock-history me-1"></i>Kayıt</h2>
       <dl class="mb-0 bilgi-listesi">
         <dt>Oluşturulma</dt><dd>{{ p.olusturma|date:"d.m.Y H:i" }}</dd>
         <dt>Son güncelleme</dt><dd>{{ p.guncelleme|date:"d.m.Y H:i" }}</dd>
