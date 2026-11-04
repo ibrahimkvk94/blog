@@ -5,6 +5,7 @@ Ortam değişkenleri:
   KAMYOSIS_ALLOWED_HOSTS  virgülle ayrılmış adresler (varsayılan: hepsi, sadece kurum içi ağ için)
   KAMYOSIS_SECRET_KEY     verilmezse .secret_key dosyasından okunur / ilk çalışmada üretilir
   KAMYOSIS_DERSPROGRAMI   Ders Programı modülünün klasörü (bkz. config/dersprogrami_yolu.py)
+  KAMYOSIS_DIS_ADRES      internetten erişim adresi(leri), ör. https://ad.tailnet.ts.net (yoksa .dis_adres dosyası)
 """
 
 import os
@@ -36,6 +37,19 @@ def _secret_key():
 SECRET_KEY = _secret_key()
 DEBUG = os.environ.get("KAMYOSIS_DEBUG", "1") == "1"
 ALLOWED_HOSTS = os.environ.get("KAMYOSIS_ALLOWED_HOSTS", "*").split(",")
+
+
+def _dis_adresler():
+    """İnternetten erişim (Tailscale Funnel) adresleri: ortam değişkeni ya da depoya girmeyen .dis_adres dosyası."""
+    ham = os.environ.get("KAMYOSIS_DIS_ADRES", "")
+    dosya = BASE_DIR / ".dis_adres"
+    if not ham and dosya.exists():
+        ham = dosya.read_text(encoding="utf-8")
+    return [a.rstrip("/") for a in ham.replace(",", " ").split() if a.startswith("https://")]
+
+
+DIS_ADRESLER = _dis_adresler()
+CSRF_TRUSTED_ORIGINS = DIS_ADRESLER  # Funnel HTTPS'i sonlandırır; bu adresten gelen formlar kabul edilsin
 
 INSTALLED_APPS = [
     "django.contrib.admin",

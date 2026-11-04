@@ -29,6 +29,24 @@ Yönetim paneli: `/yonetim/` (sadece ana yönetici).
 New-NetFirewallRule -DisplayName "KAMYOSIS 8000" -Direction Inbound -Protocol TCP -LocalPort 8000 -Action Allow -Profile Domain,Private
 ```
 
+### Giriş güvenliği ve internetten erişim (Tailscale Funnel)
+
+- **İki adımlı doğrulama** isteğe bağlıdır: her kullanıcı sağ üst menü → “İki adımlı doğrulama”dan açar (Google /
+  Microsoft Authenticator). Telefonunu kaybedenin kaydı Yönetim Paneli → İki adımlı doğrulama'dan silinir.
+- **Hatalı giriş kilidi:** aynı kullanıcı adıyla 5 hatalı deneme (parola ya da kod) → 15 dakika kilit.
+- **Güvenlik ayarları** (Yönetim Paneli): internetten girişte iki adımlı doğrulama zorunlu (varsayılan açık), deneme
+  sınırı, kilit süresi. Kurum ağından giriş iki adımlı doğrulama zorunluluğundan etkilenmez.
+- İnternet adresi depoya girmeyen `.dis_adres` dosyasına yazılır (ör. `https://ad.tailnet.ts.net`); bu adresten gelen
+  formlar kabul edilir ve oradan gelen istekler “dış erişim” sayılır.
+
+Funnel'ı açma / kapatma (site önce `yayinla.bat` ile çalışıyor olmalı):
+
+```powershell
+& "C:\Program Files\Tailscale\tailscale.exe" funnel --bg 8000        # aç: https://<makine>.<tailnet>.ts.net
+& "C:\Program Files\Tailscale\tailscale.exe" funnel status           # durum
+& "C:\Program Files\Tailscale\tailscale.exe" funnel --https=443 off  # kapat
+```
+
 ## Access'ten veri aktarımı
 
 ```powershell

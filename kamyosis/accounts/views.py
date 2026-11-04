@@ -13,6 +13,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import never_cache
 from django.views.decorators.debug import sensitive_post_parameters
 
+from . import guvenlik
 from . import iki_adim as ia
 from .models import IkiAdimliDogrulama
 
@@ -41,13 +42,32 @@ def _iki_adim(user):
 
 
 class GirisView(auth_views.LoginView):
-    """Parola doğruysa: iki adımlı doğrulaması açık kullanıcı için oturum açılmadan kod sayfasına geçilir."""
+    """Parola doğruysa: iki adımlı doğrulaması açık kullanıcı için oturum açılmadan kod sayfasına geçilir.
+    Hatalı denemeler kullanıcı adını kilitler; internetten girişte (ayar açıksa) iki adımlı doğrulama zorunludur."""
 
     redirect_authenticated_user = True
 
+    def _hata(self, form, metin):
+        return self.render_to_response(self.get_context_data(form=form, ozel_hata=metin))
+
+    def post(self, request, *args, **kwargs):
+        dk = guvenlik.kilit_kalan_dk(request.POST.get("username"))
+        if dk:
+            return self._hata(self.get_form(), f"Çok sayıda hatalı deneme yapıldı; bu hesap {dk} dakika sonra yeniden "
+                                               "denenebilir.")
+        return super().post(request, *args, **kwargs)
+
+    def form_invalid(self, form):
+        guvenlik.hatali_deneme(self.request.POST.get("username"))
+        return super().form_invalid(form)
+
     def form_valid(self, form):
         user = form.get_user()
+        guvenlik.basarili_giris(self.request.POST.get("username"))
         if _iki_adim(user) is None:
+            if guvenlik.dis_erisimde_iki_adim_gerekli(self.request):
+                return self._hata(form, "İnternet üzerinden giriş için iki adımlı doğrulama gerekir. Önce kurum ağından "
+                                        "giriş yapıp sağ üstteki menüden “İki adımlı doğrulama”yı açın.")
             return super().form_valid(form)
         self.request.session[BEKLEYEN] = {
             "uid": user.pk, "backend": user.backend, "zaman": time.time(), "deneme": 0, "next": self.get_success_url(),
@@ -93,6 +113,7 @@ def giris_kodu(request):
             if not url_has_allowed_host_and_scheme(hedef, allowed_hosts={request.get_host()}):
                 hedef = "/"
             return redirect(hedef)
+        guvenlik.hatali_deneme(user.username)
         bekleyen["deneme"] = bekleyen.get("deneme", 0) + 1
         if bekleyen["deneme"] >= DENEME:
             request.session.pop(BEKLEYEN, None)
