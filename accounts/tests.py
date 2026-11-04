@@ -114,3 +114,52 @@ class AyarTests(TestCase):
         r = self.client.post(self.url, {"islem": "kapat", "parola": PAROLA, "kod": sonraki}, follow=True)
         self.assertContains(r, "kapatıldı")
         self.assertFalse(IkiAdimliDogrulama.objects.filter(kullanici=self.user).exists())
+
+
+class GuvenlikTests(TestCase):
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+        self.user = User.objects.create_user("ayse", password=PAROLA)
+
+    def test_hatali_deneme_kilidi(self):
+        for _ in range(5):
+            self.client.post(reverse("login"), {"username": "ayse", "password": "yanlis"})
+        r = self.client.post(reverse("login"), {"username": "AYSE", "password": PAROLA})  # doğru parola da geçmez
+        self.assertContains(r, "Çok sayıda hatalı deneme")
+        self.assertNotIn("_auth_user_id", self.client.session)
+        r = self.client.post(reverse("login"), {"username": "baska", "password": "x"})  # başka hesap etkilenmez
+        self.assertNotContains(r, "Çok sayıda hatalı deneme")
+
+    def test_basarili_giris_sayaci_sifirlar(self):
+        for _ in range(4):
+            self.client.post(reverse("login"), {"username": "ayse", "password": "yanlis"})
+        self.client.post(reverse("login"), {"username": "ayse", "password": PAROLA})
+        self.assertIn("_auth_user_id", self.client.session)
+        self.client.logout()
+        self.client.post(reverse("login"), {"username": "ayse", "password": "yanlis"})
+        self.client.post(reverse("login"), {"username": "ayse", "password": PAROLA})
+        self.assertIn("_auth_user_id", self.client.session)
+
+    def test_internetten_iki_adim_zorunlu(self):
+        from .models import GuvenlikAyari
+
+        dis = {"HTTP_HOST": "girgen.ornek.ts.net"}
+        r = self.client.post(reverse("login"), {"username": "ayse", "password": PAROLA}, **dis)
+        self.assertContains(r, "İnternet üzerinden giriş için iki adımlı doğrulama gerekir")
+        self.assertNotIn("_auth_user_id", self.client.session)
+        # kurum ağından yalnız parola yeter
+        self.client.post(reverse("login"), {"username": "ayse", "password": PAROLA}, HTTP_HOST="192.168.1.14:8000")
+        self.assertIn("_auth_user_id", self.client.session)
+        self.client.logout()
+        # 2FA açık kullanıcı dışarıdan kod sayfasına geçer
+        IkiAdimliDogrulama.objects.create(kullanici=self.user, gizli=ia.gizli_uret(), etkin=True)
+        r = self.client.post(reverse("login"), {"username": "ayse", "password": PAROLA}, **dis)
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(r["Location"].endswith(reverse("giris_kodu")))
+        # ayar kapatılırsa dışarıdan da parola yeter
+        IkiAdimliDogrulama.objects.all().delete()
+        GuvenlikAyari.objects.update_or_create(pk=GuvenlikAyari.al().pk, defaults={"dis_erisimde_iki_adim_zorunlu": False})
+        self.client.post(reverse("login"), {"username": "ayse", "password": PAROLA}, **dis)
+        self.assertIn("_auth_user_id", self.client.session)

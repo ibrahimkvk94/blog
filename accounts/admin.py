@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin
 
 from core.models import Yetki
 
-from .models import IkiAdimliDogrulama, User
+from .models import GuvenlikAyari, IkiAdimliDogrulama, User
 
 
 class YetkiInline(admin.TabularInline):
@@ -43,3 +43,14 @@ class IkiAdimliDogrulamaAdmin(admin.ModelAdmin):
     @admin.display(description="Kalan yedek kod")
     def kalan_yedek(self, obj):
         return obj.kalan_yedek
+
+
+@admin.register(GuvenlikAyari)
+class GuvenlikAyariAdmin(admin.ModelAdmin):
+    list_display = ["__str__", "dis_erisimde_iki_adim_zorunlu", "giris_deneme_siniri", "kilit_suresi_dk"]
+
+    def has_add_permission(self, request):
+        return not GuvenlikAyari.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False

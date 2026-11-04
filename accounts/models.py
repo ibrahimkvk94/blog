@@ -47,3 +47,26 @@ class IkiAdimliDogrulama(models.Model):
     @property
     def kalan_yedek(self):
         return len(self.yedek_kodlar or [])
+
+
+class GuvenlikAyari(models.Model):
+    """Tek satırlık giriş güvenliği ayarları (Yönetim Paneli → Güvenlik ayarları)."""
+
+    dis_erisimde_iki_adim_zorunlu = models.BooleanField(
+        "İnternetten girişte iki adımlı doğrulama zorunlu", default=True,
+        help_text="Açıksa internet adresinden (Tailscale Funnel) yalnızca iki adımlı doğrulaması açık kullanıcılar "
+                  "girebilir. Kurum ağından giriş etkilenmez.")
+    giris_deneme_siniri = models.PositiveSmallIntegerField(
+        "Hatalı giriş sınırı", default=5, help_text="Aynı kullanıcı adıyla bu kadar hatalı denemeden sonra kilit.")
+    kilit_suresi_dk = models.PositiveSmallIntegerField("Kilit süresi (dakika)", default=15)
+
+    class Meta:
+        verbose_name = "Güvenlik ayarları"
+        verbose_name_plural = "Güvenlik ayarları"
+
+    def __str__(self):
+        return "Güvenlik ayarları"
+
+    @classmethod
+    def al(cls):
+        return cls.objects.first() or cls.objects.create()

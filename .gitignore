@@ -17,3 +17,5 @@ db_yedek_*.sqlite3
 yedekler/
 # Ders Programı modülünün yerel yolu (bkz. config/dersprogrami_yolu.py)
 .dersprogrami_yolu
+# Internetten erisim adresi (tailnet adi; bkz. config/settings.py DIS_ADRESLER)
+.dis_adres
