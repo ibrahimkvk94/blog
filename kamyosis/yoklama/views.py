@@ -190,6 +190,7 @@ def kart(request, pk):
         request, p=p, bugun=bugun, bugun_durum=bugun_durum, gelecek=gelecek, gecmis=gecmis, yil=yil, yillar=yillar,
         yil_ozeti=sorted(yil_ozeti.values(), key=lambda o: (o["tur"].sira, o["tur"].ad)),
         turler=servis.izin_turleri(), girebilir=girebilir, ilk_giris=ilk_giris, kilitli=kilitli,
+        foto_yukleyebilir=y.yonetim,
         islemler=list(p.yoklama_gecmisi.select_related("kullanici")[:15]), varsayilan_tarih=varsayilan_tarih))
 
 
@@ -241,7 +242,7 @@ def fotograf(request, pk):
 def fotograf_yukle(request, pk):
     y = _goruntule(request)
     p = servis.kapsamdaki_personel(y, pk)
-    if not y.giris or not y.kapsar(p.bolum_id):
+    if not y.yonetim:  # fotoğrafı yalnız yönetim yetkisindekiler (idari işler yetkilisi, sistem yöneticileri) değiştirir
         raise PermissionDenied
     if request.POST.get("islem") == "kaldir":
         foto.kaldir(p)

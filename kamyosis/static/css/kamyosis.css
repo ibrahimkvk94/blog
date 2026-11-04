@@ -395,3 +395,12 @@ a.yk-kisi:hover .ad { color: #2f5d8a; text-decoration: underline; }
   .yk-resmi, .yk-resmi th, .yk-resmi td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .yk-sayim tr.yk-gayri td, .yk-sayim tr.yk-hazir td { color: #000; }
 }
+
+/* Personel kartı: rütbe, sınıf ve akademik unvan işaretleri (fotoğrafın yanında) */
+.yk-isaretler { display: flex; gap: .9rem; align-items: flex-end; align-self: flex-start; padding: .7rem .9rem .55rem;
+  background: rgba(255,255,255,.07); border: 1px solid rgba(201,162,39,.45); border-radius: 12px; }
+.yk-isaretler figure { margin: 0; text-align: center; display: flex; flex-direction: column; align-items: center; }
+.yk-isaretler svg { display: block; filter: drop-shadow(0 2px 3px rgba(0,0,0,.35)); }
+.yk-isaretler figcaption { font-size: .72rem; color: #e8d9a8; margin-top: .35rem; max-width: 7rem; line-height: 1.2; }
+@media (max-width: 575.98px) { .yk-isaretler { order: 3; width: 100%; justify-content: center; } }
+@media print { .yk-isaretler svg { filter: none; } }

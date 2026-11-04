@@ -9,7 +9,7 @@
   <div class="d-flex flex-wrap gap-4 align-items-start">
     <div class="text-center">
       {% include "yoklama/_foto.html" with p=p buyuk=True %}
-      {% if girebilir %}
+      {% if foto_yukleyebilir %}
       <div class="mt-2 d-print-none">
         <form method="post" action="{% url 'yoklama:fotograf_yukle' p.pk %}" enctype="multipart/form-data" class="d-inline" id="fotoFormu">
           {% csrf_token %}
@@ -19,6 +19,12 @@
       </div>
       {% endif %}
     </div>
+    {% isaretler p as isaret_listesi %}
+    {% if isaret_listesi %}
+    <div class="yk-isaretler" aria-label="Rütbe, sınıf ve unvan işaretleri">
+      {% for svg, etiket in isaret_listesi %}<figure>{{ svg }}<figcaption>{{ etiket }}</figcaption></figure>{% endfor %}
+    </div>
+    {% endif %}
     <div class="flex-grow-1 min-w-0">
       <div class="d-flex flex-wrap align-items-center gap-2">
         <div class="ad">{{ p.ad_soyad }}</div>
