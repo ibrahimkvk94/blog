@@ -84,6 +84,7 @@
         <ul class="dropdown-menu dropdown-menu-end shadow-sm">
           <li><h6 class="dropdown-header">{{ user.bolum|default:"Bölüm atanmamış" }}</h6></li>
           <li><a class="dropdown-item" href="{% url 'parola_degistir' %}"><i class="bi bi-key me-2"></i>Parola değiştir</a></li>
+          <li><a class="dropdown-item" href="{% url 'iki_adim' %}"><i class="bi bi-shield-lock me-2"></i>İki adımlı doğrulama</a></li>
           <li><hr class="dropdown-divider"></li>
           <li>
             <form method="post" action="{% url 'logout' %}">{% csrf_token %}
