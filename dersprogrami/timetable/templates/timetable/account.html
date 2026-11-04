@@ -13,6 +13,48 @@
       <button class="btn btn-primary" style="margin-top:14px">Kaydet</button>
     </form>
   </div>
+  <div class="panel" id="iki-adimli">
+    <div class="panel-head"><h2>İki adımlı giriş</h2>
+      {% if two_factor %}<span class="pill ok">Açık</span>{% else %}<span class="pill">Kapalı</span>{% endif %}</div>
+    <div class="panel-body">
+      {% if recovery_codes %}
+        <div class="alert alert-warning"><b>Kurtarma kodlarınız</b> — yalnızca şimdi gösteriliyor. Bir yere yazın ya da yazdırın.
+          Telefonunuz yanınızda değilken her biri girişte bir kez kullanılabilir.</div>
+        <div class="tf-codes">{% for code in recovery_codes %}<code>{{ code }}</code>{% endfor %}</div>
+      {% endif %}
+      {% if two_factor %}
+        <p>Girişte parolanızdan sonra telefonunuzdaki doğrulama uygulamasının 6 haneli kodu da soruluyor.
+          <span class="subtle">Açılış: {{ two_factor.confirmed_at|date:"d.m.Y H:i" }} · kalan kurtarma kodu: {{ recovery_left }}</span></p>
+        <form method="post" action="{% url 'timetable:account_two_factor' %}" class="dialog-row">{% csrf_token %}
+          <input class="input" type="password" name="password" placeholder="Parolanız" required autocomplete="current-password">
+          <button class="btn btn-sm" name="action" value="recovery">Yeni kurtarma kodları</button>
+          <button class="btn btn-sm btn-danger" name="action" value="disable" onclick="return confirm('İki adımlı giriş kapatılsın mı?')">Kapat</button>
+        </form>
+      {% elif setup %}
+        <p>1. Telefonunuzda Google Authenticator, Microsoft Authenticator ya da benzeri bir uygulamayı açın ve bu karekodu okutun.</p>
+        <div class="tf-setup">
+          <div class="tf-qr">{{ setup.qr|safe }}</div>
+          <div>
+            <p class="subtle small">Karekod okutamıyorsanız uygulamada “anahtarı elle gir” seçip şunu yazın:<br><code>{{ setup.secret }}</code></p>
+            <p>2. Uygulamada beliren 6 haneli kodu girin:</p>
+            <form method="post" action="{% url 'timetable:account_two_factor' %}">{% csrf_token %}
+              <input class="input otp-input" type="text" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" required placeholder="123456" style="max-width:200px">
+              <div style="margin-top:10px;display:flex;gap:8px">
+                <button class="btn btn-primary btn-sm" name="action" value="confirm">Doğrula ve aç</button>
+                <button class="btn btn-sm btn-ghost" name="action" value="cancel" formnovalidate>Vazgeç</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      {% else %}
+        <p>İsteğe bağlıdır. Açarsanız girişte parolanızın yanında telefonunuzdaki doğrulama uygulamasının (Google / Microsoft
+          Authenticator vb.) ürettiği 6 haneli kod da sorulur; parolanızı bilen biri telefonunuz olmadan giremez.</p>
+        <form method="post" action="{% url 'timetable:account_two_factor' %}">{% csrf_token %}
+          <button class="btn btn-primary btn-sm" name="action" value="start">İki adımlı girişi aç</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
   <div class="panel">
     <div class="panel-head"><h2>Kurumlarım ve yetkilerim</h2></div>
     <div class="panel-body">

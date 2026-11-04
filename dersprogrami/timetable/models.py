@@ -1362,6 +1362,26 @@ class AuditLog(models.Model):
         return f"{self.created_at:%d.%m.%Y %H:%M} {self.username}: {self.action}"
 
 
+class TwoFactor(models.Model):
+    """İsteğe bağlı iki adımlı giriş (Google / Microsoft Authenticator gibi uygulamaların 6 haneli kodu). Satır
+    kurulum başlayınca açılır; kod bir kez doğrulanıp confirmed_at dolunca girişte sorulur. Ayrıntı: two_factor.py."""
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="two_factor")
+    secret = models.CharField(max_length=64)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    # Son kabul edilen 30 saniyelik adım: aynı kod ikinci kez kullanılamaz.
+    last_step = models.BigIntegerField(default=0)
+    # Tek kullanımlık kurtarma kodlarının SHA-256 özetleri (telefon kaybolursa).
+    recovery_codes = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        verbose_name = "iki adımlı doğrulama"
+        verbose_name_plural = "iki adımlı doğrulamalar"
+
+    def __str__(self):
+        return f"{self.user}: {'açık' if self.confirmed_at else 'kurulumda'}"
+
+
 class EditPresence(models.Model):
     """Kim neyi düzenliyor: açık düzenleyici (program ya da kayıt) 30 sn'de bir nabız yazar. Anahtar okul içinde
     "program:<kimlik>" ya da "kayit:<tür>:<kimlik>" biçimindedir; eski satırlar nabızlarda temizlenir."""

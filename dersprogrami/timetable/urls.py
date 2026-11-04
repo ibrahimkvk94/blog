@@ -9,9 +9,11 @@ app_name = "timetable"
 urlpatterns = [
     path("", views.home, name="home"),
     path("ders-planlama/", views.school_list, name="school_list"),
-    path("giris/", auth_views.LoginView.as_view(template_name="timetable/login.html", redirect_authenticated_user=True), name="login"),
+    path("giris/", accounts.LoginView.as_view(), name="login"),
+    path("giris/dogrulama/", accounts.login_verify, name="login_verify"),
     path("cikis/", auth_views.LogoutView.as_view(), name="logout"),
     path("hesabim/", accounts.account, name="account"),
+    path("hesabim/iki-adimli/", accounts.account_two_factor, name="account_two_factor"),
     path("parola-belirle/<uidb64>/<token>/", teacher_accounts.password_set, name="password_set"),
     path("parola-belirle/tamam/", teacher_accounts.password_set_done, name="password_set_done"),
     path("parolami-unuttum/", teacher_accounts.password_forgot, name="password_forgot"),

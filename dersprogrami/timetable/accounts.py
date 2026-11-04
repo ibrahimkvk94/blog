@@ -1,8 +1,12 @@
 """Merkez paneli, okul kullanıcıları ve hesap ayarları (çok okullu yapı)."""
 
+import time
+
 from django import forms
 from django.contrib import messages
-from django.contrib.auth import update_session_auth_hash
+from django.contrib.auth import login as auth_login, update_session_auth_hash
+from django.contrib.auth import views as auth_views
+from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth import get_user_model
 User = get_user_model()  # KAMYOSİS: özel kullanıcı modeli
@@ -12,13 +16,15 @@ from django.db import transaction
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.views.decorators.cache import never_cache
+from django.views.decorators.debug import sensitive_post_parameters
 from django.views.decorators.http import require_POST
 
-from . import modules
-from .access import account_is_local, grantable, institution_permissions
+from . import modules, two_factor
+from .access import account_is_local, client_ip, grantable, institution_permissions
 from .counts import related_count
 from .data_views import default_periods
-from .models import Institution, Membership, School
+from .models import AuditLog, Institution, Membership, School
 from .views import _nav
 
 M = Membership
@@ -159,10 +165,19 @@ def institution_users(request, pk):
                         user.set_password(request.POST["password"])
                         user.save(update_fields=["password"])
                         messages.success(request, f"{user.username} parolası değiştirildi.")
+            elif action == "two_factor_reset":
+                user = membership.user
+                if user.memberships.exclude(institution=institution).exists() and not request.user.is_superuser:
+                    messages.error(request, "Başka kurumlarda da kayıtlı kullanıcının iki adımlı girişini yalnızca merkez kaldırabilir.")
+                else:
+                    two_factor.disable(user)
+                    messages.success(request, f"{user.username} için iki adımlı giriş kaldırıldı; yalnızca parolayla girecek.")
             return redirect("timetable:institution_users", pk=institution.pk)
     members = []
+    secured = set(two_factor.TwoFactor.objects.filter(user__memberships__institution=institution, confirmed_at__isnull=False)
+                  .values_list("user_id", flat=True))
     for m in institution.memberships.select_related("user", "granted_by").prefetch_related("programs"):
-        members.append({"m": m, "manageable": _can_manage(request, institution, m),
+        members.append({"m": m, "manageable": _can_manage(request, institution, m), "two_factor": m.user_id in secured,
                         "program_ids": [p.pk for p in m.programs.all()],
                         "module_titles": [title for key, title in modules.choices() if key in (m.modules or [])]})
     return render(request, "timetable/users.html", {
@@ -206,6 +221,56 @@ def central_school_new(request):
     return redirect("timetable:central")
 
 
+class LoginView(auth_views.LoginView):
+    """Parola doğruysa ve kullanıcı iki adımlı girişi açtıysa oturum açılmaz: kod sayfasına geçilir."""
+
+    template_name = "timetable/login.html"
+    redirect_authenticated_user = True
+
+    def form_valid(self, form):
+        user = form.get_user()
+        if not two_factor.is_enabled(user):
+            return super().form_valid(form)
+        self.request.session[two_factor.PENDING] = {
+            "user": user.pk, "backend": user.backend, "next": self.get_success_url(), "at": time.time(), "tries": 0}
+        return redirect("timetable:login_verify")
+
+
+@login_not_required
+@sensitive_post_parameters()
+@never_cache
+def login_verify(request):
+    pending = request.session.get(two_factor.PENDING)
+    user = None
+    if pending and time.time() - pending.get("at", 0) <= two_factor.PENDING_SECONDS:
+        user = User.objects.filter(pk=pending.get("user"), is_active=True).first()
+    record = two_factor.device(user) if user else None
+    if record is None:
+        request.session.pop(two_factor.PENDING, None)
+        if pending:
+            messages.error(request, "Doğrulama süresi doldu; lütfen yeniden giriş yapın.")
+        return redirect("timetable:login")
+    error = ""
+    if request.method == "POST":
+        how = two_factor.verify(record, request.POST.get("code"))
+        if how:
+            del request.session[two_factor.PENDING]
+            auth_login(request, user, backend=pending["backend"])
+            if how == "recovery":
+                messages.warning(request, f"Bir kurtarma kodu kullandınız; {len(record.recovery_codes)} kod kaldı. "
+                                          "Hesabım sayfasından yenilerini alabilirsiniz.")
+            return redirect(pending["next"])
+        AuditLog.objects.create(user=user, username=user.get_username(), action="Hatalı doğrulama kodu", ip=client_ip(request))
+        pending["tries"] += 1
+        if pending["tries"] >= two_factor.MAX_TRIES:
+            del request.session[two_factor.PENDING]
+            messages.error(request, "Çok fazla hatalı kod girildi; lütfen yeniden giriş yapın.")
+            return redirect("timetable:login")
+        request.session[two_factor.PENDING] = pending
+        error = "Kod hatalı ya da süresi geçmiş. Uygulamadaki güncel kodu girin."
+    return render(request, "timetable/login_verify.html", {"error": error, "username": user.get_username()})
+
+
 def account(request):
     form = PasswordChangeForm(request.user, request.POST or None)
     for field in form.fields.values():
@@ -216,7 +281,47 @@ def account(request):
         messages.success(request, "Parolanız değiştirildi.")
         return redirect("timetable:account")
     memberships = request.user.memberships.select_related("institution").prefetch_related("programs")
-    return render(request, "timetable/account.html", {"form": form, "memberships": memberships, "nav": "account"})
+    record = two_factor.device(request.user)
+    setup = None if record else two_factor.setup_record(request.user)
+    return render(request, "timetable/account.html", {
+        "form": form, "memberships": memberships, "nav": "account",
+        "two_factor": record, "recovery_left": len(record.recovery_codes) if record else 0,
+        "setup": setup and {"qr": two_factor.qr_svg(setup), "secret": two_factor.spaced_secret(setup)},
+        "recovery_codes": request.session.pop("two_factor_codes", None),
+    })
+
+
+@require_POST
+@sensitive_post_parameters()
+def account_two_factor(request):
+    """Hesabım → İki adımlı giriş: kur / doğrula / vazgeç / kurtarma kodlarını yenile / kapat."""
+    action = request.POST.get("action")
+    user = request.user
+    record = two_factor.device(user)
+    if action == "start" and record is None:
+        two_factor.start_setup(user)
+    elif action == "cancel" and record is None:
+        two_factor.disable(user)
+    elif action == "confirm" and record is None:
+        setup = two_factor.setup_record(user)
+        codes = setup and two_factor.confirm_setup(setup, request.POST.get("code"))
+        if codes:
+            request.session["two_factor_codes"] = codes
+            AuditLog.objects.create(user=user, username=user.get_username(), action="İki adımlı girişi açtı", ip=client_ip(request))
+            messages.success(request, "İki adımlı giriş açıldı. Bundan sonra girişte uygulamadaki kod da sorulacak.")
+        else:
+            messages.error(request, "Kod doğrulanamadı. Uygulamadaki güncel 6 haneli kodu girin (telefonun saati doğru olmalı).")
+    elif action in ("disable", "recovery") and record is not None:
+        if not user.check_password(request.POST.get("password", "")):
+            messages.error(request, "Parola hatalı.")
+        elif action == "disable":
+            two_factor.disable(user)
+            AuditLog.objects.create(user=user, username=user.get_username(), action="İki adımlı girişi kapattı", ip=client_ip(request))
+            messages.info(request, "İki adımlı giriş kapatıldı; girişte yalnızca parola sorulacak.")
+        else:
+            request.session["two_factor_codes"] = two_factor.new_recovery_codes(record)
+            messages.success(request, "Yeni kurtarma kodları oluşturuldu; eskileri artık geçmez.")
+    return redirect(reverse("timetable:account") + "#iki-adimli")
 
 
 def _audit_page(request, qs, context):
