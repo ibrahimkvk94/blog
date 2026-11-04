@@ -23,28 +23,30 @@
 {% include "yoklama/_sekmeler.html" with sekme="gun" %}
 {% include "yoklama/_tarih_cubugu.html" with sekme="gun" %}
 
-{# ---- günün yoklaması: bölüm onayı ---- #}
+{# ---- günün yoklaması: bölüm kesinleştirmesi ---- #}
 {% if onay_bolumu %}
   {% if onay and onay.degisti %}
   <div class="yk-onay yk-onay-degisti mb-3">
     <i class="bi bi-exclamation-triangle"></i>
-    <div class="me-auto"><strong>Yoklama verildikten sonra değişiklik yapıldı.</strong>
-      <div class="small">Verildi: {{ onay.zaman|date:"d.m.Y H:i" }} · {{ onay.onaylayan|default:"–" }} — değişiklik: {{ onay.degisti|date:"d.m.Y H:i" }}. Kontrol edip yeniden verin.</div></div>
-    {% if onaylayabilir %}<form method="post" action="{% url 'yoklama:onay' %}" class="d-print-none">{% csrf_token %}<input type="hidden" name="tarih" value="{{ tarih|date:'Y-m-d' }}"><input type="hidden" name="bolum" value="{{ onay_bolumu.pk }}"><input type="hidden" name="geri" value="{{ request.get_full_path }}"><button class="btn btn-warning"><i class="bi bi-check2-circle me-1"></i>Yeniden ver</button></form>{% endif %}
+    <div class="me-auto"><strong>Kesinleştikten sonra idari işler yetkilisi değişiklik yaptı.</strong>
+      <div class="small">Kesinleşti: {{ onay.zaman|date:"d.m.Y H:i" }} · {{ onay.onaylayan|default:"–" }} — değişiklik: {{ onay.degisti|date:"d.m.Y H:i" }}. Listeyi kontrol edip yeniden kesinleştirin.</div></div>
+    {% if onaylayabilir %}<form method="post" action="{% url 'yoklama:onay' %}" class="d-print-none">{% csrf_token %}<input type="hidden" name="tarih" value="{{ tarih|date:'Y-m-d' }}"><input type="hidden" name="bolum" value="{{ onay_bolumu.pk }}"><input type="hidden" name="geri" value="{{ request.get_full_path }}"><button class="btn btn-warning"><i class="bi bi-check2-circle me-1"></i>Gördüm, yeniden kesinleştir</button></form>{% endif %}
   </div>
   {% elif onay %}
   <div class="yk-onay yk-onay-verildi mb-3">
-    <i class="bi bi-patch-check-fill"></i>
-    <div><strong>{{ onay_bolumu.ad }} · yoklama verildi</strong><div class="small">{{ onay.zaman|date:"d.m.Y H:i" }} · {{ onay.onaylayan|default:"–" }}</div></div>
+    <i class="bi bi-lock-fill"></i>
+    <div><strong>{{ onay_bolumu.ad }} · yoklama kesinleşti</strong><div class="small">{{ onay.zaman|date:"d.m.Y H:i" }} · {{ onay.onaylayan|default:"–" }}{% if not y.yonetim %} — bu güne ait kayıtları artık yalnız idari işler yetkilisi değiştirebilir.{% endif %}</div></div>
   </div>
   {% else %}
   <div class="yk-onay yk-onay-bekliyor mb-3">
     <i class="bi bi-hourglass-split"></i>
-    <div class="me-auto"><strong>{{ onay_bolumu.ad }} · bu günün yoklaması henüz verilmedi.</strong>
-      <div class="small">Listeyi kontrol edin; izinli, raporlu ya da görevli olanları girin, sonra “Yoklamayı verdim”e basın.</div></div>
-    {% if onaylayabilir %}<form method="post" action="{% url 'yoklama:onay' %}" class="d-print-none" onsubmit="return confirm('{{ tarih|date:"d.m.Y" }} yoklaması verilsin mi? Mevcut {{ ozet.mevcut }}, yok {{ ozet.gun_boyu }}, kısmi {{ ozet.kismi }}.')">{% csrf_token %}<input type="hidden" name="tarih" value="{{ tarih|date:'Y-m-d' }}"><input type="hidden" name="bolum" value="{{ onay_bolumu.pk }}"><input type="hidden" name="geri" value="{{ request.get_full_path }}"><button class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>Yoklamayı verdim</button></form>{% endif %}
+    <div class="me-auto"><strong>{{ onay_bolumu.ad }} · bu günün yoklaması henüz kesinleşmedi.</strong>
+      <div class="small">{% if gun_kilit and not y.yonetim %}Saat 09:00'u geçtiği için bu güne kayıt girilemez; listeyi kontrol edip kesinleştirin. Düzeltme gerekiyorsa idari işler yetkilisine başvurun.{% else %}İzinli, raporlu ya da görevli olanları {% if tarih == bugun %}saat 09:00'a kadar {% endif %}girin, sonra “Yoklamayı kesinleştir”e basın. Kesinleştikten sonra değişikliği yalnız idari işler yetkilisi yapabilir.{% endif %}</div></div>
+    {% if onaylayabilir %}<form method="post" action="{% url 'yoklama:onay' %}" class="d-print-none" onsubmit="return confirm('{{ tarih|date:"d.m.Y" }} yoklaması kesinleştirilsin mi?\n\nMevcut {{ ozet.mevcut }}, yok {{ ozet.gun_boyu }}, kısmi {{ ozet.kismi }}.{% if not y.yonetim %}\n\nKesinleştikten sonra bu güne kayıt ekleyemez ve değiştiremezsiniz; düzeltmeyi yalnız idari işler yetkilisi yapabilir.{% endif %}')">{% csrf_token %}<input type="hidden" name="tarih" value="{{ tarih|date:'Y-m-d' }}"><input type="hidden" name="bolum" value="{{ onay_bolumu.pk }}"><input type="hidden" name="geri" value="{{ request.get_full_path }}"><button class="btn btn-primary"><i class="bi bi-lock me-1"></i>Yoklamayı kesinleştir</button></form>{% endif %}
   </div>
   {% endif %}
+{% elif gun_kilit and not y.yonetim %}
+  <div class="yk-onay yk-onay-bekliyor mb-3"><i class="bi bi-lock"></i><div class="small">{{ gun_kilit }}</div></div>
 {% endif %}
 
 {# ---- sayılar ---- #}
@@ -77,10 +79,10 @@
           <td><a class="fw-semibold text-decoration-none" href="?tarih={{ tarih|date:'Y-m-d' }}&bolum={{ s.bolum.pk }}">{{ s.bolum.ad }}</a></td>
           <td class="text-end">{{ s.toplam }}</td><td class="text-end text-success fw-semibold">{{ s.mevcut }}</td>
           <td class="text-end {% if s.gun_boyu %}text-danger fw-semibold{% endif %}">{{ s.gun_boyu }}</td><td class="text-end">{{ s.kismi }}</td>
-          <td>{% if s.onay and s.onay.degisti %}<span class="durum-rozet durum-sirada">Verildi, sonra değişti</span>
-              {% elif s.onay %}<span class="durum-rozet durum-kullanimda">Verildi {{ s.onay.zaman|date:"H:i" }}</span> <span class="small text-secondary">{{ s.onay.onaylayan|default:"" }}</span>
-              {% else %}<span class="durum-rozet durum-eksik">Verilmedi</span>{% endif %}</td>
-          <td class="text-end d-print-none">{% if y.giris and not s.onay or y.giris and s.onay.degisti %}<form method="post" action="{% url 'yoklama:onay' %}" onsubmit="return confirm('{{ s.bolum.ad|escapejs }} adına {{ tarih|date:"d.m.Y" }} yoklaması verilsin mi?')">{% csrf_token %}<input type="hidden" name="tarih" value="{{ tarih|date:'Y-m-d' }}"><input type="hidden" name="bolum" value="{{ s.bolum.pk }}"><input type="hidden" name="geri" value="{{ request.get_full_path }}"><button class="btn btn-sm btn-outline-primary">Adına ver</button></form>{% endif %}</td>
+          <td>{% if s.onay and s.onay.degisti %}<span class="durum-rozet durum-sirada">Kesinleşti, sonra değişti</span>
+              {% elif s.onay %}<span class="durum-rozet durum-kullanimda"><i class="bi bi-lock-fill me-1"></i>Kesinleşti {{ s.onay.zaman|date:"H:i" }}</span> <span class="small text-secondary">{{ s.onay.onaylayan|default:"" }}</span>
+              {% else %}<span class="durum-rozet durum-eksik">Kesinleşmedi</span>{% endif %}</td>
+          <td class="text-end d-print-none">{% if y.giris and not s.onay or y.giris and s.onay.degisti %}<form method="post" action="{% url 'yoklama:onay' %}" onsubmit="return confirm('{{ s.bolum.ad|escapejs }} adına {{ tarih|date:"d.m.Y" }} yoklaması kesinleştirilsin mi?')">{% csrf_token %}<input type="hidden" name="tarih" value="{{ tarih|date:'Y-m-d' }}"><input type="hidden" name="bolum" value="{{ s.bolum.pk }}"><input type="hidden" name="geri" value="{{ request.get_full_path }}"><button class="btn btn-sm btn-outline-primary">Adına kesinleştir</button></form>{% endif %}</td>
         </tr>
       {% endfor %}
       </tbody>
@@ -111,7 +113,7 @@
             {% empty %}<span class="yk-mevcut"><i class="bi bi-check-circle-fill"></i>Mevcut</span>{% endfor %}
           </td>
           <td class="text-end text-nowrap d-print-none">
-            {% if y.giris %}<button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#ykEkle" data-url="{% url 'yoklama:kart' d.personel.pk %}" data-ad="{{ d.personel.ad_soyad }}" data-kunye="{{ d.personel.kunye }}"><i class="bi bi-plus-lg"></i><span class="d-none d-lg-inline ms-1">Kayıt</span></button>{% endif %}
+            {% if y.giris and not gun_kilit %}<button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#ykEkle" data-url="{% url 'yoklama:kart' d.personel.pk %}" data-ad="{{ d.personel.ad_soyad }}" data-kunye="{{ d.personel.kunye }}"><i class="bi bi-plus-lg"></i><span class="d-none d-lg-inline ms-1">Kayıt</span></button>{% endif %}
             <a class="btn btn-sm btn-outline-secondary" href="{% url 'yoklama:kart' d.personel.pk %}?tarih={{ tarih|date:'Y-m-d' }}" title="Personel kartı"><i class="bi bi-person-vcard"></i></a>
           </td>
         </tr>
@@ -133,7 +135,7 @@
         <div><h2 class="modal-title h5" id="ykEkleBaslik">Yoklama kaydı · <span data-kisi-ad></span></h2><div class="small text-secondary" data-kisi-kunye></div></div>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
       </div>
-      <div class="modal-body">{% include "yoklama/_kayit_formu.html" with onek="m" varsayilan_tarih=tarih %}</div>
+      <div class="modal-body">{% include "yoklama/_kayit_formu.html" with onek="m" varsayilan_tarih=modal_tarih %}</div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Vazgeç</button>
         <button class="btn btn-primary"><i class="bi bi-check2 me-1"></i>Kaydet</button>

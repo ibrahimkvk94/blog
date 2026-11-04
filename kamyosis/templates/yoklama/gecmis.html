@@ -8,7 +8,7 @@
   </div>
   <div class="btn-group">
     <a class="btn btn-outline-primary {% if not onay_sonrasi %}active{% endif %}" href="{% url 'yoklama:gecmis' %}">Tümü</a>
-    <a class="btn btn-outline-primary {% if onay_sonrasi %}active{% endif %}" href="?onay_sonrasi=1">Yoklama verildikten sonra</a>
+    <a class="btn btn-outline-primary {% if onay_sonrasi %}active{% endif %}" href="?onay_sonrasi=1">Kesinleştikten sonra</a>
   </div>
 </div>
 {% include "yoklama/_sekmeler.html" with sekme="gecmis" %}
@@ -22,7 +22,7 @@
           <td class="text-nowrap small">{{ i.zaman|date:"d.m.Y H:i" }}</td>
           <td><a class="text-decoration-none fw-semibold" href="{% url 'yoklama:kart' i.personel_id %}">{{ i.personel.ad_soyad }}</a></td>
           <td class="d-none d-md-table-cell">{{ i.personel.bolum.kod|default:"–" }}</td>
-          <td><span class="yk-gecmis-islem {% if i.islem == 'sil' %}text-danger{% elif i.islem == 'ekle' %}text-success{% else %}text-primary{% endif %}">{{ i.get_islem_display }}</span>{% if i.onay_sonrasi %}<div><span class="durum-rozet durum-sirada">yoklama verildikten sonra</span></div>{% endif %}</td>
+          <td><span class="yk-gecmis-islem {% if i.islem == 'sil' %}text-danger{% elif i.islem == 'ekle' %}text-success{% else %}text-primary{% endif %}">{{ i.get_islem_display }}</span>{% if i.onay_sonrasi %}<div><span class="durum-rozet durum-sirada">kesinleştikten sonra</span></div>{% endif %}</td>
           <td class="small">{{ i.ozet }}</td>
           <td class="small">{{ i.kullanici|default:"–" }}</td>
         </tr>

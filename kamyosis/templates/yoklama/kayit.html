@@ -14,7 +14,9 @@
   <a href="{% url 'yoklama:kart' p.pk %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Personel kartı</a>
 </div>
 
-{% if girebilir %}
+{% if kilit %}
+<div class="alert alert-warning d-flex gap-2" style="max-width:820px"><i class="bi bi-lock-fill"></i><div>{{ kilit }}</div></div>
+{% elif girebilir %}
 <div class="kart" style="max-width:820px">
   <form method="post" class="p-3">
     {% csrf_token %}
