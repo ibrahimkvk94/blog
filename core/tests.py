@@ -49,10 +49,19 @@ class YetkiTestleri(TestCase):
         self.assertEqual(self.client.get(reverse("personel:ekle")).status_code, 403)
 
     def test_menu_sadece_yetkili_dallari_gosterir(self):
-        self.client.force_login(self.bolumcu)
+        # tüm bölümler kapsamlı kullanıcı: ağaçta yalnızca yetkili dalı
+        u = User.objects.create_user("izleyici", password="x-Parola-123")
+        Yetki.objects.create(kullanici=u, birim=Birim.objects.get(slug="personel-bilgileri"),
+                             seviye=Yetki.GORUNTULEME, kapsam=Yetki.TUM)
+        self.client.force_login(u)
         r = self.client.get(reverse("core:panel"))
         self.assertContains(r, "Personel Bilgilerini Yönetme")
         self.assertNotContains(r, "Plan Program Kısmı")
+        # bölüm hesabında ağaç yok, yalnızca kısayol
+        self.client.force_login(self.bolumcu)
+        r = self.client.get(reverse("core:panel"))
+        self.assertNotContains(r, "Personel Bilgilerini Yönetme")
+        self.assertContains(r, 'href="/personel/"')
 
     def test_yetkisiz_kullanici(self):
         self.client.force_login(self.yetkisiz)
@@ -164,3 +173,45 @@ class BolumYetkileriTestleri(TestCase):
         r = self.client.get(reverse("core:bolum_yetkileri"))
         self.assertContains(r, "Askeri Bilimler")
         self.assertContains(r, "ask1, ask2")
+
+
+class BolumMenusuTestleri(TestCase):
+    """Bölüm hesabının menüsünde yalnızca kısayollar; hangisinin görüneceğini sistem yöneticisi seçer."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.ask = Bolum.objects.create(ad="Askeri Bilimler", kod="ASK")
+        plan = Birim.objects.get(slug="plan-program")
+        cls.ask1 = User.objects.create_user("ask1", password="x-Parola-123", bolum=cls.ask)
+        Yetki.objects.create(kullanici=cls.ask1, birim=plan, seviye=Yetki.DUZENLEME, kapsam=Yetki.BOLUM)
+        cls.yon = User.objects.create_user("yon", password="x-Parola-123", bolum=cls.ask)
+        Yetki.objects.create(kullanici=cls.yon, birim=plan, seviye=Yetki.YONETIM, kapsam=Yetki.TUM)
+        cls.su = User.objects.create_superuser("su", password="x-Parola-123")
+
+    def test_bolum_hesabi_yalniz_kisayollari_gorur(self):
+        self.client.force_login(self.ask1)
+        r = self.client.get(reverse("core:panel"))
+        self.assertNotContains(r, "Organizasyon şeması")
+        self.assertNotContains(r, '<div class="menu-baslik">Birimler</div>', html=False)
+        self.assertContains(r, "Ders takibi")
+        self.assertContains(r, "Sınav planları")  # ağaç gizli olduğu için kısayol olarak
+        # yönetici hesabı (tüm bölümler) ağacı görmeye devam eder
+        self.client.force_login(self.yon)
+        r = self.client.get(reverse("core:panel"))
+        self.assertContains(r, "Organizasyon şeması")
+        self.assertNotContains(r, "Sınav planları</span>")
+
+    def test_yonetici_kisayol_secer(self):
+        self.client.force_login(self.su)
+        url = reverse("core:bolum_kisayollari")
+        r = self.client.get(url)
+        self.assertContains(r, "ask1")
+        self.assertNotContains(r, ">yon<")
+        # yalnızca ders takibi ve personel açık kalsın
+        self.client.post(url, {"k": [f"{self.ask.pk}:ders-takibi", f"{self.ask.pk}:personel"]})
+        self.client.force_login(self.ask1)
+        r = self.client.get(reverse("core:panel"))
+        self.assertContains(r, "Ders takibi")
+        self.assertNotContains(r, "Haftalık program")
+        self.assertNotContains(r, "Sınav planları")
+        self.assertEqual(self.client.get(url).status_code, 403)

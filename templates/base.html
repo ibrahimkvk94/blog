@@ -37,15 +37,18 @@
         {% for k in kisayollar %}<li><a class="nav-link {% if request.resolver_match.view_name == k.ad_kodu %}active{% endif %}" href="{{ k.url }}"><i class="bi bi-{{ k.ikon }}"></i><span>{{ k.ad }}</span></a></li>{% endfor %}
       </ul>
       {% endif %}
+      {% if not bolum_hesabi %}
       <div class="menu-baslik">Birimler</div>
       <ul>
         {% include "partials/menu_dugum.html" with dugumler=menu %}
         <li><a class="nav-link {% if request.resolver_match.view_name == 'core:organizasyon' %}active{% endif %}" href="{% url 'core:organizasyon' %}"><i class="bi bi-diagram-3"></i><span>Organizasyon şeması</span></a></li>
       </ul>
+      {% endif %}
       {% if user.is_superuser %}
       <div class="menu-baslik">Sistem</div>
       <ul>
         <li><a class="nav-link {% if request.resolver_match.view_name == 'core:bolum_yetkileri' %}active{% endif %}" href="{% url 'core:bolum_yetkileri' %}"><i class="bi bi-shield-check"></i><span>Bölüm yetkileri</span></a></li>
+        <li><a class="nav-link {% if request.resolver_match.view_name == 'core:bolum_kisayollari' %}active{% endif %}" href="{% url 'core:bolum_kisayollari' %}"><i class="bi bi-ui-checks-grid"></i><span>Bölüm kısayolları</span></a></li>
         <li><a class="nav-link" href="{% url 'admin:index' %}"><i class="bi bi-gear"></i><span>Yönetim Paneli</span></a></li>
       </ul>
       {% endif %}
@@ -107,6 +110,7 @@
 </div>
 {% endblock %}
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{% static 'js/parola_goster.js' %}?v=1"></script>
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script>
 /* Tüm seçim kutularında yazarak arama. Türkçe harfler (İ/ı/ş/ğ/ü/ö/ç) sadeleştirilerek karşılaştırılır.

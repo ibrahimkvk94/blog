@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Bölüm kısayolları{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Bölüm kısayolları</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Bölüm kısayolları</h1>
+    <p class="text-secondary mb-0">Bölüm hesaplarının menüsünde yalnızca kısayollar bulunur; birim ağacı ve organizasyon şeması gizlidir. Hangi kısayolun görüneceğini buradan seçin.</p>
+  </div>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="kart">
+    <div class="islem-cubugu d-flex flex-wrap align-items-center gap-2 p-2 border-bottom">
+      <span class="small text-secondary ms-2 me-auto">✓ menüde görünür, ✗ gizli</span>
+      <button class="btn btn-sm btn-primary"><i class="bi bi-check2"></i> Kaydet</button>
+    </div>
+    <div class="yardim-satiri"><i class="bi bi-info-circle"></i> Kısayol yalnızca bölümün o modülde yetkisi varsa görünür (Bölüm yetkileri). Burada gizlemek yetkiyi kaldırmaz, yalnızca menüden çıkarır.</div>
+    <div class="table-responsive">
+      <table class="table align-middle mb-0 yb-tablo">
+        <thead>
+          <tr>
+            <th class="align-bottom">Bölüm</th>
+            {% for k in kisayol_listesi %}<th class="text-center"><span class="yb-baslik"><i class="bi bi-{{ k.ikon }}"></i> {{ k.ad }}</span></th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in satirlar %}
+          <tr>
+            <th>
+              <span class="fw-semibold">{{ s.bolum.kod }}</span> <span class="fw-normal">{{ s.bolum.ad }}</span>
+              <div class="small text-secondary fw-normal">{% for u in s.hesaplar %}{{ u.username }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+            </th>
+            {% for h in s.hucreler %}
+            <td class="text-center">
+              <input type="checkbox" class="btn-check yb-kutu" name="k" value="{{ s.bolum.pk }}:{{ h.kod }}" id="k{{ s.bolum.pk }}-{{ h.kod }}" {% if h.acik %}checked{% endif %} autocomplete="off">
+              <label class="yb-hucre" for="k{{ s.bolum.pk }}-{{ h.kod }}" aria-label="{{ s.bolum.kod }} – {{ h.kod }}"></label>
+            </td>
+            {% endfor %}
+          </tr>
+          {% empty %}
+          <tr><td colspan="{{ kisayol_listesi|length|add:1 }}" class="text-center text-secondary py-5">Bölüm hesabı yok.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</form>
+{% endblock %}
