@@ -16,7 +16,7 @@
       <span class="small text-secondary ms-2 me-auto">✓ menüde görünür, ✗ gizli</span>
       <button class="btn btn-sm btn-primary"><i class="bi bi-check2"></i> Kaydet</button>
     </div>
-    <div class="yardim-satiri"><i class="bi bi-info-circle"></i> Kısayol yalnızca bölümün o modülde yetkisi varsa görünür (Bölüm yetkileri). Burada gizlemek yetkiyi kaldırmaz, yalnızca menüden çıkarır.</div>
+    <div class="yardim-satiri"><i class="bi bi-info-circle"></i> Kısayol yalnızca bölümün o modülde yetkisi varsa görünür (Bölüm yetkileri). Kapatılan kısayolun sayfaları o bölüme tamamen kapanır (ana sayfa kartları ve adres yazarak da açılmaz). “Tüm bölümler” satırı bir sütunu tek tıkla açar ya da kapatır; değişiklikler Kaydet ile geçerli olur.</div>
     <div class="table-responsive">
       <table class="table align-middle mb-0 yb-tablo">
         <thead>
@@ -26,6 +26,17 @@
           </tr>
         </thead>
         <tbody>
+          {% if satirlar %}
+          <tr class="table-light">
+            <th><span class="fw-semibold">Tüm bölümler</span><div class="small text-secondary fw-normal">sütunun tamamını açar / kapatır</div></th>
+            {% for k in kisayol_listesi %}
+            <td class="text-center">
+              <input type="checkbox" class="btn-check yb-kutu tum-sutun" id="tum-{{ k.kod }}" data-sutun="{{ k.kod }}" autocomplete="off">
+              <label class="yb-hucre" for="tum-{{ k.kod }}" aria-label="Tüm bölümler – {{ k.ad }}" title="{{ k.ad }}: tüm bölümler için aç/kapat"></label>
+            </td>
+            {% endfor %}
+          </tr>
+          {% endif %}
           {% for s in satirlar %}
           <tr>
             <th>
@@ -34,7 +45,7 @@
             </th>
             {% for h in s.hucreler %}
             <td class="text-center">
-              <input type="checkbox" class="btn-check yb-kutu" name="k" value="{{ s.bolum.pk }}:{{ h.kod }}" id="k{{ s.bolum.pk }}-{{ h.kod }}" {% if h.acik %}checked{% endif %} autocomplete="off">
+              <input type="checkbox" class="btn-check yb-kutu" name="k" value="{{ s.bolum.pk }}:{{ h.kod }}" id="k{{ s.bolum.pk }}-{{ h.kod }}" data-sutun="{{ h.kod }}" {% if h.acik %}checked{% endif %} autocomplete="off">
               <label class="yb-hucre" for="k{{ s.bolum.pk }}-{{ h.kod }}" aria-label="{{ s.bolum.kod }} – {{ h.kod }}"></label>
             </td>
             {% endfor %}
@@ -47,4 +58,23 @@
     </div>
   </div>
 </form>
+<script>
+(function () {
+  const tumler = document.querySelectorAll('.tum-sutun');
+  const kutular = s => document.querySelectorAll('input[name="k"][data-sutun="' + s + '"]');
+  function guncelle(t) {
+    const k = Array.from(kutular(t.dataset.sutun));
+    const acik = k.filter(x => x.checked).length;
+    t.checked = acik === k.length;
+    t.indeterminate = acik > 0 && acik < k.length;
+  }
+  tumler.forEach(t => {
+    guncelle(t);
+    t.addEventListener('change', () => { kutular(t.dataset.sutun).forEach(x => { x.checked = t.checked; }); guncelle(t); });
+  });
+  document.querySelectorAll('input[name="k"]').forEach(x => x.addEventListener('change', () => {
+    tumler.forEach(t => { if (t.dataset.sutun === x.dataset.sutun) guncelle(t); });
+  }));
+})();
+</script>
 {% endblock %}

@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from personel.models import Bolum, Personel
 
+from .kisayollar import gizli_kodlar, kapali_mi
 from .models import Birim
 from .yetki import gorunur_cocuklar, gorunur_mu, menu_agaci, birim_bul, yol
 
@@ -27,14 +28,26 @@ def _gorunen_ad(user):
     return user.username
 
 
+def _cozumle(url):
+    from django.urls import Resolver404, resolve
+
+    try:
+        return resolve(url.split("?")[0])
+    except Resolver404:
+        return None
+
+
 @login_required
 def panel(request):
     from mazeret.servis import panel_gorevleri as mazeret_gorevleri
     from takip.servis import panel_gorevleri
 
+    gorevler = panel_gorevleri(request, ek=mazeret_gorevleri(request))
+    if gizli_kodlar(request.user):  # bölüme kapatılmış kısayolların görev kartları gösterilmez
+        gorevler = [g for g in gorevler if not (g.get("url") and kapali_mi(request.user, _cozumle(g["url"])))]
     return render(request, "core/panel.html", {
         "selam": _selam(), "gorunen_ad": _gorunen_ad(request.user), "bugun": timezone.localdate(),
-        "gorevler": panel_gorevleri(request, ek=mazeret_gorevleri(request)),
+        "gorevler": gorevler,
         "kokler": menu_agaci(request),
     })
 

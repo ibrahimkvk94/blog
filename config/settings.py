@@ -84,6 +84,7 @@ MIDDLEWARE = [
     # Giriş yapmadan yalnızca @login_not_required sayfalar açılır (giriş, modülün web yayını)
     "django.contrib.auth.middleware.LoginRequiredMiddleware",
     "accounts.middleware.ForcePasswordChangeMiddleware",
+    "core.middleware.BolumKisayolMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "dersprogrami_kopru.middleware.KopruMiddleware",
     "timetable.access.SchoolAccessMiddleware",
