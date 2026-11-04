@@ -55,12 +55,12 @@ class YetkiTestleri(TestCase):
                              seviye=Yetki.GORUNTULEME, kapsam=Yetki.TUM)
         self.client.force_login(u)
         r = self.client.get(reverse("core:panel"))
-        self.assertContains(r, "Personel Bilgilerini Yönetme")
+        self.assertContains(r, "Personel Kartları")
         self.assertNotContains(r, "Plan Program Kısmı")
         # bölüm hesabında ağaç yok, yalnızca kısayol
         self.client.force_login(self.bolumcu)
         r = self.client.get(reverse("core:panel"))
-        self.assertNotContains(r, "Personel Bilgilerini Yönetme")
+        self.assertNotContains(r, "Personel Kartları")
         self.assertContains(r, 'href="/personel/"')
 
     def test_yetkisiz_kullanici(self):
@@ -82,7 +82,9 @@ class YetkiTestleri(TestCase):
             "ad_soyad": "Yeni Kisi", "personel_kodu": "Y1", "bolum": self.tem.pk, "aktif": "on",
         })
         self.assertEqual(r.status_code, 302)
-        self.assertEqual(Personel.objects.get(personel_kodu="Y1").bolum, self.ask)
+        yeni = Personel.objects.get(ad_soyad="Yeni Kisi")
+        self.assertEqual(yeni.bolum, self.ask)
+        self.assertIsNone(yeni.personel_kodu)  # T.C. kimlik no yalnız yöneticide
 
     def test_parola_degismeli_yonlendirilir(self):
         self.bolumcu.parola_degismeli = True
@@ -100,7 +102,7 @@ class YetkiTestleri(TestCase):
         Yetki.objects.create(kullanici=self.yetkisiz, birim=Birim.objects.get(slug="idari-isler"), seviye=Yetki.YONETIM)
         self.client.force_login(self.yetkisiz)
         r = self.client.get(reverse("core:organizasyon"))
-        self.assertContains(r, "Personel Bilgilerini Yönetme")
+        self.assertContains(r, "Personel Kartları")
         self.assertNotContains(r, "Nöbet Faaliyetleri")
         self.assertEqual(self.client.get(reverse("core:birim", args=["nobet-faaliyetleri"])).status_code, 403)
         self.client.force_login(self.yonetici)

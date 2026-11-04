@@ -73,7 +73,7 @@ def amir_olmali(p):
 
 def amir_adaylari():
     """Kurala uyan, sınav görevi alan (rolü boş olmayan) ve henüz salon amiri olmayan aktif personel."""
-    qs = Personel.objects.filter(aktif=True).exclude(sinav_rolleri="").select_related("unvan", "rutbe")
+    qs = Personel.objects.filter(aktif=True, sinav_gorevi_alabilir=True).exclude(sinav_rolleri="").select_related("unvan", "rutbe")
     return [p for p in qs if "A" not in p.sinav_rolleri and amir_olmali(p)]
 
 
@@ -148,7 +148,7 @@ def onceki_puanlar(period):
         return {}
     pu = puanlar(yil_baslangici(period.start_date), haric_donem=period)
     saatler = ders_saatleri(period.school)
-    katilanlar = set(Personel.objects.filter(pk__in=eslesme, aktif=True).exclude(sinav_rolleri="")
+    katilanlar = set(Personel.objects.filter(pk__in=eslesme, aktif=True, sinav_gorevi_alabilir=True).exclude(sinav_rolleri="")
                      .values_list("pk", flat=True))
     z, _ort, _ss = z_puanlari(saatler, katilanlar)
     return {t.pk: pu[pid]["puan"] + z.get(pid, 0.0) for pid, t in eslesme.items() if pid in katilanlar}
@@ -159,8 +159,8 @@ def tablo(bas, okul, bolum=None):
     pu = puanlar(bas)
     saatler = ders_saatleri(okul)
     qs = Personel.objects.filter(aktif=True).select_related("bolum", "unvan", "rutbe", "sinif")
-    tum = [p for p in qs if p.sinav_rolleri or p.pk in pu]
-    katilanlar = {p.pk for p in tum if p.sinav_rolleri and p.pk in saatler}
+    tum = [p for p in qs if (p.sinav_rolleri and p.sinav_gorevi_alabilir) or p.pk in pu]
+    katilanlar = {p.pk for p in tum if p.sinav_rolleri and p.sinav_gorevi_alabilir and p.pk in saatler}
     z, ort, ss = z_puanlari(saatler, katilanlar)
     satirlar = []
     for p in tum:
@@ -220,8 +220,11 @@ def rolleri_donemden_al(period, ogretmenler=None):
     """Sınav Planlama'nın Gözetmenler sayfasında değiştirilen rolleri personele yazar (roller KAMYOSİS'te tutulur;
     sınav programı oluşturulurken personelden yeniden aktarılır)."""
     degisen = 0
+    alamayan = set(Personel.objects.filter(sinav_gorevi_alabilir=False).values_list("pk", flat=True))
     for pid, t in ogretmen_eslesmesi(period.school).items():
         if ogretmenler is not None and t.pk not in ogretmenler:
+            continue
+        if pid in alamayan:  # dönemde rolsüz görünür; kartındaki roller korunur
             continue
         roller = period.roles_of(t.pk) if period.duty_roles else None
         if roller is None:
@@ -238,7 +241,7 @@ def rolleri_esitle():
     for period in ExamPeriod.objects.filter(mazeret_donemi__isnull=False).select_related("school"):
         eslesme = ogretmen_eslesmesi(period.school)
         roller = dict(period.proctor_roles or {})
-        for p in Personel.objects.filter(pk__in=eslesme):
-            roller[str(eslesme[p.pk].pk)] = p.sinav_rolleri
+        for p in Personel.objects.filter(pk__in=eslesme):  # sınav görevi alamayan: rolsüz (görev verilmez)
+            roller[str(eslesme[p.pk].pk)] = p.sinav_rolleri if p.sinav_gorevi_alabilir else ""
         period.proctor_roles = {k: v for k, v in roller.items() if v != DEFAULT_ROLES}
         period.save(update_fields=["proctor_roles"])

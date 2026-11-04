@@ -16,7 +16,7 @@ def oneriler(ogretmenler, personeller=None):
     """Her bekleyen öğretmen için en benzer personel: {ogretmen_pk: (personel, benzerlik)}."""
     if personeller is None:
         bagli = ProgramOgretmeni.objects.exclude(personel=None).values_list("personel_id", flat=True)
-        personeller = list(Personel.objects.exclude(pk__in=bagli))
+        personeller = list(Personel.objects.filter(derse_girebilir=True).exclude(pk__in=bagli))
     anahtarlar = [(p, ad_anahtari(p.ad_soyad)) for p in personeller]
     sonuc = {}
     for o in ogretmenler:

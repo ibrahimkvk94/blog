@@ -21,7 +21,7 @@ KISAYOLLAR = [
     ("sinav-mazeretleri", "mazeret:sinav", "Sınav mazeretleri", "calendar2-x", "sinav-mazeretleri"),
     ("sinav-planlari", "dersprogrami_kopru:sinavlar", "Sınav planları", "clipboard-check", "sinav-planlari"),
     ("sinav-gorev-puantaji", "sinavgorev:puantaj", "Sınav görev puantajı", "clipboard-data", "sinav-gorev-puantaji"),
-    ("personel", "personel:liste", "Personel", "person-vcard", "personel-bilgileri"),
+    ("personel", "personel:liste", "Personel kartları", "person-vcard", "personel-bilgileri"),
     ("personel-yoklamasi", "yoklama:ana", "Personel yoklaması", "person-check", "personel-yoklamasi"),
 ]
 # Kısayolun kapsadığı sayfalar: {kod: [(ad alanı, adlar ya da None = ad alanının tümü)]}

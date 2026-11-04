@@ -171,6 +171,68 @@ def kep(serit):
     return f'<svg viewBox="0 0 64 80" width="64" height="80" aria-hidden="true">{"".join(s)}</svg>'
 
 
+# sivil personel: gömlek ve kravat (Devlet memuru / VKHİ)
+SIVIL = {"De.Me": ("Devlet memuru", "#f8fafc", "#1f3a5f"), "VKH": ("VKHİ", "#cfe3f5", "#7d2f45")}
+
+
+def gomlek(gomlek_rengi, kravat_rengi):
+    return ('<svg viewBox="0 0 64 70" width="58" height="64" aria-hidden="true">'
+            f'<path d="M8 22 L22 10 L32 16 L42 10 L56 22 L56 66 L8 66 Z" fill="{gomlek_rengi}" stroke="#94a3b8" stroke-width="1.2"/>'
+            '<path d="M22 10 L32 16 L42 10" fill="none" stroke="#94a3b8" stroke-width="1.2"/>'
+            f'<path d="M22 10 L27 24 L32 16 Z M42 10 L37 24 L32 16 Z" fill="{gomlek_rengi}" stroke="#64748b" stroke-width="1.2" stroke-linejoin="round"/>'
+            f'<path d="M29 17 L35 17 L34 23 L30 23 Z" fill="{kravat_rengi}"/>'
+            f'<path d="M30 23 L34 23 L37 52 L32 59 L27 52 Z" fill="{kravat_rengi}"/>'
+            '<path d="M30.5 30 L35 34 M29.5 38 L35.5 43" stroke="rgba(255,255,255,.35)" stroke-width="1.6"/>'
+            '</svg>')
+
+
+def baskan_nisani():
+    """Bölüm başkanı: kırmızı zeminde güneş ve yıldız halkası, altın çerçeve; altta lacivert-altın kurdele."""
+    s = ['<svg viewBox="0 0 80 96" width="66" height="80" aria-hidden="true">',
+         f'<path d="M26 60 L18 94 L30 86 L36 94 L40 64 Z" fill="#1f3a5f" stroke="{ALTIN}" stroke-width="1.2"/>',
+         f'<path d="M54 60 L62 94 L50 86 L44 94 L40 64 Z" fill="#1f3a5f" stroke="{ALTIN}" stroke-width="1.2"/>',
+         f'<circle cx="40" cy="38" r="34" fill="{ALTIN}" stroke="{KOYU}" stroke-width="1.2"/>',
+         '<circle cx="40" cy="38" r="29" fill="#a3161f" stroke="#7a0f16" stroke-width="1"/>']
+    for i in range(12):  # güneş ışınları
+        a = i * math.pi / 6
+        x1, y1 = 40 + 7 * math.cos(a - .16), 38 + 7 * math.sin(a - .16)
+        x2, y2 = 40 + 7 * math.cos(a + .16), 38 + 7 * math.sin(a + .16)
+        xu, yu = 40 + 15 * math.cos(a), 38 + 15 * math.sin(a)
+        s.append(f'<polygon points="{x1:.1f},{y1:.1f} {xu:.1f},{yu:.1f} {x2:.1f},{y2:.1f}" fill="{ALTIN}"/>')
+    s.append(f'<circle cx="40" cy="38" r="7.5" fill="{ALTIN}" stroke="{KOYU}" stroke-width=".8"/>')
+    for i in range(8):  # yıldız halkası
+        a = -math.pi / 2 + i * math.pi / 4 + math.pi / 8
+        s.append(_yildiz(40 + 22 * math.cos(a), 38 + 22 * math.sin(a), 3.4))
+    s.append("</svg>")
+    return "".join(s)
+
+
+def idari_nisan(no=1):
+    """İdari kadro: sekiz köşeli altın nişan, lacivert mineli merkez; ağır, ara sıra geçen bir parıltı."""
+    yildiz8, ic = [], []
+    for i in range(16):
+        a = -math.pi / 2 + i * math.pi / 8
+        r = 34 if i % 2 == 0 else 22
+        yildiz8.append(f"{40 + r * math.cos(a):.1f},{40 + r * math.sin(a):.1f}")
+    for i in range(16):
+        a = -math.pi / 2 + i * math.pi / 8
+        r = 27 if i % 2 == 0 else 18
+        ic.append(f"{40 + r * math.cos(a):.1f},{40 + r * math.sin(a):.1f}")
+    nokta = " ".join(yildiz8)
+    return ('<svg viewBox="0 0 80 80" width="70" height="70" aria-hidden="true" class="yk-idari-nisan">'
+            f'<defs><clipPath id="ykn{no}"><polygon points="{nokta}"/></clipPath>'
+            f'<linearGradient id="ykg{no}" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/>'
+            '<stop offset=".5" stop-color="#fff" stop-opacity=".75"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>'
+            '</linearGradient></defs>'
+            f'<polygon points="{nokta}" fill="{ALTIN}" stroke="{KOYU}" stroke-width="1"/>'
+            f'<polygon points="{" ".join(ic)}" fill="#e9c75a" stroke="{KOYU}" stroke-width=".6"/>'
+            f'<circle cx="40" cy="40" r="14" fill="#1f3a5f" stroke="{ALTIN}" stroke-width="2.2"/>'
+            f'<circle cx="40" cy="40" r="10.5" fill="none" stroke="{ALTIN}" stroke-width=".8" stroke-dasharray="1.6 1.6"/>'
+            + _yildiz(40, 40, 6.5) +
+            f'<g clip-path="url(#ykn{no})"><rect class="yk-parilti" x="-30" y="-10" width="18" height="100" '
+            f'fill="url(#ykg{no})" transform="skewX(-18)"/></g></svg>')
+
+
 def personel_isaretleri(p):
     """[(svg, etiket)] — kartta fotoğrafın yanında gösterilecek işaretler (yoksa boş liste)."""
     rutbe, sinif, unvan = (str(x or "").strip() for x in (p.rutbe, p.sinif, p.unvan))
@@ -179,9 +241,19 @@ def personel_isaretleri(p):
         out.append((apolet(rutbe), SUBAY_ADI[rutbe]))
     elif rutbe in ASTSUBAY:
         out.append((kol_isareti(rutbe), ASTSUBAY_ADI[rutbe]))
+    else:
+        for onek, (ad, g, k) in SIVIL.items():
+            if any(x.replace(" ", "").startswith(onek) for x in (rutbe, sinif, unvan)):
+                out.append((gomlek(g, k), ad))
+                break
     if sinif in SINIF and rutbe:
         out.append((yaka(sinif), SINIF[sinif][0]))
     if unvan in AKADEMIK:
         ad, serit = AKADEMIK[unvan]
         out.append((kep(serit), ad))
+    bolum = getattr(p, "bolum", None)
+    if bolum is not None and bolum.baskan_id == p.pk:
+        out.append((baskan_nisani(), "Bölüm başkanı"))
+    if getattr(p, "idari_kadro", False):
+        out.append((idari_nisan(p.pk), getattr(p, "gorev_unvani", "") or "İdari kadro"))
     return [(mark_safe(svg), escape(etiket)) for svg, etiket in out]

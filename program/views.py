@@ -195,7 +195,7 @@ def ogretmenler(request):
     bagli = ProgramOgretmeni.objects.exclude(personel=None).values_list("personel_id", flat=True)
     return render(request, "program/ogretmenler.html", _baglam(
         request, liste=liste, durum=durum, q=q, sekmeler=sekmeler,
-        bos_personel=Personel.objects.exclude(pk__in=bagli).select_related("bolum").order_by("ad_soyad"),
+        bos_personel=Personel.objects.filter(derse_girebilir=True).exclude(pk__in=bagli).select_related("bolum").order_by("ad_soyad"),
         onerisiz=sum(1 for o in liste if o.durum == ProgramOgretmeni.BEKLIYOR and not o.oneri),
         breadcrumb_ek=True,
     ))
