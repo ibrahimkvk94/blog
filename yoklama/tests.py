@@ -3,6 +3,7 @@ import io
 import shutil
 import tempfile
 import zipfile
+from unittest import mock
 
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -28,13 +29,30 @@ def _png(renk=(200, 30, 30), boyut=(1200, 900)):
     return cikti.getvalue()
 
 
+def _an(tarih, saat=8, dakika=0):
+    return timezone.make_aware(datetime.datetime.combine(tarih, datetime.time(saat, dakika)))
+
+
+class SaatSabit:
+    """Kilit kuralları saate bağlı: testlerde "şimdi" GUN 08:00 (bölüm o güne de girebilir)."""
+
+    def setUp(self):
+        super().setUp()
+        self.saat_ayarla(GUN, 8)
+
+    def saat_ayarla(self, tarih, saat, dakika=0):
+        yama = mock.patch.object(servis, "_simdi", return_value=timezone.localtime(_an(tarih, saat, dakika)))
+        yama.start()  # sonraki çağrı öncekinin üstüne biner; hepsi test sonunda ters sırayla kalkar
+        self.addCleanup(yama.stop)
+
+
 class SahteIstek:
     def __init__(self, user):
         self.user = user
 
 
 @override_settings(MEDIA_ROOT=MEDYA)
-class YoklamaTestleri(TestCase):
+class YoklamaTestleri(SaatSabit, TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.ask = Bolum.objects.create(ad="Askeri Bilimler", kod="ASK")
@@ -100,7 +118,7 @@ class YoklamaTestleri(TestCase):
 
     def test_gun_durumu_ve_ozet(self):
         y = self.y(self.askci)
-        servis.ekle(self.askci, y, self.ali, self.yillik, *self.tam(GUN - datetime.timedelta(days=1), GUN))
+        servis.ekle(self.iiy, self.y(self.iiy), self.ali, self.yillik, *self.tam(GUN - datetime.timedelta(days=1), GUN))
         servis.ekle(self.askci, y, self.veli, self.rapor, *servis.aralik(False, GUN, None, datetime.time(8), datetime.time(12)))
         durum = {d.personel.pk: d for d in servis.gun_durumu(GUN, [self.ali, self.veli, self.ayse])}
         self.assertTrue(durum[self.ali.pk].gun_boyu)
@@ -125,7 +143,9 @@ class YoklamaTestleri(TestCase):
         servis.onayla(self.askci, y, self.ask, GUN)
         o = GunlukOnay.objects.get(bolum=self.ask, tarih=GUN)
         self.assertIsNone(o.degisti)
-        servis.ekle(self.askci, y, self.ali, self.yillik, *self.tam(GUN))
+        with self.assertRaisesMessage(YoklamaHatasi, "kesinleşti"):  # kesinleşen güne bölüm giremez
+            servis.ekle(self.askci, y, self.ali, self.yillik, *self.tam(GUN))
+        servis.ekle(self.iiy, self.y(self.iiy), self.ali, self.yillik, *self.tam(GUN))  # idari işler girebilir
         o.refresh_from_db()
         self.assertIsNotNone(o.degisti)
         self.assertTrue(YoklamaGecmisi.objects.get(islem="ekle").onay_sonrasi)
@@ -135,6 +155,43 @@ class YoklamaTestleri(TestCase):
         with self.assertRaises(YoklamaHatasi):
             servis.onayla(self.askci, y, self.tem, GUN)  # başka bölüm
 
+    def test_zaman_ve_kesinlesme_kilitleri(self):
+        y, iiy = self.y(self.askci), self.y(self.iiy)
+        yarin, ertesi = GUN + datetime.timedelta(days=1), GUN + datetime.timedelta(days=2)
+        # 08:00: bugüne girilir, geçmişe girilemez
+        k = servis.ekle(self.askci, y, self.ali, self.yillik, *self.tam(GUN))
+        with self.assertRaisesMessage(YoklamaHatasi, "Geçmiş günlerin"):
+            servis.ekle(self.askci, y, self.veli, self.rapor, *self.tam(GUN - datetime.timedelta(days=1)))
+        self.assertEqual(servis.ilk_giris_tarihi(), GUN)
+        # 09:00'dan sonra bugüne değen kayıt eklenemez, değiştirilemez, silinemez; yarından başlayan girilir
+        self.saat_ayarla(GUN, 9, 0)
+        self.assertEqual(servis.ilk_giris_tarihi(), yarin)
+        for islem in (lambda: servis.ekle(self.askci, y, self.veli, self.rapor, *servis.aralik(False, GUN, None, datetime.time(14), datetime.time(16))),
+                      lambda: servis.duzenle(self.askci, y, k.pk, 1, self.rapor, *self.tam(GUN)),
+                      lambda: servis.sil(self.askci, y, k.pk)):
+            with self.assertRaisesMessage(YoklamaHatasi, "09:00"):
+                islem()
+        with self.assertRaisesMessage(YoklamaHatasi, "09:00"):  # bugünü kapsayan yeni aralığa taşıma da olmaz
+            servis.ekle(self.askci, y, self.veli, self.rapor, *self.tam(GUN, yarin))
+        servis.ekle(self.askci, y, self.veli, self.rapor, *self.tam(yarin))
+        servis.duzenle(self.iiy, iiy, k.pk, 1, self.rapor, *self.tam(GUN), "idari düzeltme")  # idari işler serbest
+        # kesinleşen gün: bölüm o güne değen kayda dokunamaz, sonraki güne girebilir
+        servis.onayla(self.askci, y, self.ask, yarin)
+        with self.assertRaisesMessage(YoklamaHatasi, "kesinleşti"):
+            servis.ekle(self.askci, y, self.ali, self.yillik, *self.tam(yarin, ertesi))
+        servis.ekle(self.askci, y, self.ali, self.yillik, *self.tam(ertesi))
+        # ekranlar: kilitli kayıtta düzenleme formu yerine açıklama, günlük listede ekleme düğmesi yok
+        self.client.force_login(self.askci)
+        r = self.client.get(reverse("yoklama:kayit", args=[k.pk]))
+        self.assertContains(r, "yalnız idari işler yetkilisi")
+        self.assertNotContains(r, "Değişikliği kaydet")
+        r = self.client.get(reverse("yoklama:ana"), {"tarih": GUN.isoformat()})
+        self.assertNotContains(r, 'data-bs-target="#ykEkle"')
+        r = self.client.get(reverse("yoklama:ana"), {"tarih": ertesi.isoformat()})
+        self.assertContains(r, 'data-bs-target="#ykEkle"')
+        self.client.force_login(self.iiy)
+        self.assertContains(self.client.get(reverse("yoklama:kayit", args=[k.pk])), "Değişikliği kaydet")
+
     # ---------------------------------------------------------------- ekranlar ve yetki
 
     def test_bolum_ekrani_ve_hizli_kayit(self):
@@ -143,7 +200,7 @@ class YoklamaTestleri(TestCase):
         r = self.client.get(url, {"tarih": GUN.isoformat()})
         self.assertContains(r, "Ali KAYA")
         self.assertNotContains(r, "Ayşe YILMAZ")
-        self.assertContains(r, "Yoklamayı verdim")
+        self.assertContains(r, "Yoklamayı kesinleştir")
         geri = f"{url}?tarih={GUN.isoformat()}"
         r = self.client.post(reverse("yoklama:kart", args=[self.ali.pk]), {
             "tur": self.yillik.pk, "bicim": "tam", "bas_tarih": GUN.isoformat(), "bit_tarih": GUN.isoformat(),
@@ -153,7 +210,7 @@ class YoklamaTestleri(TestCase):
         self.assertContains(r, "Ali KAYA")
         self.assertNotContains(r, "Veli ÇELİK")
         self.client.post(reverse("yoklama:onay"), {"tarih": GUN.isoformat(), "geri": geri})
-        self.assertContains(self.client.get(geri), "yoklama verildi")
+        self.assertContains(self.client.get(geri), "yoklama kesinleşti")
         # başka bölümün kartı açılmaz, idari sayfalar kapalı
         self.assertEqual(self.client.get(reverse("yoklama:kart", args=[self.ayse.pk])).status_code, 404)
         self.assertEqual(self.client.get(reverse("yoklama:turler")).status_code, 403)
@@ -164,7 +221,7 @@ class YoklamaTestleri(TestCase):
         self.client.force_login(self.iiy)
         r = self.client.get(reverse("yoklama:ana"), {"tarih": GUN.isoformat()})
         self.assertContains(r, "Bölümlerin 10.11.2026 yoklaması")
-        self.assertContains(r, "Verilmedi")
+        self.assertContains(r, "Kesinleşmedi")
         r = self.client.get(reverse("yoklama:ana"), {"bas": GUN.isoformat(), "bit": (GUN + datetime.timedelta(days=6)).isoformat()})
         self.assertContains(r, "Ayşe YILMAZ")
         self.assertContains(r, ">RP<")
@@ -241,15 +298,15 @@ class YoklamaTestleri(TestCase):
 
     def test_ana_sayfa_karti(self):
         self.client.force_login(self.askci)
-        self.assertContains(self.client.get(reverse("core:panel")), "Bugünün personel yoklaması verilmedi")
+        self.assertContains(self.client.get(reverse("core:panel")), "Bugünün personel yoklaması kesinleştirilmedi")
         servis.onayla(self.askci, self.y(self.askci), self.ask, timezone.localdate())
-        self.assertNotContains(self.client.get(reverse("core:panel")), "Bugünün personel yoklaması verilmedi")
+        self.assertNotContains(self.client.get(reverse("core:panel")), "Bugünün personel yoklaması kesinleştirilmedi")
         self.client.force_login(self.iiy)
-        self.assertContains(self.client.get(reverse("core:panel")), "Yoklama vermeyen bölüm")
+        self.assertContains(self.client.get(reverse("core:panel")), "Yoklamayı kesinleştirmeyen bölüm")
 
 
 @override_settings(MEDIA_ROOT=MEDYA)
-class YoklamaFormuTestleri(TestCase):
+class YoklamaFormuTestleri(SaatSabit, TestCase):
     """Günlük yoklama formu (resmî biçim): gruplar, sayım, beyan, Excel, yetki."""
 
     @classmethod

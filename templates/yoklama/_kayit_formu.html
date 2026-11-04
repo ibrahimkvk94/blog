@@ -20,11 +20,11 @@
   <div class="row g-2 mb-3">
     <div class="col-6 col-md-4">
       <label class="form-label small text-secondary" for="bas-{{ onek|default:'f' }}">Başlangıç tarihi</label>
-      <input type="date" class="form-control" id="bas-{{ onek|default:'f' }}" name="bas_tarih" value="{% if k %}{{ k.yerel_bas|date:'Y-m-d' }}{% else %}{{ varsayilan_tarih|date:'Y-m-d' }}{% endif %}" required data-bas-tarih>
+      <input type="date" class="form-control" id="bas-{{ onek|default:'f' }}" name="bas_tarih" {% if ilk_giris %}min="{{ ilk_giris|date:'Y-m-d' }}"{% endif %} value="{% if k %}{{ k.yerel_bas|date:'Y-m-d' }}{% else %}{{ varsayilan_tarih|date:'Y-m-d' }}{% endif %}" required data-bas-tarih>
     </div>
     <div class="col-6 col-md-4" data-sadece="tam">
       <label class="form-label small text-secondary" for="bit-{{ onek|default:'f' }}">Bitiş tarihi (dahil)</label>
-      <input type="date" class="form-control" id="bit-{{ onek|default:'f' }}" name="bit_tarih" value="{% if k and k.tam_gun %}{{ k.son_gun|date:'Y-m-d' }}{% else %}{{ varsayilan_tarih|date:'Y-m-d' }}{% endif %}" data-bit-tarih>
+      <input type="date" class="form-control" id="bit-{{ onek|default:'f' }}" name="bit_tarih" {% if ilk_giris %}min="{{ ilk_giris|date:'Y-m-d' }}"{% endif %} value="{% if k and k.tam_gun %}{{ k.son_gun|date:'Y-m-d' }}{% else %}{{ varsayilan_tarih|date:'Y-m-d' }}{% endif %}" data-bit-tarih>
     </div>
     <div class="col-3 col-md-2" data-sadece="saat">
       <label class="form-label small text-secondary" for="bs-{{ onek|default:'f' }}">Başlangıç</label>

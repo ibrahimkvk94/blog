@@ -16,6 +16,7 @@ import datetime
 from collections import defaultdict
 from dataclasses import dataclass
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import F
 from django.http import Http404
@@ -28,6 +29,9 @@ from personel.models import Bolum, Personel
 from .models import GunlukOnay, IzinTuru, YoklamaGecmisi, YoklamaKaydi
 
 BIRIM = "personel-yoklamasi"
+# Bölüm hesapları geçmiş günlere kayıt giremez; bugüne ait kayıt bu saate kadar girilir. Bölüm günün yoklamasını
+# kesinleştirince o güne değen kayıtları artık yalnız idari işler yetkilisi değiştirebilir.
+GIRIS_SON_SAAT = getattr(settings, "YOKLAMA_GIRIS_SON_SAAT", datetime.time(9, 0))
 EN_UZUN_ARALIK = 62  # gün (görünüm ve rapor)
 
 
@@ -209,6 +213,63 @@ def _onaylari_isaretle(personel, bas, bit):
                 .update(degisti=timezone.now()))
 
 
+def _simdi():
+    return timezone.localtime()
+
+
+def ilk_giris_tarihi():
+    """Bölüm hesabının kayıt başlatabileceği ilk gün: saat 09:00'dan önce bugün, sonra yarın."""
+    simdi = _simdi()
+    return simdi.date() if simdi.time() < GIRIS_SON_SAAT else simdi.date() + datetime.timedelta(days=1)
+
+
+def _gunler(bas, bit):
+    return timezone.localtime(bas).date(), timezone.localtime(bit - datetime.timedelta(microseconds=1)).date()
+
+
+def kesinlesen_gunler(bolum_id, bas, bit):
+    if bolum_id is None:
+        return []
+    return list(GunlukOnay.objects.filter(bolum_id=bolum_id, tarih__range=_gunler(bas, bit))
+                .order_by("tarih").values_list("tarih", flat=True))
+
+
+def kilit_nedeni(y, personel, bas, bit):
+    """Bölüm hesabı bu aralığa değen bir kaydı ekleyemez / değiştiremez / silemezse nedeni (yoksa None).
+    İdari işler yetkilisi (ve sistem yöneticisi) kilitlerden etkilenmez."""
+    if y.yonetim:
+        return None
+    ilk_gun = _gunler(bas, bit)[0]
+    simdi = _simdi()
+    if ilk_gun < simdi.date():
+        return "Geçmiş günlerin yoklaması değiştirilemez. Düzeltme için idari işler yetkilisine başvurun."
+    if ilk_gun < ilk_giris_tarihi():
+        return (f"Bugünün yoklaması saat {GIRIS_SON_SAAT:%H:%M}'a kadar girilebilir; bugüne değen kayıtları artık "
+                "yalnız idari işler yetkilisi değiştirebilir. Yarından başlayan kayıt girebilirsiniz.")
+    kesin = kesinlesen_gunler(personel.bolum_id, bas, bit)
+    if kesin:
+        gunler = ", ".join(f"{g:%d.%m.%Y}" for g in kesin[:5]) + (" …" if len(kesin) > 5 else "")
+        return (f"{gunler} yoklaması kesinleşti; bu günlere değen kayıtları yalnız idari işler yetkilisi "
+                "değiştirebilir.")
+    return None
+
+
+def kayit_kilitli_mi(y, kayit):
+    return kilit_nedeni(y, kayit.personel, kayit.baslangic, kayit.bitis) is not None
+
+
+def gun_kilidi(y, bolum_id, tarih):
+    """Bölüm hesabı bu güne kayıt giremiyorsa nedeni (ekranlarda düğmeleri kapatmak için)."""
+    bas, bit = gun_araligi(tarih)
+    return kilit_nedeni(y, type("P", (), {"bolum_id": bolum_id})(), bas, bit)
+
+
+def _kilit_denetle(y, personel, bas, bit):
+    neden = kilit_nedeni(y, personel, bas, bit)
+    if neden:
+        raise YoklamaHatasi(neden)
+
+
 def _cakisma(personel, bas, bit, haric=None):
     qs = YoklamaKaydi.objects.filter(personel=personel, baslangic__lt=bit, bitis__gt=bas).select_related("tur")
     if haric is not None:
@@ -228,6 +289,7 @@ def _denetle(y, personel, tur):
 @transaction.atomic
 def ekle(user, y, personel, tur, bas, bit, aciklama=""):
     _denetle(y, personel, tur)
+    _kilit_denetle(y, personel, bas, bit)
     diger = _cakisma(personel, bas, bit)
     if diger is not None:
         raise YoklamaHatasi(f"Bu aralıkta zaten bir kayıt var: {diger.tur.ad}, {diger.aralik_metni}. "
@@ -246,6 +308,8 @@ def duzenle(user, y, kayit_id, okunan_surum, tur, bas, bit, aciklama=""):
     if k is None:
         raise YoklamaHatasi("Kayıt bu sırada silinmiş; sayfayı yenileyin.")
     _denetle(y, k.personel, tur)
+    _kilit_denetle(y, k.personel, k.baslangic, k.bitis)
+    _kilit_denetle(y, k.personel, bas, bit)
     if okunan_surum != k.surum:
         raise YoklamaHatasi("Bu kayıt siz düzenlerken başka bir kullanıcı tarafından değiştirildi. Sayfayı yenileyip "
                             "tekrar deneyin.")
@@ -272,6 +336,7 @@ def sil(user, y, kayit_id):
         return None
     if not y.giris or not y.kapsar(k.personel.bolum_id):
         raise YoklamaHatasi("Bu kaydı silme yetkiniz yok.")
+    _kilit_denetle(y, k.personel, k.baslangic, k.bitis)
     ozet_ = _ozet_metni(k)
     personel, bas, bit = k.personel, k.baslangic, k.bitis
     k.delete()
@@ -292,7 +357,7 @@ def onayla(user, y, bolum, tarih):
     if not onay_yetkisi(y, bolum):
         raise YoklamaHatasi("Bu bölümün yoklamasını verme yetkiniz yok.")
     onay, yeni = GunlukOnay.objects.get_or_create(bolum=bolum, tarih=tarih, defaults={"onaylayan": user})
-    if not yeni:  # yeniden verildi: "değişti" işareti kalkar
+    if not yeni:  # yeniden kesinleştirildi: "değişti" işareti kalkar
         GunlukOnay.objects.filter(pk=onay.pk).update(onaylayan=user, zaman=timezone.now(), degisti=None)
     return onay
 
@@ -325,7 +390,7 @@ def panel_gorevleri(request):
     if y.kapsam_bolum is not None:
         if GunlukOnay.objects.filter(bolum=y.kapsam_bolum, tarih=bugun).exists():
             return []
-        return [{"renk": "eksik", "ikon": "person-check", "sayi": None, "ad": "Bugünün personel yoklaması verilmedi",
+        return [{"renk": "eksik", "ikon": "person-check", "sayi": None, "ad": "Bugünün personel yoklaması kesinleştirilmedi",
                  "aciklama": f"{y.kapsam_bolum.ad} · {bugun:%d.%m.%Y}", "url": reverse("yoklama:ana")}]
     if not y.yonetim:
         return []
@@ -334,7 +399,7 @@ def panel_gorevleri(request):
     eksik = sum(1 for b in liste if b.pk not in verilen)
     if not eksik:
         return []
-    return [{"renk": "bekliyor", "ikon": "person-check", "sayi": eksik, "ad": "Yoklama vermeyen bölüm",
+    return [{"renk": "bekliyor", "ikon": "person-check", "sayi": eksik, "ad": "Yoklamayı kesinleştirmeyen bölüm",
              "aciklama": f"Bugün · {bugun:%d.%m.%Y}", "url": reverse("yoklama:ana")}]
 
 

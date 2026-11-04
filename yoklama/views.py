@@ -121,8 +121,11 @@ def ana(request):
     else:
         onay_tablo = servis.onay_tablosu(tarih, servis.bolumler(y))
     onay_bolumu = y.kapsam_bolum or bolum
+    gun_kilit = servis.gun_kilidi(y, onay_bolumu.pk if onay_bolumu else None, tarih) if y.giris else None
+    ilk_giris = None if y.yonetim else servis.ilk_giris_tarihi()
     return render(request, "yoklama/gun.html", _baglam(
         request, **ctx, tarih=tarih, durumlar=gorunen, ozet=servis.ozet(durumlar), filtre=filtre, onay=onay,
+        gun_kilit=gun_kilit, ilk_giris=ilk_giris, modal_tarih=max(tarih, ilk_giris) if ilk_giris else tarih,
         onay_tablo=onay_tablo, onay_bolumu=onay_bolumu,
         onaylayabilir=bool(onay_bolumu) and servis.onay_yetkisi(y, onay_bolumu),
         onceki=tarih - datetime.timedelta(days=1), sonraki=tarih + datetime.timedelta(days=1)))
@@ -139,7 +142,7 @@ def onay(request):
     except YoklamaHatasi as e:
         messages.error(request, str(e))
     else:
-        messages.success(request, f"{bolum.ad}: {tarih:%d.%m.%Y} yoklaması verildi.")
+        messages.success(request, f"{bolum.ad}: {tarih:%d.%m.%Y} yoklaması kesinleşti.")
     return _geri(request, f"{reverse('yoklama:ana')}?tarih={tarih.isoformat()}")
 
 
@@ -176,13 +179,18 @@ def kart(request, pk):
             else:
                 o["saat"] += (k.bitis - k.baslangic).total_seconds() / 3600
     bugun_durum = servis.gun_durumu(bugun, [p])[0]
+    girebilir = y.giris and y.kapsar(p.bolum_id)
+    ilk_giris = None if y.yonetim else servis.ilk_giris_tarihi()
+    kilitli = {k.pk for k in gelecek + gecmis if girebilir and servis.kilit_nedeni(y, p, k.baslangic, k.bitis)}
+    varsayilan_tarih = _tarih(request.GET.get("tarih"), bugun)
+    if ilk_giris and varsayilan_tarih < ilk_giris:
+        varsayilan_tarih = ilk_giris
     yillar = sorted({k.yerel_bas.year for k in tum} | {bugun.year}, reverse=True)
     return render(request, "yoklama/kart.html", _baglam(
         request, p=p, bugun=bugun, bugun_durum=bugun_durum, gelecek=gelecek, gecmis=gecmis, yil=yil, yillar=yillar,
         yil_ozeti=sorted(yil_ozeti.values(), key=lambda o: (o["tur"].sira, o["tur"].ad)),
-        turler=servis.izin_turleri(), girebilir=y.giris and y.kapsar(p.bolum_id),
-        islemler=list(p.yoklama_gecmisi.select_related("kullanici")[:15]),
-        varsayilan_tarih=_tarih(request.GET.get("tarih"), bugun)))
+        turler=servis.izin_turleri(), girebilir=girebilir, ilk_giris=ilk_giris, kilitli=kilitli,
+        islemler=list(p.yoklama_gecmisi.select_related("kullanici")[:15]), varsayilan_tarih=varsayilan_tarih))
 
 
 @login_required
@@ -205,9 +213,11 @@ def kayit(request, pk):
             return redirect(request.path)
         messages.success(request, "Kayıt güncellendi.")
         return redirect(kart_url)
+    girebilir = y.giris and y.kapsar(p.bolum_id)
     return render(request, "yoklama/kayit.html", _baglam(
         request, k=k, p=p, turler=IzinTuru.objects.filter(aktif=True) | IzinTuru.objects.filter(pk=k.tur_id),
-        girebilir=y.giris and y.kapsar(p.bolum_id)))
+        girebilir=girebilir, kilit=servis.kilit_nedeni(y, p, k.baslangic, k.bitis) if girebilir else None,
+        ilk_giris=None if y.yonetim else servis.ilk_giris_tarihi()))
 
 
 # ---------------------------------------------------------------- fotoğraf
