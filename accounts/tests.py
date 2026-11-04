@@ -145,7 +145,7 @@ class GuvenlikTests(TestCase):
     def test_internetten_iki_adim_zorunlu(self):
         from .models import GuvenlikAyari
 
-        dis = {"HTTP_HOST": "girgen.ornek.ts.net"}
+        dis = {"HTTP_HOST": "kamyosis.ornek.ts.net"}
         r = self.client.post(reverse("login"), {"username": "ayse", "password": PAROLA}, **dis)
         self.assertContains(r, "İnternet üzerinden giriş için iki adımlı doğrulama gerekir")
         self.assertNotIn("_auth_user_id", self.client.session)
