@@ -1,9 +1,12 @@
 from django.contrib import admin
 from django.urls import include, path
 
+from accounts.views import yonetim_girisi
+
 admin.site.site_header = "KAMYOSİS Yönetim"
 admin.site.site_title = "KAMYOSİS"
 admin.site.index_title = "Sistem Yönetimi"
+admin.site.login = yonetim_girisi  # yönetim paneli de KAMYOSİS girişinden (iki adımlı doğrulama) geçer
 
 urlpatterns = [
     path("yonetim/", admin.site.urls),
@@ -14,6 +17,7 @@ urlpatterns = [
     path("nobet/", include("nobet.urls")),
     path("mazeret/", include("mazeret.urls")),
     path("sinav-gorevleri/", include("sinavgorev.urls")),
+    path("yoklama/", include("yoklama.urls")),
     path("ders-programi/sinav-planlama/", include("sinav.urls")),  # timetable'dan önce
     path("ders-programi/", include("timetable.urls")),
     path("ders-programi-kopru/", include("dersprogrami_kopru.urls")),

@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% load personel_etiketleri %}
-{% block title %}Personel{% endblock %}
+{% block title %}Personel kartları{% endblock %}
 {% block content %}
 <div class="sayfa-baslik">
   <div>
-    <h1>Personel</h1>
+    <h1>Personel kartları</h1>
     <p class="text-secondary mb-0">{{ toplam }} kayıt{% if request.yetki_kapsam == 'bolum' %} · {{ user.bolum }}{% endif %}</p>
   </div>
   {% if duzenleyebilir %}
@@ -12,11 +12,13 @@
   {% endif %}
 </div>
 
+{% include "personel/_sekmeler.html" %}
+
 <form class="kart p-3 mb-3" method="get" role="search">
   <div class="row g-2 align-items-end">
     <div class="col-12 col-md">
       <label class="form-label small text-secondary" for="q">Ara</label>
-      <input type="search" class="form-control" id="q" name="q" value="{{ q }}" placeholder="{% if duzenleyebilir %}Ad, T.C. kimlik no veya sicil{% else %}Ad veya sicil{% endif %}">
+      <input type="search" class="form-control" id="q" name="q" value="{{ q }}" placeholder="{% if yonetici %}Ad, T.C. kimlik no veya sicil{% else %}Ad veya sicil{% endif %}">
     </div>
     {% if bolumler %}
     <div class="col-6 col-md-3">
@@ -55,7 +57,7 @@
       <thead>
         <tr>
           <th>Ad soyad</th>
-          <th class="d-none d-md-table-cell">T.C. kimlik no</th>
+          {% if yonetici %}<th class="d-none d-md-table-cell">T.C. kimlik no</th>{% endif %}
           <th>Bölüm</th>
           <th class="d-none d-lg-table-cell">Rütbe</th>
           <th class="d-none d-lg-table-cell">Unvan</th>
@@ -66,10 +68,9 @@
         {% for p in sayfa %}
         <tr>
           <td>
-            <a href="{% url 'personel:detay' p.pk %}" class="fw-semibold text-decoration-none">{{ p.ad_soyad }}</a>
-            {% if not p.aktif %}<span class="badge text-bg-secondary ms-1">Pasif</span>{% endif %}
+            <a href="{% url 'personel:detay' p.pk %}" class="yk-kisi">{% include "personel/_foto.html" with p=p %}<span class="min-w-0"><span class="ad d-block text-truncate">{{ p.ad_soyad }}{% if not p.aktif %} <span class="badge text-bg-secondary ms-1">Pasif</span>{% endif %}</span><span class="kunye d-block text-truncate">{{ p.kunye|default:"&nbsp;" }}{% if p.gorev_unvani %} · {{ p.gorev_unvani }}{% endif %}</span></span></a>
           </td>
-          <td class="d-none d-md-table-cell font-monospace small">{{ p.personel_kodu|maskele }}</td>
+          {% if yonetici %}<td class="d-none d-md-table-cell font-monospace small">{{ p.personel_kodu|default:"–" }}</td>{% endif %}
           <td>{% if p.bolum %}{{ p.bolum.kod|default:p.bolum.ad }}{% else %}<span class="badge text-bg-warning">Bölüm yok</span>{% endif %}</td>
           <td class="d-none d-lg-table-cell">{{ p.rutbe|default:"–" }}</td>
           <td class="d-none d-lg-table-cell">{{ p.unvan|default:"–" }}</td>

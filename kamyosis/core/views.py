@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from personel.models import Bolum, Personel
 
+from .kisayollar import gizli_kodlar, kapali_mi
 from .models import Birim
 from .yetki import gorunur_cocuklar, gorunur_mu, menu_agaci, birim_bul, yol
 
@@ -27,14 +28,27 @@ def _gorunen_ad(user):
     return user.username
 
 
+def _cozumle(url):
+    from django.urls import Resolver404, resolve
+
+    try:
+        return resolve(url.split("?")[0])
+    except Resolver404:
+        return None
+
+
 @login_required
 def panel(request):
     from mazeret.servis import panel_gorevleri as mazeret_gorevleri
     from takip.servis import panel_gorevleri
+    from yoklama.servis import panel_gorevleri as yoklama_gorevleri
 
+    gorevler = panel_gorevleri(request, ek=[*yoklama_gorevleri(request), *mazeret_gorevleri(request)])
+    if gizli_kodlar(request.user):  # bölüme kapatılmış kısayolların görev kartları gösterilmez
+        gorevler = [g for g in gorevler if not (g.get("url") and kapali_mi(request.user, _cozumle(g["url"])))]
     return render(request, "core/panel.html", {
         "selam": _selam(), "gorunen_ad": _gorunen_ad(request.user), "bugun": timezone.localdate(),
-        "gorevler": panel_gorevleri(request, ek=mazeret_gorevleri(request)),
+        "gorevler": gorevler,
         "kokler": menu_agaci(request),
     })
 
@@ -100,3 +114,39 @@ def bolum_yetkileri(request):
         "moduller": moduller, "satirlar": satirlar, "gruplar": gruplar, "seviyeler": by.SEVIYELER,
         "hesapsiz": hesapsiz, "breadcrumb_ek": True,
     })
+
+
+@login_required
+def bolum_kisayollari(request):
+    """Bölüm hesaplarının menüsünde hangi kısayolların görüneceği: satır = bölüm, sütun = kısayol (sistem yöneticisi)."""
+    from django.contrib import messages
+
+    from . import bolum_yetkileri as by
+    from .kisayollar import KISAYOLLAR
+    from .models import BolumMenusu
+
+    if not request.user.is_superuser:
+        raise PermissionDenied
+    hesaplar = by.bolum_hesaplari()
+    bolumler = {}
+    for u in hesaplar:
+        bolumler.setdefault(u.bolum, []).append(u)
+    kodlar = [k[0] for k in KISAYOLLAR]
+    if request.method == "POST":
+        acik = set(request.POST.getlist("k"))
+        n = 0
+        for b in bolumler:
+            gizli = [kod for kod in kodlar if f"{b.pk}:{kod}" not in acik]
+            ayar, _ = BolumMenusu.objects.get_or_create(bolum=b)
+            if ayar.gizli != gizli:
+                ayar.gizli = gizli
+                ayar.save(update_fields=["gizli"])
+                n += 1
+        messages.success(request, f"Bölüm kısayolları kaydedildi ({n} bölüm değişti)." if n else "Değişiklik yok.")
+        return redirect("core:bolum_kisayollari")
+    gizli = {m.bolum_id: set(m.gizli) for m in BolumMenusu.objects.all()}
+    satirlar = [{"bolum": b, "hesaplar": us,
+                 "hucreler": [{"kod": kod, "acik": kod not in gizli.get(b.pk, set())} for kod in kodlar]}
+                for b, us in sorted(bolumler.items(), key=lambda kv: kv[0].ad)]
+    return render(request, "core/bolum_kisayollari.html", {
+        "kisayol_listesi": [{"kod": k[0], "ad": k[2], "ikon": k[3]} for k in KISAYOLLAR], "satirlar": satirlar})

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% load static yoklama_etiketleri %}
+{% block title %}Personel yoklaması · {{ bas|date:"d.m.Y" }} – {{ bit|date:"d.m.Y" }}{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Personel yoklaması</h1>
+    <p class="text-secondary mb-0">{{ bas|date:"d F Y" }} – {{ bit|date:"d F Y" }} · {{ gunler|length }} gün{% if y.kapsam_bolum %} · {{ y.kapsam_bolum.ad }}{% elif secili_bolum %} · {{ secili_bolum.ad }}{% endif %}</p>
+  </div>
+  <div class="d-flex flex-wrap gap-2 d-print-none">
+    <a class="btn btn-primary" href="{% url 'yoklama:form' %}?tarih={{ bas|date:'Y-m-d' }}{% if secili_bolum and not y.kapsam_bolum %}&bolum={{ secili_bolum.pk }}{% endif %}"><i class="bi bi-file-earmark-text me-1"></i>Yoklama formu</a>
+    <div class="dropdown">
+      <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" href="{% url 'yoklama:form' %}?tarih={{ bas|date:'Y-m-d' }}&bit={{ bit|date:'Y-m-d' }}{% if secili_bolum and not y.kapsam_bolum %}&bolum={{ secili_bolum.pk }}{% endif %}&excel=1"><i class="bi bi-file-earmark-text me-2"></i>Yoklama formu (her gün ayrı sayfa)</a></li>
+        <li><a class="dropdown-item" href="{% url 'yoklama:rapor' %}?bas={{ bas|date:'Y-m-d' }}&bit={{ bit|date:'Y-m-d' }}{% if secili_bolum and not y.kapsam_bolum %}&bolum={{ secili_bolum.pk }}{% endif %}"><i class="bi bi-table me-2"></i>Ayrıntılı döküm</a></li>
+      </ul>
+    </div>
+    <button class="btn btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer me-1"></i>Yazdır</button>
+  </div>
+</div>
+
+{% include "yoklama/_sekmeler.html" with sekme="aralik" %}
+{% include "yoklama/_tarih_cubugu.html" with sekme="aralik" %}
+
+<div class="kart">
+  <div class="islem-cubugu d-flex flex-wrap align-items-center gap-2 p-2 border-bottom d-print-none">
+    <span class="small text-secondary ms-2 me-auto">{{ satirlar|length }} kişi{% if not hepsi %} (bu aralıkta kaydı olanlar){% endif %} · toplam {{ toplam }} personel</span>
+    {% if hepsi %}
+      <a class="btn btn-sm btn-outline-secondary" href="?bas={{ bas|date:'Y-m-d' }}&bit={{ bit|date:'Y-m-d' }}{% if secili_bolum and not y.kapsam_bolum %}&bolum={{ secili_bolum.pk }}{% endif %}">Yalnızca kaydı olanlar</a>
+    {% else %}
+      <a class="btn btn-sm btn-outline-secondary" href="?bas={{ bas|date:'Y-m-d' }}&bit={{ bit|date:'Y-m-d' }}&hepsi=1{% if secili_bolum and not y.kapsam_bolum %}&bolum={{ secili_bolum.pk }}{% endif %}">Tüm personeli göster</a>
+    {% endif %}
+  </div>
+  <div class="yardim-satiri"><i class="bi bi-info-circle"></i> Dolu hücre gün boyu, taralı hücre gün içinde saatlik kayıt. Hücrenin üzerine gelince ayrıntı görünür; kişiye tıklayınca kartı açılır.</div>
+  <div class="yk-takvim-kap">
+    <table class="yk-takvim">
+      <thead>
+        <tr>
+          <th class="kisi-hucre">Personel</th>
+          {% for g in gunler %}<th class="{% if g.weekday >= 5 %}hs{% endif %} {% if g == bugun %}bugun{% endif %}" title="{{ g|date:'d F Y, l' }}">{{ g|date:"d" }}<div class="fw-normal small">{{ g|date:"D"|slice:":2" }}</div></th>{% endfor %}
+        </tr>
+        <tr class="ozet-satir">
+          <th class="kisi-hucre small fw-semibold">Mevcut / yok / kısmi</th>
+          {% for o in gun_ozet %}<td title="{{ o.tarih|date:'d.m.Y' }}: mevcut {{ o.mevcut }}, gün boyu yok {{ o.yok }}, kısmi {{ o.kismi }}"><div class="text-success fw-semibold">{{ o.mevcut }}</div><div class="text-danger">{{ o.yok|default:"·" }}</div><div class="text-warning">{{ o.kismi|default:"·" }}</div></td>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+      {% for s in satirlar %}
+        <tr>
+          <th class="kisi-hucre fw-normal"><a class="yk-kisi" href="{% url 'yoklama:kart' s.personel.pk %}">{% include "yoklama/_foto.html" with p=s.personel %}<span class="min-w-0"><span class="ad d-block text-truncate" style="max-width:160px">{{ s.personel.ad_soyad }}</span><span class="kunye d-block text-truncate" style="max-width:160px">{{ s.personel.bolum.kod|default:"" }} {{ s.personel.kunye }}</span></span></a></th>
+          {% for h in s.hucreler %}
+            <td>{% if h.kayitlar %}{% with k=h.kayitlar.0 %}<a class="yk-hucre {% if not h.gun_boyu %}kismi{% endif %} text-decoration-none" style="--renk: {{ k.tur.renk }}" href="{% url 'yoklama:kayit' k.pk %}" title="{{ h.tarih|date:'d.m.Y' }} · {% for x in h.kayitlar %}{{ x.tur.ad }}: {{ x.aralik_metni }}{% if x.aciklama %} — {{ x.aciklama }}{% endif %}{% if not forloop.last %} | {% endif %}{% endfor %}">{{ k.tur.kisa }}</a>{% endwith %}{% endif %}</td>
+          {% endfor %}
+        </tr>
+      {% empty %}
+        <tr><td colspan="{{ gunler|length|add:1 }}" class="text-center text-secondary py-5">Bu aralıkta kayıt yok; herkes mevcut.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if turler %}
+  <div class="d-flex flex-wrap gap-2 p-3 border-top">
+    {% for t in turler %}<span class="yk-cip" style="--renk: {{ t.renk }}"><strong>{{ t.kisa }}</strong> {{ t.ad }}</span>{% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

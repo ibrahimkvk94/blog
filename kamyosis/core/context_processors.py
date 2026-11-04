@@ -1,39 +1,14 @@
 from django.conf import settings
-from django.http import Http404
-from django.urls import reverse
 
-from .yetki import GORUNTULEME, birim_bul, etkin_yetki, menu_agaci
-
-
-def _kisayollar(request):
-    """Sık kullanılan sayfalar; kullanıcının yetkisi olanlar."""
-    sonuc = []
-    try:
-        ders = etkin_yetki(request, birim_bul(request, "ders-planlari"))[0] >= GORUNTULEME
-        personel = etkin_yetki(request, birim_bul(request, "personel-bilgileri"))[0] >= GORUNTULEME
-    except Http404:
-        return sonuc
-    if ders:
-        sonuc += [
-            ("takip:gunluk", "Ders takibi", "check2-square"),
-            ("program:tablo", "Haftalık program", "table"),
-            ("takip:devirler", "Devir talepleri", "arrow-left-right"),
-        ]
-    for slug, url, etiket, ikon in (("ders-mazeretleri", "mazeret:ders", "Ders mazeretleri", "calendar-x"),
-                                    ("sinav-mazeretleri", "mazeret:sinav", "Sınav mazeretleri", "calendar2-x")):
-        try:
-            if etkin_yetki(request, birim_bul(request, slug))[0] >= GORUNTULEME:
-                sonuc.append((url, etiket, ikon))
-        except Http404:
-            pass
-    if personel:
-        sonuc.append(("personel:liste", "Personel", "person-vcard"))
-    return [{"url": reverse(ad), "ad": etiket, "ikon": ikon, "ad_kodu": ad} for ad, etiket, ikon in sonuc]
+from .kisayollar import bolum_hesabi_mi, kisayollar
+from .yetki import menu_agaci
 
 
 def navigation(request):
     ctx = {"kurum_adi": settings.KURUM_ADI, "sistem_adi": settings.SISTEM_ADI}
     if request.user.is_authenticated and not request.path.startswith("/yonetim/"):
-        ctx["menu"] = menu_agaci(request)
-        ctx["kisayollar"] = _kisayollar(request)
+        # bölüm hesabının menüsünde yalnızca kısayollar var: birim ağacı ve organizasyon şeması gizli
+        ctx["bolum_hesabi"] = bolum_hesabi_mi(request.user)
+        ctx["menu"] = [] if ctx["bolum_hesabi"] else menu_agaci(request)
+        ctx["kisayollar"] = kisayollar(request)
     return ctx

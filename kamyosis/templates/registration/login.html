@@ -9,7 +9,10 @@
       <h1 class="h3 mt-3 mb-1 fw-bold">{{ sistem_adi }}</h1>
       <p class="text-secondary mb-0">{{ kurum_adi }}</p>
     </div>
-    {% if form.errors %}
+    {% for m in messages %}<div class="alert alert-{% if m.tags == 'error' %}danger{% else %}{{ m.tags|default:'info' }}{% endif %} py-2">{{ m }}</div>{% endfor %}
+    {% if ozel_hata %}
+      <div class="alert alert-danger py-2">{{ ozel_hata }}</div>
+    {% elif form.errors %}
       <div class="alert alert-danger py-2">Kullanıcı adı veya parola hatalı.</div>
     {% endif %}
     <form method="post">

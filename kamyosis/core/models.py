@@ -76,3 +76,17 @@ class Yetki(models.Model):
 
     def __str__(self):
         return f"{self.kullanici} → {self.birim} ({self.get_seviye_display()})"
+
+
+class BolumMenusu(models.Model):
+    """Bölüm hesaplarının menüsünde gizlenen kısayollar (core/kisayollar.py kodları). Kayıt yok = yetkisi olan tümü."""
+
+    bolum = models.OneToOneField("personel.Bolum", on_delete=models.CASCADE, related_name="menu_ayari")
+    gizli = models.JSONField("Gizli kısayollar", default=list, blank=True)
+
+    class Meta:
+        verbose_name = "Bölüm menüsü"
+        verbose_name_plural = "Bölüm menüleri"
+
+    def __str__(self):
+        return f"{self.bolum} menüsü"

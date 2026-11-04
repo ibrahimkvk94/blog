@@ -69,6 +69,7 @@ class MazeretYetkisi:
     bildir: bool = False
     yonetim: bool = False
     kapsam_bolum: object = None     # None = tüm bölümler
+    tur_kod: str = "ders"           # ders mazereti: derse girenler; sınav mazereti: sınav görevi alabilenler
 
     def kapsar(self, personel):
         return self.kapsam_bolum is None or personel.bolum_id == self.kapsam_bolum.pk
@@ -79,7 +80,7 @@ def yetki(request, tur=None):
     onbellek = request.__dict__.setdefault("_mazeret_yetkileri", {})
     if tur.kod in onbellek:
         return onbellek[tur.kod]
-    y = MazeretYetkisi()
+    y = MazeretYetkisi(tur_kod=tur.kod)
     try:
         seviye, kapsam = etkin_yetki(request, birim_bul(request, tur.birim))
     except Http404:
@@ -94,7 +95,8 @@ def yetki(request, tur=None):
 
 
 def personeller(y, bolum=None):
-    qs = Personel.objects.filter(aktif=True).select_related("bolum", "unvan", "rutbe", "sinif")
+    kosul = {"sinav_gorevi_alabilir": True} if y.tur_kod == "sinav" else {"derse_girebilir": True}
+    qs = Personel.objects.filter(aktif=True, **kosul).select_related("bolum", "unvan", "rutbe", "sinif")
     if y.kapsam_bolum is not None:
         qs = qs.filter(bolum=y.kapsam_bolum)
     elif bolum is not None:

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Yoklama grupları · Personel yoklaması{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Yoklama grupları</h1>
+    <p class="text-secondary mb-0">Günlük yoklama formunda her personelin sayıldığı sütun ve “Görevi” metni. Künyeden otomatik bulunur; yalnız farklı olanları değiştirin.</p>
+  </div>
+</div>
+{% include "yoklama/_sekmeler.html" with sekme="gruplar" %}
+
+<div class="d-flex flex-wrap gap-2 mb-3">
+  {% for g, ad, n in sayilar %}
+  <div class="yk-grup-sayi {% if not n %}bos{% endif %}"><span class="sayi">{{ n }}</span><span class="ad">{{ ad }}</span></div>
+  {% endfor %}
+</div>
+
+<form method="post" class="kart">
+  {% csrf_token %}
+  <div class="islem-cubugu d-flex flex-wrap align-items-center gap-2 p-2 border-bottom">
+    <input type="search" class="form-control" placeholder="Ad, bölüm ya da künye ara…" data-yk-ara="#ykGruplar" style="max-width:320px" aria-label="Ara">
+    <span class="small text-secondary"><span class="yk-elle-isaret"></span> elle değiştirilmiş</span>
+    <button class="btn btn-primary ms-auto"><i class="bi bi-check2 me-1"></i>Kaydet</button>
+  </div>
+  <div class="table-responsive">
+    <table class="table align-middle mb-0" id="ykGruplar">
+      <thead><tr><th>Personel</th><th class="d-none d-md-table-cell">Bölüm</th><th style="min-width:240px">Yoklama grubu</th><th style="min-width:240px">Görevi</th></tr></thead>
+      <tbody>
+      {% for s in satirlar %}
+        <tr data-ara="{{ s.p.tam_ad }} {{ s.p.bolum.ad|default:'' }} {{ s.p.bolum.kod|default:'' }}">
+          <td><div class="fw-semibold">{{ s.p.ad_soyad }}</div><div class="small text-secondary">{{ s.p.kunye|default:"–" }}</div></td>
+          <td class="d-none d-md-table-cell small">{{ s.p.bolum.ad|default:"–" }}</td>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              {% if s.elle %}<span class="yk-elle-isaret" title="Otomatik: {{ s.oto_ad }}"></span>{% endif %}
+              <select class="form-select form-select-sm" name="grup-{{ s.p.pk }}" aria-label="{{ s.p.ad_soyad }} yoklama grubu">
+                {% for g, ad in gruplar %}<option value="{{ g }}" {% if g == s.grup %}selected{% endif %}>{{ ad }}{% if g == s.oto %} (otomatik){% endif %}</option>{% endfor %}
+              </select>
+            </div>
+          </td>
+          <td><input type="text" class="form-control form-control-sm" name="gorev-{{ s.p.pk }}" maxlength="80" value="{{ s.gorev }}" placeholder="{{ s.oto_gorev|default:'Görevi' }}" aria-label="{{ s.p.ad_soyad }} görevi"></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" class="text-center text-secondary py-5">Aktif personel yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</form>
+<script src="{% static 'js/yoklama.js' %}?v=1" defer></script>
+{% endblock %}

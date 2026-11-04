@@ -117,7 +117,7 @@ def devir_yeni(request):
                 hata = str(e)
     return render(request, "takip/devir_yeni.html", _baglam(
         request, satirlar=satirlar, hata=hata, geri=request.GET.get("geri", ""),
-        personeller=Personel.objects.filter(aktif=True).select_related("bolum").order_by("ad_soyad"),
+        personeller=Personel.objects.filter(aktif=True, derse_girebilir=True).select_related("bolum").order_by("ad_soyad"),
         secili_personel=request.POST.get("personel", ""), gerekce=request.POST.get("gerekce", ""),
     ))
 

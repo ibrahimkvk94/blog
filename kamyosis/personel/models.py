@@ -10,6 +10,10 @@ class Bolum(models.Model):
     )
     aktif = models.BooleanField(default=True)
     eski_id = models.IntegerField("Access ID", unique=True, null=True, blank=True, editable=False)
+    baskan = models.ForeignKey(
+        "Personel", on_delete=models.SET_NULL, null=True, blank=True, related_name="baskani_oldugu_bolumler",
+        verbose_name="Bölüm başkanı",
+    )
 
     class Meta:
         verbose_name = "Bölüm"
@@ -83,12 +87,29 @@ class Personel(models.Model):
         "Muafiyet bitişi", null=True, blank=True,
         help_text="Geçici muafiyetlerde: bu tarihten sonra başlayan aylarda personel yeniden nöbete yazılır.",
     )
+    fotograf = models.ImageField(
+        "Fotoğraf", upload_to="personel/", blank=True, editable=False,
+        help_text="Personel yoklaması kartında gösterilir; yüklenirken 600 piksele küçültülür (yoklama/foto.py).")
     # Sınav görevi rolleri (PPYS SPS spRol): A salon amiri, G gözetmen, T taşıyıcı; boş = sınav görevi verilmez
     SINAV_ROLLERI = [("A", "Salon amiri"), ("G", "Gözetmen"), ("T", "Taşıyıcı")]
     sinav_rolleri = models.CharField(
         "Sınav görev rolleri", max_length=3, default="GT", blank=True,
         help_text="A = salon amiri, G = gözetmen, T = taşıyıcı (ör. AG). Boş = sınav görevi verilmez.",
     )
+
+    # Personel kartı (yönetici): ders / sınav kullanımı, teşkilattaki yeri, idari kadro
+    derse_girebilir = models.BooleanField(
+        "Derse girebilir", default=True,
+        help_text="İşaretsizse ders mazereti, ders takibi ve program eşleştirme listelerinde çıkmaz.")
+    sinav_gorevi_alabilir = models.BooleanField(
+        "Sınav görevi alabilir", default=True,
+        help_text="İşaretsizse sınav görevlendirmesine (salon amiri, gözetmen, taşıyıcı) alınmaz.")
+    teskilat_birimi = models.ForeignKey(
+        "TeskilatBirimi", on_delete=models.SET_NULL, null=True, blank=True, related_name="personeller",
+        verbose_name="Teşkilattaki birimi", help_text="Boşsa bölümüne göre (bölüm başkanlığı) sayılır.")
+    gorev_unvani = models.CharField("Görev unvanı", max_length=80, blank=True,
+                                    help_text="ör. Şube Müdürü, Kısım Amiri, Müdür Yardımcısı")
+    idari_kadro = models.BooleanField("İdari kadro", default=False)
 
     eski_id = models.IntegerField("Access ID", unique=True, null=True, blank=True, editable=False)
     olusturma = models.DateTimeField(auto_now_add=True)
@@ -119,3 +140,72 @@ class Personel(models.Model):
     def tam_ad(self):
         """Künye + ad soyad, ör. "Öğ.Ütğm. Ali KAYA", "Dr.Öğt.Üyesi Öğ.Yb. Ayşe YILMAZ"."""
         return " ".join(p for p in (self.kunye, self.ad_soyad) if p)
+
+
+class TeskilatBirimi(models.Model):
+    """Okulun teşkilat şeması (müdürlük, müdür yardımcılığı, sekreterlik, şube müdürlüğü, kısım, koordinatörlük,
+    bölüm başkanlığı). Menü/yetki ağacından (core.Birim) ayrıdır: personelin nerede görev yaptığını gösterir."""
+
+    MUDURLUK, YARDIMCI, SEKRETERLIK, SUBE, KISIM, KOORDINATORLUK, BASKANLIKLAR, BOLUM = (
+        "mudurluk", "yardimci", "sekreterlik", "sube", "kisim", "koordinatorluk", "baskanliklar", "bolum")
+    TURLER = [(MUDURLUK, "Müdürlük"), (YARDIMCI, "Müdür yardımcılığı"), (SEKRETERLIK, "Sekreterlik"),
+              (SUBE, "Şube müdürlüğü"), (KISIM, "Kısım"), (KOORDINATORLUK, "Koordinatörlük"),
+              (BASKANLIKLAR, "Bölüm başkanlıkları"), (BOLUM, "Bölüm başkanlığı")]
+
+    ad = models.CharField("Ad", max_length=120)
+    ust = models.ForeignKey("self", on_delete=models.PROTECT, null=True, blank=True, related_name="altlar",
+                            verbose_name="Üst birim")
+    tur = models.CharField("Tür", max_length=16, choices=TURLER, default=KISIM)
+    bolum = models.OneToOneField(Bolum, on_delete=models.SET_NULL, null=True, blank=True, related_name="teskilat",
+                                 verbose_name="Akademik bölüm", help_text="Bölüm başkanlığıysa bağlı bölüm.")
+    sira = models.PositiveIntegerField("Sıra", default=0)
+    aktif = models.BooleanField("Aktif", default=True)
+
+    class Meta:
+        verbose_name = "Teşkilat birimi"
+        verbose_name_plural = "Teşkilat şeması"
+        ordering = ["sira", "ad"]
+
+    def __str__(self):
+        return self.ad
+
+
+class KartAlani(models.Model):
+    """Personel kartındaki ek bilgi alanları (yöneticiler ekler / kaldırır): telefon, adres, kan grubu …"""
+
+    METIN, UZUN, TARIH, SAYI, TELEFON, EPOSTA, SECIM = "metin", "uzun", "tarih", "sayi", "telefon", "eposta", "secim"
+    TURLER = [(METIN, "Kısa metin"), (UZUN, "Uzun metin"), (TARIH, "Tarih"), (SAYI, "Sayı"), (TELEFON, "Telefon"),
+              (EPOSTA, "E-posta"), (SECIM, "Seçim listesi")]
+
+    ad = models.CharField("Alan adı", max_length=60, unique=True)
+    grup = models.CharField("Bölüm (kart başlığı)", max_length=40, default="İletişim",
+                            help_text="Kartta hangi başlık altında görüneceği, ör. İletişim, Kimlik, Sağlık.")
+    tur = models.CharField("Tür", max_length=10, choices=TURLER, default=METIN)
+    secenekler = models.CharField("Seçenekler", max_length=300, blank=True,
+                                  help_text="Seçim listesi için virgülle ayırın, ör. 0 Rh+, A Rh+")
+    sira = models.PositiveIntegerField("Sıra", default=0)
+    aktif = models.BooleanField("Kullanımda", default=True)
+
+    class Meta:
+        verbose_name = "Kart alanı"
+        verbose_name_plural = "Kart alanları"
+        ordering = ["grup", "sira", "ad"]
+
+    def __str__(self):
+        return self.ad
+
+    @property
+    def secenek_listesi(self):
+        return [x.strip() for x in self.secenekler.split(",") if x.strip()]
+
+
+class KartDegeri(models.Model):
+    personel = models.ForeignKey(Personel, on_delete=models.CASCADE, related_name="kart_degerleri")
+    alan = models.ForeignKey(KartAlani, on_delete=models.CASCADE, related_name="degerler")
+    deger = models.TextField("Değer", blank=True)
+    guncelleme = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Kart değeri"
+        verbose_name_plural = "Kart değerleri"
+        constraints = [models.UniqueConstraint(fields=["personel", "alan"], name="kart_degeri_tekil")]
