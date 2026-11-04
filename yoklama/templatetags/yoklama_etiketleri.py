@@ -10,3 +10,11 @@ def bas_harfler(ad):
     if not parcalar:
         return "?"
     return (parcalar[0][:1] + (parcalar[-1][:1] if len(parcalar) > 1 else "")).upper()
+
+
+@register.simple_tag
+def isaretler(p):
+    """Rütbe / sınıf / akademik unvan işaretleri: [(svg, etiket)]."""
+    from yoklama.isaretler import personel_isaretleri
+
+    return personel_isaretleri(p)

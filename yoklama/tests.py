@@ -257,9 +257,16 @@ class YoklamaTestleri(SaatSabit, TestCase):
         self.assertTrue(IzinTuru.objects.filter(pk=self.yillik.pk).exists())
 
     def test_fotograf(self):
-        self.client.force_login(self.askci)
         from django.core.files.uploadedfile import SimpleUploadedFile
 
+        # bölüm hesabı fotoğraf yükleyemez; yalnız yönetim yetkisi (idari işler yetkilisi, sistem yöneticisi)
+        self.client.force_login(self.askci)
+        r = self.client.post(reverse("yoklama:fotograf_yukle", args=[self.ali.pk]),
+                             {"fotograf": SimpleUploadedFile("a.png", _png(), "image/png")})
+        self.assertEqual(r.status_code, 403)
+        self.assertNotContains(self.client.get(reverse("yoklama:kart", args=[self.ali.pk])), "fotoFormu")
+        self.client.force_login(self.iiy)
+        self.assertContains(self.client.get(reverse("yoklama:kart", args=[self.ali.pk])), "fotoFormu")
         r = self.client.post(reverse("yoklama:fotograf_yukle", args=[self.ali.pk]),
                              {"fotograf": SimpleUploadedFile("a.png", _png(), "image/png")})
         self.ali.refresh_from_db()
@@ -278,6 +285,25 @@ class YoklamaTestleri(SaatSabit, TestCase):
         Yetki.objects.create(kullanici=User.objects.get(username="tem"), birim=Birim.objects.get(slug="personel-yoklamasi"),
                              seviye=Yetki.GORUNTULEME, kapsam=Yetki.BOLUM)
         self.assertEqual(self.client.get(reverse("yoklama:fotograf", args=[self.ali.pk])).status_code, 404)
+
+    def test_kart_isaretleri(self):
+        from personel.models import Secenek
+
+        from .isaretler import personel_isaretleri
+
+        sec = lambda tur, metin: Secenek.objects.create(tur=tur, metin=metin)
+        self.ali.rutbe, self.ali.sinif = sec(Secenek.RUTBE, "Ütğm."), sec(Secenek.SINIF, "Öğ.")
+        self.ali.unvan = sec(Secenek.UNVAN, "Doç.Dr.")
+        self.ali.save()
+        self.assertEqual([e for _, e in personel_isaretleri(self.ali)], ["Üsteğmen", "Öğretmen", "Doçent"])
+        self.veli.rutbe = sec(Secenek.RUTBE, "Asb.Kd.Bçvş.")
+        self.veli.save()
+        self.assertEqual([e for _, e in personel_isaretleri(self.veli)], ["Astsubay Kd. Başçavuş"])
+        self.assertEqual(personel_isaretleri(self.ayse), [])  # künyesiz: işaret yok
+        self.client.force_login(self.askci)
+        r = self.client.get(reverse("yoklama:kart", args=[self.ali.pk]))
+        self.assertContains(r, "yk-isaretler")
+        self.assertContains(r, "Doçent")
 
     def test_toplu_fotograf(self):
         arsiv = io.BytesIO()
