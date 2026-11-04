@@ -22,6 +22,7 @@ KISAYOLLAR = [
     ("sinav-planlari", "dersprogrami_kopru:sinavlar", "Sınav planları", "clipboard-check", "sinav-planlari"),
     ("sinav-gorev-puantaji", "sinavgorev:puantaj", "Sınav görev puantajı", "clipboard-data", "sinav-gorev-puantaji"),
     ("personel", "personel:liste", "Personel", "person-vcard", "personel-bilgileri"),
+    ("personel-yoklamasi", "yoklama:ana", "Personel yoklaması", "person-check", "personel-yoklamasi"),
 ]
 # Kısayolun kapsadığı sayfalar: {kod: [(ad alanı, adlar ya da None = ad alanının tümü)]}
 ADRESLER = {
@@ -33,9 +34,11 @@ ADRESLER = {
     "sinav-planlari": [("dersprogrami_kopru", {"sinavlar"}), ("sinav", None)],
     "sinav-gorev-puantaji": [("sinavgorev", None)],
     "personel": [("personel", None)],
+    "personel-yoklamasi": [("yoklama", None)],
 }
 # Bölüm hesapları dışındaki kullanıcıların menüsünde de bulunan kısayollar (eski düzen)
-GENEL = {"ders-takibi", "haftalik-program", "devir-talepleri", "ders-mazeretleri", "sinav-mazeretleri", "personel"}
+GENEL = {"ders-takibi", "haftalik-program", "devir-talepleri", "ders-mazeretleri", "sinav-mazeretleri", "personel",
+         "personel-yoklamasi"}
 
 
 def bolum_hesabi_mi(user):

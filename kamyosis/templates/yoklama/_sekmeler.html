@@ -1,0 +1,9 @@
+<ul class="nav nav-pills yk-sekmeler mb-3 d-print-none">
+  <li class="nav-item"><a class="nav-link {% if sekme == 'gun' %}active{% endif %}" href="{% url 'yoklama:ana' %}"><i class="bi bi-calendar-day me-1"></i>Günlük yoklama</a></li>
+  <li class="nav-item"><a class="nav-link {% if sekme == 'aralik' %}active{% endif %}" href="{% url 'yoklama:ana' %}?bas={{ bugun|date:'Y-m-d' }}&bit={{ hafta|date:'Y-m-d' }}"><i class="bi bi-calendar-range me-1"></i>Tarih aralığı</a></li>
+  <li class="nav-item"><a class="nav-link {% if sekme == 'gecmis' %}active{% endif %}" href="{% url 'yoklama:gecmis' %}"><i class="bi bi-clock-history me-1"></i>Değişiklikler</a></li>
+  {% if y.yonetim %}
+  <li class="nav-item"><a class="nav-link {% if sekme == 'turler' %}active{% endif %}" href="{% url 'yoklama:turler' %}"><i class="bi bi-tags me-1"></i>İzin türleri</a></li>
+  <li class="nav-item"><a class="nav-link {% if sekme == 'foto' %}active{% endif %}" href="{% url 'yoklama:toplu_fotograf' %}"><i class="bi bi-images me-1"></i>Toplu fotoğraf</a></li>
+  {% endif %}
+</ul>

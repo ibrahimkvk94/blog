@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     "aktarim",
     "mazeret",
     "sinavgorev",
+    "yoklama",
     "timetable",  # Ders Programı modülü: Ders Planlama + ortak veri (bkz. docs/dersprogrami_modulu.md)
     "sinav",  # Ders Programı modülü: Sınav Planlama
     "dersprogrami_kopru",
@@ -150,6 +151,9 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
+# Yüklenen dosyalar (personel fotoğrafları): depoya girmez, herkese açık sunulmaz; yetkili görünümden okunur
+MEDIA_ROOT = Path(os.environ.get("KAMYOSIS_MEDYA") or BASE_DIR / "medya")
+MEDIA_URL = "/medya/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

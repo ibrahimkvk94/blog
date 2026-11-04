@@ -19,3 +19,5 @@ yedekler/
 .dersprogrami_yolu
 # Internetten erisim adresi (tailnet adi; bkz. config/settings.py DIS_ADRESLER)
 .dis_adres
+# Yuklenen dosyalar (personel fotograflari) - kisisel veri, paylasilmaz
+medya/

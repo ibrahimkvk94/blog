@@ -47,7 +47,7 @@ class IkiAdimliDogrulamaAdmin(admin.ModelAdmin):
 
 @admin.register(GuvenlikAyari)
 class GuvenlikAyariAdmin(admin.ModelAdmin):
-    list_display = ["__str__", "dis_erisimde_iki_adim_zorunlu", "giris_deneme_siniri", "kilit_suresi_dk"]
+    list_display = ["__str__", "dis_erisimde_iki_adim_zorunlu", "giris_deneme_siniri", "kilit_suresi_dk", "kilit_katsayisi"]
 
     def has_add_permission(self, request):
         return not GuvenlikAyari.objects.exists()

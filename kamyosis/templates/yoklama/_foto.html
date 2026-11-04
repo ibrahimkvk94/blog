@@ -1,0 +1,1 @@
+{% load yoklama_etiketleri %}{% if p.fotograf %}<img src="{% url 'yoklama:fotograf' p.pk %}?v={{ p.fotograf.name|slice:'-12:-4' }}" alt="" class="yk-foto{% if buyuk %} yk-foto-buyuk{% endif %}" loading="lazy">{% else %}<span class="yk-foto yk-foto-bos{% if buyuk %} yk-foto-buyuk{% endif %}" aria-hidden="true">{{ p.ad_soyad|bas_harfler }}</span>{% endif %}

@@ -132,6 +132,28 @@ class GuvenlikTests(TestCase):
         r = self.client.post(reverse("login"), {"username": "baska", "password": "x"})  # başka hesap etkilenmez
         self.assertNotContains(r, "Çok sayıda hatalı deneme")
 
+    def test_kilit_kademeli_uzar(self):
+        import time
+        from unittest import mock
+
+        def bes_hata():
+            for _ in range(5):
+                self.client.post(reverse("login"), {"username": "ayse", "password": "yanlis"})
+
+        simdi = time.time()
+        with mock.patch("accounts.guvenlik.time.time", return_value=simdi):
+            bes_hata()
+            self.assertContains(self.client.post(reverse("login"), {"username": "ayse", "password": PAROLA}), "1 dakika")
+        with mock.patch("accounts.guvenlik.time.time", return_value=simdi + 61):  # ilk kilit bitti
+            bes_hata()
+            self.assertContains(self.client.post(reverse("login"), {"username": "ayse", "password": PAROLA}), "3 dakika")
+        with mock.patch("accounts.guvenlik.time.time", return_value=simdi + 61 + 181):
+            bes_hata()
+            self.assertContains(self.client.post(reverse("login"), {"username": "ayse", "password": PAROLA}), "9 dakika")
+        with mock.patch("accounts.guvenlik.time.time", return_value=simdi + 61 + 181 + 541):
+            self.client.post(reverse("login"), {"username": "ayse", "password": PAROLA})
+            self.assertIn("_auth_user_id", self.client.session)
+
     def test_basarili_giris_sayaci_sifirlar(self):
         for _ in range(4):
             self.client.post(reverse("login"), {"username": "ayse", "password": "yanlis"})
