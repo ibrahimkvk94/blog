@@ -111,12 +111,43 @@ _BASAK = "".join(
 _ASA = ('<path d="M24 34 L24 72" stroke-width="2.6"/>'
         '<path d="M27 38 Q31 41 26 44 Q16 48 24 53 Q32 57 22 62 Q17 65 22 68" stroke-width="1.9"/>')
 
+# Öğretmen: arkada meşale (alev, kâse, sap), önde açık kitap; altın ve alev geçişleriyle gerçeğe yakın
+OGRETMEN = (
+    '<defs>'
+    '<linearGradient id="ogS" x1="0" x2="1"><stop offset="0" stop-color="#8a6a12"/><stop offset=".5" stop-color="#f6dc85"/>'
+    '<stop offset="1" stop-color="#8a6a12"/></linearGradient>'
+    '<linearGradient id="ogY" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#d9480f"/>'
+    '<stop offset=".45" stop-color="#f59f00"/><stop offset="1" stop-color="#ffe066"/></linearGradient>'
+    '<linearGradient id="ogSol" x1="0" x2="1"><stop offset="0" stop-color="#fbe9a6"/><stop offset=".75" stop-color="#e2b93b"/>'
+    '<stop offset="1" stop-color="#a87f16"/></linearGradient>'
+    '<linearGradient id="ogSag" x1="1" x2="0"><stop offset="0" stop-color="#fbe9a6"/><stop offset=".75" stop-color="#e2b93b"/>'
+    '<stop offset="1" stop-color="#a87f16"/></linearGradient>'
+    '<radialGradient id="ogH" cx=".5" cy=".55" r=".5"><stop offset="0" stop-color="#ffe066" stop-opacity=".55"/>'
+    '<stop offset="1" stop-color="#ffe066" stop-opacity="0"/></radialGradient></defs>'
+    '<circle cx="24" cy="34" r="10" fill="url(#ogH)"/>'
+    '<path d="M22 46.5 L26 46.5 L25.1 67 L22.9 67 Z" fill="url(#ogS)" stroke="#6b500c" stroke-width=".4"/>'
+    '<path d="M22.2 50.5 L25.8 50.5 M22.4 54.5 L25.6 54.5" stroke="#6b500c" stroke-width=".7"/>'
+    '<path d="M18.4 40.6 L29.6 40.6 L27.1 46.8 L20.9 46.8 Z" fill="url(#ogS)" stroke="#6b500c" stroke-width=".5"/>'
+    '<path d="M20.2 43.6 L27.8 43.6" stroke="#6b500c" stroke-width=".45"/>'
+    '<ellipse cx="24" cy="40.6" rx="5.6" ry="1.35" fill="#f6dc85" stroke="#6b500c" stroke-width=".4"/>'
+    '<path d="M24 26.2 C25.6 29.6 30.1 31.6 29.7 36.1 C29.5 38.7 27.6 40.7 24 40.9 C20.4 40.7 18.5 38.7 18.3 36.1 '
+    'C18.1 33.1 20.5 31.7 21.5 29.5 C21.9 31.6 22.7 32.5 23.6 32.7 C23.1 30.7 23.4 28.3 24 26.2 Z" fill="url(#ogY)" '
+    'stroke="#c2410c" stroke-width=".35"/>'
+    '<path d="M24 32.2 C25.3 34.2 27.1 35.2 26.7 37.6 C26.4 39.1 25.4 39.9 24 40 C22.6 39.9 21.6 39.1 21.4 37.6 '
+    'C21.2 35.8 22.8 34.8 24 32.2 Z" fill="#fff3bf"/>'
+    '<path d="M24 61.2 Q16.4 57.6 8.2 59.6 L8.2 70.8 Q16.4 69.2 24 72.8 Q31.6 69.2 39.8 70.8 L39.8 59.6 '
+    'Q31.6 57.6 24 61.2 Z" fill="#7a5c0e"/>'
+    '<path d="M24 59.6 Q16.8 56 9.4 58 L9.4 69 Q16.8 67.4 24 71 Z" fill="url(#ogSol)" stroke="#8a6a12" stroke-width=".45"/>'
+    '<path d="M24 59.6 Q31.2 56 38.6 58 L38.6 69 Q31.2 67.4 24 71 Z" fill="url(#ogSag)" stroke="#8a6a12" stroke-width=".45"/>'
+    '<path d="M11.6 60.9 Q16.6 59.2 21.6 61.4 M11.6 63.6 Q16.6 61.9 21.6 64.1 M11.6 66.3 Q16.6 64.6 21.6 66.8 '
+    'M26.4 61.4 Q31.4 59.2 36.4 60.9 M26.4 64.1 Q31.4 61.9 36.4 63.6 M26.4 66.8 Q31.4 64.6 36.4 66.3" fill="none" '
+    'stroke="#a07a14" stroke-width=".5"/>'
+    '<path d="M24 59.6 L24 71" stroke="#6b500c" stroke-width=".9"/>'
+)
+
 # sınıf kısaltması: (ad, kumaş rengi, amblem)
 SINIF = {
-    "Öğ.": ("Öğretmen", "#3d8b4a", _g(
-        f'<path d="M12 60 Q18 56 24 60 Q30 56 36 60 L36 70 Q30 66 24 70 Q18 66 12 70 Z" fill="{ALTIN}"/>'
-        f'<path d="M24 40 L24 58"/><path d="M24 34 Q19 40 24 44 Q29 40 24 34" fill="{ALTIN}"/>'
-        '<path d="M15 48 Q12 56 16 62 M33 48 Q36 56 32 62"/>')),
+    "Öğ.": ("Öğretmen", "#3d8b4a", OGRETMEN),
     "Müh.": ("Mühendis", "#78b9d3", _g(
         f'<path d="M24 36 L14 70 M24 36 L34 70 M17 58 L31 58"/><circle cx="24" cy="36" r="2.5" fill="{ALTIN}"/>'
         '<path d="M12 72 L36 72" stroke-width="2.4"/>')),

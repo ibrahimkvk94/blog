@@ -155,8 +155,9 @@ def ana(request):
         q = request.GET.get("q", "").strip()
         bulunan = []
         if q:
-            aranan = q.replace("İ", "i").replace("I", "ı").lower()
-            bulunan = [d for d in durumlar if aranan in d.personel.ad_soyad.replace("İ", "i").replace("I", "ı").lower()][:40]
+            from core.arama import eslesir
+
+            bulunan = [d for d in durumlar if eslesir(q, d.personel.ad_soyad, d.personel.sicil)][:40]
             for d in bulunan:
                 d.yoklama_birimi = agac.get(agac.kisi_birimi(d.personel))
         return render(request, "yoklama/gun_genel.html", _baglam(
