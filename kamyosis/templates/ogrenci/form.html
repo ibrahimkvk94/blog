@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}{% if nesne %}{{ nesne.ad_soyad }}{% else %}Yeni öğrenci{% endif %}{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">{% if nesne %}{{ nesne.ad_soyad }}{% else %}Yeni öğrenci{% endif %}</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik"><h1>{% if nesne %}Öğrenci kaydını düzenle{% else %}Yeni öğrenci{% endif %}</h1></div>
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="kart p-4 mb-3">
+    <div class="row g-3">
+      {% for f in form %}{% if f.name != 'aktif' %}
+      <div class="{% if f.name == 'veren_makam' %}col-12 col-md-8{% else %}col-12 col-sm-6 col-md-4{% endif %}">
+        <label class="form-label" for="{{ f.id_for_label }}">{{ f.label }}{% if f.field.required %} <span class="text-danger">*</span>{% endif %}</label>
+        {{ f }}
+        {% for e in f.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+      </div>
+      {% endif %}{% endfor %}
+      <div class="col-12"><div class="form-check form-switch">{{ form.aktif }} <label class="form-check-label" for="{{ form.aktif.id_for_label }}">Aktif</label></div></div>
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary"><i class="bi bi-check2 me-1"></i>Kaydet</button>
+    <a class="btn btn-outline-secondary" href="{% url 'ogrenci:liste' %}">Vazgeç</a>
+  </div>
+</form>
+{% endblock %}

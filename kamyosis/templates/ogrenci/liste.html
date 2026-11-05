@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Öğrenci kaydı{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Öğrenci kaydı</h1>
+    <p class="text-secondary mb-0">Öğrencilerin kimlik ve kayıt bilgileri. Kimlik kartından toplu kayıt için Kimlik Kartı Okuma sayfasında satırları “Öğrenci” olarak işaretleyip aktarın.</p>
+  </div>
+  <div class="d-flex gap-2">
+    {% if yonetici %}<a class="btn btn-primary" href="{% url 'ogrenci:ekle' %}"><i class="bi bi-person-plus me-1"></i>Yeni öğrenci</a>{% endif %}
+    <a class="btn btn-outline-success" href="{% url 'ogrenci:excel' %}?{{ request.GET.urlencode }}"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel</a>
+  </div>
+</div>
+
+<form method="get" role="search" class="kart p-2 mb-3 d-flex flex-wrap align-items-center gap-2">
+  <div class="pk-arama">
+    <i class="bi bi-search"></i>
+    <input class="form-control" type="search" name="q" value="{{ q }}" autocomplete="off" aria-label="Öğrenci ara" placeholder="Ad, soyad, numara{% if yonetici %}, T.C. no{% endif %}…">
+  </div>
+  <select class="form-select w-auto" name="bolum" aria-label="Bölüm" data-arama="yok" style="max-width:300px">
+    <option value="">Tüm bölümler</option>
+    {% for b in bolumler %}<option value="{{ b.pk }}" {% if secili_bolum == b.pk|stringformat:"s" %}selected{% endif %}>{{ b.ad }}</option>{% endfor %}
+  </select>
+  <select class="form-select w-auto" name="durum" aria-label="Durum" data-arama="yok">
+    <option value="aktif" {% if durum == 'aktif' %}selected{% endif %}>Aktif</option>
+    <option value="pasif" {% if durum == 'pasif' %}selected{% endif %}>Pasif</option>
+    <option value="hepsi" {% if durum == 'hepsi' %}selected{% endif %}>Hepsi</option>
+  </select>
+  <button class="btn btn-outline-primary">Ara</button>
+</form>
+
+<div class="kart">
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead><tr><th>No</th><th>Soyadı</th><th>Adı</th><th>Sınıf / şube</th><th>Bölüm</th>{% if yonetici %}<th>T.C. kimlik no</th><th>Doğum</th><th></th>{% endif %}</tr></thead>
+      <tbody>
+      {% for o in ogrenciler %}
+        <tr>
+          <td>{{ o.numara|default:"—" }}</td><td class="fw-semibold">{{ o.soyad }}</td><td>{{ o.ad }}</td><td>{{ o.sinif|default:"—" }}</td><td>{{ o.bolum|default:"—" }}</td>
+          {% if yonetici %}<td class="font-monospace">{{ o.tc|default:"—" }}</td><td class="text-nowrap">{{ o.dogum_tarihi|date:"d.m.Y"|default:"—" }}</td>
+          <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{% url 'ogrenci:duzenle' o.pk %}"><i class="bi bi-pencil"></i></a></td>{% endif %}
+        </tr>
+      {% empty %}
+        <tr><td colspan="8" class="text-center text-secondary py-5">Kayıt yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if toplam > 1000 %}<div class="small text-secondary p-2">İlk 1000 kayıt gösteriliyor ({{ toplam }} kayıt); aramayı daraltın.</div>{% endif %}
+</div>
+{% endblock %}
