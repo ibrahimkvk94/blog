@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Sınav programları{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Sınav programları</h1>
+    <p class="text-secondary mb-0">{% if planlamaci %}Hazırlanan sınav dönemleri. Bölümler yalnızca <strong>yayınlanan</strong> dönemlerin sınav programını ve görevlendirmeleri görür; planlama aşamaları onlara kapalıdır.{% else %}Yayınlanan sınav programları ve sınav görevlendirmeleri.{% endif %}</p>
+  </div>
+  {% if planlamaci %}<a class="btn btn-outline-primary" href="{% url 'dersprogrami_kopru:sinavlar' %}"><i class="bi bi-sliders me-1"></i>Sınav planlama</a>{% endif %}
+</div>
+
+<div class="kart">
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead><tr><th>Dönem</th><th>Tarih</th><th class="text-end">Sınav</th>{% if planlamaci %}<th class="text-end">Yerleşen</th>{% endif %}<th>Durum</th><th></th></tr></thead>
+      <tbody>
+      {% for s in satirlar %}
+        <tr>
+          <td><a class="fw-semibold" href="{% url 'dersprogrami_kopru:sinav_programi_donem' s.donem.pk %}">{{ s.donem.name }}</a><div class="small text-secondary">{{ s.donem.get_kind_display }}</div></td>
+          <td class="text-nowrap">{{ s.donem.start_date|date:"d.m.Y" }} – {{ s.donem.end_date|date:"d.m.Y" }}</td>
+          <td class="text-end">{{ s.sinav }}</td>
+          {% if planlamaci %}<td class="text-end">{{ s.yerlesen }}</td>{% endif %}
+          <td>{% if s.yayin %}<span class="durum-rozet durum-kullanimda"><i class="bi bi-broadcast me-1"></i>Yayında</span><div class="small text-secondary">{{ s.yayin.zaman|date:"d.m.Y H:i" }}{% if planlamaci and s.yayin.yayinlayan %} · {{ s.yayin.yayinlayan }}{% endif %}</div>{% else %}<span class="durum-rozet durum-planlandi">Hazırlanıyor</span>{% endif %}</td>
+          <td class="text-end text-nowrap">
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'dersprogrami_kopru:sinav_programi_donem' s.donem.pk %}"><i class="bi bi-eye me-1"></i>{% if s.yayin or not planlamaci %}Görüntüle{% else %}Önizle{% endif %}</a>
+            {% if planlamaci %}
+            <form method="post" action="{% url 'dersprogrami_kopru:sinav_yayini' s.donem.pk %}" class="d-inline" {% if s.yayin %}onsubmit="return confirm('“{{ s.donem.name|escapejs }}” yayından kaldırılsın mı? Bölümler artık göremez.')"{% endif %}>
+              {% csrf_token %}
+              {% if s.yayin %}<button class="btn btn-sm btn-outline-danger" name="islem" value="kaldir"><i class="bi bi-eye-slash me-1"></i>Yayından kaldır</button>
+              {% else %}<button class="btn btn-sm btn-primary" name="islem" value="yayinla"><i class="bi bi-broadcast me-1"></i>Yayınla</button>{% endif %}
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="text-center text-secondary py-5"><i class="bi bi-hourglass-split d-block fs-3 mb-2"></i>{% if planlamaci %}Henüz sınav dönemi yok.{% else %}Henüz yayınlanan sınav programı yok.{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -536,3 +536,8 @@ a.yk-kisi:hover .ad { color: #2f5d8a; text-decoration: underline; }
 .yk-hak-kalan.koyu { color: #c9d4e2; }
 .yk-hak-asim .yk-hak-kalan { color: #dc2626; font-weight: 600; }
 .yk-hak-asim .yk-hak-kalan.koyu { color: #fca5a5; }
+
+/* yayınlanan sınav programı */
+.sp-takvim td { min-width: 160px; }
+.sp-sinav { padding: .35rem 0; border-bottom: 1px dashed var(--bs-border-color, #dee2e6); }
+.sp-sinav:last-child { border-bottom: 0; }

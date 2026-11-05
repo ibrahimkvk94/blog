@@ -65,7 +65,11 @@ class YetkiEslemeTests(TestCase):
             yetki_ver(self.u, "program-hazirlama", Yetki.DUZENLEME)
         self.assertEqual(self.uyelik().modules, ["ders"])
         with self.captureOnCommitCallbacks(execute=True):
-            yetki_ver(self.u, "sinav-planlari", Yetki.GORUNTULEME)
+            g = yetki_ver(self.u, "sinav-planlari", Yetki.GORUNTULEME)
+        self.assertEqual(self.uyelik().modules, ["ders"])  # yalnız görüntüleyen sınav modülüne girmez (yayını görür)
+        with self.captureOnCommitCallbacks(execute=True):
+            g.seviye = Yetki.DUZENLEME
+            g.save()
         self.assertEqual(self.uyelik().modules, ["ders", "sinav"])
 
     def test_baska_birim_uyelik_vermez(self):
@@ -153,10 +157,11 @@ class SinavYetkisiTests(TestCase):
     def test_yetkisiz_goremez(self):
         self.assertEqual(self.client.get(self.url).status_code, 403)
 
-    def test_goruntuleme_yetkisi(self):
+    def test_goruntuleme_yetkisi_yalniz_yayini_gorur(self):
         with self.captureOnCommitCallbacks(execute=True):
             yetki_ver(self.u, "sinav-planlari", Yetki.GORUNTULEME)
-        self.assertEqual(self.client.get(self.url).status_code, 200)
+        self.assertRedirects(self.client.get(self.url), reverse("dersprogrami_kopru:sinav_programi"),
+                             fetch_redirect_response=False)
         self.assertEqual(self.client.post(self.url, {}).status_code, 403)
 
     def test_duzenleme_yetkisi_degistirebilir(self):
@@ -172,13 +177,18 @@ class SinavYetkisiTests(TestCase):
 
     def test_sinav_birimi_yonlendirir(self):
         with self.captureOnCommitCallbacks(execute=True):
-            yetki_ver(self.u, "sinav-planlari", Yetki.GORUNTULEME)
+            y = yetki_ver(self.u, "sinav-planlari", Yetki.GORUNTULEME)
+        r = self.client.get(reverse("dersprogrami_kopru:sinavlar"))
+        self.assertRedirects(r, reverse("dersprogrami_kopru:sinav_programi"), fetch_redirect_response=False)
+        with self.captureOnCommitCallbacks(execute=True):
+            y.seviye = Yetki.DUZENLEME
+            y.save()
         r = self.client.get(reverse("dersprogrami_kopru:sinavlar"))
         self.assertRedirects(r, self.url, fetch_redirect_response=False)
 
     def test_eski_sinav_adresi_yonlenir(self):
         with self.captureOnCommitCallbacks(execute=True):
-            yetki_ver(self.u, "sinav-planlari", Yetki.GORUNTULEME)
+            yetki_ver(self.u, "sinav-planlari", Yetki.DUZENLEME)
         r = self.client.get(reverse("timetable:exams_old", args=[self.school.pk]))
         self.assertRedirects(r, self.url, fetch_redirect_response=False)
 
@@ -233,13 +243,13 @@ class YayinAktarimTests(TestCase):
 
 
 class SadeceSinavTests(TestCase):
-    """Program Hazırlama yetkisi olmayan, yalnızca Sınav Planları'nı gören hesap (ör. bölüm hesabı)."""
+    """Program Hazırlama yetkisi olmayan, yalnızca Sınav Planları'nda çalışan sınav planlamacısı."""
 
     def setUp(self):
         self.school = create_demo_school(institution=kurum())
         self.u = User.objects.create_user("bolum", password="x")
         with self.captureOnCommitCallbacks(execute=True):
-            self.yetki = yetki_ver(self.u, "sinav-planlari", Yetki.GORUNTULEME, Yetki.BOLUM)
+            self.yetki = yetki_ver(self.u, "sinav-planlari", Yetki.DUZENLEME, Yetki.BOLUM)
         self.client.force_login(self.u)
         self.url = reverse("sinav:periods", args=[self.school.pk])
 
@@ -261,9 +271,6 @@ class SadeceSinavTests(TestCase):
         self.assertNotContains(r, "Kurumlarım")
 
     def test_duzenleme_yetkisinde_ortak_veri_menude_yok(self):
-        with self.captureOnCommitCallbacks(execute=True):
-            self.yetki.seviye = Yetki.DUZENLEME
-            self.yetki.save()
         r = self.client.get(self.url)
         self.assertContains(r, "Sınav dönemleri")
         self.assertNotContains(r, "Ortak veri")
@@ -334,3 +341,76 @@ class KunyeTests(TestCase):
             self.dr.one_cikan = True
             self.dr.save()
         self.assertEqual(self.unvan(self.t_veli), "Dr. Öğr.Ütğm.")
+
+
+class SinavYayiniTests(TestCase):
+    """Bölümler (Sınav Planları'nda Görüntüleme) planlama aşamalarını görmez; yalnız yayınlanan sınav programını ve
+    görevlendirmeleri görür. Yayını sınav planlamacısı (Düzenleme ve üstü) yapar."""
+
+    def setUp(self):
+        import datetime
+
+        from sinav.models import ExamPeriod
+
+        self.school = create_demo_school(institution=kurum())
+        self.donem = ExamPeriod.objects.create(school=self.school, name="Deneme Vize", start_date=datetime.date(2026, 11, 30),
+                                               end_date=datetime.date(2026, 12, 4))
+        self.bolum = User.objects.create_user("bolum", password="x")
+        self.plan = User.objects.create_user("plan", password="x")
+        with self.captureOnCommitCallbacks(execute=True):
+            yetki_ver(self.bolum, "sinav-planlari", Yetki.GORUNTULEME, Yetki.BOLUM)
+            yetki_ver(self.plan, "sinav-planlari", Yetki.DUZENLEME)
+        self.liste = reverse("dersprogrami_kopru:sinav_programi")
+        self.sayfa = reverse("dersprogrami_kopru:sinav_programi_donem", args=[self.donem.pk])
+
+    def yayinla(self, islem="yayinla"):
+        self.client.force_login(self.plan)
+        r = self.client.post(reverse("dersprogrami_kopru:sinav_yayini", args=[self.donem.pk]), {"islem": islem})
+        self.client.logout()
+        return r
+
+    def test_bolum_planlamayi_goremez(self):
+        self.client.force_login(self.bolum)
+        for url in (reverse("sinav:periods", args=[self.school.pk]),
+                    reverse("sinav:period", args=[self.school.pk, self.donem.pk]),
+                    reverse("sinav:results", args=[self.school.pk, self.donem.pk]),
+                    reverse("sinav:print", args=[self.school.pk, self.donem.pk]),
+                    reverse("timetable:school_list")):
+            self.assertRedirects(self.client.get(url), self.liste, fetch_redirect_response=False)
+        r = self.client.get(reverse("dersprogrami_kopru:cerceve") + "?u=/ders-programi-kopru/sinavlar/")
+        self.assertRedirects(r, self.liste, fetch_redirect_response=False)
+        r = self.client.get(self.liste)
+        self.assertContains(r, "Henüz yayınlanan sınav programı yok")
+        self.assertNotContains(r, "Deneme Vize")
+        self.assertEqual(self.client.get(self.sayfa).status_code, 404)
+        self.assertEqual(self.client.get(self.sayfa + "excel/").status_code, 404)
+        r = self.client.post(reverse("dersprogrami_kopru:sinav_yayini", args=[self.donem.pk]), {"islem": "yayinla"})
+        self.assertEqual(r.status_code, 403)
+
+    def test_yayinlaninca_bolum_gorur(self):
+        self.yayinla()
+        self.client.force_login(self.bolum)
+        r = self.client.get(self.liste)
+        self.assertContains(r, "Deneme Vize")
+        self.assertContains(r, "Yayında")
+        self.assertNotContains(r, "Yayınla</button>")
+        for g in ("takvim", "siniflar", "gorevler", "salonlar"):
+            r = self.client.get(self.sayfa + f"?gorunum={g}")
+            self.assertEqual(r.status_code, 200, g)
+            self.assertNotContains(r, "Önizleme")
+        self.assertEqual(self.client.get(self.sayfa + "excel/").status_code, 200)
+        # yine de planlama sayfaları kapalı
+        self.assertRedirects(self.client.get(reverse("sinav:results", args=[self.school.pk, self.donem.pk])),
+                             self.liste, fetch_redirect_response=False)
+        self.client.logout()
+        self.yayinla("kaldir")
+        self.client.force_login(self.bolum)
+        self.assertEqual(self.client.get(self.sayfa).status_code, 404)
+
+    def test_planlamaci_onizler_ve_modulu_kullanir(self):
+        self.client.force_login(self.plan)
+        r = self.client.get(self.liste)
+        self.assertContains(r, "Deneme Vize")
+        self.assertContains(r, "Hazırlanıyor")
+        self.assertContains(self.client.get(self.sayfa), "Önizleme")
+        self.assertEqual(self.client.get(reverse("sinav:periods", args=[self.school.pk])).status_code, 200)

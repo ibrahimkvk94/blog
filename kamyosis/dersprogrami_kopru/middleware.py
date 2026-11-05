@@ -15,7 +15,7 @@ from django.shortcuts import redirect, render
 from core.yetki import DUZENLEME, GORUNTULEME
 from timetable.models import Membership as M
 
-from .yetki import PROGRAM_BIRIMI, SINAV_BIRIMI, birim_yetkisi
+from .yetki import PROGRAM_BIRIMI, SINAV_BIRIMI, birim_yetkisi, sinav_planlamacisi
 
 log = logging.getLogger(__name__)
 
@@ -52,14 +52,29 @@ SADECE_SINAV_ACIK = {"api_notifications", "api_notifications_read", "notificatio
 
 
 def sadece_sinav(request):
-    """Sınav Planları'nı görüp Program Hazırlama'yı görmeyen kullanıcı mı? Sonuç isteğe yazılır;
+    """Sınav planlamacısı olup Program Hazırlama'yı görmeyen kullanıcı mı? Sonuç isteğe yazılır;
     modül menüsü de buna göre süzülür (bkz. apps.py)."""
     if not hasattr(request, "sadece_sinav"):
         u = request.user
         request.sadece_sinav = (u.is_authenticated and not u.is_superuser
                                 and birim_yetkisi(u, PROGRAM_BIRIMI)[0] < GORUNTULEME
-                                and birim_yetkisi(u, SINAV_BIRIMI)[0] >= GORUNTULEME)
+                                and sinav_planlamacisi(u))
     return request.sadece_sinav
+
+
+def sadece_yayin(request):
+    """Sınav Planları'nda yalnız Görüntüleme yetkisi olan (planlamacı değil) ve Program Hazırlama'yı görmeyen
+    kullanıcı: modülün hiçbir sayfasına giremez, yayınlanan sınav programlarına yönlendirilir."""
+    u = request.user
+    return (u.is_authenticated and not u.is_superuser and not sinav_planlamacisi(u)
+            and birim_yetkisi(u, PROGRAM_BIRIMI)[0] < GORUNTULEME
+            and birim_yetkisi(u, SINAV_BIRIMI)[0] >= GORUNTULEME)
+
+
+def _yayina_yonlendir(request):
+    if request.method not in ("GET", "HEAD", "OPTIONS") or "/api/" in request.path:
+        raise PermissionDenied("Sınav planlama aşamaları yalnız sınav planlamacılarına açıktır.")
+    return redirect("dersprogrami_kopru:sinav_programi")
 
 
 class KopruMiddleware:
@@ -101,6 +116,9 @@ class KopruMiddleware:
             return None
         if eslesme.namespace == SINAV_AD_ALANI:
             if request.user.is_authenticated:
+                if not sinav_planlamacisi(request.user) and birim_yetkisi(request.user, SINAV_BIRIMI)[0] >= GORUNTULEME:
+                    # bölümler planlama aşamalarını görmez: yayınlanan sınav programı KAMYOSİS'te
+                    return _yayina_yonlendir(request)
                 sadece_sinav(request)  # menü süzmesi için
                 self._sinav_yetkisi(request)
                 if request.method == "POST" and (eslesme.url_name == "solve" or (
@@ -122,6 +140,8 @@ class KopruMiddleware:
             return redirect_to_login(request.GET.get("next") or "/", settings.LOGIN_URL)
         if ad in YONLENDIR:
             return redirect(YONLENDIR[ad])
+        if sadece_yayin(request):
+            return _yayina_yonlendir(request)
         if sadece_sinav(request) and ad not in SADECE_SINAV_ACIK:
             if request.method not in ("GET", "HEAD", "OPTIONS") or "/api/" in request.path:
                 raise PermissionDenied("Ders Programı modülünde yalnızca sınav programına erişiminiz var.")
