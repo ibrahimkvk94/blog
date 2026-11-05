@@ -13,10 +13,11 @@
   <div class="kart p-4 mb-3">
     <h2 class="h6 fw-bold mb-3"><i class="bi bi-person me-1"></i>Temel bilgiler</h2>
     <div class="row g-3">
-      {% for f in form %}{% if f.name in "ad_soyad sicil bolum unvan rutbe sinif personel_kodu" %}
+      {% for f in form %}{% if f.name in "ad_soyad sicil bolum unvan rutbe sinif brans personel_kodu" %}
       <div class="col-12 col-md-6">
         <label class="form-label" for="{{ f.id_for_label }}">{{ f.label }}{% if f.field.required %} <span class="text-danger">*</span>{% endif %}</label>
         {{ f }}
+        {% if f.name == "brans" %}<div class="form-text">{{ f.help_text }}</div><datalist id="bransOnerileri">{% for b in form.brans_onerileri %}<option value="{{ b }}">{% endfor %}</datalist>{% endif %}
         {% for e in f.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
       </div>
       {% endif %}{% endfor %}

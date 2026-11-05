@@ -388,6 +388,27 @@ class YoklamaFormuTestleri(SaatSabit, TestCase):
             self.assertEqual(form.otomatik_grup(p), g, p.ad_soyad)
         self.assertEqual(form.otomatik_gorev(self.oe_subay, G.OE_SUBAY), "Öğretim Elemanı (ASK)")
 
+    def test_kadro_gorevi(self):
+        from personel.models import Secenek
+
+        from . import form
+        from .models import PersonelGrubu as G
+
+        U = Secenek.UNVAN
+        doc, deme = Secenek.objects.create(tur=U, metin="Dr.Öğt.Üyesi"), Secenek.objects.create(tur=U, metin="De.Me.")
+        p = Personel.objects.create(ad_soyad="Deneme ARMUT", bolum=self.tem, unvan=doc, brans="Fizik")
+        self.assertEqual(form.otomatik_gorev(p, G.OE_SIVIL), "Fizik Öğretim Üyesi")
+        self.oe_subay.brans = "Matematik"
+        self.assertEqual(form.otomatik_gorev(self.oe_subay, G.OE_SUBAY), "Matematik Öğretim Görevlisi")
+        self.oe_subay.gorev_unvani = "Ders Plan Subayı"  # görev unvanı branştan önce gelir
+        self.assertEqual(form.otomatik_gorev(self.oe_subay, G.OE_SUBAY), "Ders Plan Subayı")
+        self.assertEqual(self.oe_subay.kadro_gorevi, "Ders Plan Subayı")
+        memur = Personel.objects.create(ad_soyad="Deneme ELMA", unvan=deme)
+        self.assertEqual(form.otomatik_gorev(memur, G.SIVIL_MEMUR), "De.Me.")
+        self.assertEqual(form.otomatik_gorev(self.subay, G.SUBAY), "")  # bilgi yoksa boş
+        self.subay.brans = "Fizik"  # öğretim elemanı değilse branş görev sayılmaz
+        self.assertEqual(form.otomatik_gorev(self.subay, G.SUBAY), "")
+
     def test_sayim_ve_beyan(self):
         from . import form
 
