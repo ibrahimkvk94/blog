@@ -44,7 +44,7 @@
 {% endif %}
 
 <form method="get" class="d-flex flex-wrap gap-2 mb-3">
-  <input type="search" name="q" value="{{ q }}" class="form-control" style="max-width:260px" placeholder="Ad ara" aria-label="Ad ara">
+  <input type="search" name="q" value="{{ q }}" class="form-control" style="max-width:260px" placeholder="Ad ara (yazdıkça süzülür)" aria-label="Ad ara" data-anlik-ara="#kisitlamaTablosu">
   <select name="tur" class="form-select" style="max-width:220px" aria-label="Tür" onchange="this.form.submit()"><option value="">Tüm türler</option>{% for k, ad in turler %}<option value="{{ k }}" {% if tur == k %}selected{% endif %}>{{ ad }}</option>{% endfor %}</select>
   <select name="durum" class="form-select" style="max-width:200px" aria-label="Zaman" onchange="this.form.submit()">
     <option value="guncel" {% if durum == 'guncel' %}selected{% endif %}>Güncel ve ileri</option>
@@ -56,7 +56,7 @@
 
 <div class="kart">
   <div class="table-responsive">
-    <table class="table align-middle mb-0">
+    <table class="table align-middle mb-0" id="kisitlamaTablosu">
       <thead><tr><th>Personel</th><th>Tür</th><th>Dönem</th><th class="d-none d-md-table-cell">Açıklama</th><th class="d-none d-lg-table-cell">Giren</th><th></th></tr></thead>
       <tbody>
       {% for k in liste %}

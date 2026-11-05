@@ -32,7 +32,7 @@ class YetkiTestleri(TestCase):
 
     def test_yonetici_tum_personeli_gorur(self):
         self.client.force_login(self.yonetici)
-        r = self.client.get(reverse("personel:liste"))
+        r = self.client.get(reverse("personel:liste"), {"q": "personel"})  # genel görünüm birim kutucukları; arama kişileri
         self.assertContains(r, "Ask Personel")
         self.assertContains(r, "Tem Personel")
 

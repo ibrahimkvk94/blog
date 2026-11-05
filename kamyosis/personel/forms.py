@@ -14,8 +14,9 @@ class PersonelForm(forms.ModelForm):
         model = Personel
         fields = ["ad_soyad", "sicil", "bolum", "unvan", "rutbe", "sinif", "aktif", *YONETICI_ALANLARI]
 
-    def __init__(self, *args, sabit_bolum=None, yonetici=False, **kwargs):
+    def __init__(self, *args, sabit_bolum=None, yonetici=False, bolumsuz_olur=False, **kwargs):
         super().__init__(*args, **kwargs)
+        self.bolumsuz_olur = bolumsuz_olur
         if not yonetici:
             for alan in YONETICI_ALANLARI:
                 self.fields.pop(alan)
@@ -25,7 +26,9 @@ class PersonelForm(forms.ModelForm):
             self.fields["teskilat_birimi"].empty_label = "Bölümüne göre (bölüm başkanlığı)"
         self.fields["bolum"].queryset = Bolum.objects.filter(aktif=True)
         # aSc'den gelen kayıtlarda bölüm boş olabilir; formda tamamlatılır
-        self.fields["bolum"].required = True
+        self.fields["bolum"].required = not bolumsuz_olur
+        if bolumsuz_olur:
+            self.fields["bolum"].help_text = "İdari kadroda boş bırakılabilir (teşkilattaki birimi yeterli)."
         for alan, tur in (("rutbe", Secenek.RUTBE), ("sinif", Secenek.SINIF), ("unvan", Secenek.UNVAN)):
             self.fields[alan].queryset = Secenek.objects.filter(tur=tur, aktif=True)
         if sabit_bolum is not None:
@@ -43,7 +46,7 @@ class PersonelForm(forms.ModelForm):
 class KartAlaniFormu(forms.ModelForm):
     class Meta:
         model = KartAlani
-        fields = ["ad", "grup", "tur", "secenekler", "sira", "aktif"]
+        fields = ["ad", "grup", "tur", "secenekler", "sira", "aktif", "onemli"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

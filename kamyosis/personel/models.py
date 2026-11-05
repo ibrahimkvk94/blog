@@ -185,6 +185,8 @@ class KartAlani(models.Model):
                                   help_text="Seçim listesi için virgülle ayırın, ör. 0 Rh+, A Rh+")
     sira = models.PositiveIntegerField("Sıra", default=0)
     aktif = models.BooleanField("Kullanımda", default=True)
+    onemli = models.BooleanField("Boşsa eksik sayılır", default=False,
+                                 help_text="İşaretliyse bu alan boş olan kartlar \"eksik\" uyarısı alır.")
 
     class Meta:
         verbose_name = "Kart alanı"

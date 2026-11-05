@@ -18,7 +18,7 @@
           <tbody>
           {% for a in alanlar %}
             <tr {% if duzenlenen == a %}class="table-active"{% endif %}>
-              <td class="fw-semibold">{{ a.ad }}{% if a.secenekler %}<div class="small text-secondary fw-normal">{{ a.secenekler }}</div>{% endif %}</td>
+              <td class="fw-semibold">{{ a.ad }}{% if a.onemli %} <span class="durum-rozet durum-sirada ms-1">boşsa eksik</span>{% endif %}{% if a.secenekler %}<div class="small text-secondary fw-normal">{{ a.secenekler }}</div>{% endif %}</td>
               <td>{{ a.grup }}</td>
               <td class="small">{{ a.get_tur_display }}</td>
               <td class="text-end">{{ a.dolu }}</td>

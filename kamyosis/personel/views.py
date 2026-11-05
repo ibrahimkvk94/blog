@@ -1,17 +1,17 @@
 """Personel Kartları.
 
 Yetki ("Personel Kartları" birimi):
-- Görüntüleme / düzenleme: temel bilgiler (ad, sicil, bölüm, rütbe, sınıf, unvan) yetkisi kadar, bölüm kapsamlıysa
-  yalnız kendi bölümü. T.C. kimlik no maskelidir.
+- Görüntüleme / düzenleme: temel bilgiler (ad, sicil, bölüm, rütbe, sınıf, unvan) yetkisi kadar. Kapsamı "kendi
+  bölümü" olan hesap yalnız kendi teşkilat birimini (bölüm, şube müdürlüğü, kısım …) ve alt birimlerini görür;
+  tüm okulu "tüm bölümler" kapsamındakiler görür. T.C. kimlik no gizlidir.
 - Yönetim (yönetici): T.C. kimlik no, ek kart alanları (telefon, adres …), fotoğraf, ders / sınav kullanımı,
   teşkilattaki yeri, görev unvanı, idari kadro ve bölüm başkanlığı; kart alanlarını ve teşkilat şemasını yönetir.
 """
 
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
-from django.core.paginator import Paginator
 from django.db.models import Count, ProtectedError, Q
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -22,20 +22,48 @@ from core.arama import ara
 
 from . import kart
 from .forms import KartAlaniFormu, PersonelForm, TeskilatFormu
-from .models import Bolum, KartAlani, Personel, Secenek, TeskilatBirimi
+from yoklama.birim import BIRIMSIZ, Agac
+
+from .models import Bolum, KartAlani, KartDegeri, Personel, Secenek, TeskilatBirimi
 
 BIRIM = "personel-bilgileri"
 
 
+def _agac(request):
+    if not hasattr(request, "_pk_agac"):
+        request._pk_agac = Agac()
+    return request._pk_agac
+
+
+def _kapsam(request):
+    """(kapsam birimi, kimlikler) — tüm okulda (None, None)."""
+    agac = _agac(request)
+    if request.yetki_kapsam == Yetki.BOLUM:
+        u = request.user
+        b = agac.birimler.get(u.teskilat_birimi_id) or agac.bolumun(u.bolum_id)
+        return (b, agac.alt_idler(b.pk)) if b else (None, set())
+    return None, None
+
+
 def _kapsamli(request):
     qs = Personel.objects.select_related("bolum", "rutbe", "sinif", "unvan", "teskilat_birimi")
-    if request.yetki_kapsam == Yetki.BOLUM:
-        return qs.filter(bolum_id=request.user.bolum_id) if request.user.bolum_id else qs.none()
-    return qs
+    _, idler = _kapsam(request)
+    if idler is None:
+        return qs
+    return qs.filter(_agac(request).kosul(idler)) if idler else qs.none()
 
 
 def _sabit_bolum(request):
-    return request.user.bolum if request.yetki_kapsam == Yetki.BOLUM else None
+    if request.yetki_kapsam != Yetki.BOLUM or request.user.teskilat_birimi_id:
+        return None
+    return request.user.bolum
+
+
+def _sabit_birim(request):
+    """Şube müdürlüğü / kısım hesabının birimi (eklediği personel oraya yazılır)."""
+    if request.yetki_kapsam != Yetki.BOLUM:
+        return None
+    return _agac(request).birimler.get(request.user.teskilat_birimi_id)
 
 
 def _yonetici(request):
@@ -47,32 +75,141 @@ def _baglam(request, **ek):
             "duzenleyebilir": request.yetki_seviye >= DUZENLEME, **ek}
 
 
-@yetki_gerekli(BIRIM)
-def liste(request):
-    qs = _kapsamli(request)
+def _secili_birim(request):
+    agac = _agac(request)
+    kapsam_birim, idler = _kapsam(request)
+    pk = request.GET.get("birim", "")
+    b = None
+    if pk.isdigit():
+        b = agac.get(int(pk))
+        if b is BIRIMSIZ and idler is not None:
+            b = None
+    elif request.GET.get("bolum", "").isdigit():
+        b = agac.bolumun(int(request.GET["bolum"]))
+    if b is not None and b.pk and idler is not None and b.pk not in idler:
+        b = None
+    return b if b is not None else kapsam_birim
+
+
+def _liste_verisi(request):
+    """Liste ve Excel için ortak süzme: kapsam, birim, arama, durum, rütbe, eksik."""
+    agac = _agac(request)
+    yonetici = _yonetici(request)
+    birim = _secili_birim(request)
     q = request.GET.get("q", "").strip()
-    bolum = request.GET.get("bolum", "")
     rutbe = request.GET.get("rutbe", "")
     durum = request.GET.get("durum", "aktif")
-    if q:  # Türkçe harf / büyük-küçük harf duyarsız; kimlik no ile arama yalnız yöneticide
-        alanlar = ["ad_soyad", "sicil", "gorev_unvani"] + (["personel_kodu"] if _yonetici(request) else [])
-        qs = ara(qs, q, *alanlar)
-    if bolum.isdigit():
-        qs = qs.filter(bolum_id=bolum)
-    if rutbe.isdigit():
-        qs = qs.filter(rutbe_id=rutbe)
+    yalniz_eksik = yonetici and request.GET.get("eksik") == "1"
+    qs = _kapsamli(request)
     if durum == "aktif":
         qs = qs.filter(aktif=True)
     elif durum == "pasif":
         qs = qs.filter(aktif=False)
+    if rutbe.isdigit():
+        qs = qs.filter(rutbe_id=rutbe)
+    tum = list(qs.order_by("ad_soyad"))
+    if birim is not None and (q or yalniz_eksik):  # arama ve eksikler birimin altını da kapsar
+        idler = agac.alt_idler(birim.pk) if birim.pk else {0}
+        tum = [x for x in tum if agac.kisi_birimi(x) in idler]
+    if q:  # Türkçe harf / büyük-küçük harf duyarsız; kimlik no ile arama yalnız yöneticide
+        alanlar = ["ad_soyad", "sicil", "gorev_unvani"] + (["personel_kodu"] if yonetici else [])
+        bulunan = set(ara(qs, q, *alanlar).values_list("pk", flat=True))
+        tum = [x for x in tum if x.pk in bulunan]
+    eksikmap = kart.eksikler(tum) if yonetici else None
+    if yalniz_eksik:
+        tum = [x for x in tum if eksikmap.get(x.pk)]
+    for x in tum:
+        x.liste_birimi = agac.get(agac.kisi_birimi(x))
+        x.eksik_listesi = eksikmap.get(x.pk, []) if eksikmap else []
+    return {"birim": birim, "q": q, "rutbe": rutbe, "durum": durum, "yalniz_eksik": yalniz_eksik, "kisiler": tum,
+            "eksikmap": eksikmap}
 
-    sayfa = Paginator(qs, 25).get_page(request.GET.get("sayfa"))
-    sorgu = request.GET.copy()
-    sorgu.pop("sayfa", None)
-    return render(request, "personel/liste.html", _baglam(
-        request, sayfa=sayfa, toplam=qs.count(), q=q, secili_bolum=bolum, secili_rutbe=rutbe, durum=durum,
-        bolumler=Bolum.objects.filter(aktif=True) if request.yetki_kapsam == Yetki.TUM else [],
-        rutbeler=Secenek.objects.filter(tur=Secenek.RUTBE, aktif=True), sorgu=sorgu.urlencode(), sekme="liste"))
+
+@yetki_gerekli(BIRIM)
+def liste(request):
+    """Tüm okul: teşkilata göre birim kutucukları. Birim seçilince (ya da birim hesabında) o birimin kart vitrini
+    (ya da tablo); arama yazdıkça tüm kapsamda eşleşenler."""
+    from yoklama.servis import bolumle
+
+    agac = _agac(request)
+    kapsam_birim, idler = _kapsam(request)
+    v = _liste_verisi(request)
+    birim, kisiler = v["birim"], v["kisiler"]
+    gorunum = "tablo" if request.GET.get("gorunum") == "tablo" else "vitrin"
+    kip = "arama" if (v["q"] or v["yalniz_eksik"]) else ("genel" if birim is None else "birim")
+    ctx = dict(v, gorunum=gorunum, kip=kip, sekme="liste",
+               rutbeler=Secenek.objects.filter(tur=Secenek.RUTBE, aktif=True),
+               birim_secenekleri=[(b, d) for b, d in agac.sirali([kapsam_birim.pk] if kapsam_birim else None)],
+               tum_okul=idler is None,
+               birim_zinciri=[b for b in agac.zincir(birim.pk) if (idler is None or b.pk in idler) and b != birim]
+               if birim is not None and birim.pk else [])
+    if kip == "genel":
+        ctx["gruplar"] = bolumle(kart.birim_ozetleri(agac, kisiler, None, v["eksikmap"]))
+        ctx["toplam"] = len(kisiler)
+        ctx["fotosuz"] = sum(1 for x in kisiler if not x.fotograf)
+        ctx["eksik_sayi"] = sum(1 for x in kisiler if x.eksik_listesi) if v["eksikmap"] is not None else None
+    elif kip == "birim":
+        alt_idler = agac.alt_idler(birim.pk) if birim.pk else {0}
+        alttakiler = [x for x in kisiler if agac.kisi_birimi(x) in alt_idler]
+        ctx["alt_birimler"] = [o for o in kart.birim_ozetleri(agac, alttakiler, [birim.pk], v["eksikmap"], haric=birim)
+                               if o["toplam"]] if birim.pk else []
+        ctx["kisiler"] = [x for x in alttakiler if agac.kisi_birimi(x) == birim.pk]
+        ctx["toplam"] = len(ctx["kisiler"])
+        ctx["fotosuz"] = sum(1 for x in ctx["kisiler"] if not x.fotograf)
+        ctx["eksik_sayi"] = sum(1 for x in ctx["kisiler"] if x.eksik_listesi) if v["eksikmap"] is not None else None
+        ctx["sorumlu"] = (birim.bolum.baskan if getattr(birim, "bolum_id", None) and birim.bolum.baskan_id else
+                          next((x for x in ctx["kisiler"] if x.gorev_unvani and x.idari_kadro), None)
+                          or next((x for x in ctx["kisiler"] if x.gorev_unvani), None))
+    else:
+        ctx["toplam"] = len(kisiler)
+        ctx["kisiler"] = kisiler[:300]
+    return render(request, "personel/liste.html", _baglam(request, **ctx))
+
+
+@yetki_gerekli(BIRIM)
+def excel(request):
+    """Ekrandaki süzmeyle personel listesi (Excel). Kimlik no ve kart alanları yalnız yöneticide."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    v = _liste_verisi(request)
+    yonetici = _yonetici(request)
+    kisiler = v["kisiler"]
+    if v["birim"] is not None and not (v["q"] or v["yalniz_eksik"]):
+        idler = _agac(request).alt_idler(v["birim"].pk) if v["birim"].pk else {0}
+        kisiler = [x for x in kisiler if _agac(request).kisi_birimi(x) in idler]
+    alanlar = list(KartAlani.objects.filter(aktif=True)) if yonetici else []
+    degerler = {}
+    if alanlar:
+        for d in KartDegeri.objects.filter(personel__in=[x.pk for x in kisiler], alan__in=alanlar):
+            degerler[(d.personel_id, d.alan_id)] = kart.gosterim(d.alan, d.deger)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Personel"
+    basliklar = ["Ad soyad", "Künye", "Sicil no", "Birim", "Görev unvanı", "Bölüm"]
+    if yonetici:
+        basliklar += ["T.C. kimlik no"] + [a.ad for a in alanlar] + ["Eksik bilgiler"]
+    ws.append(basliklar)
+    for c in ws[1]:
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor="1F3A5F")
+        c.alignment = Alignment(vertical="center", wrap_text=True)
+    for x in kisiler:
+        satir = [x.ad_soyad, x.kunye, x.sicil, getattr(x.liste_birimi, "ad", ""), x.gorev_unvani,
+                 x.bolum.ad if x.bolum_id else ""]
+        if yonetici:
+            satir += [x.personel_kodu or ""] + [degerler.get((x.pk, a.pk), "") for a in alanlar] + [
+                ", ".join(x.eksik_listesi)]
+        ws.append(satir)
+    for i, en in enumerate([26, 22, 12, 30, 22, 26] + ([14] + [18] * len(alanlar) + [30] if yonetici else []), 1):
+        ws.column_dimensions[get_column_letter(i)].width = en
+    ws.freeze_panes = "B2"
+    cevap = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    ad = "personel_kartlari" + (f"_birim{v['birim'].pk}" if v["birim"] is not None else "")
+    cevap["Content-Disposition"] = f'attachment; filename="{ad}.xlsx"'
+    wb.save(cevap)
+    return cevap
 
 
 @yetki_gerekli(BIRIM)
@@ -97,10 +234,15 @@ def duzenle(request, pk):
 
 def _form(request, nesne):
     yonetici = _yonetici(request)
-    form = PersonelForm(request.POST or None, instance=nesne, sabit_bolum=_sabit_bolum(request), yonetici=yonetici)
+    sabit_birim = _sabit_birim(request)
+    form = PersonelForm(request.POST or None, instance=nesne, sabit_bolum=_sabit_bolum(request), yonetici=yonetici,
+                        bolumsuz_olur=yonetici or sabit_birim is not None)
     if request.method == "POST" and form.is_valid():
         eski_sinav = nesne.sinav_gorevi_alabilir if nesne else True
         p = form.save()
+        if sabit_birim is not None and p.teskilat_birimi_id is None and not p.bolum_id:
+            p.teskilat_birimi = sabit_birim  # şube / kısım hesabının eklediği personel kendi birimine
+            p.save(update_fields=["teskilat_birimi"])
         if yonetici:
             kart.kart_kaydet(p, request.POST)
             kart.baskan_ata(p, request.POST.get("bolum_baskani") == "1")

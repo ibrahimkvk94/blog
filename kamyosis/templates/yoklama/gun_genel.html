@@ -29,13 +29,13 @@
   <div class="kart yk-sayi-kart" style="--renk:#d97706"><div class="etiket"><i class="bi bi-hourglass-split"></i>Kesinleşmeyen birim</div><div class="deger">{{ eksik }}</div></div>
 </div>
 
-<form method="get" class="kart p-2 mb-3 d-flex flex-wrap align-items-center gap-2 d-print-none" role="search">
+<form method="get" class="kart p-2 mb-3 d-flex flex-wrap align-items-center gap-2 d-print-none" role="search" data-canli="#ykGenelSonuc">
   <input type="hidden" name="tarih" value="{{ tarih|date:'Y-m-d' }}">
   <i class="bi bi-search text-secondary ms-2"></i>
-  <input type="search" class="form-control border-0 shadow-none" name="q" value="{{ q }}" placeholder="Personel ara (ad soyad)…" aria-label="Personel ara" style="max-width:420px">
-  {% if q %}<a class="btn btn-sm btn-outline-secondary" href="?tarih={{ tarih|date:'Y-m-d' }}">Temizle</a>{% endif %}
+  <input type="search" class="form-control border-0 shadow-none" name="q" value="{{ q }}" placeholder="Personel ara (ad, soyad) — yazdıkça bulur" aria-label="Personel ara" style="max-width:420px" autocomplete="off">
 </form>
 
+<div id="ykGenelSonuc">
 {% if q %}
 <div class="kart mb-3">
   <div class="yardim-satiri"><i class="bi bi-search"></i> “{{ q }}” · {{ bulunan|length }} kişi</div>
@@ -51,8 +51,7 @@
     {% endfor %}
   </ul>
 </div>
-{% endif %}
-
+{% else %}
 {% for g in gruplar %}
 <section class="yk-grup mb-3">
   <h2 class="yk-grup-baslik">{% if g.baslik %}<a href="?tarih={{ tarih|date:'Y-m-d' }}&birim={{ g.baslik.pk }}">{{ g.baslik.ad }}</a>{% else %}Diğer birimler{% endif %}</h2>
@@ -61,4 +60,6 @@
 {% empty %}
 <div class="kart p-5 text-center text-secondary">Kapsamda personel yok.</div>
 {% endfor %}
+{% endif %}
+</div>
 {% endblock %}
