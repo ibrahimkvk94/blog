@@ -46,6 +46,7 @@
         </div>
       </div>
       <div class="small mt-2" data-durum aria-live="polite"></div>
+      <button type="button" class="btn btn-warning mt-2" data-yeniden hidden><i class="bi bi-arrow-repeat me-1"></i>Yeniden gönder</button>
       <details class="mt-3">
         <summary class="small text-secondary">Kamera yerine fotoğraf yükle</summary>
         <form method="post" action="{% url 'kimlik:oku' %}" enctype="multipart/form-data" data-okuma class="mt-2">
@@ -162,5 +163,5 @@ document.querySelector('[data-hepsi]')?.addEventListener('change', e => {
 .kk-cerceve { position: absolute; border: 3px solid rgba(255,255,255,.95); border-radius: 14px; box-shadow: 0 0 0 9999px rgba(15,23,42,.45); transition: border-color .2s; pointer-events: none; }
 .kk-cerceve.tamam { border-color: #22c55e; }
 </style>
-{% load static %}<script src="{% static 'js/kimlik_kamera.js' %}?v=1" defer></script>
+{% load static %}<script src="{% static 'js/kimlik_kamera.js' %}?v=2" defer></script>
 {% endblock %}

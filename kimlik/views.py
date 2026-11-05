@@ -9,6 +9,8 @@ Yetki: listeyi kullanmak için "Kimlik Kartı Okuma" biriminde düzenleme. Aktar
 """
 
 import datetime
+import logging
+import time
 
 from django.contrib import messages
 from django.http import Http404, HttpResponse, JsonResponse
@@ -24,6 +26,7 @@ from .forms import KimlikFormu
 from .models import KimlikKaydi
 
 BIRIM = "kimlik-okuma"
+log = logging.getLogger("kimlik")
 EN_BUYUK_FOTO = 20 * 1024 * 1024
 EN_BUYUK_KARE = 3 * 1024 * 1024
 
@@ -76,15 +79,23 @@ def oku(request):
         return _cevap(request, "Kartın ön ve/veya arka yüzünün fotoğrafını seçin.")
     if any(f and f.size > EN_BUYUK_FOTO for f in (on, arka)):
         return _cevap(request, "Fotoğraf 20 MB'tan büyük olamaz.")
+    bas = time.monotonic()
+    log.info("oku basladi: kullanici=%s on=%s arka=%s KB", request.user.pk, on and on.size // 1024,
+             arka and arka.size // 1024)
     try:
         with motor.sira(bekleme=60):
             sonuc = motor.oku(on, arka)
-    except motor.Mesgul:
-        return _cevap(request, "Okuma sunucusu şu an yoğun; biraz sonra yeniden deneyin.")
-    except motor.MotorYok as e:
-        return _cevap(request, f"{e} Sistem yöneticisine bildirin.")
-    except (UnidentifiedImageError, OSError, ValueError):
+    except Exception as e:
+        log.warning("oku hata: %s (%.1f sn)", type(e).__name__, time.monotonic() - bas)
+        if not isinstance(e, (motor.Mesgul, motor.MotorYok, UnidentifiedImageError, OSError, ValueError)):
+            log.exception("oku beklenmeyen hata")
+            return _cevap(request, "Okuma sırasında beklenmeyen bir hata oldu; yeniden deneyin.")
+        if isinstance(e, motor.Mesgul):
+            return _cevap(request, "Okuma sunucusu şu an yoğun; biraz sonra yeniden deneyin.")
+        if isinstance(e, motor.MotorYok):
+            return _cevap(request, f"{e} Sistem yöneticisine bildirin.")
         return _cevap(request, "Fotoğraf açılamadı. Telefonun kamerasıyla JPEG / PNG olarak çekip yeniden deneyin.")
+    log.info("oku bitti: %.1f sn, %d uyari", time.monotonic() - bas, len(sonuc.uyarilar))
     k = servis.sonuctan_kayit(sonuc, request.user)
     tur = request.POST.get("tur", "")
     if tur in dict(KimlikKaydi.TURLER):
@@ -100,9 +111,12 @@ def kare(request):
     dosya, yuz = request.FILES.get("kare"), request.POST.get("yuz", "on")
     if not dosya or dosya.size > EN_BUYUK_KARE:
         return JsonResponse({"uygun": False, "mesaj": "Kare alınamadı."}, status=400)
+    bas = time.monotonic()
     try:
         with motor.sira(bekleme=3):
             uygun, mesaj = motor.hizli_kontrol(dosya, "arka" if yuz == "arka" else "on")
+        log.info("kare %s %d KB: %s (%.1f sn)", yuz, dosya.size // 1024, "uygun" if uygun else "degil",
+                 time.monotonic() - bas)
     except motor.Mesgul:
         return JsonResponse({"uygun": False, "mesaj": "Sunucu başka bir kartı okuyor, bekleniyor…"})
     except motor.MotorYok as e:
