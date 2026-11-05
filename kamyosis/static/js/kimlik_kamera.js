@@ -134,15 +134,28 @@
     acBtn.disabled = false;
   }
 
-  async function gonder(fd) {
+  // Son gönderim: ağ koparsa bir kez kendiliğinden yeniden denenir; yine olmazsa yakalanan kareler kaybolmaz,
+  // "Yeniden gönder" ile aynı kareler tekrar gönderilir.
+  const yenidenBtn = $('[data-yeniden]');
+  let sonFd = null;
+  async function gonder(fd, deneme = 1) {
+    sonFd = fd; yenidenBtn.hidden = true;
+    const bas = Date.now();
+    const sayac = setInterval(() => yaz(`Kart okunuyor… ${Math.round((Date.now() - bas) / 1000)} sn`), 1000);
     try {
       const j = await istek(OKU, fd, 120000);
+      clearInterval(sayac);
       if (j.yonlendir) { yaz('Okundu, kontrol sayfası açılıyor…', 'ok'); location.href = j.yonlendir; return; }
       yaz(j.hata || 'Okunamadı.', 'hata');
+      yenidenBtn.hidden = false;
     } catch (e) {
-      yaz(e.name === 'AbortError' ? 'Zaman aşımı: bağlantı çok yavaş. Yeniden deneyin.' : `Bağlantı hatası: ${e.message}`, 'hata');
+      clearInterval(sayac);
+      if (deneme < 2 && e.name !== 'AbortError') { yaz('Bağlantı koptu, yeniden gönderiliyor…'); await bekle(1500); return gonder(fd, deneme + 1); }
+      yaz(e.name === 'AbortError' ? 'Zaman aşımı: bağlantı çok yavaş.' : `Bağlantı hatası (${e.message}). Kareler duruyor; yeniden gönderebilirsiniz.`, 'hata');
+      yenidenBtn.hidden = false;
     }
   }
+  yenidenBtn.addEventListener('click', () => { if (sonFd) gonder(sonFd); });
 
   if (window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
     acBtn.addEventListener('click', ac);
