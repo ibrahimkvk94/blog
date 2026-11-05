@@ -9,6 +9,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from core.arama import ara
 from core.yetki import YONETIM, yetki_gerekli, yol
 from personel.models import Bolum, Personel, Secenek
 
@@ -221,7 +222,7 @@ def personel(request):
     durum = request.GET.get("durum", "")
     rutbe = request.GET.get("rutbe", "")
     if q:
-        qs = qs.filter(ad_soyad__icontains=q)
+        qs = ara(qs, q, "ad_soyad")
     if durum in dict(Personel.NOBET_DURUMLARI):
         qs = qs.filter(nobet_durumu=durum)
     if rutbe == "yok":
@@ -435,7 +436,7 @@ def kisitlamalar(request):
     durum = request.GET.get("durum", "guncel")
     bugun = timezone.localdate()
     if q:
-        qs = qs.filter(personel__ad_soyad__icontains=q)
+        qs = ara(qs, q, "personel__ad_soyad")
     if tur in dict(NobetKisitlamasi.TURLER):
         qs = qs.filter(tur=tur)
     if durum == "guncel":

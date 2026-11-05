@@ -236,3 +236,32 @@ class BolumMenusuTestleri(TestCase):
         # yönetici hesabı etkilenmez
         self.client.force_login(self.yon)
         self.assertEqual(self.client.get(reverse("mazeret:ders")).status_code, 200)
+
+
+class TurkceAramaTestleri(TestCase):
+    """Arama Türkçe harf ve büyük-küçük harf duyarsızdır; sözcük sırası önemsizdir."""
+
+    def test_ara(self):
+        from .arama import ara, eslesir
+
+        b = Bolum.objects.create(ad="Askeri Bilimler", kod="ASK")
+        p1 = Personel.objects.create(ad_soyad="Deneme KİRAZ", bolum=b)
+        p2 = Personel.objects.create(ad_soyad="Şükrü IŞIK", bolum=b)
+        p3 = Personel.objects.create(ad_soyad="Ayşe YILMAZ", bolum=b)
+        qs = Personel.objects.all()
+        bul = lambda q: set(ara(qs, q, "ad_soyad"))
+        self.assertEqual(bul("kiraz"), {p1})
+        self.assertEqual(bul("KİRAZ"), {p1})
+        self.assertEqual(bul("kiraz deneme"), {p1})
+        self.assertEqual(bul("işık"), {p2})
+        self.assertEqual(bul("sukru isik"), {p2})
+        self.assertEqual(bul("ayse"), {p3})
+        self.assertEqual(bul("yılmaz ayşe"), {p3})
+        self.assertEqual(bul("x"), set())
+        self.assertTrue(eslesir("kiraz", "Deneme KİRAZ"))
+
+    def test_personel_listesinde_soyadla_arama(self):
+        u = User.objects.create_superuser("y2", password="x-Parola-123")
+        Personel.objects.create(ad_soyad="Deneme KİRAZ")
+        self.client.force_login(u)
+        self.assertContains(self.client.get(reverse("personel:liste"), {"q": "kiraz"}), "KİRAZ")

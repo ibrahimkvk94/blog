@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from core.arama import ara
 from core.yetki import YONETIM, yetki_gerekli, yol
 from personel.models import Personel
 
@@ -184,7 +185,7 @@ def ogretmenler(request):
     if durum in dict(ProgramOgretmeni.DURUM_SECENEKLERI):
         qs = qs.filter(durum=durum)
     if q:
-        qs = qs.filter(Q(ad__icontains=q) | Q(personel__ad_soyad__icontains=q))
+        qs = ara(qs, q, "ad", "personel__ad_soyad")
     liste = list(qs)
     oneri = eslestirme.oneriler([o for o in liste if o.durum == ProgramOgretmeni.BEKLIYOR])
     for o in liste:

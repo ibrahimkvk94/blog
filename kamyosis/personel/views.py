@@ -18,6 +18,8 @@ from django.views.decorators.http import require_POST
 from core.models import Yetki
 from core.yetki import DUZENLEME, YONETIM, yetki_gerekli, yol
 
+from core.arama import ara
+
 from . import kart
 from .forms import KartAlaniFormu, PersonelForm, TeskilatFormu
 from .models import Bolum, KartAlani, Personel, Secenek, TeskilatBirimi
@@ -52,11 +54,9 @@ def liste(request):
     bolum = request.GET.get("bolum", "")
     rutbe = request.GET.get("rutbe", "")
     durum = request.GET.get("durum", "aktif")
-    if q:
-        kosul = Q(ad_soyad__icontains=q) | Q(sicil__icontains=q)
-        if _yonetici(request):  # kimlik no ile arama yalnız yöneticide
-            kosul |= Q(personel_kodu__icontains=q)
-        qs = qs.filter(kosul)
+    if q:  # Türkçe harf / büyük-küçük harf duyarsız; kimlik no ile arama yalnız yöneticide
+        alanlar = ["ad_soyad", "sicil", "gorev_unvani"] + (["personel_kodu"] if _yonetici(request) else [])
+        qs = ara(qs, q, *alanlar)
     if bolum.isdigit():
         qs = qs.filter(bolum_id=bolum)
     if rutbe.isdigit():
