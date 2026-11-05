@@ -61,6 +61,15 @@
       </dl>
     </div>
   </div>
+  {% if izin_haklari %}
+  <div class="col-12 col-md-6 col-xl-4">
+    <div class="kart p-3 h-100">
+      <h2 class="h6 fw-bold mb-3"><i class="bi bi-calendar-check me-1"></i>İzin hakları · {{ izin_yili }}</h2>
+      <div class="d-grid gap-3">{% for o in izin_haklari %}{% include "yoklama/_hak_satiri.html" with o=o %}{% endfor %}</div>
+      <div class="small text-secondary mt-3">Takvim yılı, takvim günü; yalnız tam gün kayıtları düşer. Ayrıntı: <a href="{% url 'yoklama:kart' p.pk %}">yoklama kartı</a>.</div>
+    </div>
+  </div>
+  {% endif %}
   {% if yonetici %}
     {% for grup, alanlar in kart_bilgileri %}
     <div class="col-12 col-md-6 col-xl-4">

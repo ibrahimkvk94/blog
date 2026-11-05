@@ -66,6 +66,12 @@ def grup_ve_gorev(p, atama=None):
     return grup, gorev
 
 
+def _rapor_sirasi(tur):
+    """İzin türünün rapor sırası (1 en başta). Sırası verilmemiş türler sonda ve kendi aralarında türe göre değil
+    eskisi gibi grup ve kıdeme göre sıralanır; aynı sıradaki türlerde de grup/kıdem geçerlidir."""
+    return tur.rapor_sirasi if tur.rapor_sirasi is not None else 10 ** 4
+
+
 def _tarih_metni(an):
     return f"{an:%d.%m.%Y}" if an.hour == an.minute == 0 else f"{an:%d.%m.%Y %H:%M}"
 
@@ -87,11 +93,12 @@ def gunluk(tarih, kisiler, birim=None, ata=None):
         if d.gun_boyu:
             gayri[grup] += 1
             k = next(k for k in d.kayitlar if k.baslangic <= bas and k.bitis >= bit)
+            sira = (_rapor_sirasi(k.tur),) + sira
             beyan.append({"sira": sira, "personel": p, "kimlik": p.tam_ad, "gorev": gorev, "sebep": k.tur.ad,
                           "ayrilis": _tarih_metni(k.yerel_bas), "katilis": _tarih_metni(k.yerel_bit), "kayit": k})
         else:
             for k in d.kayitlar:
-                saatlik.append({"sira": sira, "personel": p, "kimlik": p.tam_ad, "sebep": k.tur.ad,
+                saatlik.append({"sira": (_rapor_sirasi(k.tur),) + sira, "personel": p, "kimlik": p.tam_ad, "sebep": k.tur.ad,
                                 "aralik": f"{k.yerel_bas:%H:%M}–{k.yerel_bit:%H:%M}", "kayit": k})
     beyan.sort(key=lambda s: s["sira"])
     saatlik.sort(key=lambda s: s["sira"])

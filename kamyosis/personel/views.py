@@ -13,6 +13,7 @@ from django.core.exceptions import PermissionDenied
 from django.db.models import Count, ProtectedError, Q
 from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 from core.models import Yetki
@@ -219,7 +220,14 @@ def detay(request, pk):
     return render(request, "personel/detay.html", _baglam(
         request, p=p, breadcrumb_ek=True, teskilat_yeri=kart.teskilattaki_yeri(p),
         kart_bilgileri=kart.kart_bilgileri(p, sadece_dolu=False) if yonetici else [],
-        baskan_mi=bool(p.bolum_id and p.bolum.baskan_id == p.pk)))
+        baskan_mi=bool(p.bolum_id and p.bolum.baskan_id == p.pk), **_izin_haklari(p)))
+
+
+def _izin_haklari(p):
+    from yoklama import servis as yoklama_servis
+
+    yil = timezone.localdate().year
+    return {"izin_yili": yil, "izin_haklari": yoklama_servis.izin_haklari(p, yil)}
 
 
 @yetki_gerekli(BIRIM, DUZENLEME)

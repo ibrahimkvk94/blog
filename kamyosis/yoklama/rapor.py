@@ -15,10 +15,10 @@ def excel(bas_tarih, bit_tarih, kisiler, bolum=None):
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter
 
-    turler = list(IzinTuru.objects.all())
+    turler = list(IzinTuru.objects.filter(mevcut_sayilir=False))
     gunler = [bas_tarih + datetime.timedelta(days=i) for i in range((bit_tarih - bas_tarih).days + 1)]
     bas, bit = servis.gun_araligi(bas_tarih)[0], servis.gun_araligi(bit_tarih)[1]
-    kayitlar = servis.kayitlar([p.pk for p in kisiler], bas, bit)
+    kayitlar = servis.kayitlar([p.pk for p in kisiler], bas, bit, yoklama=True)
     kalin = Font(bold=True, color="FFFFFF")
     zemin = PatternFill("solid", fgColor="1F3A5F")
 

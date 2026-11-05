@@ -50,7 +50,7 @@
     <div class="ms-lg-auto" style="min-width:220px">
       <div class="small text-uppercase mb-2" style="letter-spacing:.06em;color:#9fb3cc;font-weight:600">{{ yil }} yılı</div>
       <div class="d-grid gap-2">
-        {% for o in yil_ozeti %}<div class="d-flex align-items-center justify-content-between gap-3"><span class="yk-cip" style="--renk: {{ o.tur.renk }}"><span class="yk-nokta"></span>{{ o.tur.ad }}</span><span class="fw-semibold">{% if o.gun %}{{ o.gun }} gün{% endif %}{% if o.gun and o.saat %} · {% endif %}{% if o.saat %}{{ o.saat|floatformat:"-1" }} saat{% endif %}</span></div>{% endfor %}
+        {% for o in yil_ozeti %}{% include "yoklama/_hak_satiri.html" with o=o koyu=True %}{% endfor %}
       </div>
     </div>
     {% endif %}
@@ -121,5 +121,5 @@
   </ul>
 </div>
 {% endif %}
-<script src="{% static 'js/yoklama.js' %}?v=1" defer></script>
+<script src="{% static 'js/yoklama.js' %}?v=2" defer></script>
 {% endblock %}

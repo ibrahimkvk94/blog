@@ -10,16 +10,40 @@
     const bs = kap.querySelector('[name="bas_saat"]');
     const bt = kap.querySelector('[name="bit_saat"]');
     const sure = kap.querySelector("[data-sure]");
+    const hakSonuc = kap.querySelector("[data-hak-sonuc]");
+    const hakVeri = kap.dataset.hak ? JSON.parse((document.getElementById(kap.dataset.hak) || {}).textContent || "{}") : null;
     const secili = () => (Array.from(bicimler).find((r) => r.checked) || {}).value || "tam";
+    const seciliTur = () => (kap.querySelector('[name="tur"]:checked') || {}).value;
+    // seçilen türün yıllık hakkı: bu kayıttan sonra kalan (yıl yıl; takvim günü)
+    function hakMetni(basT, bitT) {
+      const h = hakVeri && hakVeri[seciliTur()];
+      if (!h) return "";
+      const parcalar = [];
+      for (let yil = Number(basT.slice(0, 4)); yil <= Number(bitT.slice(0, 4)); yil++) {
+        const a = basT > `${yil}-01-01` ? basT : `${yil}-01-01`, b = bitT < `${yil}-12-31` ? bitT : `${yil}-12-31`;
+        const n = gunFarki(a, b) + 1;
+        if (n <= 0) continue;
+        const kullanilan = (h.kullanilan || {})[String(yil)];
+        if (kullanilan === undefined) continue;
+        const kalan = h.hak - kullanilan - n;
+        parcalar.push({ yil, metin: kalan >= 0 ? `${yil}: kalan ${h.hak - kullanilan} → ${kalan} gün` : `${yil}: hak aşımı ${-kalan} gün (kalan ${h.hak - kullanilan})`, asim: kalan < 0 });
+      }
+      if (!parcalar.length) return "";
+      hakSonuc.classList.toggle("text-danger", parcalar.some((p) => p.asim));
+      hakSonuc.classList.toggle("fw-semibold", parcalar.some((p) => p.asim));
+      return `· ${h.ad} ${parcalar.map((p) => p.metin).join(", ")}`;
+    }
     function guncelle() {
       const b = secili();
       kap.querySelectorAll("[data-sadece]").forEach((el) => { el.hidden = el.dataset.sadece !== b; });
       if (bit) bit.required = b === "tam";
       if (bit && bas && bas.value && (!bit.value || bit.value < bas.value)) bit.value = bas.value;
       if (!sure) return;
+      if (hakSonuc) { hakSonuc.textContent = ""; hakSonuc.classList.remove("text-danger", "fw-semibold"); }
       if (b === "tam" && bas.value && bit.value) {
         const n = gunFarki(bas.value, bit.value) + 1;
         sure.textContent = n > 0 ? `${n} gün` : "Bitiş başlangıçtan önce olamaz.";
+        if (n > 0 && hakSonuc) hakSonuc.textContent = hakMetni(bas.value, bit.value);
       } else if (b === "saat" && bs.value && bt.value) {
         const [h1, m1] = bs.value.split(":").map(Number), [h2, m2] = bt.value.split(":").map(Number);
         const dk = (h2 * 60 + m2) - (h1 * 60 + m1);
@@ -27,6 +51,7 @@
       } else sure.textContent = "";
     }
     bicimler.forEach((r) => r.addEventListener("change", guncelle));
+    kap.querySelectorAll('[name="tur"]').forEach((r) => r.addEventListener("change", guncelle));
     [bas, bit, bs, bt].forEach((el) => el && el.addEventListener("input", guncelle));
     guncelle();
   }
