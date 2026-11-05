@@ -176,3 +176,23 @@ class PersonelKartiTestleri(TestCase):
         ys = mservis.yetki(type("I", (), {"user": User.objects.get(username="su")})(), mservis.TURLER["sinav"])
         self.assertNotIn(diger, list(mservis.personeller(ys)))
         self.assertIn(self.p, list(mservis.personeller(ys)))
+
+
+class MakamMuhruTestleri(TestCase):
+    def test_mudur_ve_yardimci_muhru(self):
+        from yoklama.isaretler import personel_isaretleri
+
+        kok = TeskilatBirimi.objects.create(ad="Müdürlük", tur=TeskilatBirimi.MUDURLUK)
+        yrd = TeskilatBirimi.objects.create(ad="Müdür Yardımcısı", tur=TeskilatBirimi.YARDIMCI, ust=kok)
+        mudur = Personel.objects.create(ad_soyad="Ali KAYA", teskilat_birimi=kok, gorev_unvani="Müdür", idari_kadro=True)
+        yardimci = Personel.objects.create(ad_soyad="Veli ÇELİK", teskilat_birimi=yrd, gorev_unvani="Müdür Yardımcısı")
+        sekreter = Personel.objects.create(ad_soyad="Can DEMİR", teskilat_birimi=kok, gorev_unvani="Müdürlük Sekreteri",
+                                           idari_kadro=True)
+        m = personel_isaretleri(mudur)
+        self.assertEqual([e for _, e in m], ["Yüksekokul müdürü"])  # idari kadro nişanının yerine
+        self.assertEqual(str(m[0][0]).count("<polygon"), 2)       # iki yıldız
+        y = personel_isaretleri(yardimci)
+        self.assertEqual([e for _, e in y], ["Müdür yardımcısı"])
+        self.assertEqual(str(y[0][0]).count("<polygon"), 0)        # yıldızsız
+        self.assertIn("MÜDÜR YARDIMCISI", str(y[0][0]))
+        self.assertEqual([e for _, e in personel_isaretleri(sekreter)], ["Müdürlük Sekreteri"])  # idari kadro nişanı
