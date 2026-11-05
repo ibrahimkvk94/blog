@@ -182,3 +182,5 @@ PUBLIC_URL = os.environ.get("KAMYOSIS_PUBLIC_URL", "").rstrip("/")
 # E-posta bildirimleri: EMAIL_HOST verilmezse gönderilmez
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "kamyosis@localhost")
+# Ders Programı modülü KAMYOSİS içinde (sol menü sabit) aynı sitenin çerçevesinde açılır; başka siteler çerçeveleyemez.
+X_FRAME_OPTIONS = "SAMEORIGIN"

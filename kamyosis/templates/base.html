@@ -10,7 +10,18 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css">
-  <link rel="stylesheet" href="{% static 'css/kamyosis.css' %}?v=23">
+  <link rel="stylesheet" href="{% static 'css/kamyosis.css' %}?v=24">
+  <script>
+    /* Çerçevede açılmış bir KAMYOSİS sayfası (ör. oturum düşüp girişe yönlenen modül sayfası) ana pencereye çıkar;
+       sol menü daraltma tercihi sayfa çizilmeden uygulanır (titreme olmasın). */
+    try { if (window.top !== window.self && window.top.location.origin === location.origin) window.top.location.replace(location.href); } catch (e) {}
+    try { if (localStorage.getItem("kenar-dar") === "1") document.documentElement.classList.add("kenar-dar"); } catch (e) {}
+  </script>
+  <script type="speculationrules">
+  {"prefetch": [{"where": {"and": [{"href_matches": "/*"},
+     {"not": {"selector_matches": "a[href*='excel'], a[href*='/rapor/'], a[href*='/hesap/'], a[href*='/yonetim/'], a[download], a[target], [data-onyukleme='yok']"}}]},
+   "eagerness": "moderate"}]}
+  </script>
 </head>
 <body>
 {% block body %}
@@ -53,6 +64,32 @@
       </ul>
       {% endif %}
     </nav>
+    <script>
+    /* Sol menü sayfadan sayfaya aynı kalır: açılan dallar ve kaydırma yeri hatırlanır. */
+    (function () {
+      var k = document.getElementById("kenarCubugu"), acik = [];
+      try { acik = JSON.parse(localStorage.getItem("kenar-acik") || "[]"); } catch (e) {}
+      acik.forEach(function (id) {
+        var u = document.getElementById(id), a = k.querySelector('[href="#' + id + '"]');
+        if (!u || !a) return;
+        u.classList.add("show"); a.classList.remove("collapsed"); a.setAttribute("aria-expanded", "true");
+      });
+      try { var y = sessionStorage.getItem("kenar-kaydir"); if (y) k.scrollTop = +y; } catch (e) {}
+      addEventListener("pagehide", function () { try { sessionStorage.setItem("kenar-kaydir", k.scrollTop); } catch (e) {} });
+      function kaydet() {
+        var ids = [].map.call(k.querySelectorAll(".kenar-menu ul.collapse.show"), function (u) { return u.id; });
+        try { localStorage.setItem("kenar-acik", JSON.stringify(ids)); } catch (e) {}
+      }
+      k.addEventListener("shown.bs.collapse", kaydet);
+      k.addEventListener("hidden.bs.collapse", kaydet);
+      // daraltılmış menüde: simgenin üzerine gelince adı görünsün; dala basınca menü genişlesin
+      k.querySelectorAll(".nav-link").forEach(function (a) { var t = a.querySelector("span"); if (t && !a.title) a.title = t.textContent.trim(); });
+      k.addEventListener("click", function (e) {
+        var a = e.target.closest('[data-bs-toggle="collapse"]');
+        if (a && document.documentElement.classList.contains("kenar-dar")) { window.kenarDaralt(false); }
+      }, true);
+    })();
+    </script>
   </aside>
 
   <div class="icerik-alani">
@@ -60,6 +97,7 @@
       <button class="btn btn-link text-body d-lg-none p-0 me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#kenarCubugu" aria-controls="kenarCubugu" aria-label="Menüyü aç">
         <i class="bi bi-list fs-3"></i>
       </button>
+      <button type="button" class="btn btn-light kenar-dugme d-none d-lg-inline-flex" id="kenarDugmesi" title="Sol menüyü daralt / genişlet" aria-label="Sol menüyü daralt / genişlet" aria-controls="kenarCubugu" onclick="kenarDaralt()"><i class="bi bi-layout-sidebar-inset"></i></button>
       <button type="button" id="geriDugmesi" class="btn btn-light geri-btn" title="Önceki sayfaya dön" aria-label="Geri" hidden><i class="bi bi-arrow-left"></i><span class="d-none d-sm-inline ms-1">Geri</span></button>
       <nav aria-label="breadcrumb" class="flex-grow-1 min-w-0">
         <ol class="breadcrumb mb-0 text-truncate">
@@ -98,7 +136,7 @@
       </div>
     </header>
 
-    <main class="icerik">
+    <main class="icerik{% block icerik_sinifi %}{% endblock %}">
       {% for m in messages %}
         <div class="alert alert-{% if m.tags == 'error' %}danger{% else %}{{ m.tags|default:'info' }}{% endif %} alert-dismissible fade show" role="alert">
           {{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Kapat"></button>
@@ -110,6 +148,22 @@
 </div>
 {% endblock %}
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+/* Sol menü daralt / genişlet (tercih saklanır). Ders Programı ve Sınav Planlama bağlantıları KAMYOSİS'in içinde,
+   sağ panelde açılır; sol menü yerinde kalır. */
+window.kenarDaralt = function (dar) {
+  var r = document.documentElement;
+  dar = typeof dar === "boolean" ? dar : !r.classList.contains("kenar-dar");
+  r.classList.toggle("kenar-dar", dar);
+  try { localStorage.setItem("kenar-dar", dar ? "1" : "0"); } catch (e) {}
+};
+(function () {
+  var cerceve = "{% url 'dersprogrami_kopru:cerceve' %}";
+  document.querySelectorAll('a[href^="/ders-programi/"], a[href^="/ders-programi-kopru/sinavlar/"]').forEach(function (a) {
+    if (!a.target) a.setAttribute("href", cerceve + "?u=" + encodeURIComponent(a.getAttribute("href")));
+  });
+})();
+</script>
 <script src="{% static 'js/parola_goster.js' %}?v=1"></script>
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
 <script>

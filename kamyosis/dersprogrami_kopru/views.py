@@ -1,3 +1,4 @@
+from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.shortcuts import redirect, render
 
@@ -24,3 +25,30 @@ def sinavlar(request):
         messages.info(request, "Sınav programı, Ders Programı modülündeki bir programa bağlıdır. Önce program ekleyin.")
         return redirect("timetable:school_list")
     return redirect("sinav:periods", pk=okul.pk)
+
+
+MODUL_ONEKI = "/ders-programi/"
+
+
+def _guvenli_modul_adresi(u):
+    """Çerçevede yalnız bu sitenin Ders Programı / Sınav Planlama sayfaları açılır."""
+    u = (u or "").strip()
+    if not u.startswith((MODUL_ONEKI, "/ders-programi-kopru/sinavlar/")) or "//" in u or ".." in u or "\\" in u or any(ord(c) < 32 for c in u):
+        return MODUL_ONEKI
+    return u
+
+
+@login_required
+def cerceve(request):
+    """Ders Programı / Sınav Planlama sayfalarını KAMYOSİS'in içinde (sol menü sabit) açar; adres çubuğu ve geri /
+    ileri tuşları çerçevedeki sayfayı izler."""
+    from core.yetki import birim_bul, yol
+
+    u = _guvenli_modul_adresi(request.GET.get("u"))
+    slug = "sinav-planlari" if u.startswith((MODUL_ONEKI + "sinav-planlama/", "/ders-programi-kopru/sinavlar/"))         else "program-hazirlama"
+    try:
+        request.birim = birim_bul(request, slug)
+        baglam_yol = yol(request, request.birim)
+    except Exception:  # birim yoksa da çerçeve açılsın
+        baglam_yol = []
+    return render(request, "dersprogrami_kopru/cerceve.html", {"u": u, "yol": baglam_yol})

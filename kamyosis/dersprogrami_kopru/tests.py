@@ -112,6 +112,18 @@ class AraKatmanTests(TestCase):
         self.assertEqual(r.status_code, 302)
         self.assertTrue(r["Location"].startswith(reverse("login")))
 
+    def test_modul_kamyosis_cercevesinde_acilir(self):
+        self.client.force_login(self.admin)
+        r = self.client.get(reverse("dersprogrami_kopru:cerceve"), {"u": "/ders-programi/ders-planlama/"})
+        self.assertContains(r, 'src="/ders-programi/ders-planlama/"')
+        self.assertContains(r, "kenarCubugu")  # KAMYOSİS sol menüsü yerinde
+        for kotu in ("https://ornek.com/", "//ornek.com/", "/hesap/giris/", "/ders-programi/../yonetim/x\y"):
+            r = self.client.get(reverse("dersprogrami_kopru:cerceve"), {"u": kotu})
+            self.assertContains(r, 'src="/ders-programi/"')
+        r = self.client.get(reverse("timetable:school_list"))
+        self.assertContains(r, "html.gomulu")  # modül sayfası çerçeveye alınma betiğini taşır
+        self.assertEqual(r["X-Frame-Options"], "SAMEORIGIN")
+
     def test_modul_ana_sayfasi_acilir(self):
         self.client.force_login(self.admin)
         r = self.client.get(reverse("timetable:school_list"))

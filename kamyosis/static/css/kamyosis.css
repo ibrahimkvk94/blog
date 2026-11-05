@@ -439,3 +439,32 @@ a.yk-kisi:hover .ad { color: #2f5d8a; text-decoration: underline; }
   background: #fffbea; border: 1px solid #ecdca4; color: #3f3206; transition: transform .15s; }
 .tk-bolum .tk-ad { font-size: .85rem; padding-right: 1.6rem; }
 .tk-bolum .tk-sayi { position: absolute; top: .45rem; right: .45rem; }
+
+/* Sayfa geçişi: sol menü ve üst çubuk yerinde durur, yalnız içerik değişir (destekleyen tarayıcılarda) */
+@view-transition { navigation: auto; }
+.kenar { view-transition-name: kenar; }
+.ust-cubuk { view-transition-name: ust-cubuk; }
+::view-transition-old(kenar), ::view-transition-old(ust-cubuk) { display: none; }
+::view-transition-new(kenar), ::view-transition-new(ust-cubuk) { animation: none; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .16s; }
+@media (prefers-reduced-motion: reduce) { @view-transition { navigation: none; } }
+
+/* Sol menü daraltma (geniş ekran): yalnız simgeler */
+.kenar-dugme { align-items: center; justify-content: center; width: 38px; height: 38px; padding: 0; }
+@media (min-width: 992px) {
+  .kenar { transition: width .18s ease; }
+  html.kenar-dar .kenar { width: 72px; overflow-x: hidden; }
+  html.kenar-dar .kenar .marka > span:not(.marka-ikon), html.kenar-dar .kenar .nav-link span,
+  html.kenar-dar .kenar .menu-baslik, html.kenar-dar .kenar .nav-link .ok, html.kenar-dar .kenar ul ul { display: none !important; }
+  html.kenar-dar .kenar .kenar-ust { justify-content: center; padding: 1rem .4rem; }
+  html.kenar-dar .kenar .marka-logo { width: 40px; height: 40px; }
+  html.kenar-dar .kenar .kenar-menu { padding: .5rem .45rem 1.5rem; }
+  html.kenar-dar .kenar .nav-link { justify-content: center; padding: .6rem 0; }
+  html.kenar-dar .kenar .nav-link > .bi:first-child { font-size: 1.2rem; }
+  html.kenar-dar .kenar .menu-baslik + ul { border-top: 1px solid rgba(255,255,255,.1); margin-top: .45rem; padding-top: .45rem; }
+}
+
+/* Ders Programı / Sınav Planlama: KAMYOSİS içinde, sağ panelde */
+.icerik.icerik-cerceve { padding: 0; max-width: none; display: flex; flex: 1; }
+.dp-cerceve { display: block; border: 0; width: 100%; height: calc(100vh - 59px); background: #fff; }
+@supports (height: 100dvh) { .dp-cerceve { height: calc(100dvh - 59px); } }

@@ -22,6 +22,9 @@ EV_SIMGESI = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
 
 DEGISIKLIKLER = {
     "base.html": [
+        # Modül sayfaları KAMYOSİS'in çerçevesinde açılır (sol menü sabit kalır); bkz. dersprogrami_kopru/gomulu.html
+        ("  {% block head %}{% endblock %}\n</head>",
+         "  {% include \"dersprogrami_kopru/gomulu.html\" %}\n  {% block head %}{% endblock %}\n</head>"),
         ("{% block title %}Ders Programı{% endblock %} · Ders Programı</title>",
          "{% block title %}Ders Programı{% endblock %} · KAMYOSİS</title>\n"
          "  <link rel=\"icon\" href=\"{% static 'img/favicon.ico' %}\" sizes=\"any\">"),
