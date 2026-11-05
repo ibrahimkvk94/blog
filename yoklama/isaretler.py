@@ -171,8 +171,8 @@ def kep(serit):
     return f'<svg viewBox="0 0 64 80" width="64" height="80" aria-hidden="true">{"".join(s)}</svg>'
 
 
-# sivil personel: gömlek ve kravat (Devlet memuru / VKHİ)
-SIVIL = {"De.Me": ("Devlet memuru", "#f8fafc", "#1f3a5f"), "VKH": ("VKHİ", "#cfe3f5", "#7d2f45")}
+# sivil personel: gömlek ve kravat (Devlet memuru / VHKİ: Veri Hazırlama Kontrol İşletmeni)
+SIVIL = {"De.Me": ("Devlet memuru", "#f8fafc", "#1f3a5f"), "VHK": ("VHKİ", "#cfe3f5", "#7d2f45")}
 
 
 def gomlek(gomlek_rengi, kravat_rengi):
