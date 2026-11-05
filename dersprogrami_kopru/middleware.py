@@ -42,7 +42,7 @@ KAPALI = {
 # açık; yedeği ayrı kopyaya yükleyen karşılaştırma (POST) kapalı.
 KAPALI_POST = {"backup_compare": _SISTEM}
 # Modülün giriş ve hesap sayfası yerine KAMYOSİS'inkiler
-YONLENDIR = {"account": "parola_degistir"}
+YONLENDIR = {"account": "parola_degistir", "account_two_factor": "iki_adim"}
 
 SINAV_AD_ALANI = "sinav"  # Sınav Planlama modülünün adresleri (ders-programi/sinav-planlama/)
 # Program Hazırlama yetkisi olmayıp yalnızca Sınav Planları'na girenlerin açabildiği Ders Planlama sayfaları;
@@ -118,7 +118,7 @@ class KopruMiddleware:
             if not request.user.is_authenticated:  # ör. girişsiz vekâlet panosu
                 raise Http404("Bu sayfa KAMYOSİS'te kullanılmıyor.")
             return render(request, "dersprogrami_kopru/kapali.html", {"neden": neden}, status=404)
-        if ad == "login":
+        if ad in ("login", "login_verify"):  # tek giriş kapısı KAMYOSİS'inki (kilit, iki adımlı doğrulama)
             return redirect_to_login(request.GET.get("next") or "/", settings.LOGIN_URL)
         if ad in YONLENDIR:
             return redirect(YONLENDIR[ad])
