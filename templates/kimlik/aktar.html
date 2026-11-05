@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Aktarım önizlemesi{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Aktarım</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Aktarım önizlemesi</h1>
+    <p class="text-secondary mb-0">Personel satırları T.C. kimlik no ile personel kartına (kimlik bilgileri kartın “Kimlik” başlığına), öğrenci satırları öğrenci kaydına yazılır. Var olan personelin ad soyadı değiştirilmez. Onaylamadan hiçbir şey yazılmaz.</p>
+  </div>
+</div>
+
+<div class="kart mb-3">
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead><tr><th>Ad soyad</th><th>T.C. kimlik no</th><th>Tür</th><th>Ne yapılacak</th><th>Notlar</th></tr></thead>
+      <tbody>
+      {% for p in planlar %}
+        <tr {% if not p.aktarilir %}class="text-secondary"{% endif %}>
+          <td class="fw-semibold">{{ p.kayit.ad_soyad|default:"—" }}</td>
+          <td class="font-monospace">{{ p.kayit.tc|default:"—" }}</td>
+          <td>{{ p.kayit.get_tur_display|default:"—" }}</td>
+          <td class="text-nowrap">
+            {% if p.islem == 'guncelle' %}<span class="durum-rozet durum-kullanimda">Güncellenir</span>
+              <div class="small">{% if p.kayit.tur == 'personel' %}<a href="{% url 'personel:detay' p.hedef.pk %}" target="_blank">{{ p.hedef.ad_soyad }}</a>{% else %}<a href="{% url 'ogrenci:duzenle' p.hedef.pk %}" target="_blank">{{ p.hedef.ad_soyad }}</a>{% endif %}</div>
+            {% elif p.islem == 'yeni' %}<span class="durum-rozet durum-sirada">Yeni kayıt</span>
+            {% else %}<span class="durum-rozet durum-planlandi">Atlanır</span>{% endif %}
+          </td>
+          <td class="small">{{ p.notlar|join:" " }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="text-center text-secondary py-5">Türü seçilmiş bekleyen satır yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<form method="post" class="d-flex gap-2">
+  {% csrf_token %}
+  {% for p in aktarilacak %}<input type="hidden" name="k" value="{{ p.kayit.pk }}">{% endfor %}
+  <button class="btn btn-success" {% if not aktarilacak %}disabled{% endif %}><i class="bi bi-box-arrow-in-right me-1"></i>{{ aktarilacak|length }} satırı aktar</button>
+  <a class="btn btn-outline-secondary" href="{% url 'kimlik:liste' %}">Geri dön</a>
+</form>
+{% endblock %}
