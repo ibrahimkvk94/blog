@@ -64,7 +64,7 @@ class GirisView(auth_views.LoginView):
     def form_valid(self, form):
         user = form.get_user()
         guvenlik.basarili_giris(self.request.POST.get("username"))
-        if _iki_adim(user) is None:
+        if _iki_adim(user) is None and not guvenlik.gelistirme_kodu():
             if guvenlik.dis_erisimde_iki_adim_gerekli(self.request):
                 return self._hata(form, "İnternet üzerinden giriş için iki adımlı doğrulama gerekir. Önce kurum ağından "
                                         "giriş yapıp sağ üstteki menüden “İki adımlı doğrulama”yı açın.")
@@ -87,23 +87,27 @@ def giris_kodu(request):
         return redirect("login")
     user = get_user_model().objects.filter(pk=bekleyen["uid"], is_active=True).first()
     kayit = _iki_adim(user) if user else None
-    if kayit is None:
+    gelistirme = bool(guvenlik.gelistirme_kodu())
+    if user is None or (kayit is None and not gelistirme):
         request.session.pop(BEKLEYEN, None)
         return redirect("login")
     hata = None
     if request.method == "POST":
         kod = request.POST.get("kod", "")
-        adim = ia.dogrula(kayit.gizli, kod, kayit.son_adim)
-        yedek = False
-        if adim is None:
-            kalan, yedek = ia.yedek_kod_kullan(kayit.yedek_kodlar, kod)
-        if adim is not None or yedek:
-            if adim is not None:
-                kayit.son_adim = adim
-            else:
-                kayit.yedek_kodlar = kalan
-            kayit.son_kullanim = timezone.now()
-            kayit.save(update_fields=["son_adim", "yedek_kodlar", "son_kullanim"])
+        adim, yedek = None, False
+        ortak = gelistirme and guvenlik.gelistirme_kodu_dogru(kod)
+        if not ortak and kayit is not None:
+            adim = ia.dogrula(kayit.gizli, kod, kayit.son_adim)
+            if adim is None:
+                kalan, yedek = ia.yedek_kod_kullan(kayit.yedek_kodlar, kod)
+        if ortak or adim is not None or yedek:
+            if kayit is not None and not ortak:
+                if adim is not None:
+                    kayit.son_adim = adim
+                else:
+                    kayit.yedek_kodlar = kalan
+                kayit.son_kullanim = timezone.now()
+                kayit.save(update_fields=["son_adim", "yedek_kodlar", "son_kullanim"])
             hedef = bekleyen.get("next") or "/"
             request.session.pop(BEKLEYEN, None)
             auth_login(request, user, backend=bekleyen["backend"])
@@ -121,7 +125,8 @@ def giris_kodu(request):
             return redirect("login")
         request.session[BEKLEYEN] = bekleyen
         hata = f"Kod hatalı. {DENEME - bekleyen['deneme']} hakkınız kaldı."
-    return render(request, "registration/giris_kodu.html", {"hata": hata, "kullanici": user})
+    return render(request, "registration/giris_kodu.html", {"hata": hata, "kullanici": user, "kayit": kayit,
+                                                            "gelistirme": gelistirme})
 
 
 @login_required

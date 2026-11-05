@@ -7,8 +7,9 @@
     <div class="text-center mb-4">
       <img src="{% static 'img/logo_siyah.png' %}" class="giris-logo" alt="KAMYOSİS logosu">
       <h1 class="h4 mt-3 mb-1 fw-bold">İki adımlı doğrulama</h1>
-      <p class="text-secondary mb-0 small">{{ kullanici.get_full_name|default:kullanici.username }} için authenticator uygulamasındaki 6 haneli kodu girin.</p>
+      <p class="text-secondary mb-0 small">{{ kullanici.get_full_name|default:kullanici.username }} için {% if kayit %}authenticator uygulamasındaki 6 haneli kodu{% else %}doğrulama kodunu{% endif %} girin.</p>
     </div>
+    {% if gelistirme %}<div class="alert alert-warning py-2 small mb-3">Geliştirme süreci: geçici ortak doğrulama kodu geçerlidir.</div>{% endif %}
     {% if hata %}<div class="alert alert-danger py-2">{{ hata }}</div>{% endif %}
     <form method="post" autocomplete="off">
       {% csrf_token %}
@@ -18,7 +19,7 @@
       </div>
       <button class="btn btn-primary btn-lg w-100">Doğrula</button>
     </form>
-    <p class="small text-secondary mt-3 mb-0">Telefonunuz yanınızda değilse yedek kodlarınızdan birini (ör. <span class="font-monospace">a1b2c-3d4e5</span>) girebilirsiniz. Yedek kodunuz da yoksa yöneticinize başvurun.</p>
+    {% if kayit %}<p class="small text-secondary mt-3 mb-0">Telefonunuz yanınızda değilse yedek kodlarınızdan birini (ör. <span class="font-monospace">a1b2c-3d4e5</span>) girebilirsiniz. Yedek kodunuz da yoksa yöneticinize başvurun.</p>{% endif %}
     <p class="text-center mt-3 mb-0"><a href="{% url 'login' %}" class="small">Başka hesapla giriş</a></p>
   </div>
   <p class="giris-alt">Yetkisiz erişim girişimleri kayıt altına alınır.</p>

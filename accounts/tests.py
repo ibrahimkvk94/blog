@@ -185,3 +185,51 @@ class GuvenlikTests(TestCase):
         GuvenlikAyari.objects.update_or_create(pk=GuvenlikAyari.al().pk, defaults={"dis_erisimde_iki_adim_zorunlu": False})
         self.client.post(reverse("login"), {"username": "ayse", "password": PAROLA}, **dis)
         self.assertIn("_auth_user_id", self.client.session)
+
+
+class GelistirmeKoduTests(TestCase):
+    """Geliştirme sürecinde ortak kod: herkes kod sayfasına gider, ortak kod (ve 2FA'lının kendi kodu) geçer."""
+
+    KOD = "24681357"
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        from .models import GuvenlikAyari
+
+        cache.clear()
+        self.user = User.objects.create_user("veli", password=PAROLA)
+        GuvenlikAyari.objects.update_or_create(pk=GuvenlikAyari.al().pk, defaults={"gelistirme_kodu": self.KOD})
+
+    def test_herkese_kod_sorulur_ortak_kod_gecer(self):
+        r = self.client.post(reverse("login"), {"username": "veli", "password": PAROLA})
+        self.assertRedirects(r, reverse("giris_kodu"))
+        self.assertNotIn("_auth_user_id", self.client.session)
+        r = self.client.get(reverse("giris_kodu"))
+        self.assertContains(r, "geçici ortak doğrulama kodu")
+        self.assertNotContains(r, self.KOD)  # kod sayfada yazmaz
+        r = self.client.post(reverse("giris_kodu"), {"kod": "11111111"})
+        self.assertContains(r, "Kod hatalı")
+        self.client.post(reverse("giris_kodu"), {"kod": self.KOD})
+        self.assertIn("_auth_user_id", self.client.session)
+
+    def test_internetten_ortak_kodla_girilir(self):
+        dis = {"HTTP_HOST": "kamyosis.ornek.ts.net"}
+        r = self.client.post(reverse("login"), {"username": "veli", "password": PAROLA}, **dis)
+        self.assertTrue(r["Location"].endswith(reverse("giris_kodu")))
+        self.client.post(reverse("giris_kodu"), {"kod": self.KOD}, **dis)
+        self.assertIn("_auth_user_id", self.client.session)
+
+    def test_iki_adimlinin_kendi_kodu_da_gecer(self):
+        gizli = ia.gizli_uret()
+        IkiAdimliDogrulama.objects.create(kullanici=self.user, gizli=gizli, etkin=True)
+        self.client.post(reverse("login"), {"username": "veli", "password": PAROLA})
+        self.client.post(reverse("giris_kodu"), {"kod": ia._kod(gizli, ia.simdiki_adim())})
+        self.assertIn("_auth_user_id", self.client.session)
+
+    def test_kod_bosaltilinca_eski_duzen(self):
+        from .models import GuvenlikAyari
+
+        GuvenlikAyari.objects.update(gelistirme_kodu="")
+        self.client.post(reverse("login"), {"username": "veli", "password": PAROLA})
+        self.assertIn("_auth_user_id", self.client.session)  # 2FA'sız kullanıcıya kod sorulmaz
