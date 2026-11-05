@@ -65,6 +65,7 @@
       <div class="yardim-satiri"><i class="bi bi-plus-circle"></i> Yeni kayıt</div>
       <form method="post" class="p-3">
         {% csrf_token %}
+        <input type="hidden" name="geri" value="{{ geri }}">
         {% if ilk_giris %}<div class="small text-secondary mb-2"><i class="bi bi-info-circle me-1"></i>En erken {{ ilk_giris|date:"d.m.Y" }} tarihinden başlayan kayıt girilebilir (bugüne ait kayıtlar 09:00'a kadar; geçmiş günler ve kesinleşen günler idari işler yetkilisinde).</div>{% endif %}
         {% include "yoklama/_kayit_formu.html" with onek="k" %}
         <div class="d-flex justify-content-end mt-3"><button class="btn btn-primary"><i class="bi bi-check2 me-1"></i>Kaydet</button></div>
@@ -83,7 +84,7 @@
           <span class="aralik">{{ k.aralik_metni }}</span>
           {% if k.aciklama %}<span class="small">{{ k.aciklama }}</span>{% endif %}
           <span class="meta ms-auto">{{ k.olusturan|default:"–" }} · {{ k.olusturma|date:"d.m.Y H:i" }}</span>
-          {% if girebilir %}{% if k.pk in kilitli %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'yoklama:kayit' k.pk %}" title="Kilitli: yalnız idari işler yetkilisi değiştirebilir"><i class="bi bi-lock"></i></a>{% else %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'yoklama:kayit' k.pk %}" title="Düzenle"><i class="bi bi-pencil"></i></a>{% endif %}{% endif %}
+          {% if girebilir %}{% if k.pk in kilitli %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'yoklama:kayit' k.pk %}?geri={{ geri|urlencode }}" title="Kilitli: yalnız idari işler yetkilisi değiştirebilir"><i class="bi bi-lock"></i></a>{% else %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'yoklama:kayit' k.pk %}?geri={{ geri|urlencode }}" title="Düzenle"><i class="bi bi-pencil"></i></a>{% endif %}{% endif %}
         </li>
         {% empty %}
         <li class="text-secondary small">Süren ya da yaklaşan kayıt yok.</li>
@@ -102,7 +103,7 @@
           <span class="aralik">{{ k.aralik_metni }}</span>
           {% if k.aciklama %}<span class="small">{{ k.aciklama }}</span>{% endif %}
           <span class="meta ms-auto">{{ k.olusturan|default:"–" }}</span>
-          {% if girebilir %}{% if k.pk in kilitli %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'yoklama:kayit' k.pk %}" title="Kilitli: yalnız idari işler yetkilisi değiştirebilir"><i class="bi bi-lock"></i></a>{% else %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'yoklama:kayit' k.pk %}" title="Düzenle"><i class="bi bi-pencil"></i></a>{% endif %}{% endif %}
+          {% if girebilir %}{% if k.pk in kilitli %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'yoklama:kayit' k.pk %}?geri={{ geri|urlencode }}" title="Kilitli: yalnız idari işler yetkilisi değiştirebilir"><i class="bi bi-lock"></i></a>{% else %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'yoklama:kayit' k.pk %}?geri={{ geri|urlencode }}" title="Düzenle"><i class="bi bi-pencil"></i></a>{% endif %}{% endif %}
         </li>
         {% empty %}
         <li class="text-secondary small">{{ yil }} yılında geçmiş kayıt yok.</li>

@@ -18,3 +18,11 @@ def isaretler(p):
     from yoklama.isaretler import personel_isaretleri
 
     return personel_isaretleri(p)
+
+
+@register.filter
+def girinti(derinlik):
+    """Seçim kutusunda alt birim girintisi."""
+    from django.utils.safestring import mark_safe
+
+    return mark_safe("&nbsp;&nbsp;&nbsp;" * int(derinlik or 0) + ("└ " if derinlik else ""))

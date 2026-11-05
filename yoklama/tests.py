@@ -77,6 +77,11 @@ class YoklamaTestleri(SaatSabit, TestCase):
     def y(self, user):
         return servis.yetki(SahteIstek(user))
 
+    def birim(self, bolum):
+        from personel.models import TeskilatBirimi
+
+        return TeskilatBirimi.objects.get(bolum=bolum)
+
     def tam(self, bas, bit=None):
         return servis.aralik(True, bas, bit)
 
@@ -140,8 +145,8 @@ class YoklamaTestleri(SaatSabit, TestCase):
 
     def test_onay_ve_onay_sonrasi_degisiklik(self):
         y = self.y(self.askci)
-        servis.onayla(self.askci, y, self.ask, GUN)
-        o = GunlukOnay.objects.get(bolum=self.ask, tarih=GUN)
+        servis.onayla(self.askci, y, self.birim(self.ask), GUN)
+        o = GunlukOnay.objects.get(birim=self.birim(self.ask), tarih=GUN)
         self.assertIsNone(o.degisti)
         with self.assertRaisesMessage(YoklamaHatasi, "kesinleşti"):  # kesinleşen güne bölüm giremez
             servis.ekle(self.askci, y, self.ali, self.yillik, *self.tam(GUN))
@@ -149,11 +154,11 @@ class YoklamaTestleri(SaatSabit, TestCase):
         o.refresh_from_db()
         self.assertIsNotNone(o.degisti)
         self.assertTrue(YoklamaGecmisi.objects.get(islem="ekle").onay_sonrasi)
-        servis.onayla(self.askci, y, self.ask, GUN)  # yeniden verildi
+        servis.onayla(self.askci, y, self.birim(self.ask), GUN)  # yeniden verildi
         o.refresh_from_db()
         self.assertIsNone(o.degisti)
         with self.assertRaises(YoklamaHatasi):
-            servis.onayla(self.askci, y, self.tem, GUN)  # başka bölüm
+            servis.onayla(self.askci, y, self.birim(self.tem), GUN)  # başka bölüm
 
     def test_zaman_ve_kesinlesme_kilitleri(self):
         y, iiy = self.y(self.askci), self.y(self.iiy)
@@ -176,7 +181,7 @@ class YoklamaTestleri(SaatSabit, TestCase):
         servis.ekle(self.askci, y, self.veli, self.rapor, *self.tam(yarin))
         servis.duzenle(self.iiy, iiy, k.pk, 1, self.rapor, *self.tam(GUN), "idari düzeltme")  # idari işler serbest
         # kesinleşen gün: bölüm o güne değen kayda dokunamaz, sonraki güne girebilir
-        servis.onayla(self.askci, y, self.ask, yarin)
+        servis.onayla(self.askci, y, self.birim(self.ask), yarin)
         with self.assertRaisesMessage(YoklamaHatasi, "kesinleşti"):
             servis.ekle(self.askci, y, self.ali, self.yillik, *self.tam(yarin, ertesi))
         servis.ekle(self.askci, y, self.ali, self.yillik, *self.tam(ertesi))
@@ -220,8 +225,9 @@ class YoklamaTestleri(SaatSabit, TestCase):
         servis.ekle(self.iiy, self.y(self.iiy), self.ayse, self.rapor, *self.tam(GUN, GUN + datetime.timedelta(days=1)))
         self.client.force_login(self.iiy)
         r = self.client.get(reverse("yoklama:ana"), {"tarih": GUN.isoformat()})
-        self.assertContains(r, "Bölümlerin 10.11.2026 yoklaması")
+        self.assertContains(r, "tüm okul")          # genel görünüm: birim kutucukları, karışık kişi listesi yok
         self.assertContains(r, "Kesinleşmedi")
+        self.assertNotContains(r, "Veli ÇELİK")
         r = self.client.get(reverse("yoklama:ana"), {"bas": GUN.isoformat(), "bit": (GUN + datetime.timedelta(days=6)).isoformat()})
         self.assertContains(r, "Ayşe YILMAZ")
         self.assertContains(r, ">RP<")
@@ -325,10 +331,10 @@ class YoklamaTestleri(SaatSabit, TestCase):
     def test_ana_sayfa_karti(self):
         self.client.force_login(self.askci)
         self.assertContains(self.client.get(reverse("core:panel")), "Bugünün personel yoklaması kesinleştirilmedi")
-        servis.onayla(self.askci, self.y(self.askci), self.ask, timezone.localdate())
+        servis.onayla(self.askci, self.y(self.askci), self.birim(self.ask), timezone.localdate())
         self.assertNotContains(self.client.get(reverse("core:panel")), "Bugünün personel yoklaması kesinleştirilmedi")
         self.client.force_login(self.iiy)
-        self.assertContains(self.client.get(reverse("core:panel")), "Yoklamayı kesinleştirmeyen bölüm")
+        self.assertContains(self.client.get(reverse("core:panel")), "Yoklamayı kesinleştirmeyen birim")
 
 
 @override_settings(MEDIA_ROOT=MEDYA)
@@ -365,6 +371,11 @@ class YoklamaFormuTestleri(SaatSabit, TestCase):
 
     def y(self, user):
         return servis.yetki(SahteIstek(user))
+
+    def birim(self, bolum):
+        from personel.models import TeskilatBirimi
+
+        return TeskilatBirimi.objects.get(bolum=bolum)
 
     def test_otomatik_gruplar(self):
         from . import form
@@ -445,3 +456,86 @@ class YoklamaFormuTestleri(SaatSabit, TestCase):
         self.assertContains(r, "ASKERİ BİLİMLER BÖLÜMÜ")
         self.assertEqual(r.context["f"]["sayim"][0]["degerler"][-1], 3)
         self.assertEqual(self.client.get(reverse("yoklama:gruplar")).status_code, 403)
+
+
+@override_settings(MEDIA_ROOT=MEDYA)
+class BirimKapsamiTestleri(SaatSabit, TestCase):
+    """Teşkilat birimleri: herkes kendi birimini ve alt birimlerini görür; tüm okulu yalnız yönetim görür."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from personel.models import TeskilatBirimi as T
+
+        cls.kok = T.objects.create(ad="Müdürlük", tur=T.MUDURLUK)
+        cls.sube = T.objects.create(ad="İdari İşler Şube Müdürlüğü", tur=T.SUBE, ust=cls.kok)
+        cls.kisim = T.objects.create(ad="Personel Kısmı", tur=T.KISIM, ust=cls.sube)
+        cls.diger = T.objects.create(ad="Evrak Kayıt Kısmı", tur=T.KISIM, ust=cls.sube)
+        cls.bas = T.objects.create(ad="Bölüm Başkanlıkları", tur=T.BASKANLIKLAR, ust=cls.kok)
+        cls.ask = Bolum.objects.create(ad="Askeri Bilimler", kod="ASK")  # birimi kendiliğinden açılır
+        T.objects.filter(bolum=cls.ask).update(ust=cls.bas)
+        cls.sube_p = Personel.objects.create(ad_soyad="Ali KAYA", teskilat_birimi=cls.sube)
+        cls.kisim_p = Personel.objects.create(ad_soyad="Veli ÇELİK", teskilat_birimi=cls.kisim)
+        cls.diger_p = Personel.objects.create(ad_soyad="Can DEMİR", teskilat_birimi=cls.diger)
+        cls.ask_p = Personel.objects.create(ad_soyad="Ayşe YILMAZ", bolum=cls.ask)
+        birim = Birim.objects.get(slug="personel-yoklamasi")
+
+        def hesap(ad, **k):
+            u = User.objects.create_user(ad, password="x-Parola-123", **k)
+            Yetki.objects.create(kullanici=u, birim=birim, seviye=Yetki.DUZENLEME, kapsam=Yetki.BOLUM)
+            return u
+        cls.subeci = hesap("sube", teskilat_birimi=cls.sube)
+        cls.kisimci = hesap("kisim", teskilat_birimi=cls.kisim)
+        cls.askci = hesap("ask", bolum=cls.ask)
+        cls.iiy = User.objects.create_user("iiy", password="x-Parola-123")
+        Yetki.objects.create(kullanici=cls.iiy, birim=birim, seviye=Yetki.YONETIM, kapsam=Yetki.TUM)
+        cls.yillik = IzinTuru.objects.get(ad="Yıllık izin")
+
+    def y(self, user):
+        return servis.yetki(SahteIstek(user))
+
+    def test_ust_birim_alt_birimi_gorur_baskasini_goremez(self):
+        isim = lambda u: {p.ad_soyad for p in servis.personeller(self.y(u))}
+        self.assertEqual(isim(self.subeci), {"Ali KAYA", "Veli ÇELİK", "Can DEMİR"})   # şube + kısımları
+        self.assertEqual(isim(self.kisimci), {"Veli ÇELİK"})
+        self.assertEqual(isim(self.askci), {"Ayşe YILMAZ"})
+        self.assertEqual(len(isim(self.iiy)), 4)                                       # tüm okul
+        # kısım hesabı şubenin ya da başka kısmın kartını, raporunu, formunu açamaz
+        self.client.force_login(self.kisimci)
+        self.assertEqual(self.client.get(reverse("yoklama:kart", args=[self.sube_p.pk])).status_code, 404)
+        self.assertEqual(self.client.get(reverse("yoklama:kart", args=[self.diger_p.pk])).status_code, 404)
+        r = self.client.get(reverse("yoklama:form"), {"tarih": GUN.isoformat(), "birim": self.sube.pk})
+        self.assertContains(r, "PERSONEL KISMI")       # başka birim istense de kendi birimi
+        self.assertNotContains(r, "Ali KAYA")
+        r = self.client.get(reverse("yoklama:ana"), {"tarih": GUN.isoformat(), "birim": self.diger.pk})
+        self.assertContains(r, "Veli ÇELİK")
+        self.assertNotContains(r, "Can DEMİR")
+        with self.assertRaises(YoklamaHatasi):
+            servis.onayla(self.kisimci, self.y(self.kisimci), self.sube, GUN)
+        # şube hesabı kısmını açar ve kısmın yoklamasını kesinleştirebilir
+        self.client.force_login(self.subeci)
+        r = self.client.get(reverse("yoklama:ana"), {"tarih": GUN.isoformat()})
+        self.assertContains(r, "Personel Kısmı")       # alt birim kutucuğu
+        self.assertContains(r, "Ali KAYA")
+        self.assertNotContains(r, "Ayşe YILMAZ")
+        servis.onayla(self.subeci, self.y(self.subeci), self.kisim, GUN)
+
+    def test_genel_gorunum_ve_kayittan_sonra_donus(self):
+        self.client.force_login(self.iiy)
+        r = self.client.get(reverse("yoklama:ana"), {"tarih": GUN.isoformat()})
+        self.assertTemplateUsed(r, "yoklama/gun_genel.html")
+        self.assertContains(r, "İdari İşler Şube Müdürlüğü")
+        self.assertContains(r, "Bölüm Başkanlıkları")
+        self.assertNotContains(r, "Veli ÇELİK")        # kişi listesi yok, yalnız birimler
+        self.assertContains(self.client.get(reverse("yoklama:ana"), {"tarih": GUN.isoformat(), "q": "veli"}), "Veli ÇELİK")
+        # kayıttan sonra geldiği listeye döner
+        liste = f"{reverse('yoklama:ana')}?tarih={GUN.isoformat()}&birim={self.kisim.pk}"
+        r = self.client.post(reverse("yoklama:kart", args=[self.kisim_p.pk]), {
+            "tur": self.yillik.pk, "bicim": "tam", "bas_tarih": GUN.isoformat(), "bit_tarih": GUN.isoformat(),
+            "aciklama": "", "geri": liste})
+        self.assertRedirects(r, liste, fetch_redirect_response=False)
+        # dönüş adresi yoksa personelin birim sayfasına
+        r = self.client.post(reverse("yoklama:kart", args=[self.ask_p.pk]), {
+            "tur": self.yillik.pk, "bicim": "tam", "bas_tarih": GUN.isoformat(), "bit_tarih": GUN.isoformat()})
+        from personel.models import TeskilatBirimi
+        self.assertRedirects(r, f"{reverse('yoklama:ana')}?tarih={GUN.isoformat()}&birim="
+                                f"{TeskilatBirimi.objects.get(bolum=self.ask).pk}", fetch_redirect_response=False)

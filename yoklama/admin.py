@@ -21,8 +21,8 @@ class YoklamaKaydiAdmin(admin.ModelAdmin):
 
 @admin.register(GunlukOnay)
 class GunlukOnayAdmin(admin.ModelAdmin):
-    list_display = ["bolum", "tarih", "onaylayan", "zaman", "degisti"]
-    list_filter = ["bolum"]
+    list_display = ["birim", "tarih", "onaylayan", "zaman", "degisti"]
+    list_filter = ["birim"]
     date_hierarchy = "tarih"
 
 

@@ -118,9 +118,9 @@ class YoklamaGecmisi(models.Model):
 
 
 class GunlukOnay(models.Model):
-    """Bölümün bir günün yoklamasını "verdim" demesi."""
+    """Bir teşkilat biriminin (bölüm, şube müdürlüğü, kısım …) bir günün yoklamasını kesinleştirmesi."""
 
-    bolum = models.ForeignKey(Bolum, on_delete=models.CASCADE, related_name="yoklama_onaylari")
+    birim = models.ForeignKey("personel.TeskilatBirimi", on_delete=models.CASCADE, related_name="yoklama_onaylari")
     tarih = models.DateField(db_index=True)
     onaylayan = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+")
     zaman = models.DateTimeField(auto_now_add=True)
@@ -130,10 +130,10 @@ class GunlukOnay(models.Model):
         ordering = ["-tarih"]
         verbose_name = "Günlük yoklama onayı"
         verbose_name_plural = "Günlük yoklama onayları"
-        constraints = [models.UniqueConstraint(fields=["bolum", "tarih"], name="yoklama_onay_tekil")]
+        constraints = [models.UniqueConstraint(fields=["birim", "tarih"], name="yoklama_onay_birim_tekil")]
 
     def __str__(self):
-        return f"{self.bolum} · {self.tarih:%d.%m.%Y}"
+        return f"{self.birim} · {self.tarih:%d.%m.%Y}"
 
 
 class PersonelGrubu(models.Model):

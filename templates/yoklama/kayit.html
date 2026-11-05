@@ -20,6 +20,7 @@
 <div class="kart" style="max-width:820px">
   <form method="post" class="p-3">
     {% csrf_token %}
+    {% if geri %}<input type="hidden" name="geri" value="{{ geri }}">{% endif %}
     <input type="hidden" name="surum" value="{{ k.surum }}">
     {% include "yoklama/_kayit_formu.html" with onek="d" k=k %}
     <div class="d-flex flex-wrap gap-2 justify-content-between mt-3">

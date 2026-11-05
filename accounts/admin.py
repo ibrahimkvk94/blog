@@ -14,15 +14,15 @@ class YetkiInline(admin.TabularInline):
 
 @admin.register(User)
 class KullaniciAdmin(UserAdmin):
-    list_display = ["username", "first_name", "last_name", "bolum", "is_active", "is_superuser", "last_login"]
+    list_display = ["username", "first_name", "last_name", "bolum", "teskilat_birimi", "is_active", "is_superuser", "last_login"]
     list_filter = ["is_active", "is_superuser", "bolum"]
     search_fields = ["username", "first_name", "last_name"]
     autocomplete_fields = ["personel"]
     fieldsets = UserAdmin.fieldsets + (
-        ("KAMYOSİS", {"fields": ["bolum", "personel", "parola_degismeli"]}),
+        ("KAMYOSİS", {"fields": ["bolum", "teskilat_birimi", "personel", "parola_degismeli"]}),
     )
     add_fieldsets = UserAdmin.add_fieldsets + (
-        ("KAMYOSİS", {"fields": ["bolum", "parola_degismeli"]}),
+        ("KAMYOSİS", {"fields": ["bolum", "teskilat_birimi", "parola_degismeli"]}),
     )
     inlines = [YetkiInline]
 
