@@ -104,6 +104,13 @@ class AraKatmanTests(TestCase):
         self.client.force_login(self.admin)
         self.assertRedirects(self.client.get(reverse("timetable:account")), reverse("parola_degistir"),
                              fetch_redirect_response=False)
+        # modülün iki adımlı giriş sayfaları da KAMYOSİS'e yönlenir (kilit ve iki adımlı doğrulama atlanamaz)
+        self.assertRedirects(self.client.get(reverse("timetable:account_two_factor")), reverse("iki_adim"),
+                             fetch_redirect_response=False)
+        self.client.logout()
+        r = self.client.post(reverse("timetable:login_verify"), {"code": "000000"})
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(r["Location"].startswith(reverse("login")))
 
     def test_modul_ana_sayfasi_acilir(self):
         self.client.force_login(self.admin)
