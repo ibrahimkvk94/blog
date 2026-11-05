@@ -1,0 +1,9 @@
+{% load yoklama_etiketleri %}<a class="pk-kart{% if not p.aktif %} pasif{% endif %}" href="{% url 'personel:detay' p.pk %}">
+  {% if yonetici %}{% if p.eksik_listesi %}<span class="pk-eksik" title="Eksik: {{ p.eksik_listesi|join:', ' }}">{{ p.eksik_listesi.0 }} yok{% if p.eksik_listesi|length > 1 %} +{{ p.eksik_listesi|length|add:'-1' }}{% endif %}</span>{% else %}<span class="pk-tam">tam</span>{% endif %}{% endif %}
+  <span class="pk-foto">{% include "personel/_foto.html" with p=p buyuk=True %}</span>
+  <span class="pk-ad">{{ p.ad_soyad }}</span>
+  <span class="pk-kunye">{{ p.kunye|default:"&nbsp;" }}</span>
+  {% if p.gorev_unvani %}<span class="pk-gorev">{{ p.gorev_unvani }}</span>{% endif %}
+  {% if kip != 'birim' %}<span class="pk-birim">{{ p.liste_birimi.ad|default:"" }}</span>{% endif %}
+  {% isaretler p as isaret_listesi %}{% if isaret_listesi %}<span class="pk-isaretler">{% for svg, etiket in isaret_listesi %}<span title="{{ etiket }}">{{ svg }}</span>{% endfor %}</span>{% endif %}
+</a>

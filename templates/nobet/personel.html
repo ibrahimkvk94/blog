@@ -25,7 +25,7 @@
 <form method="get" class="row g-2 mb-3 align-items-center">
   {% if durum %}<input type="hidden" name="durum" value="{{ durum }}">{% endif %}
   {% if sirala %}<input type="hidden" name="sirala" value="{{ sirala }}">{% endif %}
-  <div class="col-12 col-md-4"><input type="search" class="form-control" name="q" value="{{ q }}" placeholder="Ad soyad ara" aria-label="Ad soyad ara"></div>
+  <div class="col-12 col-md-4"><input type="search" class="form-control" name="q" value="{{ q }}" placeholder="Ad soyad ara (yazdıkça süzülür)" aria-label="Ad soyad ara" data-anlik-ara="#nobetPersonelTablosu"></div>
   <div class="col-6 col-md-3">
     <select class="form-select" name="bolum" onchange="this.form.submit()" aria-label="Bölüm">
       <option value="">Tüm bölümler</option>
@@ -57,7 +57,7 @@
   </div>
   {% endif %}
   <div class="table-responsive">
-    <table class="table align-middle mb-0 nd-tablo">
+    <table class="table align-middle mb-0 nd-tablo" id="nobetPersonelTablosu">
       <thead><tr>
         {% if yonetici %}<th style="width:36px"><input class="form-check-input" type="checkbox" id="hepsiniSec" aria-label="Tümünü seç"></th>{% endif %}
         {% for b in basliklar %}<th class="{{ b.sinif }}"><a href="{{ b.url }}" class="nd-sirala {% if b.yon %}aktif{% endif %}" title="Sırala">{{ b.ad }} <i class="bi {% if b.yon == 'artan' %}bi-sort-down-alt{% elif b.yon == 'azalan' %}bi-sort-up{% else %}bi-arrow-down-up{% endif %}"></i></a></th>{% endfor %}

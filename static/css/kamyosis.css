@@ -495,3 +495,35 @@ a.yk-kisi:hover .ad { color: #2f5d8a; text-decoration: underline; }
 .yk-birim-kutu .cubuk { height: 5px; border-radius: 999px; background: #fee2e2; overflow: hidden; }
 .yk-birim-kutu .cubuk span { display: block; height: 100%; background: #22c55e; border-radius: 999px; }
 .yk-birim-kutu .durum { font-size: .72rem; color: var(--durum); font-weight: 600; }
+
+/* Anlık arama */
+.canli-yukleniyor { opacity: .55; transition: opacity .12s; }
+
+/* Personel kartları: arama, özet, vitrin */
+.pk-arama { position: relative; flex: 1 1 320px; max-width: 520px; }
+.pk-arama .bi { position: absolute; left: .75rem; top: 50%; transform: translateY(-50%); color: #64748b; }
+.pk-arama input { padding-left: 2.2rem; }
+.pk-ozet { display: flex; flex-wrap: wrap; gap: .5rem; }
+.pk-ozet > * { display: inline-flex; align-items: center; gap: .35rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 999px;
+  padding: .3rem .8rem; font-size: .82rem; color: #475569; text-decoration: none; }
+.pk-ozet a:hover { border-color: #2f5d8a; color: #1f3a5f; }
+.pk-birim-kutu .pk-sayi { display: inline-grid; place-items: center; min-width: 1.6rem; height: 1.6rem; padding: 0 .4rem; border-radius: 999px;
+  background: #1f3a5f; color: #fff; font-size: .75rem; font-weight: 700; flex: 0 0 auto; }
+.pk-vitrin { display: grid; grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap: .75rem; }
+.pk-kart { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: .15rem; padding: 1rem .75rem .8rem;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; text-decoration: none; color: #1e293b;
+  box-shadow: 0 1px 2px rgba(15,23,42,.04); transition: transform .15s, box-shadow .15s; }
+.pk-kart:hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(15,23,42,.12); color: #1e293b; }
+.pk-kart.pasif { opacity: .6; }
+.pk-kart .pk-foto .yk-foto-buyuk { width: 84px; height: 104px; font-size: 1.6rem; margin-bottom: .45rem; }
+.pk-kart .pk-ad { font-weight: 700; font-size: .92rem; line-height: 1.25; }
+.pk-kart .pk-kunye { font-size: .78rem; color: #64748b; }
+.pk-kart .pk-gorev { font-size: .76rem; font-weight: 600; color: #1f3a5f; }
+.pk-kart .pk-birim { font-size: .72rem; color: #94a3b8; }
+.pk-kart .pk-isaretler { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: .3rem; margin-top: .45rem; }
+.pk-kart .pk-isaretler svg { height: 30px !important; width: auto !important; filter: none; }
+.pk-eksik, .pk-tam { font-size: .68rem; font-weight: 600; border-radius: 999px; padding: .1rem .5rem; white-space: nowrap; }
+.pk-kart .pk-eksik, .pk-kart .pk-tam { position: absolute; top: .5rem; right: .5rem; max-width: calc(100% - 1rem); overflow: hidden; text-overflow: ellipsis; }
+.pk-eksik { background: #fef3c7; color: #92400e; }
+.pk-tam { background: #dcfce7; color: #166534; }
+@media print { .pk-kart { break-inside: avoid; box-shadow: none; } .pk-vitrin { grid-template-columns: repeat(4, 1fr); } }

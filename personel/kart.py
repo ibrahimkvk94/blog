@@ -118,3 +118,54 @@ def baskan_ata(p, baskan_mi):
         Bolum.objects.filter(pk=p.bolum_id).update(baskan=p)
     else:
         Bolum.objects.filter(pk=p.bolum_id, baskan=p).update(baskan=None)
+
+
+# ---------------------------------------------------------------- liste: eksik bilgi ve birim özetleri
+
+def eksikler(kisiler):
+    """{personel_id: ["fotoğraf", "Cep telefonu", …]} — fotoğrafı, T.C. no'su ya da "eksik sayılır" alanları boş olanlar."""
+    onemli = list(KartAlani.objects.filter(aktif=True, onemli=True))
+    dolu = set(KartDegeri.objects.filter(personel__in=[p.pk for p in kisiler], alan__in=onemli).exclude(deger="")
+               .values_list("personel_id", "alan_id"))
+    out = {}
+    for p in kisiler:
+        e = []
+        if not p.fotograf:
+            e.append("fotoğraf")
+        if not p.personel_kodu:
+            e.append("T.C. kimlik no")
+        e += [a.ad for a in onemli if (p.pk, a.pk) not in dolu]
+        out[p.pk] = e
+    return out
+
+
+def birim_ozetleri(agac, kisiler, kokler=None, eksikmap=None, haric=None):
+    """Birim kutucukları için: [{birim, derinlik, toplam, fotosuz, eksik, sorumlu, alt_toplam, cocuklu}] —
+    teşkilat sırasıyla, yalnız personeli olan dallar (yoklamadaki gruplama ile aynı yapı)."""
+    from yoklama.birim import BIRIMSIZ
+
+    by = defaultdict(list)
+    for p in kisiler:
+        by[agac.kisi_birimi(p)].append(p)
+    alt_toplam = defaultdict(int)
+    for bid, ps in by.items():
+        for b in agac.zincir(bid):
+            alt_toplam[b.pk] += len(ps)
+    sira = [(b, d) for b, d in agac.sirali(kokler) if alt_toplam.get(b.pk) and b != haric]
+    if kokler is None and by.get(0):
+        sira.append((BIRIMSIZ, 0))
+        alt_toplam[0] = len(by[0])
+    out = []
+    for b, d in sira:
+        ps = by.get(b.pk, [])
+        sorumlu = None
+        if getattr(b, "bolum_id", None) and b.bolum.baskan_id:
+            sorumlu = b.bolum.baskan
+        else:
+            sorumlu = next((p for p in sorted(ps, key=lambda x: (not x.idari_kadro, x.pk)) if p.gorev_unvani), None)
+        out.append({"birim": b, "derinlik": d, "toplam": len(ps), "alt_toplam": alt_toplam.get(b.pk, 0),
+                    "fotosuz": sum(1 for p in ps if not p.fotograf),
+                    "eksik": sum(1 for p in ps if eksikmap and eksikmap.get(p.pk)) if eksikmap is not None else None,
+                    "sorumlu": sorumlu,
+                    "cocuklu": any(alt_toplam.get(c.pk) for c in agac.cocuklar.get(b.pk, []))})
+    return out

@@ -41,7 +41,7 @@ class KimlikNoTestleri(TestCase):
 
     def test_yonetici_tam_numarayi_gorur(self):
         self.client.force_login(self.yonetici)
-        self.assertContains(self.client.get(reverse("personel:liste")), TCKN)
+        self.assertContains(self.client.get(reverse("personel:liste"), {"q": "deneme", "gorunum": "tablo"}), TCKN)
         self.assertContains(self.client.get(reverse("personel:detay", args=[self.p.pk])), TCKN)
         self.assertContains(self.client.get(reverse("personel:liste"), {"q": "1234567"}), "Deneme Kişi")
 
@@ -140,8 +140,10 @@ class PersonelKartiTestleri(TestCase):
         self.assertContains(r, "0555 000 00 00")
         self.assertContains(r, "Bölüm başkanı")
         self.assertContains(r, "yk-idari-nisan")
-        # bölüm hesabı ek bilgileri görmez
+        # şube müdürlüğüne atanan personel bölüm hesabının kapsamından çıkar; bölüme geri alınca ek bilgileri görmez
         self.client.force_login(self.bolumcu)
+        self.assertEqual(self.client.get(reverse("personel:detay", args=[self.p.pk])).status_code, 404)
+        Personel.objects.filter(pk=self.p.pk).update(teskilat_birimi=None)
         r = self.client.get(reverse("personel:detay", args=[self.p.pk]))
         self.assertNotContains(r, "0555 000 00 00")
         self.assertNotContains(r, TCKN)
@@ -198,3 +200,52 @@ class MakamMuhruTestleri(TestCase):
         self.assertEqual(str(y[0][0]).count("<polygon"), 0)        # yıldızsız
         self.assertIn("MÜDÜR YARDIMCISI", str(y[0][0]))
         self.assertEqual([e for _, e in personel_isaretleri(sekreter)], ["Müdürlük Sekreteri"])  # idari kadro nişanı
+
+
+class KartVitriniTestleri(TestCase):
+    """Personel Kartları: teşkilata göre ana sayfa, birim vitrini, eksik bilgi, birim kapsamı, Excel, anlık arama."""
+
+    @classmethod
+    def setUpTestData(cls):
+        T = TeskilatBirimi
+        cls.kok = T.objects.create(ad="Müdürlük", tur=T.MUDURLUK)
+        cls.sube = T.objects.create(ad="İdari İşler Şube Müdürlüğü", tur=T.SUBE, ust=cls.kok)
+        cls.kisim = T.objects.create(ad="Personel Kısmı", tur=T.KISIM, ust=cls.sube)
+        cls.ask = Bolum.objects.create(ad="Askeri Bilimler", kod="ASK")
+        cls.a = Personel.objects.create(ad_soyad="Ali KAYA", teskilat_birimi=cls.sube, gorev_unvani="Şube Müdürü",
+                                        personel_kodu=TCKN)
+        cls.v = Personel.objects.create(ad_soyad="Veli ÇELİK", teskilat_birimi=cls.kisim)
+        cls.y = Personel.objects.create(ad_soyad="Ayşe YILMAZ", bolum=cls.ask)
+        birim = Birim.objects.get(slug="personel-bilgileri")
+        cls.yonetici = User.objects.create_user("yon", password="x-Parola-123")
+        Yetki.objects.create(kullanici=cls.yonetici, birim=birim, seviye=Yetki.YONETIM, kapsam=Yetki.TUM)
+        cls.subeci = User.objects.create_user("sube", password="x-Parola-123", teskilat_birimi=cls.sube)
+        Yetki.objects.create(kullanici=cls.subeci, birim=birim, seviye=Yetki.DUZENLEME, kapsam=Yetki.BOLUM)
+
+    def test_genel_birim_ve_arama(self):
+        self.client.force_login(self.yonetici)
+        r = self.client.get(reverse("personel:liste"))
+        self.assertContains(r, "İdari İşler Şube Müdürlüğü")
+        self.assertContains(r, "kartı eksik")
+        self.assertNotContains(r, "Veli ÇELİK")                      # genel görünümde kişi listesi yok
+        r = self.client.get(reverse("personel:liste"), {"birim": self.sube.pk})
+        self.assertContains(r, "Ali KAYA")
+        self.assertContains(r, "Personel Kısmı")                     # alt birim kutucuğu
+        self.assertContains(r, "fotoğraf yok")                       # eksik bilgi rozeti
+        r = self.client.get(reverse("personel:liste"), {"q": "çelik"})
+        self.assertContains(r, "Veli ÇELİK")
+        self.assertNotContains(r, "Ayşe YILMAZ")
+        r = self.client.get(reverse("personel:excel"), {"birim": self.sube.pk})
+        self.assertEqual(r["Content-Type"], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    def test_sube_hesabi_kendi_ve_alt_birimini_gorur(self):
+        self.client.force_login(self.subeci)
+        r = self.client.get(reverse("personel:liste"), {"q": "a"})
+        self.assertContains(r, "Ali KAYA")
+        self.assertNotContains(r, "Ayşe YILMAZ")
+        self.assertEqual(self.client.get(reverse("personel:detay", args=[self.v.pk])).status_code, 200)
+        self.assertEqual(self.client.get(reverse("personel:detay", args=[self.y.pk])).status_code, 404)
+        self.assertNotContains(self.client.get(reverse("personel:liste"), {"birim": self.sube.pk}), "kartı eksik")
+        # şube hesabının eklediği personel kendi birimine yazılır
+        self.client.post(reverse("personel:ekle"), {"ad_soyad": "Can DEMİR", "sicil": "", "aktif": "on"})
+        self.assertEqual(Personel.objects.get(ad_soyad="Can DEMİR").teskilat_birimi, self.sube)

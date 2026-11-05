@@ -25,13 +25,13 @@
   <input type="hidden" name="durum" value="{{ durum }}">
   <div class="input-group">
     <span class="input-group-text"><i class="bi bi-search"></i></span>
-    <input type="search" class="form-control" name="q" value="{{ q }}" placeholder="Ad ara">
+    <input type="search" class="form-control" name="q" value="{{ q }}" placeholder="Ad ara (yazdıkça süzülür)" data-anlik-ara="#ogretmenTablosu">
   </div>
 </form>
 
 <div class="kart">
   <div class="table-responsive">
-    <table class="table align-middle mb-0">
+    <table class="table align-middle mb-0" id="ogretmenTablosu">
       <thead><tr><th>aSc'deki öğretmen</th><th class="d-none d-md-table-cell">Tahmini bölüm</th><th>Durum / öneri</th><th class="text-end">İşlem</th></tr></thead>
       <tbody>
       {% for o in liste %}
