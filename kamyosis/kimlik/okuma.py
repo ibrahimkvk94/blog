@@ -297,6 +297,13 @@ def deger_sec(alan, metin):
     if alan == "veren_makam":
         deger = tr_buyuk(" ".join((metin or "").split()))
         deger = re.sub(r"^[^A-ZÇĞİÖŞÜ0-9]+|[^A-ZÇĞİÖŞÜ0-9.]+$", "", deger)
+        deger = re.sub(r"^T\s?[.,]?\s?[GCÇ]\s?[.,]?\s", "T.C. ", deger)  # "T.G." / "T,C," → "T.C."
+        kelimeler = []
+        for k in deger.split():  # bölge kesitindeki çöp: ilk anlamsız kısa kelimede dur
+            if len(k) < 3 and "." not in k or not re.fullmatch(r"[A-ZÇĞİÖŞÜ0-9.'\-]+", k):
+                break
+            kelimeler.append(k)
+        deger = " ".join(kelimeler)
         return deger if len(deger.replace(" ", "")) >= 3 else ""
     deger = _deger_temizle(metin)
     return deger if len(deger.replace(" ", "")) >= 2 and _AD_DESENI.fullmatch(deger) else ""
@@ -307,18 +314,42 @@ def etiket_bul(parcalar, alan):
     return next((p for p in parcalar if kosul(sade(p.metin))), None)
 
 
-def deger_kutusu(et, parcalar):
-    """Etiketin altındaki değer bölgesi (sol, üst, sağ, alt): bir sonraki etikete kadar, en çok 3,5 etiket boyu."""
+def _alt_sinir(et, parcalar):
+    """Etiketin değeri en çok buraya kadar iner: aynı sütunda alttaki ilk etiket ya da 2,6 etiket boyu."""
     h = et.yukseklik
     alt = et.alt + h * 2.6
-    for p in parcalar:  # aynı sütunda alttaki ilk etiket bölgeyi keser
+    for p in parcalar:
         if p is not et and _etiket_mi(p) and p.ust > et.ust + h * 0.5 and abs(p.sol - et.sol) < h * 4:
             alt = min(alt, p.ust)
-    sag = et.sol + h * 18
+    return alt
+
+
+def _deger_adaylari(et, parcalar):
+    h = et.yukseklik
+    sinir = _alt_sinir(et, parcalar)
+    return sorted((p for p in parcalar if p is not et and p.ust > et.ust + h * 0.5 and p.ust < sinir
+                   and abs(p.sol - et.sol) < h * 4 and not _etiket_mi(p)),
+                  key=lambda p: (p.ust, abs(p.sol - et.sol)))
+
+
+def deger_kutusu(et, parcalar):
+    """Etiketin değerini ayrıca okumak için kesilecek bölge (sol, üst, sağ, alt).
+    Sağda yandaki sütuna (ya da 28 etiket boyuna) kadar uzanır: genel okuma kelimeyi yarıda bırakmış olabilir.
+    Genel okuma değer satırını bulduysa dikeyde onun çevresi alınır (üstte pay: Ü, İ, Ö noktaları kesilmesin);
+    bulamadıysa etiketin altından alttaki etikete kadar."""
+    h = et.yukseklik
+    alt = _alt_sinir(et, parcalar)
+    sag = et.sol + h * 28
     for p in parcalar:  # sağdaki sütunun etiketi / değeri bölgeye girmesin
         if p is not et and p.sol > et.sag + h and p.alt > et.ust and p.ust < alt:
             sag = min(sag, p.sol - h * 0.3)
-    return (max(et.sol - h, 0), et.alt, max(sag, et.sag), alt)
+    adaylar = _deger_adaylari(et, parcalar)
+    if adaylar:
+        p = adaylar[0]
+        ph = p.yukseklik
+        return (max(min(p.sol, et.sol) - ph * 0.6, 0), max(p.ust - ph * 0.45, 0), max(sag, p.sag + ph * 1.5),
+                p.alt + ph * 0.3)
+    return (max(et.sol - h, 0), et.alt - h * 0.2, max(sag, et.sag), alt)
 
 
 def etiketli_alanlar(parcalar, alanlar):
@@ -329,12 +360,7 @@ def etiketli_alanlar(parcalar, alanlar):
         et = etiket_bul(parcalar, alan)
         if et is None:
             continue
-        h = et.yukseklik
-        _, _, _, sinir = deger_kutusu(et, parcalar)
-        adaylar = sorted((p for p in parcalar if p is not et and p.ust > et.ust + h * 0.5 and p.ust < sinir
-                          and abs(p.sol - et.sol) < h * 4 and not _etiket_mi(p)),
-                         key=lambda p: (p.ust, abs(p.sol - et.sol)))
-        for p in adaylar:
+        for p in _deger_adaylari(et, parcalar):
             deger = deger_sec(alan, p.metin)
             if deger:
                 sonuc[alan] = deger
@@ -397,6 +423,10 @@ def arka_yuz(parcalar):
 
 # ----------------------------------------------------------------------------------------------- birleştirme
 
+def _turkce_harf(metin):
+    return sum(c in "ÇĞİÖŞÜ" for c in metin or "")
+
+
 def _ayni_ad(on, mrz_degeri):
     return bool(on) and ascii_buyuk(on).replace(" ", "") == (mrz_degeri or "").replace(" ", "")
 
@@ -434,8 +464,17 @@ def birlestir(on_parcalari=(), arka_parcalari=(), mrz_metinleri=(), bolgeler=Non
             continue
         hedef = on if alan in ("soyad", "ad") else arka
         mrz_degeri = getattr(mrz, alan, "") if mrz is not None and alan in ("soyad", "ad") else ""
-        if mrz_degeri:  # iki okumadan kod satırıyla tutan seçilir
-            if _ayni_ad(hedef.get(alan), mrz_degeri) or not (_ayni_ad(deger, mrz_degeri) or not hedef.get(alan)):
+        # Bölge geniş kesildiği için yanına çöp kelime karışabilir: kelime sayısı kod satırındaki ya da genel
+        # okumadaki satır kadar alınır (genel okuma kelimeyi yarıda bıraksa da kelime sayısı doğrudur).
+        ornek = mrz_degeri or hedef.get(alan, "")
+        if ornek and alan != "veren_makam":  # veren makamda genel okuma kelime düşürebiliyor; çöp deger_sec'te atılır
+            deger = " ".join(deger.split()[:len(ornek.split())])
+        if mrz_degeri:  # iki okumadan kod satırıyla tutan seçilir; ikisi de tutuyorsa Türkçe harfi çok olan
+            mevcut = hedef.get(alan, "")
+            if _ayni_ad(mevcut, mrz_degeri):
+                if not _ayni_ad(deger, mrz_degeri) or _turkce_harf(deger) <= _turkce_harf(mevcut):
+                    continue
+            elif mevcut and not _ayni_ad(deger, mrz_degeri):
                 continue
         hedef[alan] = deger
     if not on_parcalari:
