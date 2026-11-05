@@ -11,7 +11,7 @@ Yetki: listeyi kullanmak için "Kimlik Kartı Okuma" biriminde düzenleme. Aktar
 import datetime
 
 from django.contrib import messages
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -25,6 +25,7 @@ from .models import KimlikKaydi
 
 BIRIM = "kimlik-okuma"
 EN_BUYUK_FOTO = 20 * 1024 * 1024
+EN_BUYUK_KARE = 3 * 1024 * 1024
 
 
 def _seviye(request, slug):
@@ -58,30 +59,57 @@ def liste(request):
         yonetici=request.yetki_seviye >= YONETIM or request.user.is_superuser, **_aktarim_yetkileri(request)))
 
 
+def _cevap(request, hata=None, adres=None):
+    """Sayfa içinden (fetch) gelen isteğe JSON, düz form gönderimine yönlendirme."""
+    if request.headers.get("X-Requested-With") == "fetch":
+        return JsonResponse({"hata": hata} if hata else {"yonlendir": adres}, status=400 if hata else 200)
+    if hata:
+        messages.error(request, hata)
+    return redirect(adres or "kimlik:liste")
+
+
 @require_POST
 @yetki_gerekli(BIRIM, DUZENLEME)
 def oku(request):
     on, arka = request.FILES.get("on"), request.FILES.get("arka")
     if not on and not arka:
-        messages.error(request, "Kartın ön ve/veya arka yüzünün fotoğrafını seçin.")
-        return redirect("kimlik:liste")
+        return _cevap(request, "Kartın ön ve/veya arka yüzünün fotoğrafını seçin.")
     if any(f and f.size > EN_BUYUK_FOTO for f in (on, arka)):
-        messages.error(request, "Fotoğraf 20 MB'tan büyük olamaz.")
-        return redirect("kimlik:liste")
+        return _cevap(request, "Fotoğraf 20 MB'tan büyük olamaz.")
     try:
-        sonuc = motor.oku(on, arka)
+        with motor.sira(bekleme=60):
+            sonuc = motor.oku(on, arka)
+    except motor.Mesgul:
+        return _cevap(request, "Okuma sunucusu şu an yoğun; biraz sonra yeniden deneyin.")
     except motor.MotorYok as e:
-        messages.error(request, f"{e} Sistem yöneticisine bildirin.")
-        return redirect("kimlik:liste")
+        return _cevap(request, f"{e} Sistem yöneticisine bildirin.")
     except (UnidentifiedImageError, OSError, ValueError):
-        messages.error(request, "Fotoğraf açılamadı. Telefonun kamerasıyla JPEG / PNG olarak çekip yeniden deneyin.")
-        return redirect("kimlik:liste")
+        return _cevap(request, "Fotoğraf açılamadı. Telefonun kamerasıyla JPEG / PNG olarak çekip yeniden deneyin.")
     k = servis.sonuctan_kayit(sonuc, request.user)
     tur = request.POST.get("tur", "")
     if tur in dict(KimlikKaydi.TURLER):
         k.tur = tur
         k.save(update_fields=["tur"])
-    return redirect(reverse("kimlik:duzenle", args=[k.pk]) + "?yeni=1")
+    return _cevap(request, adres=reverse("kimlik:duzenle", args=[k.pk]) + "?yeni=1")
+
+
+@require_POST
+@yetki_gerekli(BIRIM, DUZENLEME)
+def kare(request):
+    """Canlı kameradan gelen tek kare: okunmaya hazır mı? {"uygun": bool, "mesaj": str}. Kare saklanmaz."""
+    dosya, yuz = request.FILES.get("kare"), request.POST.get("yuz", "on")
+    if not dosya or dosya.size > EN_BUYUK_KARE:
+        return JsonResponse({"uygun": False, "mesaj": "Kare alınamadı."}, status=400)
+    try:
+        with motor.sira(bekleme=3):
+            uygun, mesaj = motor.hizli_kontrol(dosya, "arka" if yuz == "arka" else "on")
+    except motor.Mesgul:
+        return JsonResponse({"uygun": False, "mesaj": "Sunucu başka bir kartı okuyor, bekleniyor…"})
+    except motor.MotorYok as e:
+        return JsonResponse({"uygun": False, "mesaj": str(e), "dur": True}, status=503)
+    except (UnidentifiedImageError, OSError, ValueError):
+        return JsonResponse({"uygun": False, "mesaj": "Kare okunamadı."})
+    return JsonResponse({"uygun": uygun, "mesaj": mesaj})
 
 
 @yetki_gerekli(BIRIM, DUZENLEME)

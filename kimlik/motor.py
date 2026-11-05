@@ -9,6 +9,8 @@ Turkish seçilerek. Yol farklıysa ayarlarda TESSERACT_YOLU verilir.
 import io
 import shutil
 import subprocess
+import threading
+from contextlib import contextmanager
 from pathlib import Path
 
 from django.conf import settings
@@ -21,10 +23,45 @@ VARSAYILAN_YOLLAR = [
     r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
 ]
 MRZ_HARFLERI = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<"
+# Okuma işlemciyi yoğun kullanır: aynı anda en çok bu kadar okuma (sunucunun diğer sayfaları yavaşlamasın)
+_SIRA = threading.BoundedSemaphore(getattr(settings, "KIMLIK_ESZAMANLI_OKUMA", 2))
 
 
 class MotorYok(Exception):
     """Tesseract kurulu değil ya da çalışmıyor."""
+
+
+class Mesgul(Exception):
+    """Okuma sırası dolu."""
+
+
+@contextmanager
+def sira(bekleme):
+    if not _SIRA.acquire(timeout=bekleme):
+        raise Mesgul("Okuma sunucusu şu an meşgul.")
+    try:
+        yield
+    finally:
+        _SIRA.release()
+
+
+def hizli_kontrol(dosya, yuz):
+    """Canlı kameradan gelen karenin okunmaya hazır olup olmadığı: (uygun, mesaj).
+    Ön yüzde T.C. no'nun kontrol haneleri, arka yüzde kod satırlarının kontrol haneleri tutmalı."""
+    img = hazirla(dosya)
+    if yuz == "arka":
+        satirlar = okuma.mrz_bul(mrz_metinleri(img))
+        if not satirlar:
+            return False, "Arka yüzdeki 3 satırlık kod aranıyor; kartı çerçeveye oturtun."
+        if okuma.mrz_puani(okuma.mrz_coz(satirlar)) >= 5:
+            return True, "Arka yüz okundu."
+        return False, "Kod satırları görüldü, netleşmesini bekliyorum…"
+    b = okuma.on_yuz(parcalar(img))
+    if b.get("tc"):
+        return True, "Ön yüz okundu."
+    if b.get("tc_ham") or b.get("soyad") or b.get("dogum_tarihi"):
+        return False, "Kart görüldü, netleşmesini bekliyorum…"
+    return False, "Kartın ön yüzünü çerçeveye oturtun."
 
 
 def yol():
@@ -87,27 +124,9 @@ def hazirla(dosya):
         oran = 1600 / uzun
         img = img.resize((round(img.width * oran), round(img.height * oran)), Image.LANCZOS)
     img = ImageOps.autocontrast(img, cutoff=1)
-    img = _yon_duzelt(img)
     aci = egim(img)
     if abs(aci) >= 0.5:
         img = img.rotate(aci, resample=Image.BICUBIC, expand=True, fillcolor=255)
-    return img
-
-
-def _yon_duzelt(img):
-    """Kart yan ya da ters çekildiyse (90° katları) motorun yön tahminiyle çevirir; tahmin yoksa olduğu gibi."""
-    try:
-        cikti = _calistir(img, "--psm", "0", zaman=30)
-    except MotorYok:
-        return img
-    don = guven = 0.0
-    for satir in cikti.splitlines():
-        if satir.startswith("Rotate:"):
-            don = float(satir.split(":")[1])
-        elif satir.startswith("Orientation confidence:"):
-            guven = float(satir.split(":")[1])
-    if don and guven >= 2:
-        img = img.rotate(-don, expand=True, fillcolor=255)
     return img
 
 
@@ -169,7 +188,7 @@ def mrz_metinleri(img):
 
 
 def bolgeler(img, parcalar_, alanlar):
-    """Etiketlerin altındaki değer bölgelerini kesip tek satır (psm 7) olarak okur: {alan: metin}."""
+    """Etiketlerin altındaki değer bölgelerini kesip ayrıca okur: {alan: metin}."""
     dil = "tur+eng" if "tur" in diller() else "eng"
     sonuc = {}
     for alan in alanlar:
@@ -180,22 +199,48 @@ def bolgeler(img, parcalar_, alanlar):
         sag, alt = min(sag, img.width), min(alt, img.height)
         if sag - sol < 20 or alt - ust < 10:
             continue
-        metin = _calistir(img.crop((sol, ust, sag, alt)), "-l", dil, "--psm", "7").strip()
-        if metin:
-            sonuc[alan] = metin
+        # Etiket kutusu değere binebilir (parantez, Ü/İ noktaları için bırakılan pay): kesit blok olarak okunur,
+        # etiket olmayan geçerli son satır alınır.
+        satirlar = _calistir(img.crop((sol, ust, sag, alt)), "-l", dil, "--psm", "6").splitlines()
+        for satir in reversed([x.strip() for x in satirlar if x.strip()]):
+            if not okuma._etiket_mi(okuma.Parca(satir)) and okuma.deger_sec(alan, satir):
+                sonuc[alan] = satir
+                break
     return sonuc
+
+
+def _yonler(img):
+    """Kart düz, ters ya da yan çekilmiş olabilir. Motorun yön tahmini kimlik kartında güvenilmez çıktı (kod satırı
+    yazı tipi), bu yüzden yönler sırayla denenir; okuma tutunca durulur."""
+    yield img
+    for aci in (180, 90, 270):
+        yield img.rotate(aci, expand=True)
 
 
 def oku(on=None, arka=None):
     """Yüklenen ön / arka yüz dosyalarını okur; okuma.Sonuc döner."""
     on_p, arka_p, mrz, bolge = [], [], [], {}
     if on:
-        img = hazirla(on)
-        on_p = parcalar(img)
+        ilk = hazirla(on)
+        img, on_p = ilk, None
+        for aday in _yonler(ilk):
+            p = parcalar(aday)
+            if on_p is None:
+                on_p = p
+            if okuma.on_yuz(p).get("tc"):
+                img, on_p = aday, p
+                break
         bolge.update(bolgeler(img, on_p, ["soyad", "ad"]))
     if arka:
-        img = hazirla(arka)
+        ilk = hazirla(arka)
+        img, mrz = ilk, None
+        for aday in _yonler(ilk):
+            m = mrz_metinleri(aday)
+            if mrz is None:
+                mrz = m
+            if okuma.mrz_bul(m):
+                img, mrz = aday, m
+                break
         arka_p = parcalar(img)
-        mrz = mrz_metinleri(img)
         bolge.update(bolgeler(img, arka_p, ["anne_adi", "baba_adi", "veren_makam"]))
     return okuma.birlestir(on_p, arka_p, mrz, bolge)

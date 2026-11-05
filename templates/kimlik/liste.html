@@ -18,35 +18,53 @@
 
 <div class="row g-3 mb-3">
   <div class="col-12 col-lg-7" id="oku">
-    <div class="kart p-3 h-100">
+    <div class="kart p-3 h-100" data-kimlik-okuma data-kare-url="{% url 'kimlik:kare' %}" data-oku-url="{% url 'kimlik:oku' %}">
+      {% csrf_token %}
       <h2 class="h6 fw-bold mb-3"><i class="bi bi-camera me-1"></i>Kart oku</h2>
-      <form method="post" action="{% url 'kimlik:oku' %}" enctype="multipart/form-data" data-okuma>
-        {% csrf_token %}
-        <div class="row g-2">
-          <div class="col-12 col-sm-6">
-            <label class="form-label small text-secondary" for="on">Ön yüz (fotoğraflı)</label>
-            <input class="form-control" type="file" id="on" name="on" accept="image/*" capture="environment">
-          </div>
-          <div class="col-12 col-sm-6">
-            <label class="form-label small text-secondary" for="arka">Arka yüz (alttaki 3 satırlık kod)</label>
-            <input class="form-control" type="file" id="arka" name="arka" accept="image/*" capture="environment">
-          </div>
-          <div class="col-12 col-sm-6">
-            <label class="form-label small text-secondary" for="tur">Tür (isteğe bağlı, Excel'de de seçilebilir)</label>
-            <select class="form-select" id="tur" name="tur">
-              <option value="">— sonra seçilecek —</option>
-              {% for d, a in turler %}<option value="{{ d }}">{{ a }}</option>{% endfor %}
-            </select>
-          </div>
-          <div class="col-12 col-sm-6 d-flex align-items-end">
-            <button class="btn btn-primary w-100" {% if not motor_hazir %}disabled{% endif %}>
-              <span class="okuma-yazi"><i class="bi bi-upc-scan me-1"></i>Oku</span>
-              <span class="okuma-bekle d-none"><span class="spinner-border spinner-border-sm me-1"></span>Okunuyor…</span>
-            </button>
-          </div>
+      <div class="mb-2">
+        <label class="form-label small text-secondary" for="tur">Tür (isteğe bağlı, Excel'de de seçilebilir)</label>
+        <select class="form-select" id="tur" name="tur" data-arama="yok">
+          <option value="">— sonra seçilecek —</option>
+          {% for d, a in turler %}<option value="{{ d }}">{{ a }}</option>{% endfor %}
+        </select>
+      </div>
+      <button type="button" class="btn btn-primary btn-lg w-100" data-kamera-ac {% if not motor_hazir %}disabled{% endif %}><i class="bi bi-camera-video me-1"></i>Kamerayla oku</button>
+      <div class="small text-secondary mt-1" data-kamera-yok hidden>Canlı kamera yalnız güvenli (https) adreste çalışır; telefondan internet adresiyle girin ya da aşağıdan fotoğraf yükleyin.</div>
+      <div data-kamera-panel hidden>
+        <div class="d-flex gap-2 mb-2">
+          <span class="badge rounded-pill text-bg-primary" data-adim="on">1 · Ön yüz</span>
+          <span class="badge rounded-pill text-bg-light border" data-adim="arka">2 · Arka yüz</span>
         </div>
-        <div class="form-text mt-2">İpucu: kartı düz ve koyu bir zemine koyun, flaşı kapatın, kart kadrajın çoğunu kaplasın. Arka yüzdeki kod satırları T.C. no, seri no ve tarihleri kontrol haneleriyle doğrular; ad ve soyadı Türkçe harfleriyle ön yüzden okunur.</div>
-      </form>
+        <div class="kk-kamera">
+          <video playsinline muted autoplay></video>
+          <div class="kk-cerceve" data-cerceve></div>
+        </div>
+        <div class="d-flex flex-wrap gap-2 mt-2">
+          <button type="button" class="btn btn-outline-primary" data-elle><i class="bi bi-camera me-1"></i>Şimdi çek</button>
+          <button type="button" class="btn btn-outline-secondary" data-arkasiz hidden>Arka yüzsüz bitir</button>
+          <button type="button" class="btn btn-outline-danger ms-auto" data-kapat><i class="bi bi-x-lg me-1"></i>Kapat</button>
+        </div>
+      </div>
+      <div class="small mt-2" data-durum aria-live="polite"></div>
+      <details class="mt-3">
+        <summary class="small text-secondary">Kamera yerine fotoğraf yükle</summary>
+        <form method="post" action="{% url 'kimlik:oku' %}" enctype="multipart/form-data" data-okuma class="mt-2">
+          {% csrf_token %}
+          <div class="row g-2">
+            <div class="col-12 col-sm-6">
+              <label class="form-label small text-secondary" for="on">Ön yüz (fotoğraflı)</label>
+              <input class="form-control" type="file" id="on" name="on" accept="image/*">
+            </div>
+            <div class="col-12 col-sm-6">
+              <label class="form-label small text-secondary" for="arka">Arka yüz (alttaki 3 satırlık kod)</label>
+              <input class="form-control" type="file" id="arka" name="arka" accept="image/*">
+            </div>
+            <div class="col-12"><button class="btn btn-outline-primary w-100" {% if not motor_hazir %}disabled{% endif %}><i class="bi bi-upload me-1"></i>Yükle ve oku</button></div>
+          </div>
+          <div class="form-text">Fotoğraf göndermeden önce telefonda küçültülür. Kartı yakından çekin; kart karenin çoğunu kaplasın.</div>
+        </form>
+      </details>
+      <div class="form-text mt-2">İpucu: kartı düz bir zemine koyun, parlama olmasın. Arka yüzdeki kod satırları T.C. no, seri no ve tarihleri kontrol haneleriyle doğrular; ad ve soyadı Türkçe harfleriyle ön yüzden okunur.</div>
     </div>
   </div>
   <div class="col-12 col-lg-5">
@@ -137,13 +155,12 @@
 document.querySelector('[data-hepsi]')?.addEventListener('change', e => {
   document.querySelectorAll('input[name="k"]').forEach(c => { c.checked = e.target.checked; });
 });
-document.querySelector('[data-okuma]')?.addEventListener('submit', e => {
-  const f = e.target;
-  if (!f.on.files.length && !f.arka.files.length) { e.preventDefault(); alert('Önce kartın fotoğrafını çekin ya da seçin.'); return; }
-  const b = f.querySelector('button');
-  b.disabled = true;
-  b.querySelector('.okuma-yazi').classList.add('d-none');
-  b.querySelector('.okuma-bekle').classList.remove('d-none');
-});
 </script>
+<style>
+.kk-kamera { position: relative; overflow: hidden; border-radius: 12px; background: #0f172a; }
+.kk-kamera video { display: block; width: 100%; height: auto; }
+.kk-cerceve { position: absolute; border: 3px solid rgba(255,255,255,.95); border-radius: 14px; box-shadow: 0 0 0 9999px rgba(15,23,42,.45); transition: border-color .2s; pointer-events: none; }
+.kk-cerceve.tamam { border-color: #22c55e; }
+</style>
+{% load static %}<script src="{% static 'js/kimlik_kamera.js' %}?v=1" defer></script>
 {% endblock %}

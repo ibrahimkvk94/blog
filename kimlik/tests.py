@@ -119,9 +119,16 @@ class OkumaKurallari(SimpleTestCase):
         self.assertEqual(okuma.arka_yuz(arka)["baba_adi"], "HASAN")
 
     def test_bolge_okumasi_kod_satiriyla_tutani_secer(self):
-        s = okuma.birlestir(ON, ARKA, mrz(), {"ad": "ŞUKRU A RİNNİ", "anne_adi": "AYŞE NUR"})
+        s = okuma.birlestir(ON, ARKA, mrz(), {"ad": "ŞUKRU A RİNNİ", "anne_adi": "AYŞE Iİ MEUUILI ING"})
         self.assertEqual(s.bilgiler["ad"], "ŞÜKRÜ ALİ")
-        self.assertEqual(s.bilgiler["anne_adi"], "AYŞE NUR")
+        self.assertEqual(s.bilgiler["anne_adi"], "AYŞE")  # çöp kelimeler atılır
+        arka = [p if p.metin != "HASAN" else Parca("HAS", p.sol, p.ust, p.sag - 60, p.alt) for p in ARKA]
+        self.assertEqual(okuma.birlestir(ON, arka, mrz(), {"baba_adi": "HASAN"}).bilgiler["baba_adi"], "HASAN")
+
+    def test_turkce_harfi_kaybolan_okuma_yerine_bolge_okumasi(self):
+        on = [p if p.metin != "ŞÜKRÜ ALİ" else Parca("SUKRU ALI", p.sol, p.ust, p.sag, p.alt) for p in ON]
+        self.assertEqual(okuma.birlestir(on, ARKA, mrz()).bilgiler["ad"], "SUKRU ALI")
+        self.assertEqual(okuma.birlestir(on, ARKA, mrz(), {"ad": "ŞÜKRÜ ALİ"}).bilgiler["ad"], "ŞÜKRÜ ALİ")
 
     def test_ad_bicimi(self):
         k = KimlikKaydi(ad="ŞÜKRÜ ALİ", soyad="IŞIK")
@@ -247,6 +254,31 @@ class SayfaTestleri(TestCase):
         self.assertEqual((k.tc, k.soyad, k.tur), (TC, "ÇAĞLAR", "personel"))
         r = self.client.get(reverse("kimlik:duzenle", args=[k.pk]) + "?yeni=1")
         self.assertContains(r, "ŞÜKRÜ ALİ")
+
+    def test_kamera_karesi_ve_json_okuma(self):
+        self.client.force_login(self.okuyucu)
+        with mock.patch("kimlik.motor.hizli_kontrol", return_value=(True, "Ön yüz okundu.")) as h:
+            j = self.client.post(reverse("kimlik:kare"), {"kare": io.BytesIO(b"x"), "yuz": "arka"}).json()
+        self.assertEqual(j, {"uygun": True, "mesaj": "Ön yüz okundu."})
+        self.assertEqual(h.call_args.args[1], "arka")
+        with mock.patch("kimlik.motor.oku", return_value=okuma.birlestir(ON, ARKA, mrz())):
+            r = self.client.post(reverse("kimlik:oku"), {"on": io.BytesIO(b"x"), "arka": io.BytesIO(b"y")},
+                                 HTTP_X_REQUESTED_WITH="fetch")
+        k = KimlikKaydi.objects.get()
+        self.assertEqual(r.json(), {"yonlendir": reverse("kimlik:duzenle", args=[k.pk]) + "?yeni=1"})
+        r = self.client.post(reverse("kimlik:oku"), {}, HTTP_X_REQUESTED_WITH="fetch")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("hata", r.json())
+
+    def test_okuma_sirasi_doluysa(self):
+        from . import motor
+
+        self.client.force_login(self.okuyucu)
+        with mock.patch.object(motor, "sira", side_effect=motor.Mesgul("dolu")):
+            j = self.client.post(reverse("kimlik:kare"), {"kare": io.BytesIO(b"x")}).json()
+            self.assertFalse(j["uygun"])
+            r = self.client.post(reverse("kimlik:oku"), {"on": io.BytesIO(b"x")}, HTTP_X_REQUESTED_WITH="fetch")
+            self.assertIn("yoğun", r.json()["hata"])
 
     def test_motor_yoksa_hata_mesaji(self):
         self.client.force_login(self.okuyucu)

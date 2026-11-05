@@ -7,6 +7,7 @@ app_name = "kimlik"
 urlpatterns = [
     path("", views.liste, name="liste"),
     path("oku/", views.oku, name="oku"),
+    path("kare/", views.kare, name="kare"),
     path("<int:pk>/", views.duzenle, name="duzenle"),
     path("toplu/", views.toplu, name="toplu"),
     path("aktar/", views.aktar, name="aktar"),
