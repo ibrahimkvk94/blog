@@ -1,0 +1,30 @@
+{% comment %}KAMYOSİS: modül sayfaları KAMYOSİS çerçevesinde (sol menü sabit) açılır. Doğrudan açılan sayfa çerçeveye alınır;
+modülün içinden yeni sekmede açılan (ör. yazdırma) sayfalar olduğu gibi kalır.{% endcomment %}
+<script>
+(function () {
+  var gomulu;
+  try { gomulu = window.top !== window.self; } catch (e) { gomulu = true; }
+  var r = document.documentElement;
+  if (!gomulu) {
+    var once = "";
+    try { var ref = new URL(document.referrer); if (ref.origin === location.origin) once = ref.pathname; } catch (e) {}
+    if (once.indexOf("/ders-programi/") !== 0) {
+      location.replace("{% url 'dersprogrami_kopru:cerceve' %}?u=" + encodeURIComponent(location.pathname + location.search + location.hash));
+    }
+    return;
+  }
+  r.classList.add("gomulu");
+  r.classList.remove("layout-side", "nav-collapsed");
+  // KAMYOSİS sayfalarına giden bağlantılar çerçevede değil, ana pencerede açılır
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest && e.target.closest("a[href]");
+    if (!a || a.target || e.defaultPrevented) return;
+    var u; try { u = new URL(a.href, location.href); } catch (x) { return; }
+    if (u.origin === location.origin && u.pathname.indexOf("/ders-programi/") !== 0) { e.preventDefault(); window.top.location.href = u.href; }
+  }, true);
+})();
+</script>
+<style>
+  html.gomulu .sidebar, html.gomulu .nav-backdrop, html.gomulu #nav-toggle, html.gomulu [data-layout-side],
+  html.gomulu .rb-brand { display: none !important; }
+</style>
