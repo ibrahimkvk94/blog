@@ -86,7 +86,47 @@ def hazirla(dosya):
     elif uzun < 1600:
         oran = 1600 / uzun
         img = img.resize((round(img.width * oran), round(img.height * oran)), Image.LANCZOS)
-    return ImageOps.autocontrast(img, cutoff=1)
+    img = ImageOps.autocontrast(img, cutoff=1)
+    img = _yon_duzelt(img)
+    aci = egim(img)
+    if abs(aci) >= 0.5:
+        img = img.rotate(aci, resample=Image.BICUBIC, expand=True, fillcolor=255)
+    return img
+
+
+def _yon_duzelt(img):
+    """Kart yan ya da ters çekildiyse (90° katları) motorun yön tahminiyle çevirir; tahmin yoksa olduğu gibi."""
+    try:
+        cikti = _calistir(img, "--psm", "0", zaman=30)
+    except MotorYok:
+        return img
+    don = guven = 0.0
+    for satir in cikti.splitlines():
+        if satir.startswith("Rotate:"):
+            don = float(satir.split(":")[1])
+        elif satir.startswith("Orientation confidence:"):
+            guven = float(satir.split(":")[1])
+    if don and guven >= 2:
+        img = img.rotate(-don, expand=True, fillcolor=255)
+    return img
+
+
+def egim(img, sinir=12.0, adim=0.5):
+    """Küçük eğimi (±12°) bulur: koyu noktaların satır toplamları en keskin olduğu açı. Dönüş: düzeltme açısı."""
+    import numpy as np
+
+    kucuk = img.copy()
+    kucuk.thumbnail((900, 900))
+    dizi = np.asarray(kucuk, dtype=np.float32)
+    esik = dizi.mean() - dizi.std() * 0.5
+    murekkep = Image.fromarray(((dizi < esik) * 255).astype(np.uint8))
+
+    def puan(aci):
+        satirlar = np.asarray(murekkep.rotate(aci, resample=Image.NEAREST, expand=True), dtype=np.float32).sum(axis=1)
+        return float(np.square(np.diff(satirlar)).sum())
+
+    kaba = max(np.arange(-sinir, sinir + 0.01, adim * 2), key=puan)
+    return float(max(np.arange(kaba - adim * 2, kaba + adim * 2 + 0.01, adim / 2), key=puan))
 
 
 def parcalar(img):
@@ -115,23 +155,47 @@ def parcalar(img):
 
 
 def mrz_metinleri(img):
-    """Arka yüzün alt yarısında yalnız MRZ harfleriyle (A-Z, 0-9, <) blok okuma; bulunamazsa tüm yüz."""
+    """Yalnız MRZ harfleriyle (A-Z, 0-9, <) blok okuma: önce alt yarı, sonra tüm yüz. Satırların hepsi döner;
+    hangi birleşimin kontrol hanelerini tuttuğuna okuma.mrz_bul karar verir. Hepsi tutarsa ikinci okuma yapılmaz."""
     metinler = []
     alt = img.crop((0, img.height // 2, img.width, img.height))
     for parca in (alt, img):
         metin = _calistir(parca, "-l", "eng", "--psm", "6", "-c", f"tessedit_char_whitelist={MRZ_HARFLERI}")
-        metinler = [s for s in metin.splitlines() if s.strip()]
-        if okuma.mrz_bul(metinler):
+        metinler += [s for s in metin.splitlines() if s.strip()]
+        satirlar = okuma.mrz_bul(metinler)
+        if satirlar and okuma.mrz_puani(okuma.mrz_coz(satirlar)) >= 6:
             break
     return metinler
 
 
+def bolgeler(img, parcalar_, alanlar):
+    """Etiketlerin altındaki değer bölgelerini kesip tek satır (psm 7) olarak okur: {alan: metin}."""
+    dil = "tur+eng" if "tur" in diller() else "eng"
+    sonuc = {}
+    for alan in alanlar:
+        et = okuma.etiket_bul(parcalar_, alan)
+        if et is None:
+            continue
+        sol, ust, sag, alt = (round(x) for x in okuma.deger_kutusu(et, parcalar_))
+        sag, alt = min(sag, img.width), min(alt, img.height)
+        if sag - sol < 20 or alt - ust < 10:
+            continue
+        metin = _calistir(img.crop((sol, ust, sag, alt)), "-l", dil, "--psm", "7").strip()
+        if metin:
+            sonuc[alan] = metin
+    return sonuc
+
+
 def oku(on=None, arka=None):
     """Yüklenen ön / arka yüz dosyalarını okur; okuma.Sonuc döner."""
-    on_p = parcalar(hazirla(on)) if on else []
-    arka_p, mrz = [], []
+    on_p, arka_p, mrz, bolge = [], [], [], {}
+    if on:
+        img = hazirla(on)
+        on_p = parcalar(img)
+        bolge.update(bolgeler(img, on_p, ["soyad", "ad"]))
     if arka:
         img = hazirla(arka)
         arka_p = parcalar(img)
         mrz = mrz_metinleri(img)
-    return okuma.birlestir(on_p, arka_p, mrz)
+        bolge.update(bolgeler(img, arka_p, ["anne_adi", "baba_adi", "veren_makam"]))
+    return okuma.birlestir(on_p, arka_p, mrz, bolge)

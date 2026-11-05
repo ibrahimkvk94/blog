@@ -179,24 +179,47 @@ _SATIR2 = re.compile(r"[0-9]{7}[MF<][0-9]{7}[A-Z<]{3}")
 
 
 def _satir2_mi(s):
-    if len(s) < 25:
+    if len(s) < 19:
         return False
     aday = rakamlastir(s[0:7]) + s[7] + rakamlastir(s[8:15]) + harflestir(s[15:18])
     return bool(_SATIR2.fullmatch(aday))
 
 
+def _doldur(s, bas):
+    """OCR dolgu '<' sayısını yanlış okuyabilir: sabit uzunluktaki baş kısmı koruyup satırı 30 karaktere getirir.
+    bas: verinin bittiği yer; sonrası '<' dolgu (+ satır 2'de son hane genel kontrol hanesi)."""
+    if len(s) == 30:
+        return s
+    if bas == 18 and re.fullmatch(r"<*[0-9OQDILSB]", s[18:]):  # satır 2: dolgu + genel kontrol hanesi
+        return s[:18] + "<" * 11 + s[-1]
+    if re.fullmatch(r"<*", s[bas:]):
+        return (s[:bas] + "<" * 30)[:30]
+    return (s + "<" * 30)[:30]
+
+
+def mrz_puani(m):
+    return (m.belge_dogru + m.dogum_dogru + m.son_dogru + 2 * m.bilesik_dogru + tc_gecerli(m.tc)
+            + m.satirlar[2].count("<") / 100)  # ad satırında '<' → 'K' okunması daha az dolgu bırakır
+
+
 def mrz_bul(metinler):
-    """OCR satırları içinden TD1 MRZ'nin 3 satırını bulur; yoksa None."""
-    adaylar = [_mrz_sade(m) for m in metinler]
-    adaylar = [a for a in adaylar if len(a) >= 25 and "<" in a]
-    for i, s in enumerate(adaylar):
-        if not _satir2_mi(s):
-            continue
-        onceki = adaylar[i - 1] if i > 0 else ""
-        sonraki = adaylar[i + 1] if i + 1 < len(adaylar) else ""
-        if onceki and sonraki:
-            return [(x + "<" * 30)[:30] for x in (onceki, s, sonraki)]
-    return None
+    """OCR satırları (bir ya da birkaç okumanın satırları birlikte) içinden TD1 MRZ'nin 3 satırını bulur.
+    Her satır türü için adaylar toplanır, kontrol hanelerinin en çok tuttuğu birleşim seçilir; yoksa None."""
+    adaylar = [a for a in (_mrz_sade(m) for m in metinler) if len(a) >= 20 and "<" in a]
+    s1ler, s2ler, s3ler = [], [], []
+    for a in adaylar:
+        if _satir2_mi(a):
+            s2ler.append(_doldur(a, 18))
+        elif re.match(r"[I1][<A-Z0-9]?TUR", a) or (a[:1] in "I1" and len(a) >= 25 and a[1:2] in "<D"):
+            s1ler.append(_doldur(a, 26))
+        elif "<<" in a and sum(c.isalpha() for c in a) >= 4 and not any(c.isdigit() for c in a):
+            s3ler.append(_doldur(a, len(a.rstrip("<"))))
+    if not (s1ler and s2ler and s3ler):
+        return None
+    tekil = lambda xs: list(dict.fromkeys(xs))  # noqa: E731
+    en_iyi = max(((a, b, c) for a in tekil(s1ler) for b in tekil(s2ler) for c in tekil(s3ler)),
+                 key=lambda u: mrz_puani(mrz_coz(u)))
+    return list(en_iyi)
 
 
 def mrz_coz(satirlar):
@@ -269,28 +292,52 @@ def _deger_temizle(metin, ad_mi=True):
     return " ".join(m.split())
 
 
+def deger_sec(alan, metin):
+    """Ham metni alanın değeri olarak temizler; uygun değilse ""."""
+    if alan == "veren_makam":
+        deger = tr_buyuk(" ".join((metin or "").split()))
+        deger = re.sub(r"^[^A-ZÇĞİÖŞÜ0-9]+|[^A-ZÇĞİÖŞÜ0-9.]+$", "", deger)
+        return deger if len(deger.replace(" ", "")) >= 3 else ""
+    deger = _deger_temizle(metin)
+    return deger if len(deger.replace(" ", "")) >= 2 and _AD_DESENI.fullmatch(deger) else ""
+
+
+def etiket_bul(parcalar, alan):
+    kosul = _ETIKETLER[alan]
+    return next((p for p in parcalar if kosul(sade(p.metin))), None)
+
+
+def deger_kutusu(et, parcalar):
+    """Etiketin altındaki değer bölgesi (sol, üst, sağ, alt): bir sonraki etikete kadar, en çok 3,5 etiket boyu."""
+    h = et.yukseklik
+    alt = et.alt + h * 2.6
+    for p in parcalar:  # aynı sütunda alttaki ilk etiket bölgeyi keser
+        if p is not et and _etiket_mi(p) and p.ust > et.ust + h * 0.5 and abs(p.sol - et.sol) < h * 4:
+            alt = min(alt, p.ust)
+    sag = et.sol + h * 18
+    for p in parcalar:  # sağdaki sütunun etiketi / değeri bölgeye girmesin
+        if p is not et and p.sol > et.sag + h and p.alt > et.ust and p.ust < alt:
+            sag = min(sag, p.sol - h * 0.3)
+    return (max(et.sol - h, 0), et.alt, max(sag, et.sag), alt)
+
+
 def etiketli_alanlar(parcalar, alanlar):
-    """Etiketin hemen altındaki (sola hizalı) satırı değer olarak alır: {"soyad": "KAYA", ...}."""
+    """Etiketin hemen altındaki (sola hizalı) satırı değer olarak alır: {"soyad": "KAYA", ...}.
+    Değer, alttaki bir sonraki etiketi geçmez (anne adı yerine baba adı alınmaz)."""
     sonuc = {}
     for alan in alanlar:
-        kosul = _ETIKETLER[alan]
-        etiketler = [p for p in parcalar if kosul(sade(p.metin))]
-        for et in etiketler:
-            h = et.yukseklik
-            adaylar = [
-                p for p in parcalar
-                if p is not et and p.ust > et.ust + h * 0.5 and p.ust - et.alt < h * 3.5
-                and abs(p.sol - et.sol) < h * 4 and not _etiket_mi(p)
-            ]
-            adaylar.sort(key=lambda p: (p.ust, abs(p.sol - et.sol)))
-            for p in adaylar:
-                deger = _deger_temizle(p.metin, ad_mi=alan != "veren_makam")
-                if alan == "veren_makam":
-                    deger = tr_buyuk(deger)
-                if len(deger.replace(" ", "")) >= 2 and (alan == "veren_makam" or _AD_DESENI.fullmatch(deger)):
-                    sonuc[alan] = deger
-                    break
-            if alan in sonuc:
+        et = etiket_bul(parcalar, alan)
+        if et is None:
+            continue
+        h = et.yukseklik
+        _, _, _, sinir = deger_kutusu(et, parcalar)
+        adaylar = sorted((p for p in parcalar if p is not et and p.ust > et.ust + h * 0.5 and p.ust < sinir
+                          and abs(p.sol - et.sol) < h * 4 and not _etiket_mi(p)),
+                         key=lambda p: (p.ust, abs(p.sol - et.sol)))
+        for p in adaylar:
+            deger = deger_sec(alan, p.metin)
+            if deger:
+                sonuc[alan] = deger
                 break
     return sonuc
 
@@ -350,6 +397,10 @@ def arka_yuz(parcalar):
 
 # ----------------------------------------------------------------------------------------------- birleştirme
 
+def _ayni_ad(on, mrz_degeri):
+    return bool(on) and ascii_buyuk(on).replace(" ", "") == (mrz_degeri or "").replace(" ", "")
+
+
 def _ad_karsilastir(sonuc, alan, on, mrz_degeri):
     """Ön yüzdeki ad/soyad Türkçe harfli doğru biçimdir; MRZ ile ASCII olarak karşılaştırılır."""
     ad = ALAN_ADLARI[alan].lower()
@@ -368,13 +419,25 @@ def _ad_karsilastir(sonuc, alan, on, mrz_degeri):
     return ""
 
 
-def birlestir(on_parcalari=(), arka_parcalari=(), mrz_metinleri=()):
-    """İki yüzün okumasını birleştirir ve denetler. Parçalar `Parca` listesi, mrz_metinleri düz satırlardır."""
+def birlestir(on_parcalari=(), arka_parcalari=(), mrz_metinleri=(), bolgeler=None):
+    """İki yüzün okumasını birleştirir ve denetler. Parçalar `Parca` listesi, mrz_metinleri düz satırlardır.
+    bolgeler: {alan: metin} — motorun etiketin altındaki bölgeyi ayrıca tek satır olarak okuduğu değerler; geçerliyse
+    genel okumadan önce gelir."""
     sonuc = Sonuc()
     on = on_yuz(list(on_parcalari)) if on_parcalari else {}
     arka = arka_yuz(list(arka_parcalari)) if arka_parcalari else {}
     satirlar = mrz_bul(list(mrz_metinleri) + [p.metin for p in arka_parcalari])
     mrz = mrz_coz(satirlar) if satirlar else None
+    for alan, metin in (bolgeler or {}).items():
+        deger = deger_sec(alan, metin)
+        if not deger:
+            continue
+        hedef = on if alan in ("soyad", "ad") else arka
+        mrz_degeri = getattr(mrz, alan, "") if mrz is not None and alan in ("soyad", "ad") else ""
+        if mrz_degeri:  # iki okumadan kod satırıyla tutan seçilir
+            if _ayni_ad(hedef.get(alan), mrz_degeri) or not (_ayni_ad(deger, mrz_degeri) or not hedef.get(alan)):
+                continue
+        hedef[alan] = deger
     if not on_parcalari:
         sonuc.uyar("Ön yüz fotoğrafı yok: ad ve soyad kod satırından (Türkçe harfsiz) alınır.")
     if arka_parcalari and mrz is None:

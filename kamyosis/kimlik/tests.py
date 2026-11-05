@@ -106,6 +106,23 @@ class OkumaKurallari(SimpleTestCase):
         self.assertEqual(s.bilgiler["seri_no"], "A12B34567")
         self.assertEqual(s.bilgiler["anne_adi"], "")
 
+    def test_birden_cok_okumadan_kontrol_hanesi_tutan_secilir(self):
+        s1, s2, s3 = mrz()
+        okumalar = [s1[:20] + s1[21:], "2" + s2[1:], s2[:20] + s2[22:], s3.replace("<ALI", "KALI"), s1, s3]
+        m = okuma.mrz_coz(okuma.mrz_bul(okumalar))
+        self.assertTrue(m.belge_dogru and m.dogum_dogru and m.son_dogru and m.bilesik_dogru)
+        self.assertEqual((m.tc, m.ad), (TC, "SUKRU ALI"))
+
+    def test_deger_alttaki_etiketi_gecmez(self):
+        arka = [p for p in ARKA if p.metin != "AYŞE"]  # anne adı okunamamış
+        self.assertNotIn("anne_adi", okuma.arka_yuz(arka))
+        self.assertEqual(okuma.arka_yuz(arka)["baba_adi"], "HASAN")
+
+    def test_bolge_okumasi_kod_satiriyla_tutani_secer(self):
+        s = okuma.birlestir(ON, ARKA, mrz(), {"ad": "ŞUKRU A RİNNİ", "anne_adi": "AYŞE NUR"})
+        self.assertEqual(s.bilgiler["ad"], "ŞÜKRÜ ALİ")
+        self.assertEqual(s.bilgiler["anne_adi"], "AYŞE NUR")
+
     def test_ad_bicimi(self):
         k = KimlikKaydi(ad="ŞÜKRÜ ALİ", soyad="IŞIK")
         self.assertEqual(k.ad_soyad, "Şükrü Ali IŞIK")
