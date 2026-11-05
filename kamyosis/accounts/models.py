@@ -7,6 +7,11 @@ class User(AbstractUser):
         "personel.Bolum", on_delete=models.SET_NULL, null=True, blank=True,
         related_name="kullanicilar", verbose_name="Bölüm",
     )
+    teskilat_birimi = models.ForeignKey(
+        "personel.TeskilatBirimi", on_delete=models.SET_NULL, null=True, blank=True, related_name="kullanicilar",
+        verbose_name="Teşkilat birimi",
+        help_text="Şube müdürlüğü, kısım vb. hesabıysa birimi. Doluysa bölüm yerine bu birim ve alt birimleri görülür.",
+    )
     personel = models.OneToOneField(
         "personel.Personel", on_delete=models.SET_NULL, null=True, blank=True,
         related_name="kullanici", verbose_name="Bağlı personel",

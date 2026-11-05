@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% load static yoklama_etiketleri %}
+{% block title %}Personel yoklaması · {{ tarih|date:"d.m.Y" }}{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Personel yoklaması</h1>
+    <p class="text-secondary mb-0">{{ tarih|date:"d F Y, l" }}{% if tarih == bugun %} · bugün{% elif tarih == yarin %} · yarın{% elif tarih == dun %} · dün{% endif %} · tüm okul</p>
+  </div>
+  <div class="d-flex flex-wrap gap-2 d-print-none">
+    <a class="btn btn-primary" href="{% url 'yoklama:form' %}?tarih={{ tarih|date:'Y-m-d' }}"><i class="bi bi-file-earmark-text me-1"></i>Yoklama formu</a>
+    <div class="dropdown">
+      <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-file-earmark-excel me-1"></i>Excel</button>
+      <ul class="dropdown-menu dropdown-menu-end">
+        <li><a class="dropdown-item" href="{% url 'yoklama:form' %}?tarih={{ tarih|date:'Y-m-d' }}&bit={{ tarih|date:'Y-m-d' }}&excel=1"><i class="bi bi-file-earmark-text me-2"></i>Yoklama formu</a></li>
+        <li><a class="dropdown-item" href="{% url 'yoklama:rapor' %}?bas={{ tarih|date:'Y-m-d' }}&bit={{ tarih|date:'Y-m-d' }}"><i class="bi bi-table me-2"></i>Ayrıntılı döküm</a></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+{% include "yoklama/_sekmeler.html" with sekme="gun" %}
+{% include "yoklama/_tarih_cubugu.html" with sekme="gun" %}
+
+<div class="yk-istatistik mb-3">
+  <div class="kart yk-sayi-kart" style="--renk:#1f3a5f"><div class="etiket"><i class="bi bi-people-fill"></i>Toplam personel</div><div class="deger">{{ ozet.toplam }}</div></div>
+  <div class="kart yk-sayi-kart" style="--renk:#15803d"><div class="etiket"><i class="bi bi-person-check-fill"></i>Mevcut</div><div class="deger">{{ ozet.mevcut }}</div></div>
+  <div class="kart yk-sayi-kart" style="--renk:#dc2626"><div class="etiket"><i class="bi bi-person-dash-fill"></i>Gün boyu yok</div><div class="deger">{{ ozet.gun_boyu }}</div></div>
+  <div class="kart yk-sayi-kart" style="--renk:#d97706"><div class="etiket"><i class="bi bi-hourglass-split"></i>Kesinleşmeyen birim</div><div class="deger">{{ eksik }}</div></div>
+</div>
+
+<form method="get" class="kart p-2 mb-3 d-flex flex-wrap align-items-center gap-2 d-print-none" role="search">
+  <input type="hidden" name="tarih" value="{{ tarih|date:'Y-m-d' }}">
+  <i class="bi bi-search text-secondary ms-2"></i>
+  <input type="search" class="form-control border-0 shadow-none" name="q" value="{{ q }}" placeholder="Personel ara (ad soyad)…" aria-label="Personel ara" style="max-width:420px">
+  {% if q %}<a class="btn btn-sm btn-outline-secondary" href="?tarih={{ tarih|date:'Y-m-d' }}">Temizle</a>{% endif %}
+</form>
+
+{% if q %}
+<div class="kart mb-3">
+  <div class="yardim-satiri"><i class="bi bi-search"></i> “{{ q }}” · {{ bulunan|length }} kişi</div>
+  <ul class="list-unstyled mb-0">
+    {% for d in bulunan %}
+    <li class="d-flex flex-wrap align-items-center gap-2 px-3 py-2 border-bottom">
+      <a class="yk-kisi me-auto" href="{% url 'yoklama:kart' d.personel.pk %}?tarih={{ tarih|date:'Y-m-d' }}&geri={{ request.get_full_path|urlencode }}">{% include "yoklama/_foto.html" with p=d.personel %}<span class="min-w-0"><span class="ad d-block text-truncate">{{ d.personel.ad_soyad }}</span><span class="kunye d-block text-truncate">{{ d.personel.kunye|default:"" }}</span></span></a>
+      <a class="small text-decoration-none" href="?tarih={{ tarih|date:'Y-m-d' }}&birim={{ d.yoklama_birimi.pk }}">{{ d.yoklama_birimi.ad }}</a>
+      {% for k in d.kayitlar %}<span class="yk-cip" style="--renk: {{ k.tur.renk }}"><span class="yk-nokta"></span>{{ k.tur.ad }}</span>{% empty %}<span class="yk-mevcut"><i class="bi bi-check-circle-fill"></i>Mevcut</span>{% endfor %}
+    </li>
+    {% empty %}
+    <li class="px-3 py-4 text-center text-secondary">Bulunamadı.</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% for g in gruplar %}
+<section class="yk-grup mb-3">
+  <h2 class="yk-grup-baslik">{% if g.baslik %}<a href="?tarih={{ tarih|date:'Y-m-d' }}&birim={{ g.baslik.pk }}">{{ g.baslik.ad }}</a>{% else %}Diğer birimler{% endif %}</h2>
+  <div class="yk-birimler">{% for o in g.kutular %}{% include "yoklama/_birim_kutusu.html" %}{% endfor %}</div>
+</section>
+{% empty %}
+<div class="kart p-5 text-center text-secondary">Kapsamda personel yok.</div>
+{% endfor %}
+{% endblock %}

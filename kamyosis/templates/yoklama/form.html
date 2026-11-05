@@ -5,10 +5,10 @@
 <div class="sayfa-baslik d-print-none">
   <div>
     <h1>Günlük yoklama formu</h1>
-    <p class="text-secondary mb-0">{{ tarih|date:"d F Y, l" }}{% if tarih == bugun %} · bugün{% endif %}{% if secili_bolum %} · {{ secili_bolum.ad }}{% else %} · tüm bölümler{% endif %}</p>
+    <p class="text-secondary mb-0">{{ tarih|date:"d F Y, l" }}{% if tarih == bugun %} · bugün{% endif %}{% if secili_birim %} · {{ secili_birim.ad }}{% else %} · tüm okul{% endif %}</p>
   </div>
   <div class="d-flex flex-wrap gap-2">
-    <a class="btn btn-primary" href="?tarih={{ tarih|date:'Y-m-d' }}{% if secili_bolum and not y.kapsam_bolum %}&bolum={{ secili_bolum.pk }}{% endif %}&excel=1"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+    <a class="btn btn-primary" href="?tarih={{ tarih|date:'Y-m-d' }}{{ birim_q }}&excel=1"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
     <button class="btn btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer me-1"></i>Yazdır</button>
   </div>
 </div>
@@ -18,17 +18,12 @@
 <div class="kart p-2 mb-3 d-print-none">
   <form method="get" class="d-flex flex-wrap align-items-center gap-2">
     <div class="btn-group">
-      <a class="btn btn-outline-secondary" href="?tarih={{ dun|date:'Y-m-d' }}{% if secili_bolum and not y.kapsam_bolum %}&bolum={{ secili_bolum.pk }}{% endif %}" title="Önceki gün"><i class="bi bi-chevron-left"></i></a>
-      <a class="btn btn-outline-secondary {% if tarih == bugun %}active{% endif %}" href="?tarih={{ bugun|date:'Y-m-d' }}{% if secili_bolum and not y.kapsam_bolum %}&bolum={{ secili_bolum.pk }}{% endif %}">Bugün</a>
-      <a class="btn btn-outline-secondary" href="?tarih={{ yarin|date:'Y-m-d' }}{% if secili_bolum and not y.kapsam_bolum %}&bolum={{ secili_bolum.pk }}{% endif %}" title="Sonraki gün"><i class="bi bi-chevron-right"></i></a>
+      <a class="btn btn-outline-secondary" href="?tarih={{ dun|date:'Y-m-d' }}{{ birim_q }}" title="Önceki gün"><i class="bi bi-chevron-left"></i></a>
+      <a class="btn btn-outline-secondary {% if tarih == bugun %}active{% endif %}" href="?tarih={{ bugun|date:'Y-m-d' }}{{ birim_q }}">Bugün</a>
+      <a class="btn btn-outline-secondary" href="?tarih={{ yarin|date:'Y-m-d' }}{{ birim_q }}" title="Sonraki gün"><i class="bi bi-chevron-right"></i></a>
     </div>
     <input type="date" class="form-control w-auto" name="tarih" value="{{ tarih|date:'Y-m-d' }}" onchange="this.form.submit()" aria-label="Tarih">
-    {% if not y.kapsam_bolum %}
-    <select class="form-select w-auto" name="bolum" style="max-width:300px" onchange="this.form.submit()" aria-label="Bölüm">
-      <option value="">Tüm yüksekokul</option>
-      {% for b in bolum_listesi %}<option value="{{ b.pk }}" {% if secili_bolum == b %}selected{% endif %}>{{ b.ad }}</option>{% endfor %}
-    </select>
-    {% endif %}
+    {% include "yoklama/_birim_secimi.html" %}
     <div class="ms-auto d-flex flex-wrap align-items-center gap-2">
       <span class="small text-secondary">Birden çok gün (her gün ayrı sayfa):</span>
       <input type="date" class="form-control form-control-sm w-auto" name="bit" value="{{ yarin|date:'Y-m-d' }}" aria-label="Son gün" form="ykCokGun">
@@ -37,7 +32,7 @@
   </form>
   <form id="ykCokGun" method="get" class="d-none">
     <input type="hidden" name="tarih" value="{{ tarih|date:'Y-m-d' }}">
-    {% if secili_bolum and not y.kapsam_bolum %}<input type="hidden" name="bolum" value="{{ secili_bolum.pk }}">{% endif %}
+    {% if secili_birim %}<input type="hidden" name="birim" value="{{ secili_birim.pk }}">{% endif %}
     <input type="hidden" name="excel" value="1">
   </form>
 </div>
@@ -102,7 +97,7 @@
     <div class="kart p-3 h-100 small">
       <h2 class="h6 fw-bold mb-2"><i class="bi bi-info-circle me-1"></i>Form nasıl dolduruluyor?</h2>
       <ul class="ps-3 mb-2">
-        <li><strong>Genel mevcut:</strong> sistemdeki aktif personel{% if secili_bolum %} ({{ secili_bolum.ad }}){% endif %}.</li>
+        <li><strong>Genel mevcut:</strong> sistemdeki aktif personel{% if secili_birim %} ({{ secili_birim.ad }} ve alt birimleri){% endif %}.</li>
         <li><strong>Gayri mevcut:</strong> o gün <em>gün boyu</em> kaydı olanlar (izin, rapor, görev…). Aşağıdaki beyan listesi de bunlardır.</li>
         <li><strong>Hazır mevcut:</strong> genel mevcut − gayri mevcut.</li>
         <li>Ayrılış: kaydın başladığı gün; katılış: göreve döndüğü gün.</li>

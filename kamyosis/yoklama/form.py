@@ -66,7 +66,7 @@ def _tarih_metni(an):
     return f"{an:%d.%m.%Y}" if an.hour == an.minute == 0 else f"{an:%d.%m.%Y %H:%M}"
 
 
-def gunluk(tarih, kisiler, bolum=None, ata=None):
+def gunluk(tarih, kisiler, birim=None, ata=None):
     """Bir günün formu: {tarih, baslik, sayim: [{ad, degerler: [..8]}], beyan: [satır], saatlik: [satır]}."""
     ata = atamalar(kisiler) if ata is None else ata
     bas, bit = servis.gun_araligi(tarih)
@@ -99,9 +99,9 @@ def gunluk(tarih, kisiler, bolum=None, ata=None):
     hazir = {s: genel[s] - gayri[s] for s in SUTUNLAR}
     kurum = tr_buyuk(f"{settings.KURUM_ADI} Müdürlüğü")
     return {
-        "tarih": tarih, "bolum": bolum,
+        "tarih": tarih, "birim": birim,
         "ust_baslik": [*UST_BASLIK, f"{settings.KURUM_ADI} Müdürlüğü"],
-        "baslik": f"{kurum} " + (f"{tr_buyuk(bolum.ad)} BÖLÜMÜ " if bolum else "") + "PERSONEL YOKLAMASI (GÜNLÜK)",
+        "baslik": f"{kurum} " + (f"{tr_buyuk(servis.birim_basligi(birim))} " if birim else "") + "PERSONEL YOKLAMASI (GÜNLÜK)",
         "sayim": [satir("GENEL MEVCUT", genel), satir("GAYRİ MEVCUT", gayri), satir("HAZIR MEVCUT", hazir)],
         "beyan": beyan, "saatlik": saatlik,
     }
@@ -109,7 +109,7 @@ def gunluk(tarih, kisiler, bolum=None, ata=None):
 
 # ---------------------------------------------------------------- Excel
 
-def excel(gunler, kisiler, bolum=None):
+def excel(gunler, kisiler, birim=None):
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Border, Font, Side
     from openpyxl.worksheet.page import PageMargins
@@ -146,7 +146,7 @@ def excel(gunler, kisiler, bolum=None):
     wb = Workbook()
     wb.remove(wb.active)
     for tarih in gunler:
-        v = gunluk(tarih, kisiler, bolum, ata)
+        v = gunluk(tarih, kisiler, birim, ata)
         ws = wb.create_sheet(f"{tarih:%d.%m.%Y}")
         for harf, en in zip("ABCDEFGHIJ", [2, 17, 13, 26, 12, 13, 17, 17, 13, 13]):
             ws.column_dimensions[harf].width = en
@@ -237,8 +237,9 @@ def excel(gunler, kisiler, bolum=None):
 
     cevap = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     ad = f"personel_yoklamasi_{gunler[0]:%Y%m%d}" + (f"-{gunler[-1]:%Y%m%d}" if len(gunler) > 1 else "")
-    if bolum is not None and bolum.kod:
-        ad += f"_{bolum.kod}"
+    kod = getattr(getattr(birim, "bolum", None), "kod", None) or (f"birim{birim.pk}" if birim is not None else "")
+    if kod:
+        ad += f"_{kod}"
     cevap["Content-Disposition"] = f'attachment; filename="{ad}.xlsx"'
     wb.save(cevap)
     return cevap

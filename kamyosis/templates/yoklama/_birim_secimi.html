@@ -1,0 +1,6 @@
+{% load yoklama_etiketleri %}{% if birim_secenekleri %}
+<select class="form-select w-auto" name="birim" aria-label="Birim" onchange="this.form.submit()" data-arama="yok" style="max-width:360px">
+  {% if y.tum_okul %}<option value="">Tüm okul</option>{% endif %}
+  {% for b, d in birim_secenekleri %}<option value="{{ b.pk }}" {% if b == secili_birim %}selected{% endif %}>{{ d|girinti }}{{ b.ad }}</option>{% endfor %}
+</select>
+{% elif secili_birim %}<input type="hidden" name="birim" value="{{ secili_birim.pk }}">{% endif %}

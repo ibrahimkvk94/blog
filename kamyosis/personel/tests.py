@@ -112,7 +112,9 @@ class PersonelKartiTestleri(TestCase):
         cls.mudurluk = TeskilatBirimi.objects.create(ad="Müdürlük", tur=TeskilatBirimi.MUDURLUK)
         cls.sube = TeskilatBirimi.objects.create(ad="İdari İşler Şube Müdürlüğü", tur=TeskilatBirimi.SUBE, ust=cls.mudurluk)
         cls.bas = TeskilatBirimi.objects.create(ad="Bölüm Başkanlıkları", tur=TeskilatBirimi.BASKANLIKLAR, ust=cls.mudurluk)
-        cls.ask_tk = TeskilatBirimi.objects.create(ad="Askeri Bilimler", tur=TeskilatBirimi.BOLUM, ust=cls.bas, bolum=cls.ask)
+        cls.ask_tk = TeskilatBirimi.objects.get(bolum=cls.ask)  # bölüm açılınca kendiliğinden oluşur
+        cls.ask_tk.ust = cls.bas
+        cls.ask_tk.save()
 
     def test_birim_adi_ve_baslangic_alanlari(self):
         self.assertEqual(Birim.objects.get(slug="personel-bilgileri").ad, "Personel Kartları")

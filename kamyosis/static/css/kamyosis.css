@@ -468,3 +468,30 @@ a.yk-kisi:hover .ad { color: #2f5d8a; text-decoration: underline; }
 .icerik.icerik-cerceve { padding: 0; max-width: none; display: flex; flex: 1; }
 .dp-cerceve { display: block; border: 0; width: 100%; height: calc(100vh - 59px); background: #fff; }
 @supports (height: 100dvh) { .dp-cerceve { height: calc(100dvh - 59px); } }
+
+/* Yoklama: teşkilata göre birim kutucukları */
+.yk-zincir { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; font-size: .85rem; color: #64748b; }
+.yk-zincir a { color: #2f5d8a; text-decoration: none; }
+.yk-zincir a:hover { text-decoration: underline; }
+.yk-zincir strong { color: #1f3a5f; }
+.yk-grup-baslik { font-size: .8rem; text-transform: uppercase; letter-spacing: .07em; font-weight: 700; color: #64748b; margin: 0 0 .5rem .2rem; }
+.yk-grup-baslik a { color: inherit; text-decoration: none; }
+.yk-grup-baslik a:hover { color: #1f3a5f; }
+.yk-birimler { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: .6rem; }
+.yk-birim-kutu { --durum: #d97706; display: flex; flex-direction: column; gap: .35rem; padding: .7rem .8rem; border-radius: 12px; background: #fff;
+  border: 1px solid #e2e8f0; border-left: 4px solid var(--durum); text-decoration: none; color: #1e293b; transition: transform .15s, box-shadow .15s; }
+.yk-birim-kutu:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(15,23,42,.10); color: #1e293b; }
+.yk-birim-kutu.tamam { --durum: #15803d; }
+.yk-birim-kutu.degisti { --durum: #c2410c; }
+.yk-birim-kutu.bos { --durum: #cbd5e1; background: #f8fafc; }
+.yk-birim-kutu .ust { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; }
+.yk-birim-kutu .ad { font-weight: 700; font-size: .9rem; line-height: 1.25; }
+.yk-birim-kutu .ust .bi { color: var(--durum); }
+.yk-birim-kutu .sayilar { display: flex; flex-wrap: wrap; gap: .25rem .6rem; font-size: .78rem; color: #475569; }
+.yk-birim-kutu .sayilar .bi { margin-right: .2rem; }
+.yk-birim-kutu .sayilar .m { color: #15803d; font-weight: 600; }
+.yk-birim-kutu .sayilar .y { color: #dc2626; font-weight: 600; }
+.yk-birim-kutu .sayilar .k { color: #d97706; font-weight: 600; }
+.yk-birim-kutu .cubuk { height: 5px; border-radius: 999px; background: #fee2e2; overflow: hidden; }
+.yk-birim-kutu .cubuk span { display: block; height: 100%; background: #22c55e; border-radius: 999px; }
+.yk-birim-kutu .durum { font-size: .72rem; color: var(--durum); font-weight: 600; }
