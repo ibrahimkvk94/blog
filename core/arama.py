@@ -1,9 +1,9 @@
 """Türkçe harf ve büyük-küçük harf duyarsız arama.
 
-SQLite'ın büyük-küçük harf eşleştirmesi yalnız İngilizce harfleri tanır ("girgen" ≠ "GİRGEN"). Veritabanına
+SQLite'ın büyük-küçük harf eşleştirmesi yalnız İngilizce harfleri tanır ("kiraz" ≠ "KİRAZ"). Veritabanına
 `tr_sade()` işlevi eklenir: metni küçültür, Türkçe harfleri sadeleştirir (İ/I/ı→i, ş→s, ğ→g, ç→c, ö→o, ü→u) ve
-aksanları atar. Arama sözcüklere bölünür; her sözcük alanlardan birinde geçmelidir ("mehmet girgen" =
-"girgen mehmet").
+aksanları atar. Arama sözcüklere bölünür; her sözcük alanlardan birinde geçmelidir ("ali kiraz" =
+"kiraz ali").
 
     from core.arama import ara
     qs = ara(qs, request.GET.get("q"), "ad_soyad", "sicil")
