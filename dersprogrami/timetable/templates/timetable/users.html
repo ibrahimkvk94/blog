@@ -13,7 +13,7 @@
         <tbody>
           {% for row in members %}{% with m=row.m %}
             <tr>
-              <td><b>{{ m.user.username }}</b><div class="subtle small">{{ m.user.get_full_name }}{% if m.granted_by %} · ekleyen: {{ m.granted_by.username }}{% endif %}</div></td>
+              <td><b>{{ m.user.username }}</b>{% if row.two_factor %} <span class="pill ok" title="Girişte doğrulama kodu soruluyor">2 adımlı</span>{% endif %}<div class="subtle small">{{ m.user.get_full_name }}{% if m.granted_by %} · ekleyen: {{ m.granted_by.username }}{% endif %}</div></td>
               <td>
                 {% if row.manageable %}
                   <form method="post" class="user-perms">{% csrf_token %}<input type="hidden" name="action" value="update"><input type="hidden" name="membership" value="{{ m.pk }}">
@@ -33,6 +33,8 @@
                   <details class="user-actions"><summary class="btn btn-sm btn-ghost">⋯</summary>
                     <form method="post" class="dialog-row">{% csrf_token %}<input type="hidden" name="action" value="password"><input type="hidden" name="membership" value="{{ m.pk }}">
                       <input class="input" type="password" name="password" placeholder="Yeni parola" required><button class="btn btn-sm">Parolayı değiştir</button></form>
+                    {% if row.two_factor %}<form method="post" onsubmit="return confirm('Bu kullanıcının iki adımlı girişi kaldırılsın mı? (telefonunu kaybettiyse)')">{% csrf_token %}<input type="hidden" name="action" value="two_factor_reset"><input type="hidden" name="membership" value="{{ m.pk }}">
+                      <button class="btn btn-sm" style="margin-top:6px">İki adımlı girişi kaldır</button></form>{% endif %}
                     <form method="post" onsubmit="return confirm('Kullanıcı okuldan çıkarılsın mı?')">{% csrf_token %}<input type="hidden" name="action" value="remove"><input type="hidden" name="membership" value="{{ m.pk }}">
                       <button class="btn btn-sm btn-danger" style="margin-top:6px">Kurumdan çıkar</button></form>
                   </details>

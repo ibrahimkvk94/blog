@@ -142,7 +142,7 @@ CARD_ROUTES = {
 }
 VERSION_ROUTES = {"api_version": (M.VIEW, M.PROGRAM)}
 # Herkese açık (giriş yapmış) ve yalnızca merkez yöneticiye açık sayfalar
-OPEN_ROUTES = {"home", "school_list", "login", "logout", "account", "password_set", "password_set_done", "password_forgot",
+OPEN_ROUTES = {"home", "school_list", "login", "login_verify", "logout", "account", "account_two_factor", "password_set", "password_set_done", "password_forgot",
                "password_forgot_done", "department_portal", "my_requests", "my_timetable", "teacher_ics", "public_index", "public_board", "public_timetable",
                "notifications", "notification_open", "api_notifications", "api_notifications_read"}
 CENTRAL_ROUTES = {"create_demo", "import_asc", "school_create", "central", "central_school_new", "central_log", "backups", "system_update", "broadcast"}
@@ -420,7 +420,7 @@ ACTION_LABELS = {
     "account": "Parolasını değiştirdi", "backups": "Yedekleme", "system_update": "Sistem güncelleme", "broadcast": "Duyuru gönderdi", "institution_detail": "Kurumu düzenledi", "publish_settings": "Web yayını",
     "api_presence": "Düzenleyici nabzı",
 }
-SKIP_AUDIT = {"login", "logout", "api_notifications_read", "notifications", "api_presence"}  # okundu işaretleri ve nabızlar günlüğe yazılmaz
+SKIP_AUDIT = {"login", "login_verify", "logout", "account_two_factor", "api_notifications_read", "notifications", "api_presence"}  # okundu işaretleri ve nabızlar günlüğe yazılmaz
 
 
 def _detail(request, response):
