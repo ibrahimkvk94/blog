@@ -8,8 +8,9 @@ Modülde kullanıcı ve yetki yönetimi kapalıdır; üyelikler yalnızca burada
 | Düzenleme (tüm)                            | veri girişi, etkinlik ve telafi                         |
 | Yönetim (tüm)                              | + program üretme, yayınlama, program ekleme ve silme    |
 
-"Sınav Planları" yetkisi olan kullanıcıya da en az görüntüleme üyeliği verilir; sınav işlemlerindeki
-yetkiyi köprü ara katmanı ayrıca verir (middleware.py).
+"Sınav Planları" biriminde Düzenleme (ve üstü) yetkisi olan sınav planlamacısıdır: Sınav Planlama modülüne girer
+(en az görüntüleme üyeliği; sınav işlemlerindeki yetkiyi köprü ara katmanı verir, middleware.py). Yalnız Görüntüleme
+yetkisi olanlar (bölümler) modüle giremez; KAMYOSİS'te yalnızca yayınlanan sınav programlarını görür (sinav_yayini.py).
 """
 
 from types import SimpleNamespace
@@ -45,6 +46,17 @@ def birim_yetkisi(user, slug):
         return (0, None)
 
 
+def sinav_planlamacisi(user):
+    """Sınav Planlama modülünde çalışabilir mi (Sınav Planları'nda Düzenleme ve üstü ya da süper kullanıcı)?"""
+    if not user.is_authenticated or not user.is_active:
+        return False
+    if user.is_superuser:
+        return True
+    if not hasattr(user, "_sinav_planlamacisi"):
+        user._sinav_planlamacisi = birim_yetkisi(user, SINAV_BIRIMI)[0] >= DUZENLEME
+    return user._sinav_planlamacisi
+
+
 def modul_yetkileri(user):
     """(yetki listesi, açabildiği modüller) ya da üyelik gerekmiyorsa None.
 
@@ -54,7 +66,7 @@ def modul_yetkileri(user):
     if not user.is_active or user.is_superuser:
         return None  # süper kullanıcıya modül zaten her şeyi verir
     seviye, kapsam = birim_yetkisi(user, PROGRAM_BIRIMI)
-    sinav = birim_yetkisi(user, SINAV_BIRIMI)[0] >= GORUNTULEME
+    sinav = birim_yetkisi(user, SINAV_BIRIMI)[0] >= DUZENLEME  # görüntüleyen yalnız yayını görür (KAMYOSİS'te)
     moduller = (["ders"] if seviye >= GORUNTULEME else []) + (["sinav"] if sinav else [])
     if not moduller:
         return None

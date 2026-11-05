@@ -10,7 +10,12 @@ from .yetki import SINAV_BIRIMI
 
 @yetki_gerekli(SINAV_BIRIMI)
 def sinavlar(request):
-    """Sınav Planları birimi: Sınav Planlama modülünde yayındaki (yoksa en son eklenen) programın sınav dönemleri."""
+    """Sınav Planları birimi: planlamacıya Sınav Planlama modülünde yayındaki (yoksa en son eklenen) programın sınav
+    dönemleri; yalnız görüntüleyene yayınlanan sınav programları."""
+    from .yetki import sinav_planlamacisi
+
+    if not sinav_planlamacisi(request.user):
+        return redirect("dersprogrami_kopru:sinav_programi")
     okullar = visible_schools(request.user)
     okul = okullar.filter(active_timetable__isnull=False).order_by("-pk").first() or okullar.order_by("-pk").first()
     if okul is None:
@@ -45,6 +50,11 @@ def cerceve(request):
     from core.yetki import birim_bul, yol
 
     u = _guvenli_modul_adresi(request.GET.get("u"))
+    if u.startswith("/ders-programi-kopru/sinavlar/"):
+        from .yetki import sinav_planlamacisi
+
+        if not sinav_planlamacisi(request.user):  # görüntüleyen çerçevesiz yayın sayfasına
+            return redirect("dersprogrami_kopru:sinav_programi")
     slug = "sinav-planlari" if u.startswith((MODUL_ONEKI + "sinav-planlama/", "/ders-programi-kopru/sinavlar/"))         else "program-hazirlama"
     try:
         request.birim = birim_bul(request, slug)
