@@ -4,7 +4,7 @@ from django import forms
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.db.models import Count
+from django.db.models import Count, F
 from urllib.parse import quote
 
 from django.http import FileResponse, Http404
@@ -217,6 +217,8 @@ def kart(request, pk):
             geri = request.POST.get("geri", "")
             return redirect(f"{hedef}?geri={quote(geri)}" if geri else hedef)
         messages.success(request, f"{p.ad_soyad}: {k.tur.ad} kaydedildi ({k.aralik_metni}).")
+        if k.hak_uyarisi:
+            messages.warning(request, k.hak_uyarisi)
         # kayıttan sonra geldiği listeye (yoksa personelin birim sayfasına) döner
         return _geri(request, _birim_sayfasi(y, p, k.yerel_bas.date()))
     yil = int(request.GET.get("yil") or bugun.year)
@@ -224,15 +226,7 @@ def kart(request, pk):
     tum = list(p.yoklama_kayitlari.select_related("tur", "olusturan", "guncelleyen"))
     gelecek = [k for k in tum if k.bitis > simdi]
     gecmis = [k for k in tum if k.bitis <= simdi and k.yerel_bas.year == yil]
-    yil_ozeti = {}
-    for k in tum:
-        if k.yerel_bas.year == yil:
-            o = yil_ozeti.setdefault(k.tur_id, {"tur": k.tur, "gun": 0, "saat": 0.0, "adet": 0})
-            o["adet"] += 1
-            if k.tam_gun:
-                o["gun"] += k.gun_sayisi
-            else:
-                o["saat"] += (k.bitis - k.baslangic).total_seconds() / 3600
+    yil_ozeti = servis.yil_ozeti(tum, yil)
     bugun_durum = servis.gun_durumu(bugun, [p])[0]
     girebilir = y.giris and y.kapsar(p)
     ilk_giris = None if y.yonetim else servis.ilk_giris_tarihi()
@@ -243,7 +237,7 @@ def kart(request, pk):
     yillar = sorted({k.yerel_bas.year for k in tum} | {bugun.year}, reverse=True)
     return render(request, "yoklama/kart.html", _baglam(
         request, p=p, bugun=bugun, bugun_durum=bugun_durum, gelecek=gelecek, gecmis=gecmis, yil=yil, yillar=yillar,
-        yil_ozeti=sorted(yil_ozeti.values(), key=lambda o: (o["tur"].sira, o["tur"].ad)),
+        yil_ozeti=yil_ozeti, hak_onizleme=servis.hak_onizleme(p, [bugun.year - 1, bugun.year, bugun.year + 1]),
         turler=servis.izin_turleri(), girebilir=girebilir, ilk_giris=ilk_giris, kilitli=kilitli,
         foto_yukleyebilir=y.yonetim, geri=_guvenli_geri(request) or _birim_sayfasi(y, p, varsayilan_tarih),
         islemler=list(p.yoklama_gecmisi.select_related("kullanici")[:15]), varsayilan_tarih=varsayilan_tarih))
@@ -263,15 +257,19 @@ def kayit(request, pk):
                 messages.success(request, "Kayıt silindi.")
                 return _geri(request, kart_url)
             tur, bas, bit, aciklama = _kayit_formu(request)
-            servis.duzenle(request.user, y, k.pk, int(request.POST.get("surum") or 0), tur, bas, bit, aciklama)
+            yeni = servis.duzenle(request.user, y, k.pk, int(request.POST.get("surum") or 0), tur, bas, bit, aciklama)
         except YoklamaHatasi as e:
             messages.error(request, str(e))
             return redirect(request.path)
         messages.success(request, "Kayıt güncellendi.")
+        if yeni.hak_uyarisi:
+            messages.warning(request, yeni.hak_uyarisi)
         return _geri(request, kart_url)
     girebilir = y.giris and y.kapsar(p)
     return render(request, "yoklama/kayit.html", _baglam(
         request, k=k, p=p, turler=IzinTuru.objects.filter(aktif=True) | IzinTuru.objects.filter(pk=k.tur_id),
+        hak_onizleme=servis.hak_onizleme(p, sorted({k.yerel_bas.year - 1, k.yerel_bas.year, k.yerel_bas.year + 1}),
+                                         haric=k.pk),
         girebilir=girebilir, kilit=servis.kilit_nedeni(y, p, k.baslangic, k.bitis) if girebilir else None,
         ilk_giris=None if y.yonetim else servis.ilk_giris_tarihi(), geri=_guvenli_geri(request)))
 
@@ -345,7 +343,17 @@ def toplu_fotograf(request):
 class TurFormu(forms.ModelForm):
     class Meta:
         model = IzinTuru
-        fields = ["ad", "kisa", "renk", "sira", "aktif", "aciklama"]
+        fields = ["ad", "kisa", "renk", "sira", "aktif", "aciklama", "yillik_hak", "mevcut_sayilir", "rapor_sirasi"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # rapor sırası: tür sayısı kadar seçenek (1 = raporda en başta)
+        adet = IzinTuru.objects.count() + (0 if self.instance.pk else 1)
+        alan = self.fields["rapor_sirasi"]
+        self.fields["rapor_sirasi"] = forms.TypedChoiceField(
+            label=alan.label, help_text=alan.help_text, required=False, coerce=int, empty_value=None,
+            choices=[("", "Sırasız (sonda)")] + [(i, f"{i}.") for i in range(1, max(adet, 1) + 1)])
+        self.fields["yillik_hak"].widget.attrs.update({"placeholder": "Boş = sınırsız", "min": 0})
 
 
 @login_required
@@ -371,8 +379,10 @@ def turler(request):
     for alan in form.fields.values():
         alan.widget.attrs.setdefault("class", "form-select" if isinstance(alan.widget, forms.Select) else "form-control")
     form.fields["aktif"].widget.attrs["class"] = "form-check-input"
+    form.fields["mevcut_sayilir"].widget.attrs["class"] = "form-check-input"
     return render(request, "yoklama/turler.html", _baglam(
-        request, turler=IzinTuru.objects.annotate(kullanim=Count("kayitlar")), form=form, duzenlenen=duzenlenen,
+        request, turler=IzinTuru.objects.annotate(kullanim=Count("kayitlar")).order_by(
+            F("rapor_sirasi").asc(nulls_last=True), "sira", "ad"), form=form, duzenlenen=duzenlenen,
         renkler=RENKLER))
 
 

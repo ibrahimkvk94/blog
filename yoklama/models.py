@@ -29,6 +29,15 @@ class IzinTuru(models.Model):
     sira = models.PositiveSmallIntegerField("Sıra", default=10)
     aktif = models.BooleanField("Kullanımda", default=True, help_text="Kapalı tür yeni kayıtta seçilemez; eski kayıtlar korunur.")
     aciklama = models.CharField("Açıklama", max_length=200, blank=True)
+    yillik_hak = models.PositiveSmallIntegerField(
+        "Yıllık hak (gün)", null=True, blank=True,
+        help_text="Boş: sınırsız. Takvim yılı (1 Ocak'ta yenilenir), takvim günü; yalnızca tam gün kayıtları düşer.")
+    mevcut_sayilir = models.BooleanField(
+        "Bilgi amaçlı (mevcut sayılır)", default=False,
+        help_text="ör. Garnizon terk: personel kartında görünür; günlük yoklamada, formda ve raporda yok sayılmaz.")
+    rapor_sirasi = models.PositiveSmallIntegerField(
+        "Rapor sırası", null=True, blank=True,
+        help_text="Yoklama formunda gayri mevcutlar bu sıraya göre listelenir (1 en başta); sırasızlar sonda.")
 
     class Meta:
         ordering = ["sira", "ad"]

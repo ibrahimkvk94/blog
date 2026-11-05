@@ -560,3 +560,121 @@ class BirimKapsamiTestleri(SaatSabit, TestCase):
         from personel.models import TeskilatBirimi
         self.assertRedirects(r, f"{reverse('yoklama:ana')}?tarih={GUN.isoformat()}&birim="
                                 f"{TeskilatBirimi.objects.get(bolum=self.ask).pk}", fetch_redirect_response=False)
+
+
+class IzinHakkiTestleri(SaatSabit, TestCase):
+    """Yıllık izin hakları (takvim yılı, takvim günü, yalnız tam gün), bilgi amaçlı tür ve rapor sırası."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.ask = Bolum.objects.create(ad="Askeri Bilimler", kod="ASK")
+        cls.ali = Personel.objects.create(ad_soyad="Ali KAYA", bolum=cls.ask)
+        cls.can = Personel.objects.create(ad_soyad="Can DEMİR", bolum=cls.ask)
+        birim = Birim.objects.get(slug="personel-yoklamasi")
+        cls.askci = User.objects.create_user("ask", password="x-Parola-123", bolum=cls.ask)
+        Yetki.objects.create(kullanici=cls.askci, birim=birim, seviye=Yetki.DUZENLEME, kapsam=Yetki.BOLUM)
+        cls.iiy = User.objects.create_user("iiy", password="x-Parola-123")
+        Yetki.objects.create(kullanici=cls.iiy, birim=birim, seviye=Yetki.YONETIM, kapsam=Yetki.TUM)
+        cls.yillik = IzinTuru.objects.get(ad="Yıllık izin")
+        cls.mazeret = IzinTuru.objects.get(ad="Mazeret izni")
+        cls.rapor = IzinTuru.objects.get(ad="Raporlu")
+        cls.gt = IzinTuru.objects.get(ad="Garnizon terk")
+
+    def y(self, user):
+        return servis.yetki(SahteIstek(user))
+
+    def gun(self, user, p, tur, bas, bit):
+        return servis.ekle(user, self.y(user), p, tur, *servis.aralik(True, bas, bit))
+
+    def test_varsayilan_haklar(self):
+        self.assertEqual((self.yillik.yillik_hak, self.mazeret.yillik_hak), (30, 15))
+        self.assertIsNone(self.rapor.yillik_hak)
+        self.assertIsNone(IzinTuru.objects.get(ad="Günlük izin").yillik_hak)
+        self.assertTrue(self.gt.mevcut_sayilir)
+
+    def test_bolum_hakki_asamaz(self):
+        d = datetime.date
+        self.gun(self.askci, self.ali, self.yillik, d(2026, 11, 11), d(2026, 12, 5))  # 25 gün
+        with self.assertRaisesMessage(YoklamaHatasi, "kalan 5 gün; bu kayıt 6 gün"):
+            self.gun(self.askci, self.ali, self.yillik, d(2026, 12, 10), d(2026, 12, 15))
+        self.gun(self.askci, self.ali, self.yillik, d(2026, 12, 10), d(2026, 12, 14))  # tam 30
+        h = {o["tur"].pk: o for o in servis.izin_haklari(self.ali, 2026)}
+        self.assertEqual((h[self.yillik.pk]["gun"], h[self.yillik.pk]["kalan"]), (30, 0))
+        self.assertEqual((h[self.mazeret.pk]["gun"], h[self.mazeret.pk]["kalan"]), (0, 15))  # kullanılmasa da listede
+        self.assertNotIn(self.rapor.pk, h)  # sınırsız tür hak listesinde yok
+
+    def test_idari_isler_asabilir_uyari_alir(self):
+        d = datetime.date
+        self.gun(self.iiy, self.ali, self.mazeret, d(2026, 11, 11), d(2026, 11, 25))  # 15 gün
+        k = self.gun(self.iiy, self.ali, self.mazeret, d(2026, 11, 26), d(2026, 11, 27))
+        self.assertIn("hakkı aşılıyor", k.hak_uyarisi)
+        self.assertIn("[hak aşımı]", YoklamaGecmisi.objects.filter(kayit_id=k.pk).first().ozet)
+        o = next(o for o in servis.izin_haklari(self.ali, 2026) if o["tur"] == self.mazeret)
+        self.assertEqual((o["gun"], o["asim"]), (17, 2))
+
+    def test_yil_donumu_ve_duzenleme(self):
+        d = datetime.date
+        k = self.gun(self.askci, self.ali, self.yillik, d(2026, 12, 28), d(2027, 1, 3))
+        self.assertEqual(next(o["gun"] for o in servis.izin_haklari(self.ali, 2026) if o["tur"] == self.yillik), 4)
+        self.assertEqual(next(o["gun"] for o in servis.izin_haklari(self.ali, 2027) if o["tur"] == self.yillik), 3)
+        # 2027'de 30 günü doldur; düzenlemede kaydın kendi günleri yeniden sayılmaz
+        self.gun(self.askci, self.ali, self.yillik, d(2027, 2, 1), d(2027, 2, 27))  # 27 gün → 2027: 30
+        servis.duzenle(self.askci, self.y(self.askci), k.pk, k.surum, self.yillik,
+                       *servis.aralik(True, d(2026, 12, 27), d(2027, 1, 3)))  # 2027 payı değişmedi
+        with self.assertRaisesMessage(YoklamaHatasi, "2027 yılı"):
+            servis.duzenle(self.askci, self.y(self.askci), k.pk, k.surum + 1, self.yillik,
+                           *servis.aralik(True, d(2026, 12, 27), d(2027, 1, 4)))
+
+    def test_saatlik_haktan_dusmez(self):
+        d = datetime.date(2026, 11, 12)
+        servis.ekle(self.askci, self.y(self.askci), self.ali, self.mazeret,
+                    *servis.aralik(False, d, d, datetime.time(9), datetime.time(17)))
+        o = next(o for o in servis.izin_haklari(self.ali, 2026) if o["tur"] == self.mazeret)
+        self.assertEqual((o["gun"], o["kalan"]), (0, 15))
+
+    def test_garnizon_terk_bilgi_amacli(self):
+        from . import form
+
+        d = datetime.date(2026, 11, 14)
+        self.gun(self.askci, self.ali, self.yillik, d, d)
+        self.gun(self.askci, self.ali, self.gt, d, d)  # izinle üst üste gelebilir
+        self.gun(self.askci, self.can, self.gt, d, d)
+        with self.assertRaises(YoklamaHatasi):  # iki garnizon terk çakışamaz
+            self.gun(self.askci, self.can, self.gt, d, d)
+        durum = {x.personel: x for x in servis.gun_durumu(d, [self.ali, self.can])}
+        self.assertTrue(durum[self.can].mevcut)
+        self.assertEqual([k.tur for k in durum[self.ali].kayitlar], [self.yillik])
+        f = form.gunluk(d, [self.ali, self.can])
+        self.assertEqual([s["sebep"] for s in f["beyan"]], ["Yıllık izin"])
+
+    def test_rapor_sirasi(self):
+        from . import form
+
+        d = datetime.date(2026, 11, 16)
+        self.gun(self.askci, self.ali, self.yillik, d, d)
+        self.gun(self.askci, self.can, self.rapor, d, d)
+        self.assertEqual([s["personel"] for s in form.gunluk(d, [self.ali, self.can])["beyan"]], [self.ali, self.can])
+        IzinTuru.objects.filter(pk=self.rapor.pk).update(rapor_sirasi=1)
+        IzinTuru.objects.filter(pk=self.yillik.pk).update(rapor_sirasi=2)
+        self.assertEqual([s["personel"] for s in form.gunluk(d, [self.ali, self.can])["beyan"]], [self.can, self.ali])
+
+    def test_kartlarda_gorunur(self):
+        self.gun(self.askci, self.ali, self.yillik, datetime.date(2026, 11, 11), datetime.date(2026, 11, 22))
+        self.client.force_login(self.iiy)
+        r = self.client.get(reverse("yoklama:kart", args=[self.ali.pk]))
+        self.assertContains(r, "12 / 30 gün")
+        self.assertContains(r, "kalan 18 gün")
+        self.assertContains(r, "0 / 15 gün")
+        self.assertContains(r, 'id="k-hak"')  # kayıt formu ön hesabı verisi
+
+    def test_tur_formunda_rapor_sirasi_secenekleri(self):
+        self.client.force_login(self.iiy)
+        r = self.client.get(reverse("yoklama:turler") + f"?duzenle={self.rapor.pk}")
+        adet = IzinTuru.objects.count()
+        self.assertContains(r, f'<option value="{adet}">{adet}.</option>')
+        self.assertNotContains(r, f'<option value="{adet + 1}">')
+        v = {"pk": self.rapor.pk, "ad": "Raporlu", "kisa": "RP", "renk": "#b91c1c", "sira": 30, "aktif": "on",
+             "rapor_sirasi": "1", "yillik_hak": ""}
+        self.client.post(reverse("yoklama:turler"), v)
+        self.rapor.refresh_from_db()
+        self.assertEqual((self.rapor.rapor_sirasi, self.rapor.yillik_hak), (1, None))

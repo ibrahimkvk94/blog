@@ -1,5 +1,7 @@
 {# Kayıt formu (ekle / düzenle). Değişkenler: turler, k (düzenlenen kayıt, isteğe bağlı), varsayilan_tarih #}
-<div class="yk-form" data-yk-form>
+{% with hak_kimligi=onek|default:"f"|add:"-hak" %}
+<div class="yk-form" data-yk-form{% if hak_onizleme %} data-hak="{{ hak_kimligi }}"{% endif %}>
+  {% if hak_onizleme %}{{ hak_onizleme|json_script:hak_kimligi }}{% endif %}
   <div class="mb-3">
     <label class="form-label small text-secondary">Tür</label>
     <div class="yk-tur-secim">
@@ -35,9 +37,10 @@
       <input type="time" class="form-control" id="bt-{{ onek|default:'f' }}" name="bit_saat" value="{% if k and not k.tam_gun %}{{ k.yerel_bit|date:'H:i' }}{% else %}17:00{% endif %}">
     </div>
   </div>
-  <div class="small text-secondary mb-3" data-sure aria-live="polite"></div>
+  <div class="small text-secondary mb-3" aria-live="polite"><span data-sure></span> <span data-hak-sonuc></span></div>
   <div class="mb-1">
     <label class="form-label small text-secondary" for="ac-{{ onek|default:'f' }}">Açıklama (isteğe bağlı)</label>
     <input type="text" class="form-control" id="ac-{{ onek|default:'f' }}" name="aciklama" maxlength="300" value="{{ k.aciklama|default:'' }}" placeholder="ör. Ankara'da kurs, hastane raporu no …">
   </div>
 </div>
+{% endwith %}

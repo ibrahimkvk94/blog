@@ -157,10 +157,13 @@ def aralik(tam_gun, bas_tarih, bit_tarih=None, bas_saat=None, bit_saat=None):
 
 # ---------------------------------------------------------------- günün yoklaması
 
-def kayitlar(personel_idleri, bas, bit):
-    """Aralığa değen kayıtlar (personel ve türüyle)."""
-    return list(YoklamaKaydi.objects.filter(personel_id__in=personel_idleri, baslangic__lt=bit, bitis__gt=bas)
-                .select_related("tur", "personel", "olusturan").order_by("baslangic"))
+def kayitlar(personel_idleri, bas, bit, yoklama=False):
+    """Aralığa değen kayıtlar (personel ve türüyle). yoklama=True: bilgi amaçlı türler (ör. garnizon terk; kişi
+    mevcut sayılır) hariç — günlük yoklama, form ve rapor bunlarla hesaplanır."""
+    qs = YoklamaKaydi.objects.filter(personel_id__in=personel_idleri, baslangic__lt=bit, bitis__gt=bas)
+    if yoklama:
+        qs = qs.exclude(tur__mevcut_sayilir=True)
+    return list(qs.select_related("tur", "personel", "olusturan").order_by("baslangic"))
 
 
 @dataclass
@@ -182,7 +185,7 @@ def gun_durumu(tarih, kisiler):
     """[KisiDurumu] — kişilerin o günkü durumu."""
     bas, bit = gun_araligi(tarih)
     by = defaultdict(list)
-    for k in kayitlar([p.pk for p in kisiler], bas, bit):
+    for k in kayitlar([p.pk for p in kisiler], bas, bit, yoklama=True):
         by[k.personel_id].append(k)
     out = []
     for p in kisiler:
@@ -210,7 +213,7 @@ def takvim(bas_tarih, bit_tarih, kisiler, hepsi=False):
     gunler = [bas_tarih + datetime.timedelta(days=i) for i in range((bit_tarih - bas_tarih).days + 1)]
     bas, bit = gun_araligi(bas_tarih)[0], gun_araligi(bit_tarih)[1]
     by = defaultdict(list)
-    for k in kayitlar([p.pk for p in kisiler], bas, bit):
+    for k in kayitlar([p.pk for p in kisiler], bas, bit, yoklama=True):
         by[k.personel_id].append(k)
     satirlar, gunluk = [], {g: {"yok": 0, "kismi": 0} for g in gunler}
     for p in kisiler:
@@ -308,8 +311,12 @@ def _kilit_denetle(y, personel, bas, bit):
         raise YoklamaHatasi(neden)
 
 
-def _cakisma(personel, bas, bit, haric=None):
+def _cakisma(personel, bas, bit, haric=None, tur=None):
+    """Aynı aralıkta başka kayıt. Bilgi amaçlı türler (garnizon terk) yalnız birbirleriyle çakışamaz; izinle üst üste
+    gelebilir."""
     qs = YoklamaKaydi.objects.filter(personel=personel, baslangic__lt=bit, bitis__gt=bas).select_related("tur")
+    if tur is not None:
+        qs = qs.filter(tur__mevcut_sayilir=tur.mevcut_sayilir)
     if haric is not None:
         qs = qs.exclude(pk=haric)
     return qs.first()
@@ -324,19 +331,109 @@ def _denetle(y, personel, tur):
         raise YoklamaHatasi("Geçerli bir izin türü seçin.")
 
 
+# ---------------------------------------------------------------- izin hakları
+
+def _yerel_tarih(an):
+    return timezone.localtime(an).date()
+
+
+def _tam_gun_mu(bas, bit):
+    b, s = timezone.localtime(bas), timezone.localtime(bit)
+    return b.hour == b.minute == 0 and s.hour == s.minute == 0
+
+
+def _yil_gunu(bas, bit, yil):
+    """Tam gün aralığının (bas 00:00 – bit 00:00) o takvim yılına düşen gün sayısı."""
+    yb, ys = datetime.date(yil, 1, 1), datetime.date(yil + 1, 1, 1)
+    return max(0, (min(_yerel_tarih(bit), ys) - max(_yerel_tarih(bas), yb)).days)
+
+
+def yil_ozeti(kayit_listesi, yil):
+    """Kişinin yıl özeti [{tur, gun, saat, adet, hak, kalan, yuzde}]: tam gün kayıtları yıla düşen günleriyle, saatlik
+    kayıtlar saatleriyle. Yıllık hakkı olan (kullanımdaki) türler hiç kullanılmamış olsa da listededir."""
+    ozet = {}
+
+    def satir(t):
+        return ozet.setdefault(t.pk, {"tur": t, "gun": 0, "saat": 0.0, "adet": 0})
+
+    for k in kayit_listesi:
+        if k.tam_gun:
+            gun = _yil_gunu(k.baslangic, k.bitis, yil)
+            if gun:
+                o = satir(k.tur)
+                o["gun"] += gun
+                o["adet"] += 1
+        elif k.yerel_bas.year == yil:
+            o = satir(k.tur)
+            o["saat"] += (k.bitis - k.baslangic).total_seconds() / 3600
+            o["adet"] += 1
+    for t in IzinTuru.objects.filter(aktif=True, yillik_hak__isnull=False):
+        satir(t)
+    for o in ozet.values():
+        hak = o["tur"].yillik_hak
+        o["hak"] = hak
+        o["kalan"] = hak - o["gun"] if hak is not None else None
+        o["asim"] = max(0, -o["kalan"]) if hak is not None else 0
+        o["yuzde"] = min(100, round(o["gun"] * 100 / hak)) if hak else (100 if hak == 0 and o["gun"] else 0)
+    return sorted(ozet.values(), key=lambda o: (o["hak"] is None, o["tur"].sira, o["tur"].ad))
+
+
+def _kullanilan_gun(personel, tur, yil, haric=None):
+    yb, ys = gun_araligi(datetime.date(yil, 1, 1))[0], gun_araligi(datetime.date(yil, 12, 31))[1]
+    qs = YoklamaKaydi.objects.filter(personel=personel, tur=tur, baslangic__lt=ys, bitis__gt=yb)
+    if haric is not None:
+        qs = qs.exclude(pk=haric)
+    return sum(_yil_gunu(k.baslangic, k.bitis, yil) for k in qs if k.tam_gun)
+
+
+def izin_haklari(personel, yil):
+    """Yalnız yıllık hakkı olan türler: [{tur, gun, hak, kalan, yuzde, ...}]."""
+    yb, ys = gun_araligi(datetime.date(yil, 1, 1))[0], gun_araligi(datetime.date(yil, 12, 31))[1]
+    ks = YoklamaKaydi.objects.filter(personel=personel, baslangic__lt=ys, bitis__gt=yb,
+                                     tur__yillik_hak__isnull=False).select_related("tur")
+    return [o for o in yil_ozeti(ks, yil) if o["hak"] is not None]
+
+
+def hak_onizleme(personel, yillar, haric=None):
+    """Kayıt formundaki ön hesap için {tur_id: {"hak": n, "kullanilan": {yil: gün}}} (yalnız hakkı olan türler)."""
+    return {str(t.pk): {"ad": t.ad, "hak": t.yillik_hak,
+                        "kullanilan": {str(yil): _kullanilan_gun(personel, t, yil, haric) for yil in yillar}}
+            for t in IzinTuru.objects.filter(yillik_hak__isnull=False)}
+
+
+def _hak_denetle(y, personel, tur, bas, bit, haric=None):
+    """Yıllık hak aşılıyorsa: bölüm hesabında YoklamaHatasi; idari işler yetkilisinde uyarı metni döner (kayıt girer)."""
+    if tur.yillik_hak is None or not _tam_gun_mu(bas, bit):
+        return None
+    for yil in range(_yerel_tarih(bas).year, (_yerel_tarih(bit) - datetime.timedelta(days=1)).year + 1):
+        gun = _yil_gunu(bas, bit, yil)
+        kullanilan = _kullanilan_gun(personel, tur, yil, haric)
+        if gun and kullanilan + gun > tur.yillik_hak:
+            kalan = max(0, tur.yillik_hak - kullanilan)
+            metin = (f"{tur.ad} hakkı aşılıyor: {yil} yılı hakkı {tur.yillik_hak} gün, kullanılan {kullanilan} gün, "
+                     f"kalan {kalan} gün; bu kayıt {gun} gün.")
+            if not y.yonetim:
+                raise YoklamaHatasi(metin + " Hak aşımını yalnız idari işler yetkilisi girebilir.")
+            return metin + " Kayıt hak aşımıyla girildi."
+    return None
+
+
 @transaction.atomic
 def ekle(user, y, personel, tur, bas, bit, aciklama=""):
     _denetle(y, personel, tur)
     _kilit_denetle(y, personel, bas, bit)
-    diger = _cakisma(personel, bas, bit)
+    diger = _cakisma(personel, bas, bit, tur=tur)
     if diger is not None:
         raise YoklamaHatasi(f"Bu aralıkta zaten bir kayıt var: {diger.tur.ad}, {diger.aralik_metni}. "
                             "Önce onu düzenleyin ya da silin.")
+    uyari = _hak_denetle(y, personel, tur, bas, bit)
     k = YoklamaKaydi.objects.create(personel=personel, tur=tur, baslangic=bas, bitis=bit,
                                     aciklama=(aciklama or "").strip()[:300], olusturan=user, guncelleyen=user)
     sonrasi = _onaylari_isaretle(y, personel, bas, bit)
-    YoklamaGecmisi.objects.create(personel=personel, kayit_id=k.pk, islem=YoklamaGecmisi.EKLE, ozet=_ozet_metni(k)[:400],
+    YoklamaGecmisi.objects.create(personel=personel, kayit_id=k.pk, islem=YoklamaGecmisi.EKLE,
+                                  ozet=(_ozet_metni(k) + (" [hak aşımı]" if uyari else ""))[:400],
                                   kullanici=user, onay_sonrasi=sonrasi)
+    k.hak_uyarisi = uyari
     return k
 
 
@@ -351,9 +448,10 @@ def duzenle(user, y, kayit_id, okunan_surum, tur, bas, bit, aciklama=""):
     if okunan_surum != k.surum:
         raise YoklamaHatasi("Bu kayıt siz düzenlerken başka bir kullanıcı tarafından değiştirildi. Sayfayı yenileyip "
                             "tekrar deneyin.")
-    diger = _cakisma(k.personel, bas, bit, haric=k.pk)
+    diger = _cakisma(k.personel, bas, bit, haric=k.pk, tur=tur)
     if diger is not None:
         raise YoklamaHatasi(f"Bu aralıkta başka bir kayıt var: {diger.tur.ad}, {diger.aralik_metni}.")
+    uyari = _hak_denetle(y, k.personel, tur, bas, bit, haric=k.pk)
     eski_bas, eski_bit = k.baslangic, k.bitis
     guncellenen = YoklamaKaydi.objects.filter(pk=k.pk, surum=okunan_surum).update(
         tur=tur, baslangic=bas, bitis=bit, aciklama=(aciklama or "").strip()[:300], guncelleyen=user,
@@ -363,7 +461,9 @@ def duzenle(user, y, kayit_id, okunan_surum, tur, bas, bit, aciklama=""):
     k.refresh_from_db()
     sonrasi = _onaylari_isaretle(y, k.personel, min(eski_bas, bas), max(eski_bit, bit))
     YoklamaGecmisi.objects.create(personel=k.personel, kayit_id=k.pk, islem=YoklamaGecmisi.DUZENLE,
-                                  ozet=_ozet_metni(k)[:400], kullanici=user, onay_sonrasi=sonrasi)
+                                  ozet=(_ozet_metni(k) + (" [hak aşımı]" if uyari else ""))[:400], kullanici=user,
+                                  onay_sonrasi=sonrasi)
+    k.hak_uyarisi = uyari
     return k
 
 

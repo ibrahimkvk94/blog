@@ -13,22 +13,24 @@
     <div class="kart">
       <div class="table-responsive">
         <table class="table align-middle mb-0">
-          <thead><tr><th>Tür</th><th>Kısaltma</th><th class="text-end">Sıra</th><th class="text-end">Kullanım</th><th>Durum</th><th></th></tr></thead>
+          <thead><tr><th>Tür</th><th>Kısaltma</th><th class="text-end">Sıra</th><th class="text-end">Yıllık hak</th><th class="text-end">Rapor sırası</th><th class="text-end">Kullanım</th><th>Durum</th><th></th></tr></thead>
           <tbody>
           {% for t in turler %}
             <tr {% if duzenlenen == t %}class="table-active"{% endif %}>
               <td><span class="yk-cip" style="--renk: {{ t.renk }}"><span class="yk-nokta"></span>{{ t.ad }}</span>{% if t.aciklama %}<div class="small text-secondary mt-1">{{ t.aciklama }}</div>{% endif %}</td>
               <td><span class="yk-hucre d-inline-grid px-2 rounded" style="--renk: {{ t.renk }};height:1.6rem;min-width:2.2rem">{{ t.kisa }}</span></td>
               <td class="text-end">{{ t.sira }}</td>
+              <td class="text-end text-nowrap">{% if t.yillik_hak is not None %}{{ t.yillik_hak }} gün{% else %}<span class="text-secondary">sınırsız</span>{% endif %}</td>
+              <td class="text-end">{% if t.rapor_sirasi %}<span class="badge text-bg-primary">{{ t.rapor_sirasi }}.</span>{% else %}<span class="text-secondary">–</span>{% endif %}</td>
               <td class="text-end">{{ t.kullanim }}</td>
-              <td>{% if t.aktif %}<span class="durum-rozet durum-kullanimda">Kullanımda</span>{% else %}<span class="durum-rozet durum-planlandi">Kapalı</span>{% endif %}</td>
+              <td>{% if t.aktif %}<span class="durum-rozet durum-kullanimda">Kullanımda</span>{% else %}<span class="durum-rozet durum-planlandi">Kapalı</span>{% endif %}{% if t.mevcut_sayilir %} <span class="durum-rozet durum-sirada" title="Personel mevcut sayılır; yoklama formunda görünmez">Bilgi amaçlı</span>{% endif %}</td>
               <td class="text-end text-nowrap">
                 <a class="btn btn-sm btn-outline-secondary" href="?duzenle={{ t.pk }}" title="Düzenle"><i class="bi bi-pencil"></i></a>
                 {% if not t.kullanim %}<form method="post" class="d-inline" onsubmit="return confirm('“{{ t.ad|escapejs }}” silinsin mi?')">{% csrf_token %}<input type="hidden" name="islem" value="sil"><input type="hidden" name="pk" value="{{ t.pk }}"><button class="btn btn-sm btn-outline-danger" title="Sil"><i class="bi bi-trash"></i></button></form>{% endif %}
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="6" class="text-center text-secondary py-5">Henüz tür yok.</td></tr>
+            <tr><td colspan="8" class="text-center text-secondary py-5">Henüz tür yok.</td></tr>
           {% endfor %}
           </tbody>
         </table>
@@ -56,6 +58,10 @@
           </div>
           <div class="col-4"><label class="form-label small text-secondary" for="{{ form.sira.id_for_label }}">Sıra</label>{{ form.sira }}</div>
           <div class="col-8 d-flex align-items-end"><div class="form-check mb-2">{{ form.aktif }} <label class="form-check-label" for="{{ form.aktif.id_for_label }}">Kullanımda</label></div></div>
+          <div class="col-6"><label class="form-label small text-secondary" for="{{ form.yillik_hak.id_for_label }}">{{ form.yillik_hak.label }}</label>{{ form.yillik_hak }}{% for e in form.yillik_hak.errors %}<div class="small text-danger">{{ e }}</div>{% endfor %}</div>
+          <div class="col-6"><label class="form-label small text-secondary" for="{{ form.rapor_sirasi.id_for_label }}">{{ form.rapor_sirasi.label }}</label>{{ form.rapor_sirasi }}</div>
+          <div class="col-12 form-text mt-0">{{ form.yillik_hak.help_text }} Rapor sırası: yoklama formunda 1. sıradaki türdekiler en başta, sonra 2., 3. …</div>
+          <div class="col-12"><div class="form-check">{{ form.mevcut_sayilir }} <label class="form-check-label" for="{{ form.mevcut_sayilir.id_for_label }}">{{ form.mevcut_sayilir.label }}</label><div class="form-text mt-0">{{ form.mevcut_sayilir.help_text }}</div></div></div>
           <div class="col-12"><label class="form-label small text-secondary" for="{{ form.aciklama.id_for_label }}">Açıklama</label>{{ form.aciklama }}</div>
         </div>
         <div class="d-flex gap-2 mt-3">
