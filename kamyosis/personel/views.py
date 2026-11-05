@@ -187,7 +187,7 @@ def excel(request):
     wb = Workbook()
     ws = wb.active
     ws.title = "Personel"
-    basliklar = ["Ad soyad", "Künye", "Sicil no", "Birim", "Görev unvanı", "Bölüm"]
+    basliklar = ["Ad soyad", "Künye", "Sicil no", "Birim", "Kadro görevi", "Branş", "Bölüm"]
     if yonetici:
         basliklar += ["T.C. kimlik no"] + [a.ad for a in alanlar] + ["Eksik bilgiler"]
     ws.append(basliklar)
@@ -196,13 +196,13 @@ def excel(request):
         c.fill = PatternFill("solid", fgColor="1F3A5F")
         c.alignment = Alignment(vertical="center", wrap_text=True)
     for x in kisiler:
-        satir = [x.ad_soyad, x.kunye, x.sicil, getattr(x.liste_birimi, "ad", ""), x.gorev_unvani,
-                 x.bolum.ad if x.bolum_id else ""]
+        satir = [x.ad_soyad, x.kunye, x.sicil, getattr(x.liste_birimi, "ad", ""), x.kadro_gorevi,
+                 x.brans, x.bolum.ad if x.bolum_id else ""]
         if yonetici:
             satir += [x.personel_kodu or ""] + [degerler.get((x.pk, a.pk), "") for a in alanlar] + [
                 ", ".join(x.eksik_listesi)]
         ws.append(satir)
-    for i, en in enumerate([26, 22, 12, 30, 22, 26] + ([14] + [18] * len(alanlar) + [30] if yonetici else []), 1):
+    for i, en in enumerate([26, 22, 12, 30, 28, 16, 26] + ([14] + [18] * len(alanlar) + [30] if yonetici else []), 1):
         ws.column_dimensions[get_column_letter(i)].width = en
     ws.freeze_panes = "B2"
     cevap = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")

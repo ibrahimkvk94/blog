@@ -12,7 +12,7 @@ class PersonelForm(forms.ModelForm):
 
     class Meta:
         model = Personel
-        fields = ["ad_soyad", "sicil", "bolum", "unvan", "rutbe", "sinif", "aktif", *YONETICI_ALANLARI]
+        fields = ["ad_soyad", "sicil", "bolum", "unvan", "rutbe", "sinif", "brans", "aktif", *YONETICI_ALANLARI]
 
     def __init__(self, *args, sabit_bolum=None, yonetici=False, bolumsuz_olur=False, **kwargs):
         super().__init__(*args, **kwargs)
@@ -25,6 +25,8 @@ class PersonelForm(forms.ModelForm):
                 tur__in=[TeskilatBirimi.BOLUM, TeskilatBirimi.BASKANLIKLAR])
             self.fields["teskilat_birimi"].empty_label = "Bölümüne göre (bölüm başkanlığı)"
         self.fields["bolum"].queryset = Bolum.objects.filter(aktif=True)
+        self.brans_onerileri = sorted(set(Personel.objects.exclude(brans="").values_list("brans", flat=True)))
+        self.fields["brans"].widget.attrs.update({"list": "bransOnerileri", "autocomplete": "off"})
         # aSc'den gelen kayıtlarda bölüm boş olabilir; formda tamamlatılır
         self.fields["bolum"].required = not bolumsuz_olur
         if bolumsuz_olur:

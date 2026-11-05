@@ -12,6 +12,8 @@ import datetime
 from django.conf import settings
 from django.http import HttpResponse
 
+from personel.models import AKADEMIK_UNVANLAR
+
 from . import servis
 from .models import PersonelGrubu
 
@@ -20,7 +22,6 @@ SUTUNLAR = [G.GENERAL, G.OE_SIVIL, G.OE_SUBAY, G.OE_ASTSUBAY, G.SUBAY, G.ASTSUBA
 GRUP_ADI = dict(G.GRUPLAR)
 
 GENERAL_RUTBELERI = {"Tuğg.", "Tümg.", "Korg.", "Org.", "Tuğa.", "Tüma.", "Kora.", "Ora.", "Mrşl."}
-AKADEMIK_UNVANLAR = {"Prof.Dr.", "Doç.Dr.", "Dr.Öğt.Üyesi", "Öğt.Gör.", "Öğt.Gör.Dr.", "Dr.", "Arş.Gör.", "Okt.", "Uzm."}
 UST_BASLIK = getattr(settings, "YOKLAMA_FORMU_UST_BASLIK",
                      ["T.C.", "MİLLİ SAVUNMA BAKANLIĞI", "Milli Savunma Üniversitesi"])
 EN_COK_GUN = 31  # Excel'de bir dosyada en fazla bu kadar gün (her gün ayrı sayfa)
@@ -47,9 +48,12 @@ def otomatik_grup(p):
 
 
 def otomatik_gorev(p, grup):
-    if grup in (G.OE_SIVIL, G.OE_SUBAY, G.OE_ASTSUBAY):
-        return f"Öğretim Elemanı ({p.bolum.kod or p.bolum.ad})" if p.bolum_id else "Öğretim Elemanı"
-    return ""
+    """Kadro görevi (görev unvanı → De.Me./VHKİ → "Fizik Öğretim Görevlisi"); yoksa öğretim elemanında bölümüyle."""
+    ogretim = grup in (G.OE_SIVIL, G.OE_SUBAY, G.OE_ASTSUBAY)
+    gorev = p.kadro_gorevi_metni(ogretim=ogretim)
+    if gorev or not ogretim:
+        return gorev
+    return f"Öğretim Elemanı ({p.bolum.kod or p.bolum.ad})" if p.bolum_id else "Öğretim Elemanı"
 
 
 def atamalar(kisiler):

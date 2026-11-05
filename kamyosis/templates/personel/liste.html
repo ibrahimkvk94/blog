@@ -99,7 +99,7 @@
           <tr>
             <td><a href="{% url 'personel:detay' p.pk %}" class="yk-kisi">{% include "personel/_foto.html" with p=p %}<span class="min-w-0"><span class="ad d-block text-truncate">{{ p.ad_soyad }}{% if not p.aktif %} <span class="badge text-bg-secondary ms-1">Pasif</span>{% endif %}</span><span class="kunye d-block text-truncate">{{ p.kunye|default:"&nbsp;" }}</span></span></a></td>
             {% if kip != 'birim' %}<td class="d-none d-md-table-cell small">{{ p.liste_birimi.ad|default:"–" }}</td>{% endif %}
-            <td class="d-none d-lg-table-cell small">{{ p.gorev_unvani|default:"–" }}</td>
+            <td class="d-none d-lg-table-cell small">{{ p.kadro_gorevi|default:"–" }}</td>
             {% if yonetici %}<td class="d-none d-md-table-cell font-monospace small">{{ p.personel_kodu|default:"–" }}</td>
             <td class="small">{% if p.eksik_listesi %}<span class="pk-eksik" title="{{ p.eksik_listesi|join:', ' }}">{{ p.eksik_listesi.0 }}{% if p.eksik_listesi|length > 1 %} +{{ p.eksik_listesi|length|add:'-1' }}{% endif %}</span>{% else %}<span class="pk-tam">tam</span>{% endif %}</td>{% endif %}
             <td class="text-end text-nowrap d-print-none">

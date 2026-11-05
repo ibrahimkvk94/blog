@@ -39,8 +39,8 @@ def ogretmen_eslesmesi(okul):
 
 
 def kunyeleri_esitle(okullar=None, personel_idler=None):
-    """Eşleşen öğretmenlerin "ünvan / rütbe" alanını KAMYOSİS künyesiyle, "bölüm" alanını personelin bölüm koduyla
-    günceller (Sınav Planlama'da bölüme göre süzmek için). Dönüş: değişen öğretmen sayısı."""
+    """Eşleşen öğretmenlerin "ünvan / rütbe" alanını KAMYOSİS künyesiyle, "bölüm" alanını personelin bölüm koduyla,
+    "branş" alanını (KAMYOSİS'te doluysa) personelin branşıyla günceller (Sınav Planlama'da bölüme göre süzmek için). Dönüş: değişen öğretmen sayısı."""
     from timetable.models import School, Teacher
 
     personeller = {p.pk: p for p in Personel.objects.select_related("unvan", "rutbe", "sinif", "bolum")}
@@ -51,8 +51,9 @@ def kunyeleri_esitle(okullar=None, personel_idler=None):
                 continue
             p = personeller[pk]
             kunye, bolum = p.kunye[:100], (p.bolum.kod if p.bolum else "")[:60]
-            if (t.title, t.department) != (kunye, bolum):
+            brans = (p.brans or t.branch)[:100]  # KAMYOSİS'te boşsa modülde girilen branş silinmez
+            if (t.title, t.department, t.branch) != (kunye, bolum, brans):
                 # update(): öğretmen kayıt sinyali yeniden tetiklenmesin
-                Teacher.objects.filter(pk=t.pk).update(title=kunye, department=bolum)
+                Teacher.objects.filter(pk=t.pk).update(title=kunye, department=bolum, branch=brans)
                 degisen += 1
     return degisen

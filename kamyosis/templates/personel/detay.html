@@ -29,7 +29,7 @@
         <div class="ad">{{ p.ad_soyad }}</div>
         {% if not p.aktif %}<span class="badge text-bg-secondary">Pasif</span>{% endif %}
       </div>
-      <div class="kunye">{{ p.kunye|default:"" }}{% if p.gorev_unvani %} · {{ p.gorev_unvani }}{% endif %}</div>
+      <div class="kunye">{{ p.kunye|default:"" }}{% if p.kadro_gorevi %} · {{ p.kadro_gorevi }}{% endif %}</div>
       {% if teskilat_yeri %}<div class="small mt-1" style="color:#c9d4e2"><i class="bi bi-diagram-3 me-1"></i>{% for b in teskilat_yeri %}{% if not forloop.first %} › {% endif %}<a class="text-reset" href="{% url 'personel:teskilat_birimi' b.pk %}">{{ b.ad }}</a>{% endfor %}</div>{% endif %}
       <dl>
         <div><dt>Bölüm</dt><dd>{{ p.bolum|default:"–" }}</dd></div>
@@ -38,6 +38,7 @@
         <div><dt>Rütbe</dt><dd>{{ p.rutbe|default:"–" }}</dd></div>
         <div><dt>Sınıf</dt><dd>{{ p.sinif|default:"–" }}</dd></div>
         <div><dt>Unvan</dt><dd>{{ p.unvan|default:"–" }}</dd></div>
+        <div><dt>Branş</dt><dd>{{ p.brans|default:"–" }}</dd></div>
       </dl>
     </div>
     {% if duzenleyebilir %}
@@ -52,6 +53,7 @@
       <h2 class="h6 fw-bold mb-3"><i class="bi bi-briefcase me-1"></i>Teşkilat ve görev</h2>
       <dl class="mb-0 bilgi-listesi">
         <dt>Görev unvanı</dt><dd>{{ p.gorev_unvani|default:"–" }}{% if baskan_mi %} <span class="durum-rozet durum-kullanimda">Bölüm başkanı</span>{% endif %}{% if p.idari_kadro %} <span class="durum-rozet durum-sirada">İdari kadro</span>{% endif %}</dd>
+        <dt>Kadro görevi</dt><dd>{{ p.kadro_gorevi|default:"–" }}{% if p.kadro_gorevi and not p.gorev_unvani %} <span class="text-secondary small">(unvan / branştan)</span>{% endif %}</dd>
         <dt>Teşkilattaki yeri</dt><dd>{% for b in teskilat_yeri %}{% if not forloop.first %} › {% endif %}{{ b.ad }}{% empty %}–{% endfor %}</dd>
         <dt>Derse girebilir</dt><dd>{% if p.derse_girebilir %}<i class="bi bi-check-circle-fill text-success me-1"></i>Evet{% else %}<i class="bi bi-x-circle-fill text-danger me-1"></i>Hayır{% endif %}</dd>
         <dt>Sınav görevi alabilir</dt><dd>{% if p.sinav_gorevi_alabilir %}<i class="bi bi-check-circle-fill text-success me-1"></i>Evet{% else %}<i class="bi bi-x-circle-fill text-danger me-1"></i>Hayır{% endif %}</dd>

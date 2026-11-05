@@ -30,6 +30,11 @@ class Bolum(models.Model):
         return ([self.kod] if self.kod else []) + ek
 
 
+OGRETIM_UYESI_UNVANLARI = {"Prof.Dr.", "Doç.Dr.", "Dr.Öğt.Üyesi"}
+AKADEMIK_UNVANLAR = OGRETIM_UYESI_UNVANLARI | {"Öğt.Gör.", "Öğt.Gör.Dr.", "Dr.", "Arş.Gör.", "Okt.", "Uzm."}
+MEMUR_UNVANLARI = {"De.Me.", "VHKİ"}
+
+
 class Secenek(models.Model):
     """Rütbe, sınıf ve unvan listeleri (Access: smV47Secenek)."""
 
@@ -110,6 +115,9 @@ class Personel(models.Model):
     gorev_unvani = models.CharField("Görev unvanı", max_length=80, blank=True,
                                     help_text="ör. Şube Müdürü, Kısım Amiri, Müdür Yardımcısı")
     idari_kadro = models.BooleanField("İdari kadro", default=False)
+    brans = models.CharField("Branş", max_length=60, blank=True,
+                             help_text="Öğretim elemanının alanı, ör. Fizik, Matematik, Elektronik. Görev unvanı yoksa "
+                                       "raporlarda “Fizik Öğretim Görevlisi” gibi yazılır.")
 
     eski_id = models.IntegerField("Access ID", unique=True, null=True, blank=True, editable=False)
     olusturma = models.DateTimeField(auto_now_add=True)
@@ -135,6 +143,25 @@ class Personel(models.Model):
         unvan = str(self.unvan or "")
         parcalar = [unvan, sinif_rutbe] if self.unvan and self.unvan.one_cikan else [sinif_rutbe, unvan]
         return " ".join(p for p in parcalar if p)
+
+    def kadro_gorevi_metni(self, ogretim=None):
+        """Raporlardaki "Görevi": görev unvanı (ör. Ders Plan Subayı, Yüksekokul Müdürü) varsa o; yoksa De.Me., VHKİ
+        gibi memur unvanı; yoksa öğretim elemanında branşla "Fizik Öğretim Görevlisi" / "… Öğretim Üyesi".
+        ogretim verilmezse künyeden (bölüm, Öğ. sınıfı, akademik unvan) anlaşılır. Bulunamazsa boş."""
+        if self.gorev_unvani:
+            return self.gorev_unvani
+        unvan = str(self.unvan or "").strip()
+        if unvan in MEMUR_UNVANLARI:
+            return unvan
+        if ogretim is None:
+            ogretim = bool(self.bolum_id) or str(self.sinif or "").strip() == "Öğ." or unvan in AKADEMIK_UNVANLAR
+        if ogretim and self.brans:
+            return f"{self.brans} {'Öğretim Üyesi' if unvan in OGRETIM_UYESI_UNVANLARI else 'Öğretim Görevlisi'}"
+        return ""
+
+    @property
+    def kadro_gorevi(self):
+        return self.kadro_gorevi_metni()
 
     @property
     def tam_ad(self):
