@@ -47,7 +47,11 @@ class IkiAdimliDogrulamaAdmin(admin.ModelAdmin):
 
 @admin.register(GuvenlikAyari)
 class GuvenlikAyariAdmin(admin.ModelAdmin):
-    list_display = ["__str__", "dis_erisimde_iki_adim_zorunlu", "giris_deneme_siniri", "kilit_suresi_dk", "kilit_katsayisi"]
+    list_display = ["__str__", "dis_erisimde_iki_adim_zorunlu", "giris_deneme_siniri", "kilit_suresi_dk", "kilit_katsayisi", "gelistirme_acik"]
+
+    @admin.display(boolean=True, description="Geliştirme kodu")
+    def gelistirme_acik(self, obj):
+        return bool(obj.gelistirme_kodu)
 
     def has_add_permission(self, request):
         return not GuvenlikAyari.objects.exists()

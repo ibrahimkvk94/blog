@@ -5,8 +5,11 @@
   Başarılı giriş sayacı sıfırlar. Sayaç önbellekte 24 saat tutulur; sunucu yeniden başlarsa sıfırlanır.
 - İstek dış adresten (settings.DIS_ADRESLER ya da *.ts.net) geliyorsa "dış erişim" sayılır; ayar açıksa dışarıdan
   yalnızca iki adımlı doğrulaması açık kullanıcılar girebilir. Kurum ağından giriş bundan etkilenmez.
+- Geliştirme sürecinde GuvenlikAyari.gelistirme_kodu doluysa girişte herkese kod sorulur ve bu ortak kod kabul edilir
+  (dış erişim kuralının yerine de geçer). Kod depoya yazılmaz; yalnızca canlı veritabanındaki ayardadır.
 """
 
+import hmac
 import time
 from urllib.parse import urlparse
 
@@ -59,7 +62,24 @@ def dis_erisim_mi(request):
     return host in dis or host.endswith(".ts.net")
 
 
+def _sade(kod):
+    return "".join(ch for ch in str(kod or "") if ch.isdigit() or ch.isalpha())
+
+
+def gelistirme_kodu():
+    """Geliştirme sürecinde herkes için geçerli ortak doğrulama kodu (GuvenlikAyari); tanımlı değilse boş."""
+    from .models import GuvenlikAyari
+
+    return _sade(GuvenlikAyari.al().gelistirme_kodu)
+
+
+def gelistirme_kodu_dogru(kod):
+    beklenen = gelistirme_kodu()
+    return bool(beklenen) and hmac.compare_digest(_sade(kod), beklenen)
+
+
 def dis_erisimde_iki_adim_gerekli(request):
     from .models import GuvenlikAyari
 
-    return dis_erisim_mi(request) and GuvenlikAyari.al().dis_erisimde_iki_adim_zorunlu
+    ayar = GuvenlikAyari.al()
+    return dis_erisim_mi(request) and ayar.dis_erisimde_iki_adim_zorunlu and not _sade(ayar.gelistirme_kodu)

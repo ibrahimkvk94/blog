@@ -66,6 +66,10 @@ class GuvenlikAyari(models.Model):
     kilit_suresi_dk = models.PositiveSmallIntegerField(
         "İlk kilit süresi (dakika)", default=1, help_text="Sınır her aşıldığında kilit katsayı kadar uzar: 1, 3, 9 … dk.")
     kilit_katsayisi = models.PositiveSmallIntegerField("Kilit artış katsayısı", default=3)
+    gelistirme_kodu = models.CharField(
+        "Geliştirme süreci ortak kodu", max_length=32, blank=True,
+        help_text="Doluysa (geliştirme sürecinde) girişte TÜM kullanıcılara doğrulama kodu sorulur ve bu kod kabul edilir; "
+                  "internetten girişte de iki adımlı doğrulama yerine geçer. Kalıcı kullanıma geçmeden boşaltın.")
 
     class Meta:
         verbose_name = "Güvenlik ayarları"
