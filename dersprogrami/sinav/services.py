@@ -558,9 +558,16 @@ def validate(period, only=None):
 
     by_slot_class, by_slot_room, by_slot_teacher = {}, {}, {}
     per_day = defaultdict(list)
+    # KAMYOSİS: dönem için seçilmiş salonlar dışında salon kullanılmışsa (ör. salonlar plandan sonra değişti) uyar
+    selected = set(period.rooms.values_list("pk", flat=True))
     for pl in rows:
         e = pl.exam
         label = slot_label(pl.date, pl.session, period)
+        if selected:
+            outside = [str(r.classroom) for r in pl.rooms.all() if r.classroom_id not in selected]
+            if outside:
+                add("warn", f"«{e.title}» ({label}): seçili sınav salonları dışında salon kullanılıyor "
+                            f"({', '.join(outside)}). Programı yeniden oluşturun ya da salonu değiştirin.", e)
         if e.excluded:
             add("warn", f"«{e.title}» sınav yapılmaz olarak işaretli ama programda duruyor.", e)
         if pl.date not in dates or not 0 <= pl.session < n_s or pl.session + e.duration > n_s:
@@ -743,6 +750,18 @@ def set_rooms(period, placement, room_ids):
 
 # --- görünümler için tablolar -------------------------------------------------------------------
 
+class SessionCell(list):
+    """KAMYOSİS: takvim hücresi (oturumdaki yerleşimler); toplam öğrenci ve kullanılan salon sayısıyla."""
+
+    @property
+    def students(self):
+        return sum(pl.exam.student_count for pl in self)
+
+    @property
+    def room_count(self):
+        return len({r.classroom_id for pl in self for r in pl.rooms.all()})
+
+
 def calendar(period, rows=None):
     """Takvim: [{"date", "day", "cells": [[yerleşim, ...] her oturum için]}]."""
     rows = placements(period) if rows is None else rows
@@ -752,7 +771,8 @@ def calendar(period, rows=None):
         by[(pl.date, pl.session)].append(pl)
     dates = period.dates()
     extra = sorted({pl.date for pl in rows} - set(dates))
-    return [{"date": d, "day": DAY_NAMES[d.weekday()], "cells": [by.get((d, s), []) for s in range(n_s)]}
+    return [{"date": d, "day": DAY_NAMES[d.weekday()],
+             "cells": [SessionCell(by.get((d, s), [])) for s in range(n_s)]}
             for d in sorted(dates + extra)]
 
 

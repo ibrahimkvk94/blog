@@ -77,7 +77,7 @@
         <tr>
           <th class="ex-cal-day">{{ day.date|date:"d.m.Y" }}<div class="subtle small">{{ day.day }}</div></th>
           {% for cell in day.cells %}
-            <td>{% for pl in cell %}{% include "sinav/exam_chip.html" %}{% endfor %}</td>
+            <td>{% if cell %}<div class="ex-cell-sum" title="Bu oturumdaki toplam öğrenci ve kullanılan salon">{{ cell.students }} öğrenci · {{ cell.room_count }} salon</div>{% endif %}{% for pl in cell %}{% include "sinav/exam_chip.html" %}{% endfor %}</td>
           {% endfor %}
         </tr>
       {% endfor %}
