@@ -305,6 +305,10 @@ class YoklamaTestleri(SaatSabit, TestCase):
         self.veli.rutbe = sec(Secenek.RUTBE, "Asb.Kd.Bçvş.")
         self.veli.save()
         self.assertEqual([e for _, e in personel_isaretleri(self.veli)], ["Astsubay Kd. Başçavuş"])
+        self.veli.gorev_unvani = "Müdürlük Emir Astsubayı"  # iki yıldızlı kırmızı kalkan
+        self.assertEqual([e for _, e in personel_isaretleri(self.veli)],
+                         ["Astsubay Kd. Başçavuş", "Müdürlük Emir Astsubayı"])
+        self.veli.gorev_unvani = ""
         self.assertEqual(personel_isaretleri(self.ayse), [])  # künyesiz: işaret yok
         self.client.force_login(self.askci)
         r = self.client.get(reverse("yoklama:kart", args=[self.ali.pk]))
