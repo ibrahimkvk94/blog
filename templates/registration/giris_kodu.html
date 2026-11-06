@@ -17,6 +17,11 @@
         <input type="text" class="form-control text-center fs-4" id="kod" name="kod" placeholder="000000" inputmode="numeric" autocomplete="one-time-code" maxlength="12" autofocus required>
         <label for="kod">Doğrulama kodu</label>
       </div>
+      <div class="form-check mb-3 text-start">
+        <input class="form-check-input" type="checkbox" name="guven" value="1" id="guven">
+        <label class="form-check-label" for="guven">Bu cihaza güven
+          <span class="d-block small text-secondary">Bu tarayıcıda, güveni kaldırana dek bir daha kod sorulmaz. Ortak kullanılan bilgisayarlarda işaretlemeyin.</span></label>
+      </div>
       <button class="btn btn-primary btn-lg w-100">Doğrula</button>
     </form>
     {% if kayit %}<p class="small text-secondary mt-3 mb-0">Telefonunuz yanınızda değilse yedek kodlarınızdan birini (ör. <span class="font-monospace">a1b2c-3d4e5</span>) girebilirsiniz. Yedek kodunuz da yoksa yöneticinize başvurun.</p>{% endif %}

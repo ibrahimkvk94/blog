@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin
 
 from core.models import Yetki
 
-from .models import GuvenlikAyari, IkiAdimliDogrulama, User
+from .models import GuvenlikAyari, GuvenilirCihaz, IkiAdimliDogrulama, User
 
 
 class YetkiInline(admin.TabularInline):
@@ -43,6 +43,19 @@ class IkiAdimliDogrulamaAdmin(admin.ModelAdmin):
     @admin.display(description="Kalan yedek kod")
     def kalan_yedek(self, obj):
         return obj.kalan_yedek
+
+
+@admin.register(GuvenilirCihaz)
+class GuvenilirCihazAdmin(admin.ModelAdmin):
+    """Yönetici bir kullanıcının cihaz güvenini kaldırabilir (kaydı siler); ekleme yalnız girişte olur."""
+
+    list_display = ["kullanici", "ad", "olusturma", "son_kullanim"]
+    search_fields = ["kullanici__username", "kullanici__first_name", "kullanici__last_name"]
+    readonly_fields = ["kullanici", "ad", "olusturma", "son_kullanim"]
+    fields = readonly_fields
+
+    def has_add_permission(self, request):
+        return False
 
 
 @admin.register(GuvenlikAyari)

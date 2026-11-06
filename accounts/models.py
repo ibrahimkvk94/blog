@@ -54,6 +54,26 @@ class IkiAdimliDogrulama(models.Model):
         return len(self.yedek_kodlar or [])
 
 
+class GuvenilirCihaz(models.Model):
+    """“Bu cihaza güven” denilen tarayıcı: güven kaldırılana dek girişte iki adımlı doğrulama kodu sorulmaz.
+    Tarayıcıda yalnız rastgele bir anahtar (HttpOnly çerez) durur; burada onun SHA-256 özeti saklanır."""
+
+    kullanici = models.ForeignKey(User, on_delete=models.CASCADE, related_name="guvenilir_cihazlar",
+                                  verbose_name="Kullanıcı")
+    ozet = models.CharField(max_length=64, unique=True, editable=False)
+    ad = models.CharField("Cihaz", max_length=120, blank=True)
+    olusturma = models.DateTimeField("Güvenildiği zaman", auto_now_add=True)
+    son_kullanim = models.DateTimeField("Son giriş", null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Güvenilir cihaz"
+        verbose_name_plural = "Güvenilir cihazlar"
+        ordering = ["-son_kullanim", "-olusturma"]
+
+    def __str__(self):
+        return f"{self.kullanici} · {self.ad or 'cihaz'}"
+
+
 class GuvenlikAyari(models.Model):
     """Tek satırlık giriş güvenliği ayarları (Yönetim Paneli → Güvenlik ayarları)."""
 

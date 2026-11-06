@@ -13,7 +13,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.cache import never_cache
 from django.views.decorators.debug import sensitive_post_parameters
 
-from . import guvenlik
+from . import guvenilir, guvenlik
 from . import iki_adim as ia
 from .models import IkiAdimliDogrulama
 
@@ -33,7 +33,10 @@ class ParolaDegistirView(auth_views.PasswordChangeView):
         if user.parola_degismeli:
             user.parola_degismeli = False
             user.save(update_fields=["parola_degismeli"])
-        messages.success(self.request, "Parolanız değiştirildi.")
+        kaldirilan = guvenilir.kaldir(user)  # parola değişince güvenilir cihazlar yeniden kod girer
+        messages.success(self.request, "Parolanız değiştirildi." + (
+            f" Güvenilir cihazlarınızın ({kaldirilan}) güveni kaldırıldı; bir sonraki girişte kod sorulur."
+            if kaldirilan else ""))
         return response
 
 
@@ -69,6 +72,11 @@ class GirisView(auth_views.LoginView):
                 return self._hata(form, "İnternet üzerinden giriş için iki adımlı doğrulama gerekir. Önce kurum ağından "
                                         "giriş yapıp sağ üstteki menüden “İki adımlı doğrulama”yı açın.")
             return super().form_valid(form)
+        cihaz = guvenilir.bu_cihaz(self.request, user)
+        if cihaz is not None:  # “Bu cihaza güven” denilmiş tarayıcı: kod sorulmaz
+            yanit = super().form_valid(form)
+            guvenilir.kullanildi(self.request, yanit, cihaz)
+            return yanit
         self.request.session[BEKLEYEN] = {
             "uid": user.pk, "backend": user.backend, "zaman": time.time(), "deneme": 0, "next": self.get_success_url(),
         }
@@ -116,7 +124,12 @@ def giris_kodu(request):
                                           "Telefonunuzu kaybettiyseniz iki adımlı doğrulamayı yeniden kurun.")
             if not url_has_allowed_host_and_scheme(hedef, allowed_hosts={request.get_host()}):
                 hedef = "/"
-            return redirect(hedef)
+            yanit = redirect(hedef)
+            if request.POST.get("guven") == "1":
+                guvenilir.guven(request, yanit, user)
+                messages.info(request, "Bu cihaza güvenildi: güveni kaldırana dek burada kod sorulmayacak "
+                                       "(sağ üst menü → İki adımlı doğrulama → Güvenilir cihazlar).")
+            return yanit
         guvenlik.hatali_deneme(user.username)
         bekleyen["deneme"] = bekleyen.get("deneme", 0) + 1
         if bekleyen["deneme"] >= DENEME:
@@ -140,6 +153,16 @@ def iki_adim_ayari(request):
     yeni_yedekler = None
     if request.method == "POST":
         islem = request.POST.get("islem")
+        if islem in ("cihaz_kaldir", "cihazlar_kaldir"):
+            pk = request.POST.get("pk", "")
+            hedef = None if islem == "cihazlar_kaldir" else (int(pk) if pk.isdigit() else -1)
+            n = guvenilir.kaldir(user, hedef)
+            yanit = redirect("iki_adim")
+            if guvenilir.bu_cihaz(request, user) is None:
+                yanit.delete_cookie(guvenilir.cerez_adi(user))
+            messages.success(request, f"{n} cihazın güveni kaldırıldı; o cihazlarda bir sonraki girişte kod sorulur."
+                             if n else "Kaldırılacak cihaz bulunamadı.")
+            return yanit
         if islem == "baslat" and not etkin:
             request.session[KURULUM] = ia.gizli_uret()
         elif islem == "onayla" and not etkin:
@@ -182,6 +205,7 @@ def iki_adim_ayari(request):
     return render(request, "registration/iki_adim.html", {
         "kayit": kayit if etkin else None, "gizli": gizli, "gizli_gruplu": " ".join(gizli[i:i + 4] for i in range(0, len(gizli), 4)) if gizli else "",
         "karekod": ia.karekod_svg(adres) if adres else None, "yeni_yedekler": yeni_yedekler,
+        "cihazlar": user.guvenilir_cihazlar.all(), "bu_cihaz": guvenilir.bu_cihaz(request, user),
     })
 
 

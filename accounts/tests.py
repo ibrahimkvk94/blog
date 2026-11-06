@@ -233,3 +233,61 @@ class GelistirmeKoduTests(TestCase):
         GuvenlikAyari.objects.update(gelistirme_kodu="")
         self.client.post(reverse("login"), {"username": "veli", "password": PAROLA})
         self.assertIn("_auth_user_id", self.client.session)  # 2FA'sız kullanıcıya kod sorulmaz
+
+
+class GuvenilirCihazTests(TestCase):
+    """Bu cihaza güven: kod bir kez girilir, güven kaldırılana (ya da parola değişene) dek o tarayıcıda sorulmaz."""
+
+    KOD = "24681357"
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        from .models import GuvenlikAyari
+
+        cache.clear()
+        self.user = User.objects.create_user("ayse", password=PAROLA)
+        GuvenlikAyari.objects.update_or_create(pk=GuvenlikAyari.al().pk, defaults={"gelistirme_kodu": self.KOD})
+
+    def _giris(self):
+        return self.client.post(reverse("login"), {"username": "ayse", "password": PAROLA})
+
+    def test_guvenilen_cihazda_kod_sorulmaz(self):
+        from .models import GuvenilirCihaz
+
+        self._giris()
+        self.client.post(reverse("giris_kodu"), {"kod": self.KOD, "guven": "1"}, HTTP_USER_AGENT="Mozilla/5.0 (Windows NT 10.0) Chrome/130.0")
+        self.assertEqual(GuvenilirCihaz.objects.get(kullanici=self.user).ad, "Chrome · Windows")
+        self.client.post(reverse("logout"))  # çerezler kalır (client.logout() siler)
+        r = self._giris()
+        self.assertNotEqual(r["Location"], reverse("giris_kodu"))  # doğrudan girdi
+        self.assertIn("_auth_user_id", self.client.session)
+        self.assertIsNotNone(GuvenilirCihaz.objects.get(kullanici=self.user).son_kullanim)
+
+    def test_isaretlenmezse_yine_sorulur(self):
+        self._giris()
+        self.client.post(reverse("giris_kodu"), {"kod": self.KOD})
+        self.client.post(reverse("logout"))
+        self.assertRedirects(self._giris(), reverse("giris_kodu"))
+
+    def test_guven_kaldirilinca_ve_parola_degisince_sorulur(self):
+        self._giris()
+        self.client.post(reverse("giris_kodu"), {"kod": self.KOD, "guven": "1"})
+        r = self.client.get(reverse("iki_adim"))
+        self.assertContains(r, "bu cihaz")
+        self.client.post(reverse("iki_adim"), {"islem": "cihazlar_kaldir"})
+        self.client.post(reverse("logout"))
+        self.assertRedirects(self._giris(), reverse("giris_kodu"))
+        # yeniden güven, sonra parola değiştir: güven kalkar
+        self.client.post(reverse("giris_kodu"), {"kod": self.KOD, "guven": "1"})
+        yeni = "y-Parola-456!"
+        self.client.post(reverse("parola_degistir"), {"old_password": PAROLA, "new_password1": yeni, "new_password2": yeni})
+        self.assertFalse(self.user.guvenilir_cihazlar.exists())
+
+    def test_baska_kullaniciya_gecmez(self):
+        User.objects.create_user("can", password=PAROLA)
+        self._giris()
+        self.client.post(reverse("giris_kodu"), {"kod": self.KOD, "guven": "1"})
+        self.client.post(reverse("logout"))
+        r = self.client.post(reverse("login"), {"username": "can", "password": PAROLA})
+        self.assertRedirects(r, reverse("giris_kodu"))
