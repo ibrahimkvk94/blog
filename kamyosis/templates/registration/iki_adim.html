@@ -60,4 +60,23 @@
   <form method="post">{% csrf_token %}<button class="btn btn-primary" name="islem" value="baslat"><i class="bi bi-shield-lock me-1"></i>İki adımlı doğrulamayı aç</button></form>
 </div>
 {% endif %}
+
+<div class="kart p-3 mb-3">
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+    <h2 class="h6 fw-bold mb-0 me-auto"><i class="bi bi-laptop me-1"></i>Güvenilir cihazlar</h2>
+    {% if cihazlar %}<form method="post">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" name="islem" value="cihazlar_kaldir" onclick="return confirm('Tüm cihazların güveni kaldırılsın mı? Hepsinde bir sonraki girişte kod sorulur.')"><i class="bi bi-x-circle me-1"></i>Tümünün güvenini kaldır</button></form>{% endif %}
+  </div>
+  <p class="small text-secondary">Kod ekranında “Bu cihaza güven” dediğiniz tarayıcılarda, güveni kaldırana dek yalnızca parola sorulur. Parolanızı değiştirdiğinizde tüm güvenler kendiliğinden kalkar.</p>
+  {% if cihazlar %}
+  <ul class="list-group">
+    {% for c in cihazlar %}
+    <li class="list-group-item d-flex flex-wrap align-items-center gap-2">
+      <span class="me-auto"><i class="bi bi-display me-1 text-secondary"></i>{{ c.ad|default:"Cihaz" }}{% if bu_cihaz and bu_cihaz.pk == c.pk %} <span class="durum-rozet durum-kullanimda">bu cihaz</span>{% endif %}
+        <span class="d-block small text-secondary">güvenildi {{ c.olusturma|date:"d.m.Y H:i" }} · son giriş {{ c.son_kullanim|date:"d.m.Y H:i"|default:"–" }}</span></span>
+      <form method="post">{% csrf_token %}<input type="hidden" name="pk" value="{{ c.pk }}"><button class="btn btn-sm btn-outline-secondary" name="islem" value="cihaz_kaldir"><i class="bi bi-x-lg me-1"></i>Güveni kaldır</button></form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="small mb-0"><span class="durum-rozet durum-planlandi">Yok</span> <span class="text-secondary ms-1">Güvenilir cihazınız yok.</span></p>{% endif %}
+</div>
 {% endblock %}
