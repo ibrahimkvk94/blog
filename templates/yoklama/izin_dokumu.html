@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% load yoklama_etiketleri %}
+{% block title %}İzin dökümü · {{ yil }}{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Yıllık izin dökümü</h1>
+    <p class="text-secondary mb-0">{{ yil }} · {% if secili_birim %}{{ secili_birim.ad }}{% else %}tüm okul{% endif %} · {{ v.kisi }} personel, {{ v.kullanan }} kişi izin kullandı</p>
+  </div>
+  <div class="d-flex flex-wrap gap-2 d-print-none">
+    <a class="btn btn-primary" href="?yil={{ yil }}{{ birim_q }}{% if yalniz %}&yalniz=1{% endif %}&pdf=1"><i class="bi bi-file-earmark-pdf me-1"></i>PDF indir</a>
+  </div>
+</div>
+
+{% include "yoklama/_sekmeler.html" with sekme="izin_dokumu" %}
+
+<form method="get" class="kart p-2 mb-3 d-flex flex-wrap align-items-center gap-2 d-print-none">
+  <select class="form-select w-auto" name="yil" aria-label="Yıl" onchange="this.form.submit()">
+    {% for yy in yillar %}<option value="{{ yy }}" {% if yy == yil %}selected{% endif %}>{{ yy }}</option>{% endfor %}
+  </select>
+  {% include "yoklama/_birim_secimi.html" %}
+  <div class="form-check form-switch ms-1">
+    <input class="form-check-input" type="checkbox" role="switch" id="yalniz" name="yalniz" value="1" {% if yalniz %}checked{% endif %} onchange="this.form.submit()">
+    <label class="form-check-label" for="yalniz">Yalnız izin kullananlar</label>
+  </div>
+  <span class="small text-secondary ms-auto">Tam gün kayıtları takvim günüyle, saatlik kayıtlar saatle sayılır; bilgi amaçlı türler (garnizon terk) yok.</span>
+</form>
+
+<div class="row g-3 mb-3">
+  {% for o in v.ozet %}
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="kart p-2 h-100" style="border-left:4px solid {{ o.tur.renk|default:'#1f3a5f' }}">
+      <div class="small text-secondary text-truncate">{{ o.tur.ad }}</div>
+      <div class="fw-bold fs-5">{{ o.gun }} gün{% if o.saat %} <span class="fs-6 fw-normal">+ {{ o.saat|floatformat:"-1" }} sa</span>{% endif %}</div>
+      <div class="small text-secondary">{{ o.adet }} kez · {{ o.kisi }} kişi</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="kart">
+  <div class="table-responsive">
+    <table class="table table-sm table-bordered align-middle mb-0 yk-dokum">
+      <thead class="table-light"><tr><th style="width:3rem">S.No</th><th>Personel</th>{% for t in v.turler %}<th class="text-center">{{ t.ad }}{% if t.yillik_hak is not None %}<div class="small fw-normal text-secondary">hak {{ t.yillik_hak }} gün</div>{% endif %}</th>{% endfor %}<th class="text-center">Toplam</th></tr></thead>
+      <tbody>
+      {% for b, liste in v.gruplar %}
+        <tr class="table-secondary"><th colspan="{{ v.turler|length|add:3 }}">{{ b.ad }} <span class="fw-normal small text-secondary">· {{ liste|length }} kişi</span></th></tr>
+        {% for s in liste %}
+        <tr>
+          <td class="text-secondary small">{{ forloop.counter }}</td>
+          <td><a href="{% url 'yoklama:kart' s.p.pk %}" class="text-decoration-none"><span class="fw-semibold">{{ s.p.ad_soyad }}</span> <span class="small text-secondary">{{ s.p.kunye }}</span></a>{% if s.gorev %}<div class="small text-secondary">{{ s.gorev }}</div>{% endif %}</td>
+          {% for ana, alt, asim, dolu in s.hucreler %}<td class="text-center{% if asim %} text-danger fw-bold{% elif not dolu %} text-secondary{% endif %}">{{ ana }}{% if alt %}<div class="small text-secondary fw-normal">{{ alt }}</div>{% endif %}</td>{% endfor %}
+          <td class="text-center">{% if s.adet %}<span class="fw-semibold">{{ s.gun }} gün</span>{% if s.saat %} + {{ s.saat|floatformat:"-1" }} sa{% endif %}<div class="small text-secondary">{{ s.adet }} kez</div>{% else %}<span class="text-secondary">–</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      {% empty %}
+        <tr><td colspan="{{ v.turler|length|add:3 }}" class="text-center text-secondary py-5">Bu seçimde personel yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

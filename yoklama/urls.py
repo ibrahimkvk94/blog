@@ -13,6 +13,7 @@ urlpatterns = [
     path("kayit/<int:pk>/", views.kayit, name="kayit"),
     path("izin-turleri/", views.turler, name="turler"),
     path("rapor/", views.rapor, name="rapor"),
+    path("izin-dokumu/", views.izin_dokumu, name="izin_dokumu"),
     path("form/", views.yoklama_formu, name="form"),
     path("gruplar/", views.gruplar, name="gruplar"),
     path("gecmis/", views.gecmis, name="gecmis"),
