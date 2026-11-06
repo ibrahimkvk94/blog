@@ -1,0 +1,25 @@
+.venv/
+__pycache__/
+*.pyc
+db.sqlite3
+staticfiles/
+.secret_key
+# GerÃ§ek kiÅŸilere ait geÃ§ici parolalar ve test hesaplarÄ± - asla paylaÅŸÄ±lmaz
+ilk_parolalar.txt
+test_hesaplari.txt
+kayitlar/
+# aSc dışa aktarımları (kişi adları içerir)
+aSc/
+db_yedek_*.sqlite3
+# WAL kipi geÃ§ici dosyalarÄ± ve veritabanÄ± yedekleri
+*.sqlite3-wal
+*.sqlite3-shm
+yedekler/
+# Ders ProgramÄ± modÃ¼lÃ¼nÃ¼n yerel yolu (bkz. config/dersprogrami_yolu.py)
+.dersprogrami_yolu
+# Internetten erisim adresi (tailnet adi; bkz. config/settings.py DIS_ADRESLER)
+.dis_adres
+# Yuklenen dosyalar (personel fotograflari) - kisisel veri, paylasilmaz
+medya/
+# Okuyucu Excel (makrolu ikili dosya) depoya girmez; ogrenci/okuyucu/vba/olustur.ps1 ile uretilir
+ogrenci/okuyucu/*.xlsm

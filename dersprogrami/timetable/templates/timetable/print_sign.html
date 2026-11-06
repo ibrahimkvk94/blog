@@ -1,0 +1,2 @@
+{% if brand.sign_pages and brand.signatures %}<div class="pb-sign">{% for s in brand.signatures %}<div><div class="pb-name">{{ s.name|default:"&nbsp;" }}</div><div class="pb-role">{{ s.role }}</div><div class="pb-signline">İmza</div></div>{% endfor %}</div>{% endif %}
+<div class="pb-foot"><span>{{ brand.footer|default:"Ders Programı" }}</span>{% if brand.show_date %}<span>{% now "d.m.Y" %}</span>{% endif %}</div>

@@ -1,0 +1,103 @@
+{% extends "timetable/base.html" %}
+{% block title %}Derslik doluluğu · {{ timetable.name }}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{{ grid_url }}">{{ timetable.name }}</a>{% endblock %}
+{% block heading %}<h1>Derslik doluluğu</h1>{% endblock %}
+{% block actions %}{% if can.veri %}<a class="btn" href="{% url 'timetable:room_wizard' school.pk %}">Derslik atama</a>{% endif %}{% endblock %}
+{% block content %}
+{% with s=data.summary %}
+<div class="q-summary">
+  <div class="q-card q-score"><span>Ortalama doluluk</span><b>%{{ s.average }}</b><small>{{ s.rooms }} derslik, kullanılabilir saatlere göre</small></div>
+  {% if s.peak %}<div class="q-card"><span>En yoğun saat</span><b>%{{ s.peak.pct }}</b><small>{{ s.peak.label }} · {{ s.peak.used }} / {{ s.peak.open }} derslik</small></div>{% endif %}
+  <div class="q-card"><span>%80 üstü dolu</span><b class="t-kotu">{{ s.full }}</b><small>sıkışan derslikler</small></div>
+  <div class="q-card"><span>%20 altı dolu</span><b class="t-orta">{{ s.idle }}</b><small>az kullanılan derslikler</small></div>
+  <div class="q-card"><span>Hiç kullanılmayan</span><b>{{ s.unused }}</b><small>bu programda dersi yok</small></div>
+</div>
+{% endwith %}
+
+<div class="ru-layout">
+  <section class="panel">
+    <div class="panel-head"><h2>Gün × saat</h2><span class="subtle small">dolu derslik oranı · hücreye tıklayın: o saatte boş derslikler</span></div>
+    <div class="panel-body">
+      <table class="ru-heat">
+        <thead><tr><th></th>{% for d in data.days %}<th>{{ d }}</th>{% endfor %}</tr></thead>
+        <tbody>
+          {% for row in data.grid %}
+            <tr><th>{{ row.period.index|add:1 }}.<span>{{ row.span }}</span></th>
+              {% for c in row.cells %}
+                <td><button type="button" class="ru-cell lv{{ c.level }}" data-cell="{{ c.day }}-{{ c.period }}"{% if c.pct is None %} disabled{% endif %}>{% if c.pct is not None %}%{{ c.pct }}<small>{{ c.used }}/{{ c.open }}</small>{% else %}kapalı{% endif %}</button>
+                  {{ c|json_script:"" }}</td>
+              {% endfor %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="ru-legend"><span>Az</span>{% for i in "12345" %}<i class="lv{{ i }}"></i>{% endfor %}<span>Çok</span></div>
+    </div>
+  </section>
+  <aside class="panel ru-detail" data-ru-detail>
+    <div class="panel-head"><h2 data-ru-title>Bir hücre seçin</h2></div>
+    <div class="panel-body">
+      <div class="label">Boş derslikler <span class="pill" data-ru-free-count></span></div>
+      <div class="ru-list" data-ru-free><span class="subtle small">Isı haritasında bir saate tıklayın.</span></div>
+      <div class="label" style="margin-top:12px">Dolu derslikler <span class="pill" data-ru-busy-count></span></div>
+      <div class="ru-list ru-busy" data-ru-busy></div>
+    </div>
+  </aside>
+</div>
+
+<section class="panel" style="margin-top:16px">
+  <div class="panel-head"><h2>Derslikler</h2><input class="input input-sm" type="search" placeholder="Derslik ara…" data-ru-search style="max-width:240px"></div>
+  <div class="panel-body flush table-wrap">
+    <table class="table ru-rooms" data-ru-rooms>
+      <thead><tr><th data-sort="name">Derslik</th>{% if data.buildings %}<th>Bina</th>{% endif %}<th data-sort="pct" class="num">Doluluk</th><th class="num">Saat</th><th>Hafta (günler soldan sağa)</th></tr></thead>
+      <tbody>
+        {% for r in data.rooms %}
+          <tr data-name="{{ r.room.name|fold }}" data-pct="{{ r.pct|default_if_none:-1 }}">
+            <td><b>{{ r.room.name }}</b></td>
+            {% if data.buildings %}<td class="subtle">{{ r.building|default:"–" }}</td>{% endif %}
+            <td class="num"><div class="ru-bar"><div class="lv{{ r.level }}" style="width:{{ r.pct|default:0 }}%"></div></div>{% if r.pct is not None %}%{{ r.pct }}{% else %}–{% endif %}</td>
+            <td class="num subtle">{{ r.used }} / {{ r.open }}</td>
+            <td><div class="ru-strip">{% for day in r.strip %}<span class="ru-day">{% for s in day %}<i class="st-{{ s }}"></i>{% endfor %}</span>{% endfor %}</div></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+{{ data.days|json_script:"ru-days" }}
+<script>
+(function () {
+  const days = JSON.parse(document.getElementById("ru-days").textContent);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const show = (btn) => {
+    document.querySelectorAll(".ru-cell.on").forEach((b) => b.classList.remove("on"));
+    btn.classList.add("on");
+    const c = JSON.parse(btn.parentElement.querySelector("script").textContent);
+    document.querySelector("[data-ru-title]").textContent = days[c.day] + " " + (c.period + 1) + ". saat · %" + c.pct + " dolu";
+    document.querySelector("[data-ru-free-count]").textContent = c.free.length;
+    document.querySelector("[data-ru-busy-count]").textContent = c.busy.length;
+    document.querySelector("[data-ru-free]").innerHTML = c.free.map((n) => '<span class="chip">' + esc(n) + "</span>").join("") || '<span class="subtle small">Boş derslik yok.</span>';
+    document.querySelector("[data-ru-busy]").innerHTML = c.busy.map((n) => "<div>" + esc(n) + "</div>").join("") || '<span class="subtle small">Dolu derslik yok.</span>';
+  };
+  document.querySelectorAll(".ru-cell:not([disabled])").forEach((b) => b.addEventListener("click", () => show(b)));
+  // Tablo: arama ve sıralama
+  const table = document.querySelector("[data-ru-rooms]");
+  const rows = [...table.tBodies[0].rows];
+  document.querySelector("[data-ru-search]").addEventListener("input", (e) => {
+    const q = e.target.value.trim().toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
+    rows.forEach((r) => { r.hidden = q && !r.dataset.name.includes(q); });
+  });
+  let dir = -1, key = "";
+  table.tHead.addEventListener("click", (e) => {
+    const th = e.target.closest("th[data-sort]");
+    if (!th) return;
+    dir = th.dataset.sort === key ? -dir : (th.dataset.sort === "name" ? 1 : -1);
+    key = th.dataset.sort;
+    rows.sort((a, b) => key === "name" ? dir * a.dataset.name.localeCompare(b.dataset.name, "tr") : dir * (Number(a.dataset.pct) - Number(b.dataset.pct)));
+    rows.forEach((r) => table.tBodies[0].appendChild(r));
+  });
+})();
+</script>
+{% endblock %}

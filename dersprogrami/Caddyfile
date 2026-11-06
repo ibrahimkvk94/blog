@@ -1,0 +1,5 @@
+# Caddy, DOMAIN için Let's Encrypt sertifikasını kendisi alır ve yeniler.
+{$DOMAIN} {
+	encode gzip
+	reverse_proxy web:8000
+}

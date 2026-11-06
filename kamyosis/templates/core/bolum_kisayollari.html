@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Bölüm kısayolları{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Bölüm kısayolları</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Bölüm kısayolları</h1>
+    <p class="text-secondary mb-0">Bölüm hesaplarının menüsünde yalnızca kısayollar bulunur; birim ağacı ve organizasyon şeması gizlidir. Hangi kısayolun görüneceğini buradan seçin.</p>
+  </div>
+</div>
+
+<form method="post">
+  {% csrf_token %}
+  <div class="kart">
+    <div class="islem-cubugu d-flex flex-wrap align-items-center gap-2 p-2 border-bottom">
+      <span class="small text-secondary ms-2 me-auto">✓ menüde görünür, ✗ gizli</span>
+      <button class="btn btn-sm btn-primary"><i class="bi bi-check2"></i> Kaydet</button>
+    </div>
+    <div class="yardim-satiri"><i class="bi bi-info-circle"></i> Kısayol yalnızca bölümün o modülde yetkisi varsa görünür (Bölüm yetkileri). Kapatılan kısayolun sayfaları o bölüme tamamen kapanır (ana sayfa kartları ve adres yazarak da açılmaz). “Tüm bölümler” satırı bir sütunu tek tıkla açar ya da kapatır; değişiklikler Kaydet ile geçerli olur.</div>
+    <div class="table-responsive">
+      <table class="table align-middle mb-0 yb-tablo">
+        <thead>
+          <tr>
+            <th class="align-bottom">Bölüm</th>
+            {% for k in kisayol_listesi %}<th class="text-center"><span class="yb-baslik"><i class="bi bi-{{ k.ikon }}"></i> {{ k.ad }}</span></th>{% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% if satirlar %}
+          <tr class="table-light">
+            <th><span class="fw-semibold">Tüm bölümler</span><div class="small text-secondary fw-normal">sütunun tamamını açar / kapatır</div></th>
+            {% for k in kisayol_listesi %}
+            <td class="text-center">
+              <input type="checkbox" class="btn-check yb-kutu tum-sutun" id="tum-{{ k.kod }}" data-sutun="{{ k.kod }}" autocomplete="off">
+              <label class="yb-hucre" for="tum-{{ k.kod }}" aria-label="Tüm bölümler – {{ k.ad }}" title="{{ k.ad }}: tüm bölümler için aç/kapat"></label>
+            </td>
+            {% endfor %}
+          </tr>
+          {% endif %}
+          {% for s in satirlar %}
+          <tr>
+            <th>
+              <span class="fw-semibold">{{ s.bolum.kod }}</span> <span class="fw-normal">{{ s.bolum.ad }}</span>
+              <div class="small text-secondary fw-normal">{% for u in s.hesaplar %}{{ u.username }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+            </th>
+            {% for h in s.hucreler %}
+            <td class="text-center">
+              <input type="checkbox" class="btn-check yb-kutu" name="k" value="{{ s.bolum.pk }}:{{ h.kod }}" id="k{{ s.bolum.pk }}-{{ h.kod }}" data-sutun="{{ h.kod }}" {% if h.acik %}checked{% endif %} autocomplete="off">
+              <label class="yb-hucre" for="k{{ s.bolum.pk }}-{{ h.kod }}" aria-label="{{ s.bolum.kod }} – {{ h.kod }}"></label>
+            </td>
+            {% endfor %}
+          </tr>
+          {% empty %}
+          <tr><td colspan="{{ kisayol_listesi|length|add:1 }}" class="text-center text-secondary py-5">Bölüm hesabı yok.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</form>
+<script>
+(function () {
+  const tumler = document.querySelectorAll('.tum-sutun');
+  const kutular = s => document.querySelectorAll('input[name="k"][data-sutun="' + s + '"]');
+  function guncelle(t) {
+    const k = Array.from(kutular(t.dataset.sutun));
+    const acik = k.filter(x => x.checked).length;
+    t.checked = acik === k.length;
+    t.indeterminate = acik > 0 && acik < k.length;
+  }
+  tumler.forEach(t => {
+    guncelle(t);
+    t.addEventListener('change', () => { kutular(t.dataset.sutun).forEach(x => { x.checked = t.checked; }); guncelle(t); });
+  });
+  document.querySelectorAll('input[name="k"]').forEach(x => x.addEventListener('change', () => {
+    tumler.forEach(t => { if (t.dataset.sutun === x.dataset.sutun) guncelle(t); });
+  }));
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}Sınav görev puantajı{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Sınav görev puantajı</h1>
+    <p class="text-secondary mb-0">{{ yil }} eğitim-öğretim yılı (1 Ekim – 30 Eylül){% if secili_bolum %} · {{ secili_bolum.ad }}{% endif %} · {{ satirlar|length }} personel</p>
+  </div>
+  <div class="d-flex gap-2 d-print-none">
+    <a class="btn btn-outline-secondary" href="?yil={{ bas.year }}{% if okul %}&okul={{ okul.pk }}{% endif %}{% if secili_bolum %}&bolum={{ secili_bolum.pk }}{% endif %}&indir=1"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+    <button class="btn btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer me-1"></i>Yazdır</button>
+  </div>
+</div>
+
+<form method="get" class="kart p-3 mb-3 d-print-none">
+  <div class="row g-2 align-items-end">
+    <div class="col-6 col-md-auto">
+      <label class="form-label small text-secondary" for="yil">Yıl</label>
+      <select class="form-select" id="yil" name="yil">{% for y_, ad in yillar %}<option value="{{ y_ }}" {% if y_ == bas.year %}selected{% endif %}>{{ ad }}</option>{% endfor %}</select>
+    </div>
+    <div class="col-6 col-md">
+      <label class="form-label small text-secondary" for="okul">Ders saati (program)</label>
+      <select class="form-select" id="okul" name="okul">{% for o in okullar %}<option value="{{ o.pk }}" {% if o == okul %}selected{% endif %}>{{ o }}</option>{% empty %}<option value="">Program yok</option>{% endfor %}</select>
+    </div>
+    {% if bolumler %}
+    <div class="col-12 col-md">
+      <label class="form-label small text-secondary" for="bolum">Bölüm</label>
+      <select class="form-select" id="bolum" name="bolum"><option value="">Tümü</option>{% for b in bolumler %}<option value="{{ b.pk }}" {% if b == secili_bolum %}selected{% endif %}>{{ b.ad }}</option>{% endfor %}</select>
+    </div>
+    {% endif %}
+    <div class="col-12 col-md-auto"><button class="btn btn-primary w-100">Göster</button></div>
+  </div>
+</form>
+
+{% if amir_adayi %}<form method="post" action="{% url 'sinavgorev:amir_ata' %}" id="amirFormu" onsubmit="return confirm('{{ amir_adayi }} personele salon amiri (A) rolü eklenecek. Devam edilsin mi?')">{% csrf_token %}<input type="hidden" name="geri" value="{{ request.get_full_path }}"></form>{% endif %}
+<form method="post" action="{% url 'sinavgorev:roller' %}" id="rolFormu">
+  {% csrf_token %}
+  <input type="hidden" name="geri" value="{{ request.get_full_path }}">
+  <div class="kart mb-3">
+    <div class="yardim-satiri"><i class="bi bi-info-circle"></i>
+      Hafta içi görev 1, hafta sonu görevi 1,5 puan; her oturum ayrı görevdir. <strong>Skor = görev puanı + z</strong>:
+      z, haftalık ders saatinin ortalamadan uzaklığıdır{% if ist.ort is not None %} (ortalama {{ ist.ort|floatformat:2 }}, standart sapma {{ ist.ss|floatformat:2 }}, {{ ist.n }} kişi){% endif %}; ders yükü fazla olanın skoru yükselir, daha az görev alır.
+      Gözetmen dağıtımı skoru düşük olandan başlar. Roller: <strong>A</strong> salon amiri, <strong>G</strong> gözetmen, <strong>T</strong> taşıyıcı; rolü olmayana sınav görevi verilmez.
+    </div>
+    {% if y.yonetim %}
+    <div class="islem-cubugu d-flex flex-wrap align-items-center gap-2 p-2 border-bottom d-print-none">
+      <span class="small text-secondary ms-2 me-auto" id="rolDurumu">Rol kutuları tıklanınca kaydedilir ve sınav dönemlerine hemen işlenir.</span>
+      {% if amir_adayi %}<button class="btn btn-sm btn-outline-primary" form="amirFormu" title="Dr.Öğt.Üyesi, Doç.Dr., Prof.Dr. unvanlı ya da Yzb. üstü rütbeli personele A rolü eklenir"><i class="bi bi-person-badge me-1"></i>Kurala göre salon amiri ata ({{ amir_adayi }} kişi)</button>{% endif %}
+    </div>
+    {% endif %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0 siralanabilir">
+        <thead><tr>
+          <th data-sirala>Personel</th><th class="d-none d-md-table-cell" data-sirala>Bölüm</th>
+          {% for kod, ad in roller %}<th class="text-center" title="{{ ad }}" data-sirala>{{ kod }}</th>{% endfor %}
+          <th class="text-end" data-sirala>Hafta içi</th><th class="text-end" data-sirala>Hafta sonu</th><th class="text-end" data-sirala>Görev puanı</th>
+          <th class="text-end d-none d-lg-table-cell" data-sirala>Haftalık ders</th><th class="text-end d-none d-lg-table-cell" data-sirala>Z</th><th class="text-end" data-sirala>Skor</th>
+        </tr></thead>
+        <tbody>
+        {% for s in satirlar %}
+          <tr>
+            <td><a class="fw-semibold text-decoration-none" href="{% url 'sinavgorev:personel' s.personel.pk %}?yil={{ bas.year }}">{{ s.personel.ad_soyad }}</a><div class="small text-secondary">{{ s.personel.kunye }}</div>
+              {% if y.yonetim %}<input type="hidden" name="p" value="{{ s.personel.pk }}">{% endif %}</td>
+            <td class="d-none d-md-table-cell">{{ s.personel.bolum.kod|default:"–" }}</td>
+            {% for kod, ad in roller %}<td class="text-center" data-deger="{% if kod in s.personel.sinav_rolleri %}1{% else %}0{% endif %}"><input class="form-check-input" type="checkbox" name="rol-{{ s.personel.pk }}-{{ kod }}" value="1" aria-label="{{ ad }}" {% if kod in s.personel.sinav_rolleri %}checked{% endif %} {% if not y.yonetim %}disabled{% endif %}></td>{% endfor %}
+            <td class="text-end">{{ s.hi }}</td>
+            <td class="text-end">{{ s.hs }}</td>
+            <td class="text-end fw-semibold" data-deger="{{ s.puan|stringformat:'f' }}">{{ s.puan|floatformat:"-1" }}</td>
+            <td class="text-end d-none d-lg-table-cell" data-deger="{{ s.ders|default_if_none:'-1' }}">{% if s.ders is not None %}{{ s.ders }}{% else %}<span class="text-secondary" title="Programda eşleşen öğretmen yok">–</span>{% endif %}</td>
+            <td class="text-end d-none d-lg-table-cell" data-deger="{{ s.z|stringformat:'f' }}">{% if s.katilir %}{{ s.z|floatformat:2 }}{% else %}<span class="text-secondary">0</span>{% endif %}</td>
+            <td class="text-end fw-semibold" data-deger="{{ s.skor|stringformat:'f' }}">{{ s.skor|floatformat:2 }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="11" class="text-center text-secondary py-5">Bu yıl için görev ya da görev rolü olan personel yok.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</form>
+
+{% if y.yonetim %}
+<script>
+/* Rol kutusu değişince yalnızca o personel kaydedilir */
+(function () {
+  const form = document.getElementById('rolFormu'), durum = document.getElementById('rolDurumu');
+  if (!form) return;
+  form.addEventListener('submit', e => e.preventDefault());
+  form.addEventListener('change', e => {
+    const kutu = e.target;
+    if (!kutu.name || !kutu.name.startsWith('rol-')) return;
+    const satir = kutu.closest('tr'), pk = kutu.name.split('-')[1];
+    const veri = new FormData();
+    veri.append('csrfmiddlewaretoken', form.querySelector('[name=csrfmiddlewaretoken]').value);
+    veri.append('p', pk);
+    satir.querySelectorAll('input[name^="rol-"]').forEach(k => { if (k.checked) veri.append(k.name, '1'); });
+    durum.textContent = 'Kaydediliyor…';
+    fetch(form.action, { method: 'POST', body: veri, headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(() => {
+        kutu.closest('td').dataset.deger = kutu.checked ? '1' : '0';
+        durum.classList.remove('text-danger');
+        durum.textContent = 'Kaydedildi: ' + satir.querySelector('td a').textContent.trim();
+      })
+      .catch(() => { durum.classList.add('text-danger'); durum.textContent = 'Kaydedilemedi — sayfayı yenileyip tekrar deneyin.'; });
+  });
+})();
+</script>
+<div class="row g-3 d-print-none">
+  <div class="col-xl-7">
+    <div class="kart h-100">
+      <div class="yardim-satiri"><i class="bi bi-box-arrow-in-down"></i> Sınav dönemlerini puantaja işle ({{ yil }})</div>
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead><tr><th>Sınav dönemi</th><th class="text-end">Görev</th><th>Durum</th><th></th></tr></thead>
+          <tbody>
+          {% for d in donemler %}
+            <tr>
+              <td><div class="fw-semibold">{{ d.donem.name }}</div><div class="small text-secondary">{{ d.donem.school }} · {{ d.donem.start_date|date:"d.m.Y" }}–{{ d.donem.end_date|date:"d.m.Y" }}</div></td>
+              <td class="text-end">{{ d.gorev }}</td>
+              <td>{% if d.islenen %}<span class="durum-rozet durum-kullanimda">İşlendi</span><div class="small text-secondary">{{ d.islenen.gorev_sayisi }} görev · {{ d.islenen.zaman|date:"d.m.Y H:i" }}</div>{% else %}<span class="durum-rozet durum-planlandi">İşlenmedi</span>{% endif %}</td>
+              <td class="text-end text-nowrap">
+                <form method="post" action="{% url 'sinavgorev:isle' d.donem.pk %}" class="d-inline" onsubmit="return confirm('{% if d.islenen %}Dönemin puantaj kayıtları programdaki güncel görevlerle değiştirilecek.{% else %}Dönemin gözetmen görevleri puantaja yazılacak.{% endif %} Devam edilsin mi?')">{% csrf_token %}
+                  <button class="btn btn-sm btn-outline-primary" {% if not d.gorev %}disabled{% endif %}>{% if d.islenen %}Yeniden işle{% else %}İşle{% endif %}</button>
+                </form>
+                {% if d.islenen %}
+                <form method="post" action="{% url 'sinavgorev:isle' d.donem.pk %}" class="d-inline" onsubmit="return confirm('Bu dönemin görevleri puantajdan çıkarılacak. Devam edilsin mi?')">{% csrf_token %}<input type="hidden" name="islem" value="geri">
+                  <button class="btn btn-sm btn-outline-danger">Geri al</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="4" class="text-center text-secondary py-4">Bu yıl için Sınav Planlama'da sınav dönemi yok.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="small text-secondary px-3 py-2 border-top">Sınav programı kesinleşince dönemi işleyin. Görevler o anki hâliyle kaydedilir; program sonradan değişirse yeniden işleyin.</div>
+    </div>
+  </div>
+  <div class="col-xl-5">
+    <div class="kart h-100">
+      <div class="yardim-satiri"><i class="bi bi-plus-circle"></i> Elle görev ekle (Sınav Planlama dışındaki görevler)</div>
+      <form method="post" action="{% url 'sinavgorev:elle_ekle' %}" class="p-3">{% csrf_token %}
+        <div class="row g-2">
+          <div class="col-12"><label class="form-label small text-secondary" for="ePersonel">Personel</label>
+            <select class="form-select" id="ePersonel" name="personel" required><option value="">Seçin…</option>{% for p in personeller %}<option value="{{ p.pk }}">{{ p.ad_soyad }}</option>{% endfor %}</select></div>
+          <div class="col-6"><label class="form-label small text-secondary" for="eTarih">Tarih</label><input type="date" class="form-control" id="eTarih" name="tarih" value="{{ bugun|date:'Y-m-d' }}" required></div>
+          <div class="col-6"><label class="form-label small text-secondary" for="eSaat">Saat</label><input type="time" class="form-control" id="eSaat" name="saat"></div>
+          <div class="col-6"><label class="form-label small text-secondary" for="eRol">Rol</label>
+            <select class="form-select" id="eRol" name="rol">{% for kod, ad in roller %}<option value="{{ kod }}" {% if kod == 'G' %}selected{% endif %}>{{ ad }}</option>{% endfor %}</select></div>
+          <div class="col-6"><label class="form-label small text-secondary" for="eAdet">Görev sayısı</label><input type="number" class="form-control" id="eAdet" name="adet" value="1" min="1" max="20"></div>
+          <div class="col-12"><label class="form-label small text-secondary" for="eAciklama">Açıklama</label><input class="form-control" id="eAciklama" name="aciklama" maxlength="200" placeholder="ör. YDS sınavı gözetmenliği"></div>
+          <div class="col-12"><button class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Ekle</button></div>
+        </div>
+      </form>
+      {% if elle %}
+      <ul class="list-unstyled mb-0 small border-top">
+        {% for g in elle %}<li class="px-3 py-2 border-bottom d-flex align-items-center gap-2">
+          <span class="me-auto">{{ g.tarih|date:"d.m.Y" }} {{ g.saat }} · {{ g.personel.ad_soyad }} · {{ g.get_rol_display }}{% if g.hafta_sonu %} · hafta sonu{% endif %}{% if g.aciklama %} · {{ g.aciklama }}{% endif %}</span>
+          <form method="post" action="{% url 'sinavgorev:elle_sil' g.pk %}" onsubmit="return confirm('Görev silinsin mi?')">{% csrf_token %}<button class="btn btn-sm btn-link text-danger p-0" aria-label="Sil"><i class="bi bi-trash"></i></button></form>
+        </li>{% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

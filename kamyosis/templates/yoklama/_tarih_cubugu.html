@@ -1,0 +1,26 @@
+<div class="kart mb-3 d-print-none">
+  <form method="get" class="yk-tarih-cubugu" data-tarih-formu>
+    {% if sekme == 'gun' %}
+      <a class="btn btn-outline-secondary" href="?tarih={{ onceki|date:'Y-m-d' }}{{ birim_q }}" aria-label="Önceki gün" title="Önceki gün"><i class="bi bi-chevron-left"></i></a>
+      <input type="date" class="form-control" name="tarih" value="{{ tarih|date:'Y-m-d' }}" aria-label="Tarih" onchange="this.form.submit()">
+      <a class="btn btn-outline-secondary" href="?tarih={{ sonraki|date:'Y-m-d' }}{{ birim_q }}" aria-label="Sonraki gün" title="Sonraki gün"><i class="bi bi-chevron-right"></i></a>
+      <div class="btn-group yk-hizli" role="group" aria-label="Hızlı tarih">
+        <a class="btn btn-outline-primary {% if tarih == dun %}active{% endif %}" href="?tarih={{ dun|date:'Y-m-d' }}{{ birim_q }}">Dün</a>
+        <a class="btn btn-outline-primary {% if tarih == bugun %}active{% endif %}" href="?tarih={{ bugun|date:'Y-m-d' }}{{ birim_q }}">Bugün</a>
+        <a class="btn btn-outline-primary {% if tarih == yarin %}active{% endif %}" href="?tarih={{ yarin|date:'Y-m-d' }}{{ birim_q }}">Yarın</a>
+      </div>
+    {% else %}
+      <label class="small text-secondary" for="ykBas">Başlangıç</label>
+      <input type="date" class="form-control" id="ykBas" name="bas" value="{{ bas|date:'Y-m-d' }}" required>
+      <label class="small text-secondary" for="ykBit">Bitiş</label>
+      <input type="date" class="form-control" id="ykBit" name="bit" value="{{ bit|date:'Y-m-d' }}" required>
+      {% if hepsi %}<input type="hidden" name="hepsi" value="1">{% endif %}
+      <div class="btn-group" role="group" aria-label="Hızlı aralık">
+        <a class="btn btn-outline-primary" href="?bas={{ bugun|date:'Y-m-d' }}&bit={{ hafta|date:'Y-m-d' }}{{ birim_q }}">Bu hafta</a>
+      </div>
+      <button class="btn btn-primary"><i class="bi bi-search me-1"></i>Göster</button>
+    {% endif %}
+    {% if birim_secenekleri %}<span class="ayrac d-none d-md-block"></span>{% endif %}
+    {% include "yoklama/_birim_secimi.html" %}
+  </form>
+</div>

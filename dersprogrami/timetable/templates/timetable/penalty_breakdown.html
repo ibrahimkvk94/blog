@@ -1,0 +1,134 @@
+{% extends "timetable/base.html" %}
+{% block title %}Ceza dökümü · {{ timetable.name }}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{{ grid_url }}">{{ timetable.name }}</a> / <a href="{{ center_url }}">Çözüm merkezi</a>{% endblock %}
+{% block heading %}<h1>Ceza dökümü</h1>{% endblock %}
+{% block actions %}
+  <a class="btn" href="{{ center_url }}">{% include "timetable/icon.html" with name="wand" %} Çözüm merkezi</a>
+  <a class="btn" href="{% url 'timetable:quality' timetable.pk %}">{% include "timetable/icon.html" with name="gauge" %} Kalite karnesi</a>
+{% endblock %}
+{% block content %}
+<p class="page-lead">Üretimin sonunda bildirilen <b>ceza puanı</b>, çözücünün en aza indirdiği yumuşak kuralların toplamıdır: her boşluk, geç başlanan gün, koşullu hücre ya da önemi “kesin” olmayan kart ilişkisinin her ihlali kendi ağırlığıyla sayılır. Aşağıdaki döküm, programın <b>şu anki</b> yerleşimi için aynı tanımla hesaplanır; küçük olan iyidir.</p>
+
+<div class="q-summary pb-summary">
+  <div class="q-card q-score"><span>Toplam ceza</span><b>{{ data.total }}</b><small>{{ data.items|length }} kalem · {{ contributors|length }} kaynak</small></div>
+  {% if timetable.objective is not None %}
+    <div class="q-card"><span>Üretimde bildirilen</span><b>{{ timetable.objective }}</b>
+      <small>{% if differs %}program üretimden sonra değişti ya da veri güncellendi{% else %}döküm ile aynı{% endif %}</small></div>
+  {% endif %}
+  {% for k in data.kinds|slice:":3" %}<div class="q-card"><span>{{ k.label }}</span><b>{{ k.total }}</b><small>%{{ k.share }} · {{ k.count }} kaynak</small></div>{% endfor %}
+</div>
+{% if not data.exact %}<div class="alert alert-warning">Kart ilişkileri süre sınırı içinde tam ölçülemedi; ilişki kalemleri eksik olabilir.</div>{% endif %}
+{% if data.mismatch %}<div class="alert alert-warning">İki hesap yolu bazı türlerde farklı sonuç verdi: {% for k, v in data.mismatch.items %}{{ k }} {{ v.0 }} / {{ v.1 }}{% if not forloop.last %}, {% endif %}{% endfor %}.</div>{% endif %}
+
+{% if not data.items %}
+  <div class="panel panel-body"><b class="ok-text">Bu programda yumuşak ceza yok.</b> <span class="subtle">Boşluk, geç başlama, koşullu hücre ya da ihlal edilen tercih kuralı bulunmuyor.</span></div>
+{% else %}
+<div class="pb-layout">
+  <section class="panel">
+    <div class="panel-head"><h2>Kural türüne göre</h2></div>
+    <div class="panel-body">
+      <ul class="pb-bars" data-pb-kinds>
+        {% for k in data.kinds %}
+          <li>
+            <button type="button" class="pb-bar-row" data-kind="{{ k.kind }}" title="{{ k.label }}: {{ k.total }} puan (%{{ k.share }}) · {{ k.count }} kaynak — yalnızca bunları göster">
+              <span class="pb-bar-label">{{ k.label }}</span>
+              <span class="pb-bar-track"><i style="width:{{ k.width }}%"></i></span>
+              <span class="pb-bar-value"><b>{{ k.total }}</b> <span class="subtle">%{{ k.share }}</span></span>
+            </button>
+          </li>
+        {% endfor %}
+      </ul>
+      <p class="subtle small" style="margin:10px 0 0">Bir türe tıklayınca sağdaki liste yalnızca o türü gösterir.</p>
+      <details class="pb-weights small">
+        <summary>Ağırlıklar nasıl?</summary>
+        <p>Her kalem <b>miktar × ağırlık</b> olarak sayılır. Ağırlıklar çözücüdekiyle aynıdır: yerleşmeyen kart en ağır, sonra esnetilen kesin kural; sınıf boşluğu öğretmen boşluğundan ağırdır. Kart ilişkilerinde ağırlık ilişkinin önemidir (Yüksek / Normal / Düşük).</p>
+      </details>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><h2>En çok katkı yapanlar</h2><span class="subtle small" data-pb-count></span></div>
+    <div class="panel-body pb-tools">
+      <input class="input" type="search" placeholder="Öğretmen, sınıf ya da ilişki ara…" data-pb-search autocomplete="off">
+      <select class="select" data-pb-kind aria-label="Tür">
+        <option value="">Tüm türler</option>
+        {% for k in data.kinds %}<option value="{{ k.kind }}">{{ k.label }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="pb-list" data-pb-list>
+      {% for c in contributors %}
+        <details class="pb-item" data-kinds="{{ c.kinds|join:' ' }}" data-q="{{ c.name|fold }} {{ c.owner_label|fold }}"{% if forloop.counter > 60 %} data-more hidden{% endif %}>
+          <summary>
+            <span class="pb-rank">{{ forloop.counter }}</span>
+            <span class="pb-name"><b>{{ c.name }}</b> <span class="subtle small">{{ c.owner_label }}</span>
+              <span class="pb-kinds">{% for i in c.items %}<span class="chip">{{ i.label }}</span>{% endfor %}</span></span>
+            <span class="pb-total"><b>{{ c.total }}</b><span class="subtle small">%{{ c.share }}</span></span>
+          </summary>
+          <div class="pb-body">
+            {% for i in c.items %}
+              <div class="pb-part">
+                <div class="pb-part-head"><b>{{ i.label }}</b>
+                  <span class="small">{{ i.amount }} {{ i.unit }} × ağırlık {{ i.weight }} = <b>{{ i.penalty }}</b></span></div>
+                {% if i.details %}
+                  <ul class="pb-details small">
+                    {% for d in i.details %}<li>{{ d.text }}{% if d.amount %} <span class="subtle">— {{ d.amount }} {{ i.unit }} × {{ d.weight }} = {{ d.penalty }}</span>{% endif %}</li>{% endfor %}
+                  </ul>
+                {% endif %}
+                {% if i.hints %}
+                  <div class="pb-hints">
+                    <span class="label">{% include "timetable/icon.html" with name="sparkles" %} Ne yapılabilir?</span>
+                    <ul class="small">{% for h in i.hints %}<li>{{ h }}</li>{% endfor %}</ul>
+                  </div>
+                {% endif %}
+              </div>
+            {% endfor %}
+            {% if c.link %}<a class="btn btn-sm" href="{{ c.link }}">{% if c.owner == "relationship" %}{% include "timetable/icon.html" with name="link" %} İlişkiyi düzenle{% elif c.owner == "lesson" %}{% include "timetable/icon.html" with name="inbox" %} Bekleyenler{% else %}{% include "timetable/icon.html" with name="grid" %} Görünümde aç{% endif %}</a>{% endif %}
+          </div>
+        </details>
+      {% endfor %}
+      {% if contributors|length > 60 %}<div class="panel-body"><button type="button" class="btn btn-sm" data-pb-more>Tümünü göster ({{ contributors|length }})</button></div>{% endif %}
+      <p class="panel-body subtle small" data-pb-empty hidden>Aramaya uyan kayıt yok.</p>
+    </div>
+  </section>
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const list = document.querySelector("[data-pb-list]");
+  if (!list) return;
+  const search = document.querySelector("[data-pb-search]");
+  const kind = document.querySelector("[data-pb-kind]");
+  const count = document.querySelector("[data-pb-count]");
+  const more = document.querySelector("[data-pb-more]");
+  const empty = document.querySelector("[data-pb-empty]");
+  const norm = (t) => (t || "").toLocaleLowerCase("tr").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ı/g, "i");
+  let showAll = false;
+  const apply = () => {
+    const q = norm(search.value.trim());
+    const k = kind.value;
+    const filtering = q || k;
+    let shown = 0, total = 0;
+    list.querySelectorAll(".pb-item").forEach((el) => {
+      const match = (!q || el.dataset.q.includes(q)) && (!k || el.dataset.kinds.split(" ").includes(k));
+      if (match) total += 1;
+      el.hidden = !match || (!filtering && !showAll && "more" in el.dataset);
+      if (!el.hidden) shown += 1;
+    });
+    if (more) more.hidden = filtering || showAll;
+    empty.hidden = total > 0;
+    count.textContent = `${shown} / ${list.querySelectorAll(".pb-item").length} kaynak`;
+    document.querySelectorAll("[data-pb-kinds] [data-kind]").forEach((b) => b.classList.toggle("active", b.dataset.kind === k));
+  };
+  search.addEventListener("input", apply);
+  kind.addEventListener("change", apply);
+  if (more) more.addEventListener("click", () => { showAll = true; apply(); });
+  document.querySelectorAll("[data-pb-kinds] [data-kind]").forEach((b) => b.addEventListener("click", () => {
+    kind.value = kind.value === b.dataset.kind ? "" : b.dataset.kind;
+    apply();
+  }));
+  apply();
+})();
+</script>
+{% endblock %}

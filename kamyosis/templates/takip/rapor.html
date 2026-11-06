@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Yapılan ders raporu{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item"><a href="{% url 'takip:gunluk' %}">Ders takibi</a></li><li class="breadcrumb-item active" aria-current="page">Yapılan ders raporu</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Yapılan ders raporu</h1>
+    <p class="text-secondary mb-0">{{ bas|date:"d.m.Y" }} – {{ bit|date:"d.m.Y" }}{% if secili_bolum %} · {{ secili_bolum.ad }}{% endif %} · {{ toplam }} ders{% if devir_toplam %} · {{ devir_toplam }} devirle{% endif %}</p>
+  </div>
+  <button class="btn btn-outline-secondary d-print-none" onclick="window.print()"><i class="bi bi-printer me-1"></i>Yazdır</button>
+</div>
+
+<form method="get" class="kart p-3 mb-3 d-print-none">
+  <div class="row g-2 align-items-end">
+    <div class="col-6 col-md-auto"><label class="form-label small text-secondary" for="bas">Başlangıç</label><input type="date" class="form-control" id="bas" name="bas" value="{{ bas|date:'Y-m-d' }}"></div>
+    <div class="col-6 col-md-auto"><label class="form-label small text-secondary" for="bit">Bitiş</label><input type="date" class="form-control" id="bit" name="bit" value="{{ bit|date:'Y-m-d' }}"></div>
+    {% if bolumler %}
+    <div class="col-12 col-md">
+      <label class="form-label small text-secondary" for="bolum">Bölüm</label>
+      <select class="form-select" id="bolum" name="bolum"><option value="">Tümü</option>{% for b in bolumler %}<option value="{{ b.pk }}" {% if b == secili_bolum %}selected{% endif %}>{{ b.ad }}</option>{% endfor %}</select>
+    </div>
+    {% endif %}
+    <div class="col-12 col-md-auto"><button class="btn btn-primary w-100">Göster</button></div>
+  </div>
+</form>
+
+<div class="kart">
+  <div class="yardim-satiri"><i class="bi bi-info-circle"></i> Tarihi geçen her ders yapılmış sayılır (tatiller hariç). Kesinleşmiş devirde ders, devralan öğretim elemanına yazılır.</div>
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead><tr><th>Öğretim elemanı</th><th class="d-none d-md-table-cell">Bölüm</th><th class="text-end">Yapılan ders</th><th class="text-end">Devralınan</th><th class="text-end">Devredilen</th></tr></thead>
+      <tbody>
+      {% for k in liste %}
+        <tr>
+          <td class="fw-semibold">{{ k.ad }}</td>
+          <td class="d-none d-md-table-cell">{{ k.bolum.kod|default:"–" }}</td>
+          <td class="text-end fw-semibold">{{ k.yapilan }}</td>
+          <td class="text-end">{{ k.devralinan|default:"" }}</td>
+          <td class="text-end">{{ k.devredilen|default:"" }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="text-center text-secondary py-5">Bu aralıkta ders bulunamadı. Programın yayında olduğundan ve tarih aralığını kapsadığından emin olun.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

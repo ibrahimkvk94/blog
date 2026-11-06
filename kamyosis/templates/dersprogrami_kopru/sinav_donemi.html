@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}{{ d.name }} · Sınav programı{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item"><a href="{% url 'dersprogrami_kopru:sinav_programi' %}">Sınav programları</a></li><li class="breadcrumb-item active" aria-current="page">{{ d.name }}</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>{{ d.name }}</h1>
+    <p class="text-secondary mb-0">{{ d.get_kind_display }} · {{ d.start_date|date:"d.m.Y" }} – {{ d.end_date|date:"d.m.Y" }} · {{ yerlesen }} sınav{% if yayin %} · yayın {{ yayin.zaman|date:"d.m.Y H:i" }}{% endif %}</p>
+  </div>
+  <div class="d-flex flex-wrap gap-2 d-print-none">
+    <button type="button" class="btn btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer me-1"></i>Yazdır</button>
+    <a class="btn btn-outline-success" href="{% url 'dersprogrami_kopru:sinav_programi_excel' d.pk %}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+    {% if planlamaci %}
+    <form method="post" action="{% url 'dersprogrami_kopru:sinav_yayini' d.pk %}" class="d-inline">{% csrf_token %}<input type="hidden" name="geri" value="{{ request.get_full_path }}">
+      {% if yayin %}<button class="btn btn-outline-danger" name="islem" value="kaldir" onclick="return confirm('Yayından kaldırılsın mı? Bölümler artık göremez.')"><i class="bi bi-eye-slash me-1"></i>Yayından kaldır</button>
+      {% else %}<button class="btn btn-primary" name="islem" value="yayinla"><i class="bi bi-broadcast me-1"></i>Yayınla</button>{% endif %}
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if not yayin %}<div class="alert alert-warning d-flex gap-2 d-print-none"><i class="bi bi-eye"></i><div><strong>Önizleme:</strong> bu dönem yayında değil; bölümler göremez. Hazır olduğunda “Yayınla”ya basın.</div></div>{% endif %}
+
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3 d-print-none">
+  <div class="btn-group" role="group" aria-label="Görünüm">
+    {% for g, ad, ikon in gorunumler %}<a class="btn btn-sm {% if g == gorunum %}btn-primary{% else %}btn-outline-primary{% endif %}" href="?gorunum={{ g }}"><i class="bi bi-{{ ikon }} me-1"></i>{{ ad }}</a>{% endfor %}
+  </div>
+  {% if gorunum != "takvim" %}<input type="search" class="form-control form-control-sm" style="max-width:260px" placeholder="Ara (ad, sınav, sınıf, salon)…" data-anlik-ara="#sonuc" data-anlik-oge="[data-ara]" aria-label="Ara">{% endif %}
+  {% if gorunum == "gorevler" %}
+  <form method="get" class="ms-auto d-flex align-items-center gap-2"><input type="hidden" name="gorunum" value="gorevler">
+    <label class="small text-secondary text-nowrap" for="bolumSec">Bölüm</label>
+    <select class="form-select form-select-sm" id="bolumSec" name="bolum" onchange="this.form.submit()" data-arama="yok">
+      <option value="hepsi" {% if not secili_bolum %}selected{% endif %}>Tümü ({{ toplam_gorevli }} kişi)</option>
+      {% for kod, ad in bolumler %}<option value="{{ kod }}" {% if kod == secili_bolum %}selected{% endif %}>{{ ad }}</option>{% endfor %}
+    </select>
+  </form>
+  {% endif %}
+</div>
+
+<div id="sonuc">
+{% if gorunum == "takvim" %}
+  <div class="kart"><div class="table-responsive">
+    <table class="table table-bordered align-top mb-0 sp-takvim">
+      <thead><tr><th style="width:120px">Gün</th>{% for t in oturumlar %}<th>{{ t }}</th>{% endfor %}</tr></thead>
+      <tbody>
+      {% for gun in takvim %}
+        <tr><th class="text-nowrap">{{ gun.date|date:"d.m.Y" }}<div class="small text-secondary fw-normal">{{ gun.day }}</div></th>
+          {% for hucre in gun.cells %}<td>{% if hucre %}<div class="sp-toplam"><i class="bi bi-people-fill me-1"></i>{{ hucre.students }} öğrenci · {{ hucre.room_count }} salon</div>{% endif %}{% for pl in hucre %}
+            <div class="sp-sinav"><div class="fw-semibold">{{ pl.exam.title }}</div>
+              <div class="small text-secondary">{% for c in pl.exam.classes.all %}{{ c.short|default:c.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+              <div class="small"><i class="bi bi-door-open me-1"></i>{% for r in pl.rooms.all %}{{ r.classroom }}{% if not forloop.last %}, {% endif %}{% empty %}–{% endfor %}</div>
+            </div>{% endfor %}</td>{% endfor %}
+        </tr>
+      {% empty %}
+        <tr><td colspan="{{ oturumlar|length|add:1 }}" class="text-center text-secondary py-5">Yerleşmiş sınav yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div></div>
+
+{% elif gorunum == "siniflar" %}
+  <div class="row g-3">
+  {% for c, ogeler in siniflar %}
+    <div class="col-12 col-lg-6 col-xxl-4" data-ara="{{ c.short }} {{ c.name }}{% for pl, cr in ogeler %} {{ pl.exam.title }}{% endfor %}">
+      <div class="kart h-100">
+        <div class="yardim-satiri fw-semibold"><i class="bi bi-people"></i> {{ c.short|default:c.name }}</div>
+        <table class="table table-sm mb-0"><tbody>
+          {% for pl, salonlar in ogeler %}<tr><td class="text-nowrap small">{{ pl.date|date:"d.m.Y D" }}<br>{% include "sinav/time.html" with period=d %}</td><td>{{ pl.exam.title }}</td><td class="small">{% for r in salonlar %}{{ r.classroom }}{% if not forloop.last %}, {% endif %}{% endfor %}</td></tr>{% endfor %}
+        </tbody></table>
+      </div>
+    </div>
+  {% empty %}<div class="col-12"><div class="kart p-5 text-center text-secondary">Yerleşmiş sınav yok.</div></div>{% endfor %}
+  </div>
+
+{% elif gorunum == "gorevler" %}
+  <div class="kart"><div class="table-responsive">
+    <table class="table align-top mb-0">
+      <thead><tr><th>Görevli</th><th class="text-end" style="width:70px">Görev</th><th>Tarih / saat · sınav · salon · görev</th></tr></thead>
+      <tbody>
+      {% for t, ogeler, bolum_adi in gorevliler %}
+        <tr data-ara="{{ t.full_name }}{% for pl, r, rol in ogeler %} {{ pl.exam.title }} {{ r.classroom }}{% endfor %}">
+          <td class="fw-semibold">{{ t.full_name }}{% if bolum_adi %}<div class="small text-secondary fw-normal">{{ bolum_adi }}</div>{% endif %}</td>
+          <td class="text-end">{{ ogeler|length }}</td>
+          <td class="small">{% for pl, r, rol in ogeler %}<div>{{ pl.date|date:"d.m.Y D" }} {% include "sinav/time.html" with period=d %} · {{ pl.exam.title }} · {{ r.classroom }}{% if rol %} · <span class="fw-semibold">{{ rol }}</span>{% endif %}</div>{% endfor %}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="3" class="text-center text-secondary py-5">{% if secili_bolum %}Bu bölümden görevli yok. <a href="?gorunum=gorevler&bolum=hepsi">Tümünü göster</a>{% else %}Görevlendirme yok.{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div></div>
+
+{% else %}
+  <div class="row g-3">
+  {% for salon, ogeler in salonlar %}
+    <div class="col-12 col-xl-6" data-ara="{{ salon }}{% for pl, r in ogeler %} {{ pl.exam.title }}{% for t, k, a in r.duties %} {{ t.full_name }}{% endfor %}{% endfor %}">
+      <div class="kart h-100">
+        <div class="yardim-satiri fw-semibold"><i class="bi bi-door-open"></i> {{ salon }}</div>
+        <table class="table table-sm mb-0"><tbody>
+          {% for pl, r in ogeler %}<tr><td class="text-nowrap small">{{ pl.date|date:"d.m.Y D" }}<br>{% include "sinav/time.html" with period=d %}</td><td>{{ pl.exam.title }}<div class="small text-secondary">{{ r.seats }} öğrenci</div></td><td class="small">{% for t, kod, ad in r.duties %}<div>{{ t.full_name }}{% if kod != "G" %} <span class="text-secondary">({{ ad|lower }})</span>{% endif %}</div>{% endfor %}</td></tr>{% endfor %}
+        </tbody></table>
+      </div>
+    </div>
+  {% empty %}<div class="col-12"><div class="kart p-5 text-center text-secondary">Yerleşmiş sınav yok.</div></div>{% endfor %}
+  </div>
+{% endif %}
+</div>
+{% endblock %}

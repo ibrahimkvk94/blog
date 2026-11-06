@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Salon durumu · {{ ay_adi }} {{ yil }}{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">{{ ay_adi }} {{ yil }}</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div class="d-flex align-items-center gap-2">
+    <a class="btn btn-sm btn-light" href="{% url 'salon:ay' onceki.year onceki.month %}{% if sq %}?{{ sq|slice:'1:' }}{% endif %}" aria-label="Önceki ay"><i class="bi bi-chevron-left"></i></a>
+    <h1 class="mb-0">{{ ay_adi }} <span class="text-secondary fw-normal">{{ yil }}</span></h1>
+    <a class="btn btn-sm btn-light" href="{% url 'salon:ay' sonraki.year sonraki.month %}{% if sq %}?{{ sq|slice:'1:' }}{% endif %}" aria-label="Sonraki ay"><i class="bi bi-chevron-right"></i></a>
+    {% if yil != bugun.year or ay != bugun.month %}<a class="btn btn-sm btn-outline-primary" href="{% url 'salon:ay' bugun.year bugun.month %}{% if sq %}?{{ sq|slice:'1:' }}{% endif %}">Bugün</a>{% endif %}
+  </div>
+</div>
+
+{% with ilk=haftalar.0.0.tarih %}
+{% include "salon/_ust.html" with gorunum="ay" yil_q=yil ay_q_yil=yil ay_q_ay=ay gun_q=bugun|date:"Y-m-d" yeni_q="" %}
+{% endwith %}
+
+<div class="kart sl-ay-tablo">
+  <div class="sl-ay-ust">{% for g in gun_adlari %}<div>{{ g }}</div>{% endfor %}</div>
+  {% for hafta in haftalar %}
+  <div class="sl-ay-satir">
+    {% for d in hafta %}
+    <div class="sl-ay-hucre{% if not d.ay_ici %} disari{% endif %}{% if d.bugun %} bugun{% endif %}{% if d.hs %} hs{% endif %}">
+      <a class="sl-ay-gun" href="{% url 'salon:gun' d.tarih|date:'Y-m-d' %}{% if sq %}?{{ sq|slice:'1:' }}{% endif %}"><span>{{ d.tarih.day }}</span></a>
+      <div class="sl-ay-kayitlar">
+        {% for k in d.kayitlar|slice:":4" %}
+          <a class="sl-cip" style="--renk: {{ k.salon.renk }}" href="{% url 'salon:gun' d.tarih|date:'Y-m-d' %}{% if sq %}?{{ sq|slice:'1:' }}{% endif %}" title="{{ k.salon.ad }} · {{ k.saat_metni }} · {{ k.baslik }}"><b>{% if k.tum_gun %}Tüm gün{% else %}{{ k.bas|time:"H:i" }}{% endif %}</b> {{ k.salon.kisa }} · {{ k.baslik }}</a>
+        {% endfor %}
+        {% if d.kayitlar|length > 4 %}<a class="sl-daha" href="{% url 'salon:gun' d.tarih|date:'Y-m-d' %}{% if sq %}?{{ sq|slice:'1:' }}{% endif %}">+{{ d.kayitlar|length|add:"-4" }} daha</a>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

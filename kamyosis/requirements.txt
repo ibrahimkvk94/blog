@@ -1,0 +1,12 @@
+Django>=5.2,<5.3
+waitress>=3.0
+whitenoise>=6.7
+pyodbc>=5.1
+openpyxl>=3.1
+pillow>=11.0  # sadece araclar/logo/logo_uret.py için
+# Ders Programı modülü (timetable)
+ortools==9.15.6755
+protobuf==6.33.6
+reportlab==5.1.0
+segno==1.6.6
+tzdata>=2024.1

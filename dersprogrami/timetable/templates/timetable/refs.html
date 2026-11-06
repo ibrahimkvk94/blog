@@ -1,0 +1,112 @@
+{% extends "timetable/base.html" %}
+{% block title %}ÜYBS referansları{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:institution_detail' school.institution_id %}">{{ school.institution }}</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
+{% block heading %}<h1>ÜYBS referansları</h1><span class="pill {% if filled == total and total %}ok{% else %}warn{% endif %}">{{ filled }} / {{ total }} saat</span>{% endblock %}
+{% block actions %}
+  {% if timetable %}<a class="btn" href="{% url 'timetable:reports' timetable.pk %}?tur=uybs">{% include "timetable/icon.html" with name="printer" %} Aktarım raporu</a>{% endif %}
+{% endblock %}
+{% block content %}
+<p class="page-lead">Her kısımda her dersin her haftalık saatine bir ÜYBS referansı verin. Referans saatin <b>sırasına</b> bağlıdır: 1. saat programda nerede olursa olsun ilk referansı taşır. Ders başka saate taşındığında referans yeni yerine gider; aktarım raporu o haftanın gerçek yerleşimiyle çıkar. Kutuların üstünde saatin seçili sürümdeki yeri görünür.</p>
+
+<form method="get" class="refs-filter">
+  <label class="label" for="rf-sinif">Kısım</label>
+  <select class="select" name="sinif" id="rf-sinif" onchange="this.form.submit()">
+    <option value="">Tüm kısımlar</option>
+    {% for c in classes %}<option value="{{ c.pk }}"{% if school_class and school_class.pk == c.pk %} selected{% endif %}>{{ c.short|default:c.name }}{% if c.short %} · {{ c.name }}{% endif %}</option>{% endfor %}
+  </select>
+  <label class="label" for="rf-program">Yerleşim için sürüm</label>
+  <select class="select" name="program" id="rf-program" onchange="this.form.submit()">
+    {% for t in timetables %}<option value="{{ t.pk }}"{% if timetable and timetable.pk == t.pk %} selected{% endif %}>{% if t.pk == school.active_timetable_id %}★ {% endif %}{{ t.name }}</option>{% empty %}<option value="">Henüz sürüm yok</option>{% endfor %}
+  </select>
+</form>
+
+<div class="refs-layout">
+  <form method="post" class="panel" id="refs-form">
+    {% csrf_token %}<input type="hidden" name="action" value="save">
+    <input type="hidden" name="sinif" value="{{ school_class.pk|default:'' }}"><input type="hidden" name="program" value="{{ timetable.pk|default:'' }}">
+    <div class="panel-body flush table-wrap">
+      <table class="table refs-table">
+        <thead><tr><th>Kısım</th><th>Ders</th><th>Haftalık saatler ve referansları</th></tr></thead>
+        <tbody>
+          {% for row in rows %}
+            <tr class="{% if row.cls != rows|first %}{% endif %}">
+              <td class="refs-class">{% if row.cls %}<b>{{ row.cls.short|default:row.cls.name }}</b>{% else %}<span class="subtle">sınıfsız</span>{% endif %}</td>
+              <td class="refs-lesson"><span class="swatch" style="background:{{ row.lesson.subject.color }}"></span> <b>{{ row.lesson.subject.short|default:row.lesson.subject.name }}</b>
+                <div class="subtle small">{{ row.lesson.subject.name }}{% if row.groups %} · {{ row.groups }}{% endif %}</div>
+                <div class="subtle small">{{ row.teachers|default:"öğretmen yok" }}</div></td>
+              <td><div class="ref-slots">
+                {% for s in row.slots %}
+                  <label class="ref-slot{% if not s.ref %} empty{% endif %}">
+                    <span class="ref-head"><b>{{ s.ordinal }}.</b> {{ s.where|default:"—" }}</span>
+                    <input class="input" name="ref-{{ row.lesson.pk }}-{% if row.cls %}{{ row.cls.pk }}{% else %}0{% endif %}-{{ s.ordinal }}" value="{{ s.ref }}" maxlength="50" autocomplete="off">
+                  </label>
+                {% endfor %}
+              </div></td>
+            </tr>
+          {% empty %}<tr><td colspan="3" class="subtle">Ders yok.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="form-actions refs-save"><div><button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} Kaydet</button> <span class="subtle small" id="refs-dirty"></span></div></div>
+  </form>
+
+  <aside class="stack">
+    <div class="panel">
+      <div class="panel-head"><h2>Otomatik numarala</h2></div>
+      <form method="post" class="panel-body">{% csrf_token %}
+        <input type="hidden" name="action" value="auto"><input type="hidden" name="sinif" value="{{ school_class.pk|default:'' }}"><input type="hidden" name="program" value="{{ timetable.pk|default:'' }}">
+        <div class="dialog-row">
+          <div style="flex:1"><label class="label" for="ra-start">Başlangıç</label><input class="input" id="ra-start" name="start" value="1001"></div>
+          <div style="width:80px"><label class="label" for="ra-step">Artış</label><input class="input" id="ra-step" name="step" type="number" min="1" value="1"></div>
+        </div>
+        <label class="label">Sıra</label>
+        <div class="seg-radio column">
+          <label><input type="radio" name="order" value="program" checked> Kısım → programdaki gün/saat sırası</label>
+          <label><input type="radio" name="order" value="ders"> Kısım → ders kodu → saat sırası</label>
+        </div>
+        <label class="check"><input type="checkbox" name="overwrite" value="1"> <span>Dolu referansların üzerine yaz</span></label>
+        <button class="btn btn-primary" style="margin-top:10px">{{ school_class|yesno:"Bu kısmı,Tüm kısımları" }} numarala</button>
+        <p class="subtle small" style="margin-bottom:0">Ön ek korunur: “A1001” → A1002, A1003 …</p>
+      </form>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h2>Excel'den yapıştır</h2></div>
+      <form method="post" class="panel-body">{% csrf_token %}
+        <input type="hidden" name="action" value="import"><input type="hidden" name="sinif" value="{{ school_class.pk|default:'' }}"><input type="hidden" name="program" value="{{ timetable.pk|default:'' }}">
+        <textarea class="input" name="text" rows="7" placeholder="1SVN	ASK102	1	1001&#10;1SVN	ASK102	2	1002&#10;ya da: 1SVN	ASK102	1001, 1002"></textarea>
+        <p class="subtle small">Sütunlar: kısım, ders kodu, saat sırası, ref — ya da kısım, ders kodu ve sırayla ref listesi.</p>
+        <button class="btn">Aktar</button>
+      </form>
+    </div>
+    <form method="post" class="panel panel-body" onsubmit="return confirm('{{ school_class|yesno:"Bu kısmın,Tüm kısımların" }} referansları silinsin mi?')">{% csrf_token %}
+      <input type="hidden" name="action" value="clear"><input type="hidden" name="sinif" value="{{ school_class.pk|default:'' }}"><input type="hidden" name="program" value="{{ timetable.pk|default:'' }}">
+      <button class="btn btn-danger btn-sm">{{ school_class|yesno:"Bu kısmın,Tüm" }} referansları temizle</button>
+    </form>
+  </aside>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  (function () {
+    const form = document.getElementById("refs-form");
+    const note = document.getElementById("refs-dirty");
+    let dirty = 0;
+    form.addEventListener("input", (e) => {
+      const slot = e.target.closest(".ref-slot");
+      if (slot) slot.classList.toggle("empty", !e.target.value.trim());
+      if (!e.target.dataset.dirty) { e.target.dataset.dirty = "1"; dirty++; }
+      note.textContent = dirty + " değişiklik kaydedilmedi";
+    });
+    form.addEventListener("submit", () => { dirty = 0; });
+    window.addEventListener("beforeunload", (e) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+    // Enter: sonraki kutuya geç (Excel gibi hızlı giriş)
+    form.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" || !e.target.matches(".ref-slot input")) return;
+      e.preventDefault();
+      const inputs = Array.from(form.querySelectorAll(".ref-slot input"));
+      const next = inputs[inputs.indexOf(e.target) + 1];
+      if (next) next.focus();
+    });
+  })();
+</script>
+{% endblock %}

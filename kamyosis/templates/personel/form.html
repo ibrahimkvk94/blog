@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}{% if nesne %}{{ nesne.ad_soyad }} · Düzenle{% else %}Yeni personel{% endif %}{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">{% if nesne %}{{ nesne.ad_soyad }}{% else %}Yeni personel{% endif %}</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <h1>{% if nesne %}Personel kartını düzenle{% else %}Yeni personel{% endif %}</h1>
+</div>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+
+  <div class="kart p-4 mb-3">
+    <h2 class="h6 fw-bold mb-3"><i class="bi bi-person me-1"></i>Temel bilgiler</h2>
+    <div class="row g-3">
+      {% for f in form %}{% if f.name in "ad_soyad sicil bolum unvan rutbe sinif brans personel_kodu" %}
+      <div class="col-12 col-md-6">
+        <label class="form-label" for="{{ f.id_for_label }}">{{ f.label }}{% if f.field.required %} <span class="text-danger">*</span>{% endif %}</label>
+        {{ f }}
+        {% if f.name == "brans" %}<div class="form-text">{{ f.help_text }}</div><datalist id="bransOnerileri">{% for b in form.brans_onerileri %}<option value="{{ b }}">{% endfor %}</datalist>{% endif %}
+        {% for e in f.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+      </div>
+      {% endif %}{% endfor %}
+      <div class="col-12"><div class="form-check form-switch">{{ form.aktif }} <label class="form-check-label" for="{{ form.aktif.id_for_label }}">{{ form.aktif.label }}</label></div></div>
+    </div>
+  </div>
+
+  {% if yonetici %}
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-lg-6">
+      <div class="kart p-4 h-100">
+        <h2 class="h6 fw-bold mb-3"><i class="bi bi-diagram-3 me-1"></i>Görev ve teşkilat</h2>
+        <div class="mb-3">
+          <label class="form-label" for="{{ form.teskilat_birimi.id_for_label }}">{{ form.teskilat_birimi.label }}</label>
+          {{ form.teskilat_birimi }}
+          <div class="form-text">{{ form.teskilat_birimi.help_text }}</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="{{ form.gorev_unvani.id_for_label }}">{{ form.gorev_unvani.label }}</label>
+          {{ form.gorev_unvani }}
+          <div class="form-text">{{ form.gorev_unvani.help_text }}</div>
+        </div>
+        <div class="form-check form-switch mb-2">{{ form.idari_kadro }} <label class="form-check-label" for="{{ form.idari_kadro.id_for_label }}">İdari kadro <span class="text-secondary small">(kartta idari kadro nişanı)</span></label></div>
+        <div class="form-check form-switch mb-2">{{ form.gelistirici }} <label class="form-check-label" for="{{ form.gelistirici.id_for_label }}">Geliştirici <span class="text-secondary small">(kartta neon geliştirici nişanı)</span></label></div>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" role="switch" id="bolumBaskani" name="bolum_baskani" value="1" {% if baskan_mi %}checked{% endif %}>
+          <label class="form-check-label" for="bolumBaskani">Bölüm başkanı <span class="text-secondary small">(kendi bölümünün; önceki başkanın yerine geçer)</span></label>
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-lg-6">
+      <div class="kart p-4 h-100">
+        <h2 class="h6 fw-bold mb-3"><i class="bi bi-journal-check me-1"></i>Ders ve sınav</h2>
+        <div class="form-check form-switch mb-2">{{ form.derse_girebilir }} <label class="form-check-label" for="{{ form.derse_girebilir.id_for_label }}">Derse girebilir</label></div>
+        <div class="form-text mb-3">{{ form.derse_girebilir.help_text }}</div>
+        <div class="form-check form-switch mb-2">{{ form.sinav_gorevi_alabilir }} <label class="form-check-label" for="{{ form.sinav_gorevi_alabilir.id_for_label }}">Sınav görevi alabilir</label></div>
+        <div class="form-text">{{ form.sinav_gorevi_alabilir.help_text }}</div>
+      </div>
+    </div>
+    {% for grup, alanlar in kart_bilgileri %}
+    <div class="col-12 col-lg-6">
+      <div class="kart p-4 h-100">
+        <h2 class="h6 fw-bold mb-3"><i class="bi bi-card-text me-1"></i>{{ grup }}</h2>
+        <div class="row g-3">
+          {% for a, deger, _g in alanlar %}
+          <div class="col-12 {% if a.tur != 'uzun' %}col-md-6{% endif %}">
+            <label class="form-label" for="alan-{{ a.pk }}">{{ a.ad }}</label>
+            {% if a.tur == 'uzun' %}<textarea class="form-control" id="alan-{{ a.pk }}" name="alan-{{ a.pk }}" rows="2" maxlength="2000">{{ deger }}</textarea>
+            {% elif a.tur == 'secim' %}<select class="form-select" id="alan-{{ a.pk }}" name="alan-{{ a.pk }}"><option value="">–</option>{% for s in a.secenek_listesi %}<option {% if s == deger %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+            {% else %}<input class="form-control" id="alan-{{ a.pk }}" name="alan-{{ a.pk }}" value="{{ deger }}" maxlength="300" type="{% if a.tur == 'tarih' %}date{% elif a.tur == 'telefon' %}tel{% elif a.tur == 'eposta' %}email{% elif a.tur == 'sayi' %}number{% else %}text{% endif %}">{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="d-flex gap-2">
+    <button class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Kaydet</button>
+    <a href="{% if nesne %}{% url 'personel:detay' nesne.pk %}{% else %}{% url 'personel:liste' %}{% endif %}" class="btn btn-outline-secondary">Vazgeç</a>
+  </div>
+</form>
+{% endblock %}

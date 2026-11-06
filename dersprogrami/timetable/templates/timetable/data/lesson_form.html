@@ -1,0 +1,60 @@
+{% extends "timetable/data/editor_base.html" %}
+{% block title %}{% if lesson %}{{ lesson.subject.name }}{% else %}Yeni ders{% endif %}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{{ list_url }}">Dersler</a>{% endblock %}
+{% block heading %}<h1>Dersler</h1>{% endblock %}
+{% block avatar %}{% if lesson %}<span class="rec-swatch" style="background:{{ lesson.subject.color }}"></span>{% else %}+{% endif %}{% endblock %}
+{% block record_kind %}Ders{% endblock %}
+{% block record_title %}{% if lesson %}{{ lesson.subject.name }}{% else %}Yeni ders{% endif %}{% endblock %}
+{% block bar_extra %}{% if lesson %}<button class="btn btn-ghost btn-danger" form="delete-form">Sil</button>{% endif %}{% endblock %}
+{% block editor_body %}
+{{ teacher_hints|json_script:"teacher-hints" }}
+<form method="post" class="data-form rec-form" id="lesson-form" novalidate>
+  {% csrf_token %}
+  <input type="hidden" name="back" value="{{ back }}">
+  <div class="alert alert-error" data-non-field{% if not form.non_field_errors %} hidden{% endif %}>{{ form.non_field_errors|join:" " }}</div>
+  <div class="rec-panel" data-tab-panel="ders">
+    <section class="fsec">
+      <div class="fsec-head"><h3>Ne, kime?</h3><p>Birden çok sınıf seçmek birleşik ders oluşturur. Gruplar yalnızca seçili sınıflar için gösterilir. Sınıf seçilmezse ders yalnızca öğretmenleri bağlar (zümre toplantısı, hazırlık saati).</p></div>
+      <div class="fsec-body form-grid">
+        {% include "timetable/data/field.html" with field=form.subject %}
+        {% include "timetable/data/field.html" with field=form.classes %}
+        <div class="form-row-wide" data-groups-field>{% include "timetable/data/field.html" with field=form.groups %}</div>
+      </div>
+    </section>
+    <section class="fsec">
+      <div class="fsec-head"><h3>Kim, nerede?</h3><p>Birden çok derslik seçilirse çözücü o saatte boş olanı atar. Derslik seçilmezse sırasıyla ders adının varsayılan derslikleri, öğretmen dersliği ve sınıf dersliği kullanılır.</p></div>
+      <div class="fsec-body form-grid">
+        {% include "timetable/data/field.html" with field=form.teachers %}
+        {% include "timetable/data/field.html" with field=form.teacher_locked %}
+        {% include "timetable/data/field.html" with field=form.classrooms %}
+        {% include "timetable/data/field.html" with field=form.rooms_needed %}
+      </div>
+    </section>
+    <section class="fsec">
+      <div class="fsec-head"><h3>Ne kadar?</h3><p>Haftalık saat ve kartlara bölünüşü. Dağılım boşsa saatler kart uzunluğuna göre bölünür.</p></div>
+      <div class="fsec-body form-grid">
+        {% include "timetable/data/field.html" with field=form.periods_per_week %}
+        {% include "timetable/data/field.html" with field=form.card_length %}
+        {% include "timetable/data/field.html" with field=form.split %}
+        {% include "timetable/data/field.html" with field=form.max_per_day %}
+        <div class="card-preview form-row-wide" data-card-preview></div>
+      </div>
+    </section>
+    <section class="fsec">
+      <div class="fsec-head"><h3>Diğer</h3><p>Seçmeli ders, kontenjan ve hafta/dönem sınırları.</p></div>
+      <div class="fsec-body form-grid">
+        {% if form.weeks_mask %}{% include "timetable/data/field.html" with field=form.weeks_mask %}{% endif %}
+        {% if form.terms_mask %}{% include "timetable/data/field.html" with field=form.terms_mask %}{% endif %}
+        {% include "timetable/data/field.html" with field=form.elective %}
+        {% include "timetable/data/field.html" with field=form.capacity %}
+      </div>
+    </section>
+  </div>
+  <div class="rec-panel" data-tab-panel="musaitlik">{% include "timetable/data/availability.html" %}</div>
+</form>
+{% if lesson %}
+  <form method="post" action="{% url 'timetable:lesson_delete' school.pk lesson.pk %}" id="delete-form" hidden data-confirm="Ders silinsin mi? Programlardaki kartları da silinir.">
+    {% csrf_token %}<input type="hidden" name="back" value="{{ back }}">
+  </form>
+{% endif %}
+{% endblock %}

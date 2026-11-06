@@ -1,0 +1,27 @@
+{% extends "timetable/base.html" %}
+{% block title %}Sınav Planlama{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:home' %}">Ana sayfa</a>{% endblock %}
+{% block heading %}<h1>Sınav Planlama</h1>{% endblock %}
+{% block content %}
+<p class="page-lead">Vize, final ve bütünleme programları. Sınavlar programın derslerinden oluşturulur; salonlar derslikler, gözetmenler öğretmenlerdir. Bu bilgiler Ders Planlama ile ortaktır.</p>
+<div class="stack">
+  {% for g in groups %}
+    <section class="panel">
+      <div class="panel-head"><h2>{{ g.institution }}</h2><span class="pill">{{ g.programs|length }} program</span></div>
+      <div class="panel-body">
+        <div class="school-cards">
+          {% for row in g.programs %}{% with s=row.school %}
+            <a class="panel school-card" href="{% url 'sinav:periods' s.pk %}">
+              <h2>{{ s.name }}</h2>
+              <div class="meta"><span>{{ s.n_periods }} sınav dönemi</span></div>
+              {% if row.latest %}<div class="subtle small" style="margin-top:6px">Son dönem: {{ row.latest.name }} ({{ row.latest.start_date|date:"d.m.Y" }})</div>{% endif %}
+            </a>
+          {% endwith %}{% endfor %}
+        </div>
+      </div>
+    </section>
+  {% empty %}
+    <div class="panel"><div class="panel-body subtle">Sınav Planlama'yı açabileceğiniz bir program yok. Program, Ders Planlama'daki kurum sayfasından eklenir.</div></div>
+  {% endfor %}
+</div>
+{% endblock %}

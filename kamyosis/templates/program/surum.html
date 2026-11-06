@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}{{ s.ad }}{% endblock %}
+{% block breadcrumb_ek %}
+<li class="breadcrumb-item"><a href="{% url 'program:surumler' %}">Program sürümleri</a></li>
+<li class="breadcrumb-item active" aria-current="page">{{ s.ad }}</li>
+{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>{{ s.ad }}</h1>
+    <p class="text-secondary mb-0">
+      {% if s.durum == 'yayinda' %}<span class="durum-rozet durum-kullanimda">Yayında</span>{% elif s.durum == 'taslak' %}<span class="durum-rozet durum-sirada">Taslak</span>{% else %}<span class="durum-rozet durum-planlandi">Arşiv</span>{% endif %}
+      · {{ s.kaynak_dosya }} · {{ s.yukleme_zamani|date:"d.m.Y H:i" }}
+    </p>
+  </div>
+  <a href="{% url 'program:tablo' %}?surum={{ s.pk }}" class="btn btn-outline-primary"><i class="bi bi-table me-1"></i>Programı görüntüle</a>
+</div>
+
+{% if bekleyen %}
+<div class="alert alert-warning d-flex align-items-center gap-2">
+  <i class="bi bi-person-exclamation fs-5"></i>
+  <div class="flex-grow-1">Bu programdaki <strong>{{ bekleyen }}</strong> öğretmen henüz personelle eşleştirilmedi.</div>
+  <a href="{% url 'program:ogretmenler' %}" class="btn btn-sm btn-warning">Eşleştir</a>
+</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-12 col-lg-5">
+    <div class="kart p-4 h-100">
+      <h2 class="h6 text-secondary text-uppercase mb-3">İçerik</h2>
+      <dl class="row mb-0 bilgi-listesi">
+        {% for ad, sayi in ozet.items %}<dt class="col-7">{{ ad }}</dt><dd class="col-5 text-end fw-semibold">{{ sayi }}</dd>{% endfor %}
+      </dl>
+      {% if rapor and rapor.uyarilar %}
+        <hr>
+        <h3 class="h6 text-warning-emphasis">Uyarılar</h3>
+        <ul class="small mb-0">{% for u in rapor.uyarilar %}<li>{{ u }}</li>{% endfor %}</ul>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-12 col-lg-7">
+    <form method="post" class="kart p-4" novalidate>
+      {% csrf_token %}
+      <h2 class="h6 text-secondary text-uppercase mb-3">{% if s.durum == 'yayinda' %}Geçerlilik tarihleri{% else %}Yayınla{% endif %}</h2>
+      <div class="row g-3">
+        <div class="col-sm-6">
+          <label class="form-label" for="{{ form.baslangic.id_for_label }}">{{ form.baslangic.label }} <span class="text-danger">*</span></label>
+          {{ form.baslangic }}{% for e in form.baslangic.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label" for="{{ form.bitis.id_for_label }}">{{ form.bitis.label }}</label>
+          {{ form.bitis }}{% for e in form.bitis.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+          <div class="form-text">{{ form.bitis.help_text }}</div>
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="{{ form.aciklama.id_for_label }}">{{ form.aciklama.label }}</label>
+          {{ form.aciklama }}
+        </div>
+      </div>
+      <p class="small text-secondary mt-3 mb-3">Aynı tarihi kapsayan birden fazla sürüm yayındaysa, <strong>en son yayınlanan</strong> geçerli sayılır. Bu sayede dönem ortası değişiklikler eski programı silmeden yürürlüğe girer.</p>
+      <div class="d-flex flex-wrap gap-2">
+        <button name="islem" value="yayinla" class="btn btn-primary"><i class="bi bi-broadcast me-1"></i>{% if s.durum == 'yayinda' %}Tarihleri güncelle{% else %}Yayınla{% endif %}</button>
+        {% if s.durum != 'arsiv' %}<button name="islem" value="arsivle" class="btn btn-outline-secondary" formnovalidate>Arşive al</button>{% endif %}
+        {% if s.durum == 'taslak' %}<button name="islem" value="sil" class="btn btn-outline-danger ms-auto" formnovalidate onclick="return confirm('Bu taslak silinsin mi?')"><i class="bi bi-trash me-1"></i>Taslağı sil</button>{% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

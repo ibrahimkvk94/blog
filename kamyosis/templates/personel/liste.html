@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% load yoklama_etiketleri %}
+{% block title %}Personel kartları{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Personel kartları</h1>
+    <p class="text-secondary mb-0">{% if birim %}{{ birim.ad }}{% elif tum_okul %}Tüm okul{% endif %}</p>
+  </div>
+  <div class="d-flex flex-wrap gap-2 d-print-none">
+    <a class="btn btn-outline-secondary" href="{% url 'personel:excel' %}?{{ request.GET.urlencode }}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+    <button class="btn btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer me-1"></i>Yazdır</button>
+    {% if duzenleyebilir %}<a href="{% url 'personel:ekle' %}" class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>Yeni personel</a>{% endif %}
+  </div>
+</div>
+
+{% include "personel/_sekmeler.html" %}
+
+<form class="kart p-2 mb-3 d-flex flex-wrap align-items-center gap-2 d-print-none" method="get" role="search" data-canli="#pkSonuc">
+  {% if gorunum == 'tablo' %}<input type="hidden" name="gorunum" value="tablo">{% endif %}
+  <div class="pk-arama">
+    <i class="bi bi-search"></i>
+    <input type="search" class="form-control" name="q" value="{{ q }}" autocomplete="off" aria-label="Personel ara"
+           placeholder="{% if yonetici %}Ad, soyad, sicil, görev ya da T.C. no — yazdıkça bulur{% else %}Ad, soyad, sicil ya da görev — yazdıkça bulur{% endif %}">
+  </div>
+  {% if birim_secenekleri|length > 1 %}
+  <select class="form-select w-auto" name="birim" aria-label="Birim" data-arama="yok" style="max-width:300px">
+    {% if tum_okul %}<option value="">Tüm okul</option>{% endif %}
+    {% for b, d in birim_secenekleri %}<option value="{{ b.pk }}" {% if b == birim %}selected{% endif %}>{{ d|girinti }}{{ b.ad }}</option>{% endfor %}
+  </select>
+  {% elif birim %}<input type="hidden" name="birim" value="{{ birim.pk }}">{% endif %}
+  <select class="form-select w-auto" name="rutbe" aria-label="Rütbe" data-arama="yok">
+    <option value="">Tüm rütbeler</option>
+    {% for r in rutbeler %}<option value="{{ r.pk }}" {% if rutbe == r.pk|stringformat:'s' %}selected{% endif %}>{{ r.metin }}</option>{% endfor %}
+  </select>
+  <select class="form-select w-auto" name="durum" aria-label="Durum" data-arama="yok">
+    <option value="aktif" {% if durum == 'aktif' %}selected{% endif %}>Aktif</option>
+    <option value="pasif" {% if durum == 'pasif' %}selected{% endif %}>Pasif</option>
+    <option value="hepsi" {% if durum == 'hepsi' %}selected{% endif %}>Hepsi</option>
+  </select>
+  {% if yonetici %}
+  <select class="form-select w-auto" name="eksik" aria-label="Eksik bilgi" data-arama="yok">
+    <option value="">Tüm kartlar</option>
+    <option value="1" {% if yalniz_eksik %}selected{% endif %}>Yalnız eksik olanlar</option>
+  </select>
+  {% endif %}
+  <div class="btn-group ms-auto" role="group" aria-label="Görünüm">
+    <a class="btn btn-sm btn-outline-secondary {% if gorunum != 'tablo' %}active{% endif %}" href="?{% for k, v in request.GET.items %}{% if k != 'gorunum' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}" title="Kart görünümü"><i class="bi bi-grid-3x2-gap"></i></a>
+    <a class="btn btn-sm btn-outline-secondary {% if gorunum == 'tablo' %}active{% endif %}" href="?{% for k, v in request.GET.items %}{% if k != 'gorunum' %}{{ k }}={{ v|urlencode }}&{% endif %}{% endfor %}gorunum=tablo" title="Liste görünümü"><i class="bi bi-list-ul"></i></a>
+  </div>
+</form>
+
+<div id="pkSonuc">
+{% if kip == 'genel' %}
+  <div class="pk-ozet mb-3">
+    <span><i class="bi bi-people-fill"></i>{{ toplam }} personel</span>
+    <span><i class="bi bi-camera"></i>{{ fotosuz }} fotoğrafsız</span>
+    {% if eksik_sayi is not None %}<a href="?eksik=1"><i class="bi bi-exclamation-circle"></i>{{ eksik_sayi }} kartı eksik</a>{% endif %}
+  </div>
+  {% for g in gruplar %}
+  <section class="mb-3">
+    <h2 class="yk-grup-baslik">{% if g.baslik %}<a href="?birim={{ g.baslik.pk }}">{{ g.baslik.ad }}</a>{% else %}Diğer birimler{% endif %}</h2>
+    <div class="yk-birimler">{% for o in g.kutular %}{% include "personel/_birim_kutusu.html" %}{% endfor %}</div>
+  </section>
+  {% empty %}
+  <div class="kart p-5 text-center text-secondary">Kayıt bulunamadı.</div>
+  {% endfor %}
+
+{% else %}
+  {% if kip == 'birim' %}
+    <nav class="yk-zincir mb-2" aria-label="Teşkilattaki yeri">
+      {% if tum_okul %}<a href="?{% if gorunum == 'tablo' %}gorunum=tablo{% endif %}"><i class="bi bi-diagram-3 me-1"></i>Tüm okul</a><span>›</span>{% endif %}
+      {% for b in birim_zinciri %}<a href="?birim={{ b.pk }}{% if gorunum == 'tablo' %}&gorunum=tablo{% endif %}">{{ b.ad }}</a><span>›</span>{% endfor %}
+      <strong>{{ birim.ad }}</strong>
+    </nav>
+    <div class="pk-ozet mb-3">
+      <span><i class="bi bi-people-fill"></i>{{ toplam }} personel</span>
+      {% if sorumlu %}<a href="{% url 'personel:detay' sorumlu.pk %}"><i class="bi bi-person-badge"></i>{% if birim.bolum_id %}Bölüm başkanı{% else %}{{ sorumlu.gorev_unvani|default:"Sorumlu" }}{% endif %}: {{ sorumlu.tam_ad }}</a>{% endif %}
+      <span><i class="bi bi-camera"></i>{{ fotosuz }} fotoğrafsız</span>
+      {% if eksik_sayi is not None %}<a href="?birim={{ birim.pk }}&eksik=1"><i class="bi bi-exclamation-circle"></i>{{ eksik_sayi }} kartı eksik</a>{% endif %}
+    </div>
+  {% else %}
+    <div class="pk-ozet mb-3"><span><i class="bi bi-search"></i>{% if q %}“{{ q }}” · {% endif %}{% if yalniz_eksik %}kartı eksik olanlar · {% endif %}{{ toplam }} kişi</span>{% if birim %}<span>{{ birim.ad }} ve alt birimleri</span>{% endif %}</div>
+  {% endif %}
+
+  {% if kip == 'birim' and not kisiler and alt_birimler %}{# kendi kadrosu boş: yalnız alt birimler #}
+  {% elif gorunum == 'tablo' %}
+  <div class="kart">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead><tr><th>Personel</th>{% if kip != 'birim' %}<th class="d-none d-md-table-cell">Birim</th>{% endif %}<th class="d-none d-lg-table-cell">Görev</th>{% if yonetici %}<th class="d-none d-md-table-cell">T.C. kimlik no</th><th>Eksik</th>{% endif %}<th class="text-end d-print-none"></th></tr></thead>
+        <tbody>
+        {% for p in kisiler %}
+          <tr>
+            <td><a href="{% url 'personel:detay' p.pk %}" class="yk-kisi">{% include "personel/_foto.html" with p=p %}<span class="min-w-0"><span class="ad d-block text-truncate">{{ p.ad_soyad }}{% if not p.aktif %} <span class="badge text-bg-secondary ms-1">Pasif</span>{% endif %}</span><span class="kunye d-block text-truncate">{{ p.kunye|default:"&nbsp;" }}</span></span></a></td>
+            {% if kip != 'birim' %}<td class="d-none d-md-table-cell small">{{ p.liste_birimi.ad|default:"–" }}</td>{% endif %}
+            <td class="d-none d-lg-table-cell small">{{ p.kadro_gorevi|default:"–" }}</td>
+            {% if yonetici %}<td class="d-none d-md-table-cell font-monospace small">{{ p.personel_kodu|default:"–" }}</td>
+            <td class="small">{% if p.eksik_listesi %}<span class="pk-eksik" title="{{ p.eksik_listesi|join:', ' }}">{{ p.eksik_listesi.0 }}{% if p.eksik_listesi|length > 1 %} +{{ p.eksik_listesi|length|add:'-1' }}{% endif %}</span>{% else %}<span class="pk-tam">tam</span>{% endif %}</td>{% endif %}
+            <td class="text-end text-nowrap d-print-none">
+              <a href="{% url 'personel:detay' p.pk %}" class="btn btn-sm btn-outline-secondary" title="Görüntüle"><i class="bi bi-eye"></i></a>
+              {% if duzenleyebilir %}<a href="{% url 'personel:duzenle' p.pk %}" class="btn btn-sm btn-outline-primary" title="Düzenle"><i class="bi bi-pencil"></i></a>{% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6" class="text-center text-secondary py-5">Kayıt bulunamadı.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="pk-vitrin">
+    {% for p in kisiler %}{% include "personel/_kisi_karti.html" %}
+    {% empty %}<div class="kart p-5 text-center text-secondary" style="grid-column:1/-1">Kayıt bulunamadı.</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if kip == 'birim' and alt_birimler %}
+  <div class="kart p-3 mt-3 d-print-none">
+    <h2 class="h6 fw-bold mb-2"><i class="bi bi-diagram-3 me-1"></i>Alt birimler</h2>
+    <div class="yk-birimler">{% for o in alt_birimler %}{% include "personel/_birim_kutusu.html" %}{% endfor %}</div>
+  </div>
+  {% endif %}
+{% endif %}
+</div>
+{% endblock %}

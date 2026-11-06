@@ -1,0 +1,9 @@
+<a class="yk-birim-kutu {% if not o.toplam %}bos{% elif o.onay and o.onay.degisti %}degisti{% elif o.onay %}tamam{% else %}bekliyor{% endif %}" href="?tarih={{ tarih|date:'Y-m-d' }}&birim={{ o.birim.pk }}">
+  <span class="ust"><span class="ad">{{ o.birim.ad }}</span>
+    {% if o.toplam %}{% if o.onay and o.onay.degisti %}<i class="bi bi-exclamation-triangle-fill" title="Kesinleşti, sonra değişti"></i>{% elif o.onay %}<i class="bi bi-lock-fill" title="Kesinleşti {{ o.onay.zaman|date:'H:i' }}"></i>{% else %}<i class="bi bi-hourglass-split" title="Kesinleşmedi"></i>{% endif %}{% endif %}</span>
+  {% if o.toplam %}
+  <span class="sayilar"><span title="Toplam"><i class="bi bi-people-fill"></i>{{ o.toplam }}</span><span class="m" title="Mevcut">{{ o.mevcut }} mevcut</span>{% if o.gun_boyu %}<span class="y" title="Gün boyu yok">{{ o.gun_boyu }} yok</span>{% endif %}{% if o.kismi %}<span class="k" title="Gün içinde kısmi">{{ o.kismi }} kısmi</span>{% endif %}</span>
+  <span class="cubuk" aria-hidden="true"><span style="width: {% widthratio o.mevcut o.toplam 100 %}%"></span></span>
+  <span class="durum">{% if o.onay and o.onay.degisti %}Kesinleşti, sonra değişti{% elif o.onay %}Kesinleşti · {{ o.onay.zaman|date:"H:i" }}{% else %}Kesinleşmedi{% endif %}</span>
+  {% else %}<span class="durum">{{ o.alt_toplam }} kişi alt birimlerde</span>{% endif %}
+</a>

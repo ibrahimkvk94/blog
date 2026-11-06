@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Kaydı düzenle · {{ p.ad_soyad }}{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item"><a href="{% url 'yoklama:kart' p.pk %}">{{ p.ad_soyad }}</a></li><li class="breadcrumb-item active" aria-current="page">Kayıt</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div class="d-flex align-items-center gap-3">
+    {% include "yoklama/_foto.html" with p=p %}
+    <div>
+      <h1>{{ k.tur.ad }} · {{ p.ad_soyad }}</h1>
+      <p class="text-secondary mb-0">{{ k.aralik_metni }} · giren {{ k.olusturan|default:"–" }} ({{ k.olusturma|date:"d.m.Y H:i" }}){% if k.guncelleyen and k.surum > 1 %} · son değişiklik {{ k.guncelleyen }} ({{ k.guncelleme|date:"d.m.Y H:i" }}){% endif %}</p>
+    </div>
+  </div>
+  <a href="{% url 'yoklama:kart' p.pk %}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left me-1"></i>Personel kartı</a>
+</div>
+
+{% if kilit %}
+<div class="alert alert-warning d-flex gap-2" style="max-width:820px"><i class="bi bi-lock-fill"></i><div>{{ kilit }}</div></div>
+{% elif girebilir %}
+<div class="kart" style="max-width:820px">
+  <form method="post" class="p-3">
+    {% csrf_token %}
+    {% if geri %}<input type="hidden" name="geri" value="{{ geri }}">{% endif %}
+    <input type="hidden" name="surum" value="{{ k.surum }}">
+    {% include "yoklama/_kayit_formu.html" with onek="d" k=k %}
+    <div class="d-flex flex-wrap gap-2 justify-content-between mt-3">
+      <button class="btn btn-outline-danger" name="islem" value="sil" formnovalidate onclick="return confirm('Bu kayıt silinsin mi?')"><i class="bi bi-trash me-1"></i>Sil</button>
+      <button class="btn btn-primary" name="islem" value="kaydet"><i class="bi bi-check2 me-1"></i>Değişikliği kaydet</button>
+    </div>
+  </form>
+</div>
+{% else %}
+<div class="alert alert-secondary">Bu kaydı görüntüleyebilirsiniz; değiştirme yetkiniz yok.</div>
+{% endif %}
+<script src="{% static 'js/yoklama.js' %}?v=3" defer></script>
+{% endblock %}

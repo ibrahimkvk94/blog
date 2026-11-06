@@ -1,0 +1,44 @@
+{% extends "timetable/base.html" %}
+{% block title %}aSc'den öğretmen mazeretleri{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{% url 'timetable:bulk_availability' school.pk %}?tur=ogretmen">Toplu müsaitlik</a>{% endblock %}
+{% block heading %}<h1>aSc'den öğretmen mazeretleri</h1>{% endblock %}
+{% block content %}
+{% include "timetable/data/subnav.html" %}
+{% if not items %}
+<div class="panel">
+  <div class="panel-body">
+    <p class="page-lead">aSc'de <b>Öğretmenler</b> listesini açın (“Zaman Tablosu” sütunu görünür olsun). Tabloya sağ tıklayıp <b>İncele</b> deyin, tablonun en dış öğesine (<code>dt-container</code>) sağ tıklayıp <b>Copy → Copy outerHTML</b> ile kopyalayın ve buraya yapıştırın. Her öğretmenin ızgarasındaki <b>kırmızı</b> saatler “gelemez”, <b>sarı</b> saatler “koşullu (?)” olarak aktarılır. Öğretmenler kısa adla (ör. “ASK Uğur İÇÖZ”) ya da ad soyadla eşleştirilir. Önce ön izleme gösterilir; hiçbir şey kaydedilmez.</p>
+    <p class="subtle small">Uzun listelerde aSc tablonun yalnızca ekranda görünen satırlarını HTML'e koyar; eksik öğretmen kalırsa listeyi kaydırıp kalan kısmı ayrıca yapıştırın.</p>
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="preview">
+      <textarea class="input" name="text" rows="14" placeholder="&lt;div class=&quot;dt-container …&quot;&gt;&lt;table&gt;…" required>{{ text }}</textarea>
+      <div style="margin-top:10px"><button class="btn btn-primary">Ön izle</button>
+        {% if text %}<span class="bad small">Yapıştırılan metinde zaman tablosu olan öğretmen satırı bulunamadı.</span>{% endif %}</div>
+    </form>
+  </div>
+</div>
+{% else %}
+<form method="post">{% csrf_token %}<input type="hidden" name="action" value="import">
+  <textarea name="text" hidden>{{ text }}</textarea>
+  <p class="page-lead">{{ items|length }} satırdan <b>{{ ok_count }}</b> öğretmen eşleşti. Seçilen öğretmenlerin mevcut müsaitliği aSc'deki ızgarayla <b>değiştirilir</b>; kalın çerçeveli hücreler bugünkünden farklı olanlardır. İstemediklerinizin işaretini kaldırıp <b>Aktar</b> deyin.</p>
+  <div class="legend" style="margin-bottom:10px"><span><i class="lg-ok"></i>Gelebilir</span><span><i class="lg-no"></i>Gelemez</span><span><i class="lg-maybe"></i>Koşullu (?)</span></div>
+  <div class="panel">
+    <div class="panel-body flush table-wrap">
+      <table class="table">
+        <thead><tr><th style="width:28px"><input type="checkbox" checked onclick="this.closest('table').querySelectorAll('[name=sec]:not(:disabled)').forEach(c=>c.checked=this.checked)" aria-label="Tümü"></th>
+          <th>aSc</th><th>Programdaki öğretmen</th><th>Izgara</th><th class="num">Gelemez</th><th class="num">Koşullu</th><th class="num">Değişen</th><th>Not</th></tr></thead>
+        <tbody>{% for it in items %}<tr{% if it.error %} class="subtle"{% endif %}>
+          <td><input type="checkbox" name="sec" value="{{ it.index }}"{% if it.error %} disabled{% elif it.changed %} checked{% endif %}></td>
+          <td class="small"><b>{{ it.name }}</b>{% if it.short %}<div class="subtle">{{ it.short }}</div>{% endif %}</td>
+          <td>{% if it.teacher %}{{ it.teacher.full_name }}{% else %}–{% endif %}</td>
+          <td>{% if it.grid %}<div class="av-mini">{% for day in it.grid %}<div>{% for c in day %}<i class="av-{{ c.state|default:'ok' }}{% if c.changed %} ch{% endif %}"></i>{% endfor %}</div>{% endfor %}</div>{% endif %}</td>
+          <td class="num">{{ it.closed|default:"" }}</td><td class="num">{{ it.maybe|default:"" }}</td>
+          <td class="num">{% if it.teacher and not it.error %}{% if it.changed %}<b>{{ it.changed }}</b>{% else %}<span class="subtle">aynı</span>{% endif %}{% endif %}</td>
+          <td class="small">{% if it.error %}<span class="bad">{{ it.error }}</span>{% else %}{{ it.warning }}{% endif %}</td>
+        </tr>{% endfor %}</tbody>
+      </table>
+    </div>
+    <div class="form-actions"><div><button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} Aktar</button> <a class="btn btn-ghost" href="{% url 'timetable:availability_import' school.pk %}">Baştan yapıştır</a></div></div>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

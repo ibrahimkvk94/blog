@@ -1,0 +1,35 @@
+{% extends "timetable/base.html" %}
+{% block title %}Duyuru gönder{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:central' %}">Merkez paneli</a>{% endblock %}
+{% block heading %}<h1>Duyuru gönder</h1>{% endblock %}
+{% block content %}
+<p class="page-lead">Duyuru, seçilen kullanıcıların bildirimlerine düşer ve sistemi açık olanların ekranında anlık olarak görünür. E-posta gönderilmez.</p>
+<div class="grid-2">
+  <form method="post" class="panel">{% csrf_token %}
+    <div class="panel-head"><h2>Yeni duyuru</h2></div>
+    <div class="panel-body">
+      <label class="label" for="b-title">Başlık</label>
+      <input class="input" id="b-title" name="title" maxlength="200" required placeholder="Ör. Bahar dönemi programı yayında">
+      <label class="label" for="b-body">İleti</label>
+      <textarea class="input" id="b-body" name="body" rows="5" placeholder="İsteğe bağlı açıklama"></textarea>
+      <div class="dialog-row" style="margin-top:4px">
+        <div style="flex:1"><label class="label" for="b-to">Kime</label>
+          <select class="select" id="b-to" name="kurum"><option value="">Tüm kullanıcılar</option>{% for i in institutions %}<option value="{{ i.pk }}">{{ i.name }} üyeleri</option>{% endfor %}</select></div>
+        <div style="flex:1"><label class="label" for="b-level">Tür</label>
+          <select class="select" id="b-level" name="level">{% for k, v in levels %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select></div>
+      </div>
+      <label class="label" for="b-url">Bağlantı <span class="subtle">(isteğe bağlı; bu sistemde bir sayfa, ör. /okul/5/)</span></label>
+      <input class="input" id="b-url" name="url" placeholder="/okul/…">
+    </div>
+    <div class="form-actions"><button class="btn btn-primary">{% include "timetable/icon.html" with name="mail" %} Gönder</button></div>
+  </form>
+  <section class="panel">
+    <div class="panel-head"><h2>Son duyurular</h2></div>
+    <div class="panel-body flush">
+      {% if recent %}<table class="table"><thead><tr><th>Duyuru</th><th class="num">Alıcı</th><th class="num">Okuyan</th><th>Tarih</th></tr></thead>
+        <tbody>{% for r in recent %}<tr><td><b>{{ r.title }}</b></td><td class="num">{{ r.count }}</td><td class="num">{{ r.read }}</td><td class="nowrap subtle">{{ r.created_at|date:"d.m.Y H:i" }}</td></tr>{% endfor %}</tbody></table>
+      {% else %}<div class="empty">Henüz duyuru gönderilmedi.</div>{% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

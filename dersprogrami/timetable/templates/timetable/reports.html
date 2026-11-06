@@ -1,0 +1,200 @@
+{% extends "timetable/base.html" %}
+{% block title %}Raporlar · {{ timetable.name }}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{% url 'timetable:timetable_detail' timetable.pk %}">{{ timetable.name }}</a>{% endblock %}
+{% block heading %}<h1>Raporlar</h1>{% endblock %}
+{% block actions %}
+  <a class="btn" id="excel-report" href="{% url 'timetable:report_excel' timetable.pk %}?{{ query }}">{% include "timetable/icon.html" with name="download" %} Excel</a>
+  <a class="btn" id="pdf-report" href="{% url 'timetable:report_pdf' timetable.pk %}?{{ query }}">{% include "timetable/icon.html" with name="download" %} PDF indir</a>
+  <a class="btn" id="open-report" target="_blank" href="{% url 'timetable:report_render' timetable.pk %}?{{ query }}">Yeni sekmede aç</a>
+  <button class="btn btn-primary" type="button" id="print-report">{% include "timetable/icon.html" with name="printer" %} Yazdır / PDF</button>
+{% endblock %}
+{% block content %}
+<div class="report-layout">
+  <aside class="panel report-settings">
+    <form method="get" id="report-form">
+      <input type="hidden" name="icerik_set" value="1">
+      <div class="panel-body">
+        <label class="label" for="r-tur">Rapor türü</label>
+        <select class="select" name="tur" id="r-tur">{% for key, label in types.items %}<option value="{{ key }}"{% if o.tur == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+
+        <div data-show="uybs">
+          <label class="label" for="r-hafta">Hafta (tarih yazmak için; boş = tarihsiz)</label>
+          <input class="input" type="date" name="hafta" id="r-hafta" value="{{ o.hafta }}">
+          <label class="check"><input type="checkbox" name="vekalet" value="1"{% if o.vekalet == "1" %} checked{% endif %}> <span>O haftanın vekâletlerini işle</span></label>
+          <div class="uybs-box">
+            <a class="btn btn-primary" id="uybs-export" href="{% url 'timetable:uybs_export' timetable.pk %}?{{ query }}">{% include "timetable/icon.html" with name="download" %} ÜYBS şablonunda indir</a>
+            <span class="subtle small">Hafta seçiliyse indirilen hafta arşivlenir; program sonradan değişse de o haftanın raporu aynı kalır.</span>
+            {% if can.veri %}<div class="dialog-row">
+              <button class="btn btn-sm" type="submit" form="uybs-archive-form" name="action" value="save" title="Seçili haftayı bu sürümün güncel yerleşimiyle arşivle">Haftayı arşivle</button>
+              <button class="btn btn-sm btn-danger" type="submit" form="uybs-archive-form" name="action" value="delete" title="Arşivi sil; rapor güncel programdan çıkar">Arşivi sil</button>
+            </div>{% endif %}
+            <a class="small" href="{% url 'timetable:uybs_settings' school.pk %}">Şablon ayarları ve öğretmen TC'leri →</a>
+          </div>
+        </div>
+
+        <div data-show="bireysel carsaf carsaf_gun yuk sinif_dersleri uybs">
+          <label class="label" for="r-varlik">Kimler için</label>
+          <select class="select" name="varlik" id="r-varlik" data-reload>{% for key, label in kinds.items %}<option value="{{ key }}"{% if o.varlik == key %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+          <details class="report-pick"{% if o.secim %} open{% endif %}>
+            <summary>Seçim: {% if o.secim %}{{ o.secim|length }} seçili{% else %}tümü{% endif %}</summary>
+            <div class="report-checks">{% for c in choices %}<label><input type="checkbox" name="secim" value="{{ c.id }}"{% if c.id in o.secim %} checked{% endif %}> {{ c.name }}</label>{% endfor %}</div>
+          </details>
+        </div>
+
+        <div data-show="carsaf_gun">
+          <label class="label" for="r-gun">Gün</label>
+          <select class="select" name="gun" id="r-gun">{% for d in days %}<option value="{{ forloop.counter0 }}"{% if o.gun == forloop.counter0 %} selected{% endif %}>{{ d }}</option>{% endfor %}</select>
+        </div>
+
+        <div data-show="bireysel">
+          <label class="label">Yerleşim</label>
+          <div class="seg-radio">
+            <label><input type="radio" name="gunler" value="sutun"{% if o.gunler == "sutun" %} checked{% endif %}> Günler sütunda</label>
+            <label><input type="radio" name="gunler" value="satir"{% if o.gunler == "satir" %} checked{% endif %}> Günler satırda</label>
+          </div>
+          <label class="label" for="r-sayfa">Sayfa başına program</label>
+          <select class="select" name="sayfa" id="r-sayfa">{% for n in "124" %}<option value="{{ n }}"{% if o.sayfa == n %} selected{% endif %}>{{ n }}</option>{% endfor %}</select>
+          <label class="check"><input type="checkbox" name="saat" value="1"{% if o.saat == "1" %} checked{% endif %}> <span>Ders saatlerini yaz</span></label>
+        </div>
+
+        <div data-show="bireysel carsaf carsaf_gun">
+          <label class="label">Hücre içeriği</label>
+          <div class="seg-radio">
+            <label><input type="radio" name="ders_adi" value="tam"{% if o.ders_adi == "tam" %} checked{% endif %}> Ders adı tam</label>
+            <label><input type="radio" name="ders_adi" value="kisa"{% if o.ders_adi == "kisa" %} checked{% endif %}> Kısa ad</label>
+          </div>
+          <div class="report-checks inline">{% for key, label in content.items %}<label><input type="checkbox" name="icerik" value="{{ key }}"{% if key in o.icerik %} checked{% endif %}> {{ label }}</label>{% endfor %}</div>
+          <label class="check"><input type="checkbox" name="renk" value="1"{% if o.renk == "1" %} checked{% endif %}> <span>Renkli</span></label>
+        </div>
+
+        <div data-show="carsaf carsaf_gun">
+          <label class="label">Çarşaf düzeni</label>
+          <div class="seg-radio" data-varlik="ogretmen">
+            <label><input type="radio" name="satir" value="kisi"{% if o.satir == "kisi" %} checked{% endif %}> Kişi başına tek satır</label>
+            <label><input type="radio" name="satir" value="ders"{% if o.satir == "ders" %} checked{% endif %}> Her ders ayrı satır</label>
+          </div>
+          <div class="seg-radio">
+            <label><input type="radio" name="hucre" value="tam"{% if o.hucre == "tam" %} checked{% endif %}> Hücrede ders bilgisi</label>
+            <label><input type="radio" name="hucre" value="kisim"{% if o.hucre == "kisim" %} checked{% endif %}> Yalnızca kısım adı</label>
+          </div>
+          <label class="check"><input type="checkbox" name="blok" value="1"{% if o.blok == "1" %} checked{% endif %}> <span>Blok dersler tek kart (birleşik hücre)</span></label>
+          <label class="label">Ek sütunlar</label>
+          <div class="report-checks inline">
+            <label><input type="checkbox" name="sutun_ders" value="1"{% if o.sutun_ders == "1" %} checked{% endif %}> Ders adı</label>
+            <label><input type="checkbox" name="sutun_kod" value="1"{% if o.sutun_kod == "1" %} checked{% endif %}> Ders kodu</label>
+            <label><input type="checkbox" name="sutun_saat" value="1"{% if o.sutun_saat == "1" %} checked{% endif %}> Ders saati / toplam</label>
+          </div>
+        </div>
+
+        <div data-show="bireysel carsaf carsaf_gun">
+          <label class="label">Kısım adları</label>
+          <div class="seg-radio">
+            <label><input type="radio" name="kisim_ad" value="kisa"{% if o.kisim_ad == "kisa" %} checked{% endif %}> Kısa ad</label>
+            <label><input type="radio" name="kisim_ad" value="no"{% if o.kisim_ad == "no" %} checked{% endif %}> Yalnızca numara (70.KISIM → 70)</label>
+          </div>
+        </div>
+
+        <div data-show="bireysel carsaf carsaf_gun yuk">
+          <label class="label">Öğretmen künyesi (bölüm, rütbe, ünvan)</label>
+          <div class="seg-radio" data-show="carsaf carsaf_gun yuk">
+            <label><input type="radio" name="kunye_yer" value="on"{% if o.kunye_yer == "on" %} checked{% endif %}> Adın önünde</label>
+            <label><input type="radio" name="kunye_yer" value="sutun"{% if o.kunye_yer == "sutun" %} checked{% endif %}> Ayrı sütunlarda</label>
+          </div>
+          <div class="report-checks inline">{% for key, label in kunye.items %}<label><input type="checkbox" name="kunye" value="{{ key }}"{% if key in o.kunye %} checked{% endif %}> {{ label }}</label>{% endfor %}</div>
+        </div>
+
+        <label class="label">Sayfa</label>
+        <div class="dialog-row">
+          <select class="select" name="yon"><option value="yatay"{% if o.yon == "yatay" %} selected{% endif %}>Yatay A4</option><option value="dikey"{% if o.yon == "dikey" %} selected{% endif %}>Dikey A4</option></select>
+          <select class="select" name="boyut"><option value="kucuk"{% if o.boyut == "kucuk" %} selected{% endif %}>Küçük yazı</option><option value="normal"{% if o.boyut == "normal" %} selected{% endif %}>Normal</option><option value="buyuk"{% if o.boyut == "buyuk" %} selected{% endif %}>Büyük yazı</option></select>
+        </div>
+        <label class="label" for="r-baslik">Başlık (boş = otomatik)</label>
+        <input class="input" name="baslik" id="r-baslik" value="{{ o.baslik }}" placeholder="ör. 2026-2027 Güz Dönemi Ders Programı">
+        <label class="label" for="r-alt">Alt bilgi / imza</label>
+        <textarea class="input" name="alt" id="r-alt" rows="3" placeholder="En fazla 3 satır, ör.&#10;Ad SOYAD&#10;Rütbe&#10;Okul Müdürü">{{ o.alt }}</textarea>
+      </div>
+    </form>
+    <div class="panel-body" style="border-top:1px solid var(--border)">
+      <form method="post" class="dialog-row" id="preset-form">{% csrf_token %}
+        <input class="input" name="name" placeholder="Şablon adı" required>
+        <button class="btn btn-sm">Ayarları kaydet</button>
+      </form>
+      {% if presets %}
+        <ul class="preset-list">
+          {% for p in presets %}
+            <li><a href="?{{ p.query }}">{{ p.preset.name }}</a>
+              <form method="post" onsubmit="return confirm('Şablon silinsin mi?')">{% csrf_token %}<input type="hidden" name="action" value="delete_preset"><input type="hidden" name="preset" value="{{ p.preset.pk }}"><button class="btn btn-sm btn-ghost" title="Sil">✕</button></form></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  </aside>
+  <div class="report-preview">
+    <iframe id="report-frame" src="{% url 'timetable:report_render' timetable.pk %}?{{ query }}&gomulu=1" title="Rapor ön izleme"></iframe>
+  </div>
+</div>
+<form method="post" id="uybs-archive-form" action="{% url 'timetable:uybs_archive' timetable.pk %}" hidden>{% csrf_token %}
+  <input type="hidden" name="hafta"><input type="hidden" name="vekalet"><input type="hidden" name="next">
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const form = document.getElementById("report-form");
+  const frame = document.getElementById("report-frame");
+  const base = "{% url 'timetable:report_render' timetable.pk %}";
+  const open = document.getElementById("open-report");
+  const params = () => new URLSearchParams(new FormData(form)).toString();
+  const toggle = () => {
+    const tur = form.tur.value;
+    form.querySelectorAll("[data-show]").forEach((el) => { el.hidden = !el.dataset.show.split(" ").includes(tur); });
+    form.querySelectorAll("[data-varlik]").forEach((el) => { el.hidden = form.varlik.value !== el.dataset.varlik; });
+  };
+  let timer;
+  const refresh = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const q = params();
+      frame.src = base + "?" + q + "&gomulu=1";
+      open.href = base + "?" + q;
+      document.getElementById("excel-report").href = "{% url 'timetable:report_excel' timetable.pk %}?" + q;
+      document.getElementById("pdf-report").href = "{% url 'timetable:report_pdf' timetable.pk %}?" + q;
+      history.replaceState(null, "", "?" + q);
+    }, 250);
+  };
+  form.addEventListener("change", (e) => {
+    if (e.target.name === "tur") {
+      // Çarşaf listelerde hücreler dar: kısa ad varsayılan; bireysel programda tam ad.
+      const short = e.target.value.startsWith("carsaf");
+      form.querySelector('[name=ders_adi][value="' + (short ? "kisa" : "tam") + '"]').checked = true;
+    }
+    // Kimler için değişince seçim listesi yenilenir.
+    if (e.target.matches("[data-reload]")) { form.querySelectorAll("[name=secim]").forEach((c) => { c.checked = false; }); form.submit(); return; }
+    toggle();
+    refresh();
+  });
+  form.addEventListener("input", (e) => { if (e.target.matches("input[type=text], input:not([type]), textarea")) refresh(); });
+  document.getElementById("preset-form").addEventListener("submit", (e) => {
+    new FormData(form).forEach((v, k) => {
+      const input = document.createElement("input");
+      input.type = "hidden"; input.name = k; input.value = v;
+      e.target.appendChild(input);
+    });
+  });
+  document.getElementById("print-report").addEventListener("click", () => frame.contentWindow.print());
+  // ÜYBS: şablon bağlantısı ve hafta arşivi formu güncel seçimleri taşısın.
+  const uybsLink = document.getElementById("uybs-export");
+  const uybsBase = "{% url 'timetable:uybs_export' timetable.pk %}?";
+  form.addEventListener("change", () => { uybsLink.href = uybsBase + params(); });
+  document.getElementById("uybs-archive-form").addEventListener("submit", (e) => {
+    const f = e.target;
+    if (!form.hafta.value) { e.preventDefault(); alert("Önce haftayı seçin."); return; }
+    if (e.submitter && e.submitter.value === "delete" && !confirm("Bu haftanın arşivi silinsin mi?")) { e.preventDefault(); return; }
+    f.hafta.value = form.hafta.value;
+    f.vekalet.value = form.vekalet.checked ? "1" : "0";
+    f.next.value = location.pathname + "?" + params();
+  });
+  toggle();
+})();
+</script>
+{% endblock %}

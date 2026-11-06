@@ -1,0 +1,40 @@
+{% extends "timetable/base.html" %}
+{% block title %}aSc kart ilişkilerini aktar{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{% url 'timetable:data_list' school.pk 'kart-iliskileri' %}">Kart ilişkileri</a>{% endblock %}
+{% block heading %}<h1>aSc'den kart ilişkisi aktar</h1>{% endblock %}
+{% block content %}
+{% include "timetable/data/subnav.html" %}
+{% if not proposals %}
+<div class="panel">
+  <div class="panel-body">
+    <p class="page-lead">aSc'de <b>Kart ilişkileri</b> listesini açın. Ya tabloya sağ tıklayıp <b>İncele</b> ile tablonun HTML'ini kopyalayın, ya da satırları seçip kopyalayın; buraya yapıştırın. Satırlardaki ders kodları programdaki derslerle eşleştirilir: ör. “Tüm Sınıflar – BİL103, BİL103” her sınıfta BİL103 kodlu teori ve uygulama derslerinin art arda olması demektir. Önce ön izleme gösterilir; hiçbir şey kaydedilmez.</p>
+    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="preview">
+      <textarea class="input" name="text" rows="14" placeholder="&lt;div class=&quot;dt-container …&quot;&gt;&lt;table&gt;… ya da sekmeyle ayrılmış satırlar" required>{{ text }}</textarea>
+      <div style="margin-top:10px"><button class="btn btn-primary">Ön izle</button>
+        {% if text %}<span class="bad small">Yapıştırılan metinde tanınan satır bulunamadı.</span>{% endif %}</div>
+    </form>
+  </div>
+</div>
+{% else %}
+<form method="post">{% csrf_token %}<input type="hidden" name="action" value="import">
+  <textarea name="text" hidden>{{ text }}</textarea>
+  <p class="page-lead">{{ rows|length }} aSc satırından <b>{{ ok_count }}</b> ilişki önerisi çıktı. İstemediklerinizin işaretini kaldırıp <b>Aktar</b> deyin. Saatleri aSc listesinde görünmeyen koşullar (ör. “Kartlar seçilen saatlerde olmalıdır”) devre dışı oluşturulur; zaman haritasını işaretleyip etkinleştirin.</p>
+  <div class="panel">
+    <div class="panel-body flush table-wrap">
+      <table class="table">
+        <thead><tr><th style="width:28px"><input type="checkbox" checked onclick="this.closest('table').querySelectorAll('[name=sec]:not(:disabled)').forEach(c=>c.checked=this.checked)" aria-label="Tümü"></th><th>aSc</th><th>Oluşacak ilişki</th><th>Dersler / kapsam</th><th>Önem</th><th>Not</th></tr></thead>
+        <tbody>{% for i, p in proposals %}<tr{% if p.error %} class="subtle"{% endif %}>
+          <td><input type="checkbox" name="sec" value="{{ i }}"{% if p.error %} disabled{% else %} checked{% endif %}></td>
+          <td class="small"><b>{{ p.row }}</b> <span class="subtle">{{ p.source|truncatechars:70 }}</span></td>
+          <td>{% if p.error %}–{% else %}{{ p.name }}{% endif %}</td>
+          <td class="small">{{ p.detail|default:"" }}</td>
+          <td class="small">{% if not p.error %}{{ p.importance_label }}{% if not p.active %} · <span class="pill warn">devre dışı</span>{% endif %}{% endif %}</td>
+          <td class="small">{% if p.error %}<span class="bad">{{ p.error }}</span>{% else %}{{ p.warning }}{% endif %}</td>
+        </tr>{% endfor %}</tbody>
+      </table>
+    </div>
+    <div class="form-actions"><div><button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} Aktar</button> <a class="btn btn-ghost" href="{% url 'timetable:relationship_import' school.pk %}">Baştan yapıştır</a></div></div>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

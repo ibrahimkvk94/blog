@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Yoklama formu · {{ tarih|date:"d.m.Y" }}{% endblock %}
+{% block content %}
+<div class="sayfa-baslik d-print-none">
+  <div>
+    <h1>Günlük yoklama formu</h1>
+    <p class="text-secondary mb-0">{{ tarih|date:"d F Y, l" }}{% if tarih == bugun %} · bugün{% endif %}{% if secili_birim %} · {{ secili_birim.ad }}{% else %} · tüm okul{% endif %}</p>
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-primary" href="?tarih={{ tarih|date:'Y-m-d' }}{{ birim_q }}&excel=1"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+    <button class="btn btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer me-1"></i>Yazdır</button>
+  </div>
+</div>
+
+{% include "yoklama/_sekmeler.html" with sekme="form" %}
+
+<div class="kart p-2 mb-3 d-print-none">
+  <form method="get" class="d-flex flex-wrap align-items-center gap-2">
+    <div class="btn-group">
+      <a class="btn btn-outline-secondary" href="?tarih={{ dun|date:'Y-m-d' }}{{ birim_q }}" title="Önceki gün"><i class="bi bi-chevron-left"></i></a>
+      <a class="btn btn-outline-secondary {% if tarih == bugun %}active{% endif %}" href="?tarih={{ bugun|date:'Y-m-d' }}{{ birim_q }}">Bugün</a>
+      <a class="btn btn-outline-secondary" href="?tarih={{ yarin|date:'Y-m-d' }}{{ birim_q }}" title="Sonraki gün"><i class="bi bi-chevron-right"></i></a>
+    </div>
+    <input type="date" class="form-control w-auto" name="tarih" value="{{ tarih|date:'Y-m-d' }}" onchange="this.form.submit()" aria-label="Tarih">
+    {% include "yoklama/_birim_secimi.html" %}
+    <div class="ms-auto d-flex flex-wrap align-items-center gap-2">
+      <span class="small text-secondary">Birden çok gün (her gün ayrı sayfa):</span>
+      <input type="date" class="form-control form-control-sm w-auto" name="bit" value="{{ yarin|date:'Y-m-d' }}" aria-label="Son gün" form="ykCokGun">
+      <button class="btn btn-sm btn-outline-primary" form="ykCokGun"><i class="bi bi-download me-1"></i>Excel</button>
+    </div>
+  </form>
+  <form id="ykCokGun" method="get" class="d-none">
+    <input type="hidden" name="tarih" value="{{ tarih|date:'Y-m-d' }}">
+    {% if secili_birim %}<input type="hidden" name="birim" value="{{ secili_birim.pk }}">{% endif %}
+    <input type="hidden" name="excel" value="1">
+  </form>
+</div>
+
+<div class="yk-kagit">
+  <div class="yk-kagit-ust">{% for s in f.ust_baslik %}<div>{{ s }}</div>{% endfor %}</div>
+  <div class="yk-kagit-baslik"><span>{{ f.baslik }}</span><span class="yk-kagit-tarih">{{ tarih|date:"d.m.Y" }}</span></div>
+
+  <table class="yk-resmi yk-sayim">
+    <colgroup><col style="width:15%"><col style="width:10%"><col style="width:13%"><col style="width:9%"><col style="width:10%"><col style="width:11%"><col style="width:11%"><col style="width:9%"><col style="width:12%"></colgroup>
+    <thead>
+      <tr><th rowspan="2"></th><th rowspan="2">GENERAL<br>AMİRAL</th><th rowspan="2">ÖĞRETİM ELEMANI<br>(SİVİL)</th><th colspan="2">ÖĞRETİM ELEMANI</th><th rowspan="2">SUBAY<br>(YD.SB.DAHİL)</th><th rowspan="2">ASB.<br>(YD.ASB.DAHİL)</th><th rowspan="2">SVL.ME.</th><th rowspan="2">GENEL TOPLAM</th></tr>
+      <tr><th>SUBAY</th><th>ASTSUBAY</th></tr>
+    </thead>
+    <tbody>
+      {% for s in f.sayim %}
+      <tr class="{% if forloop.counter == 2 %}yk-gayri{% elif forloop.last %}yk-hazir{% endif %}">
+        <th class="text-start">{{ s.ad }}</th>
+        {% for d in s.degerler %}<td class="{% if forloop.last %}fw-bold{% endif %}">{{ d }}</td>{% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <table class="yk-resmi yk-beyan">
+    <colgroup><col style="width:7%"><col style="width:31%"><col style="width:20%"><col style="width:16%"><col style="width:13%"><col style="width:13%"></colgroup>
+    <thead>
+      <tr><th colspan="6" class="yk-beyan-baslik">GAYRİ MEVCUT BEYANI (<u>SADECE MESAİDE BULUNMAYAN PERSONEL BİLDİRİLECEKTİR.</u>)</th></tr>
+      <tr><th>S.NO.</th><th>PERSONEL KİMLİĞİ</th><th>GÖREVİ</th><th>MAZERET SEBEBİ</th><th>AYRILIŞ TARİHİ</th><th>KATILIŞ TARİHİ</th></tr>
+    </thead>
+    <tbody>
+      {% for b in f.beyan %}
+      <tr>
+        <td>{{ forloop.counter }}</td>
+        <td class="text-start"><a class="yk-kagit-baglanti" href="{% url 'yoklama:kart' b.personel.pk %}?tarih={{ tarih|date:'Y-m-d' }}">{{ b.kimlik }}</a></td>
+        <td class="text-start">{{ b.gorev }}</td>
+        <td><a class="yk-kagit-baglanti" href="{% url 'yoklama:kayit' b.kayit.pk %}">{{ b.sebep }}</a></td>
+        <td>{{ b.ayrilis }}</td>
+        <td>{{ b.katilis }}</td>
+      </tr>
+      {% endfor %}
+      {% for n in bos_satirlar %}<tr><td>{{ n }}</td><td></td><td></td><td></td><td></td><td></td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="row g-3 mt-1 d-print-none">
+  <div class="col-12 col-lg-7">
+    <div class="kart p-3 h-100">
+      <h2 class="h6 fw-bold mb-2"><i class="bi bi-clock me-1"></i>Gün içinde saatlik ayrılanlar <span class="text-secondary fw-normal small">— mesaide oldukları için forma girmez</span></h2>
+      {% for s in f.saatlik %}
+        <div class="d-flex flex-wrap gap-2 align-items-center py-1 {% if not forloop.last %}border-bottom{% endif %}">
+          <a class="text-decoration-none fw-semibold" href="{% url 'yoklama:kart' s.personel.pk %}?tarih={{ tarih|date:'Y-m-d' }}">{{ s.kimlik }}</a>
+          <span class="yk-cip" style="--renk: {{ s.kayit.tur.renk }}"><span class="yk-nokta"></span>{{ s.sebep }} <span class="saat">{{ s.aralik }}</span></span>
+        </div>
+      {% empty %}
+        <div class="small text-secondary">Saatlik kayıt yok.</div>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="col-12 col-lg-5">
+    <div class="kart p-3 h-100 small">
+      <h2 class="h6 fw-bold mb-2"><i class="bi bi-info-circle me-1"></i>Form nasıl dolduruluyor?</h2>
+      <ul class="ps-3 mb-2">
+        <li><strong>Genel mevcut:</strong> sistemdeki aktif personel{% if secili_birim %} ({{ secili_birim.ad }} ve alt birimleri){% endif %}.</li>
+        <li><strong>Gayri mevcut:</strong> o gün <em>gün boyu</em> kaydı olanlar (izin, rapor, görev…). Aşağıdaki beyan listesi de bunlardır.</li>
+        <li><strong>Hazır mevcut:</strong> genel mevcut − gayri mevcut.</li>
+        <li>Ayrılış: kaydın başladığı gün; katılış: göreve döndüğü gün.</li>
+      </ul>
+      Sütunlar künyeden otomatik bulunur (bölümde görevli ya da öğretmen sınıfı/akademik unvanı olan = öğretim elemanı).
+      {% if y.yonetim %}<a href="{% url 'yoklama:gruplar' %}">Yoklama gruplarından</a> kişi bazında değiştirilebilir.{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

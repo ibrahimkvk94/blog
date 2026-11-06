@@ -1,0 +1,71 @@
+{% extends "timetable/base.html" %}
+{% block title %}Derslik atama{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / Veri{% endblock %}
+{% block heading %}<h1>Derslik atama</h1><span class="pill{% if data.lessons %} warn{% else %} ok{% endif %}">{{ data.lessons }} ders dersliksiz</span>{% endblock %}
+{% block content %}
+{% include "timetable/data/subnav.html" %}
+<p class="page-lead">Dersliği belirlenemeyen derslerde derslik çakışması denetlenmez. Çözücü dersliği şu sırayla arar: dersin kendi dersliği → ders adının varsayılan derslikleri → öğretmen dersliği → sınıf dersliği. Aşağıdan iki yolla toplu atayın; bir derse ayrıca derslik seçilmişse ona dokunulmaz. Uygula'dan sonra kalan sayı yeniden hesaplanır.</p>
+{% if not data.lessons %}
+  <div class="panel panel-body"><b>Tüm derslerin dersliği belirli.</b> Derslik çakışmaları denetleniyor.</div>
+{% else %}
+<form method="post" id="rw-form">
+  {% csrf_token %}
+  <div class="rw-layout">
+    <section class="panel">
+      <div class="panel-head"><h2><span class="step-no">1</span>Ders kodu önekine göre derslik</h2><span class="subtle small">ders adının varsayılan derslikleri</span></div>
+      <div class="panel-body rw-prefixes">
+        <p class="subtle small" style="margin-top:0">Her önek için uygun derslikleri seçin; birden çok seçerseniz çözücü o saatte boş olanı kullanır. Öneri: adı aynı önekle başlayan derslikler. Uygulama (U) dersleri işaretlidir; laboratuvarı yalnızca onlara vermek için “Yalnızca (U)”ya basın.</p>
+        {% for p in data.prefix_rows %}
+          <details class="rw-prefix"{% if p.rooms %} open{% endif %}>
+            <summary><b>{{ p.prefix }}</b> <span class="subtle">{{ p.subjects|length }} ders adı · {{ p.lessons }} ders</span>{% if p.rooms %} <span class="pill ok">{{ p.rooms|length }} derslik önerildi</span>{% endif %}</summary>
+            <div class="rw-body">
+              <label class="label">Derslikler</label>
+              <div class="chips-field" data-chips>
+                <input class="input chip-search" placeholder="Derslik ara…">
+                <div class="chip-list">{% for r in p.room_order %}<label class="chip-opt" data-label="{{ r.name|fold }}"><input type="checkbox" name="onek-{{ p.prefix }}-derslik" value="{{ r.pk }}"{% if r.pk in p.rooms %} checked{% endif %}><span>{{ r.name }}</span></label>{% endfor %}</div>
+              </div>
+              <div class="rw-subjects">
+                <div class="rw-subjects-head"><span class="label" style="margin:0">Uygulanacak ders adları</span>
+                  <button type="button" class="btn btn-sm btn-ghost" data-rw-all>Tümü</button><button type="button" class="btn btn-sm btn-ghost" data-rw-practical>Yalnızca (U)</button><button type="button" class="btn btn-sm btn-ghost" data-rw-none>Hiçbiri</button></div>
+                {% for x in p.subjects %}<label class="tp-item{% if x.practical %} rw-practical{% endif %}"><input type="checkbox" name="onek-{{ p.prefix }}-ders" value="{{ x.s.pk }}" data-practical="{{ x.practical|yesno:'1,0' }}" checked><span>{{ x.s.name }} <span class="subtle">· {{ x.count }} ders</span></span></label>{% endfor %}
+              </div>
+            </div>
+          </details>
+        {% endfor %}
+      </div>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2><span class="step-no">2</span>Sınıflara derslik</h2><span class="subtle small">tek sınıflı dersler sınıfın dersliğinde</span></div>
+      <div class="panel-body flush table-wrap">
+        <table class="table">
+          <thead><tr><th>Sınıf</th><th class="num">Dersliksiz ders</th><th>Sınıf dersliği</th></tr></thead>
+          <tbody>
+            {% for r in data.class_rows %}
+              <tr><td><b>{{ r.cls.name }}</b>{% if r.cls.short and r.cls.short != r.cls.name %} <span class="subtle">{{ r.cls.short }}</span>{% endif %}</td>
+                <td class="num">{{ r.count }}</td>
+                <td><select class="select select-sm" name="sinif-{{ r.cls.pk }}"><option value="">— atama</option>{% for room in data.rooms %}<option value="{{ room.pk }}">{{ room.name }}</option>{% endfor %}</select>
+                  {% if r.hint %}<div class="subtle small" title="Bu sınıfın derslerinin programlarda en çok yapıldığı derslikler (ders sayısı)">Programda: {{ r.hint }}</div>{% endif %}</td></tr>
+            {% empty %}<tr><td colspan="3" class="subtle">Tek sınıflı dersliksiz ders yok.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+        {% if data.multi %}<p class="subtle small" style="padding:0 16px">{{ data.multi }} birleşik (çok sınıflı) ders var: sınıflarından yalnızca birinin dersliği varsa o kullanılır; birden çok sınıfın dersliği farklıysa önek ya da dersin kendi dersliğiyle atayın.</p>{% endif %}
+      </div>
+    </section>
+  </div>
+  <div class="form-actions"><div><button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} Seçilenleri uygula</button><span class="subtle small">Ders adlarına derslik eklenir (var olanlar silinmez); sınıf dersliği seçilen sınıflarda değişir.</span></div></div>
+</form>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% load assets %}<script src="{% asset 'timetable/data.js' %}"></script>
+<script>
+(function () {
+  document.querySelectorAll(".rw-subjects").forEach((box) => {
+    const boxes = () => [...box.querySelectorAll("input[type=checkbox]")];
+    box.querySelector("[data-rw-all]").addEventListener("click", () => boxes().forEach((b) => { b.checked = true; }));
+    box.querySelector("[data-rw-none]").addEventListener("click", () => boxes().forEach((b) => { b.checked = false; }));
+    box.querySelector("[data-rw-practical]").addEventListener("click", () => boxes().forEach((b) => { b.checked = b.dataset.practical === "1"; }));
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "timetable/public/base.html" %}
+{% block title %}Vekâlet · {{ school }}{% endblock %}
+{% block heading %}Vekâlet listesi · {{ date|date:"d.m.Y" }} {{ day_name }}{% endblock %}
+{% block nav %}<span id="clock" style="font-size:22px;font-weight:700"></span>{% endblock %}
+{% block style %}
+  body { font-size: 20px; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 12px; overflow: hidden; }
+  th, td { padding: 14px 16px; border-bottom: 1px solid var(--line); text-align: left; }
+  th { background: var(--brand-soft); font-size: 16px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  td.p { font-weight: 800; font-size: 26px; width: 90px; }
+  .none { color: var(--danger); font-weight: 700; }
+  @media (max-width: 700px) {
+    body { font-size: 16px; }
+    thead { display: none; }
+    table, tbody, tr, td { display: block; width: 100%; }
+    tr { padding: 10px 14px; border-bottom: 1px solid var(--line); }
+    td { border: 0; padding: 2px 0; }
+    td.p { font-size: 20px; width: auto; }
+  }
+  .empty { padding: 40px; text-align: center; color: var(--muted); }
+{% endblock %}
+{% block content %}
+  {% if rows %}
+    <table>
+      <thead><tr><th>Saat</th><th>Sınıf</th><th>Ders</th>{% if school.publish_teachers %}<th>Gelmeyen</th>{% endif %}<th>Vekil</th></tr></thead>
+      <tbody>{% for r in rows %}<tr><td class="p">{{ r.period }}.</td><td><b>{{ r.classes }}</b>{% if r.groups %} <span class="muted">{{ r.groups }}</span>{% endif %}</td><td>{{ r.subject }}</td>{% if school.publish_teachers %}<td>{{ r.absent }}</td>{% endif %}<td>{% if r.substitute %}<b>{{ r.substitute }}</b>{% else %}<span class="none">boş geçecek</span>{% endif %}</td></tr>{% endfor %}</tbody>
+    </table>
+  {% else %}<div class="card empty">Bugün için vekâlet yok.</div>{% endif %}
+  <script>
+    const clock = () => { document.getElementById("clock").textContent = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }); };
+    clock(); setInterval(clock, 10000);
+    setTimeout(() => location.reload(), 60000);
+  </script>
+{% endblock %}

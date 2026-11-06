@@ -1,0 +1,6 @@
+Option Explicit
+
+Private Sub Workbook_Open()
+    Application.EnableEvents = True
+    OkutmayaHazirla
+End Sub

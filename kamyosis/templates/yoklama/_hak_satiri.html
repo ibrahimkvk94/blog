@@ -1,0 +1,12 @@
+{% comment %}Yıl özeti satırı: o = {tur, gun, saat, adet, hak, kalan, asim, yuzde}. Hakkı olan türde çubuk ve kalan gün.
+koyu: koyu zemin (yoklama kartı başlığı).{% endcomment %}
+<div class="yk-hak{% if o.asim %} yk-hak-asim{% endif %}" style="--renk: {{ o.tur.renk }}">
+  <div class="d-flex align-items-center justify-content-between gap-3">
+    <span class="yk-cip" style="--renk: {{ o.tur.renk }}"><span class="yk-nokta"></span>{{ o.tur.ad }}</span>
+    <span class="fw-semibold text-nowrap">{% if o.hak is not None %}{{ o.gun }} / {{ o.hak }} gün{% elif o.tur.mevcut_sayilir %}{{ o.adet }} kez{% else %}{% if o.gun %}{{ o.gun }} gün{% endif %}{% if o.gun and o.saat %} · {% endif %}{% if o.saat %}{{ o.saat|floatformat:"-1" }} saat{% endif %}{% endif %}</span>
+  </div>
+  {% if o.hak is not None %}
+  <div class="yk-hak-cubuk mt-1" role="progressbar" aria-label="{{ o.tur.ad }} kullanımı" aria-valuemin="0" aria-valuemax="{{ o.hak }}" aria-valuenow="{{ o.gun }}"><span style="width: {{ o.yuzde }}%"></span></div>
+  <div class="yk-hak-kalan {% if koyu %}koyu{% endif %}">{% if o.asim %}<i class="bi bi-exclamation-triangle-fill me-1"></i>{{ o.asim }} gün hak aşımı{% elif o.saat %}kalan {{ o.kalan }} gün · ayrıca {{ o.saat|floatformat:"-1" }} saat (haktan düşmez){% else %}kalan {{ o.kalan }} gün{% endif %}</div>
+  {% endif %}
+</div>

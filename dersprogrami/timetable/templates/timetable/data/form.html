@@ -1,0 +1,54 @@
+{% extends "timetable/data/editor_base.html" %}
+{% block title %}{% if obj %}{% firstof obj.full_name obj %}{% else %}Yeni {{ entity.singular|lower }}{% endif %}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{{ list_url }}">{{ entity.title }}</a>{% endblock %}
+{% block heading %}<h1>{{ entity.title }}</h1>{% endblock %}
+{% block nav_title %}{{ entity.title }}{% endblock %}
+{% block avatar %}{% if obj %}{% firstof obj.short|slice:":3" obj.full_name|slice:":2" obj.name|slice:":2" %}{% else %}+{% endif %}{% endblock %}
+{% block record_kind %}{{ entity.singular }}{% endblock %}
+{% block record_title %}{% if obj %}{% firstof obj.full_name obj %}{% else %}Yeni {{ entity.singular|lower }}{% endif %}{% endblock %}
+{% block head_actions %}
+  {% if obj and entity.slug == "siniflar" %}<a class="btn btn-sm" href="{% url 'timetable:class_lessons' school.pk obj.pk %}">{% include "timetable/icon.html" with name="list" %} Ders tablosu</a>{% endif %}
+{% endblock %}
+{% block bar_extra %}{% if obj %}<button class="btn btn-ghost btn-danger" form="delete-form" title="{{ impact|default:'Bu işlem geri alınamaz.' }}">Sil</button>{% endif %}{% endblock %}
+{% block editor_body %}
+<form method="post" class="data-form rec-form" id="entity-form" novalidate>
+  {% csrf_token %}
+  {% include "timetable/data/record_state.html" %}
+  <div class="alert alert-error" data-non-field{% if not form.non_field_errors %} hidden{% endif %}>{{ form.non_field_errors|join:" " }}</div>
+  {% include "timetable/data/sections.html" %}
+  {% if form.map_meta %}{{ form.map_meta|json_script:"time-map-meta" }}{% endif %}
+  {% if divisions is not None %}
+    <div class="rec-panel" data-tab-panel="bolunmeler">
+      <section class="fsec fsec-wide">
+        <div class="fsec-head">
+          <div><h3>Bölünmeler ve gruplar</h3><p>Bir bölünme sınıfı tamamen kapsayan gruplardır (ör. “Yabancı dil 2: Almanca, Fransızca” ya da “Beden: Kız, Erkek”). Aynı bölünmedeki gruplar aynı anda farklı derslerde olabilir.</p></div>
+          <button type="button" class="btn btn-sm" data-add-division>{% include "timetable/icon.html" with name="plus" %} Bölünme ekle</button>
+        </div>
+        <div class="fsec-body" data-divisions>
+          {{ divisions|json_script:"divisions-data" }}
+          <input type="hidden" name="divisions" value="">
+          <div class="division-list"></div>
+        </div>
+      </section>
+    </div>
+  {% endif %}
+  {% if availability %}<div class="rec-panel" data-tab-panel="musaitlik">{% include "timetable/data/availability.html" %}</div>{% endif %}
+</form>
+{% if other_classes and divisions %}
+  <form method="post" action="{% url 'timetable:copy_divisions' school.pk obj.pk %}" class="rec-panel rec-panel-plain" data-tab-panel="bolunmeler" data-confirm="Seçilen sınıfların bölünmeleri bu sınıfınkiyle değiştirilsin mi? Aynı adlı gruplar korunur, diğerleri silinir.">
+    {% csrf_token %}
+    <section class="fsec fsec-wide">
+      <div class="fsec-head"><div><h3>Bölünmeleri başka sınıflara kopyala</h3><p>Kaydedilmiş bölünmeler kopyalanır.</p></div></div>
+      <div class="fsec-body">
+        <div class="chips-field" data-chips><input class="input chip-search" placeholder="Sınıf ara…"><div class="chip-list">
+          {% for c in other_classes %}<label class="chip-opt" data-label="{{ c.name|fold }}"><input type="checkbox" name="targets" value="{{ c.pk }}"> {{ c.name }}</label>{% endfor %}
+        </div></div>
+        <button class="btn btn-sm" style="margin-top:10px">Seçili sınıflara kopyala</button>
+      </div>
+    </section>
+  </form>
+{% endif %}
+{% if obj %}
+  <form method="post" action="{% url 'timetable:data_delete' school.pk entity.slug obj.pk %}" id="delete-form" hidden data-confirm="{{ entity.singular }} silinsin mi?{% if impact %} {{ impact }}{% endif %}">{% csrf_token %}</form>
+{% endif %}
+{% endblock %}

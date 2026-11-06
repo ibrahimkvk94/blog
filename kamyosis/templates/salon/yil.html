@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Salon durumu · {{ yil }}{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Salon durumu</h1>
+    <p class="text-secondary mb-0">Konferans salonu ve amfilerin doluluğu. Renkli nokta o gün kaydı olan salonu gösterir; güne dokununca saat saat müsaitlik açılır.</p>
+  </div>
+</div>
+
+{% include "salon/_ust.html" with gorunum="yil" yil_q=yil ay_q_yil=bugun.year ay_q_ay=bugun.month gun_q=bugun|date:"Y-m-d" yeni_q="" %}
+
+<div class="sl-simdi mb-3">
+  {% for d in durum %}
+    <a class="sl-simdi-kart" style="--renk: {{ d.salon.renk }}" href="{% url 'salon:gun' bugun|date:'Y-m-d' %}{% if sq %}?{{ sq|slice:'1:' }}{% endif %}">
+      <span class="sl-simdi-ad"><span class="sl-nokta"></span>{{ d.salon.ad }}</span>
+      {% if d.su_an %}
+        <span class="sl-simdi-durum dolu"><i class="bi bi-circle-fill"></i>Şu an dolu</span>
+        <span class="sl-simdi-alt">{{ d.su_an.baslik }} · {% if d.su_an.tum_gun %}tüm gün{% else %}{{ d.su_an.bit|time:"H:i" }}'e kadar{% endif %}</span>
+      {% else %}
+        <span class="sl-simdi-durum musait"><i class="bi bi-circle-fill"></i>Şu an müsait</span>
+        <span class="sl-simdi-alt">{% if d.siradaki %}Sıradaki: {{ d.siradaki.bas|time:"H:i" }} · {{ d.siradaki.baslik }}{% else %}Bugün başka kayıt yok{% endif %}</span>
+      {% endif %}
+    </a>
+  {% endfor %}
+</div>
+
+<div class="sl-yil-baslik">
+  <a class="btn btn-sm btn-light" href="?yil={{ yil|add:'-1' }}{{ sq }}" aria-label="Önceki yıl"><i class="bi bi-chevron-left"></i></a>
+  <h2>{{ yil }}</h2>
+  <a class="btn btn-sm btn-light" href="?yil={{ yil|add:'1' }}{{ sq }}" aria-label="Sonraki yıl"><i class="bi bi-chevron-right"></i></a>
+  {% if yil != bugun.year %}<a class="btn btn-sm btn-outline-primary" href="?yil={{ bugun.year }}{{ sq }}">Bu yıl</a>{% endif %}
+  <span class="sl-lejant ms-auto"><span class="sl-isi isi-1"></span>az <span class="sl-isi isi-2"></span>yarı <span class="sl-isi isi-3"></span>çok dolu</span>
+</div>
+
+<div class="sl-yil">
+  {% for a in aylar %}
+  <section class="sl-ay{% if a.ay == bugun.month and yil == bugun.year %} bu-ay{% endif %}">
+    <a class="sl-ay-ad" href="{% url 'salon:ay' yil a.ay %}{% if sq %}?{{ sq|slice:'1:' }}{% endif %}">{{ a.ad }}{% if a.kayit_gunu %}<span class="sl-ay-sayi" title="Kaydı olan gün">{{ a.kayit_gunu }}</span>{% endif %}</a>
+    <div class="sl-mini">
+      {% for g in gun_adlari %}<span class="sl-mini-gun">{{ g }}</span>{% endfor %}
+      {% for hafta in a.haftalar %}{% for d in hafta %}
+        {% if d.ay_ici %}
+        <a class="sl-mini-hucre isi-{{ d.doluluk }}{% if d.bugun %} bugun{% endif %}{% if d.hs %} hs{% endif %}" href="{% url 'salon:gun' d.tarih|date:'Y-m-d' %}{% if sq %}?{{ sq|slice:'1:' }}{% endif %}" title="{{ d.tarih|date:'d.m.Y l' }}{% for s in d.noktalar %} · {{ s.ad }} dolu{% empty %} · tümü müsait{% endfor %}">
+          <span class="sayi">{{ d.tarih.day }}</span>
+          <span class="noktalar">{% for s in d.noktalar %}<i style="--renk: {{ s.renk }}"></i>{% endfor %}</span>
+        </a>
+        {% else %}<span class="sl-mini-hucre bos"></span>{% endif %}
+      {% endfor %}{% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}
