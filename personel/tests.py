@@ -123,6 +123,13 @@ class PersonelKartiTestleri(TestCase):
         m = Personel.objects.create(ad_soyad="Zeki MÜDÜR", teskilat_birimi=self.mudurluk,
                                     gorev_unvani="Yüksekokul Müdürü", idari_kadro=True)
         self.assertEqual(yetki_sirali([a, e, m], self.mudurluk), [m, e, a])
+        # hepsi idari kadro ve görevliyse "amir / müdür" unvanlı başa geçer, sorumlu o olur
+        from .kart import sorumlu_sec
+        ders = Personel.objects.create(ad_soyad="Ali ABA", gorev_unvani="Ders Plan Subayı", idari_kadro=True)
+        amir = Personel.objects.create(ad_soyad="Zeki ZORLU", gorev_unvani="Plan Program Kısım Amiri", idari_kadro=True)
+        yrd = Personel.objects.create(ad_soyad="Cem CAN", gorev_unvani="Müdür Yardımcısı", idari_kadro=True)
+        self.assertEqual(yetki_sirali([ders, yrd, amir]), [amir, yrd, ders])
+        self.assertEqual(sorumlu_sec([ders, yrd, amir]), amir)
         b = Personel.objects.create(ad_soyad="Zafer BAŞKAN", bolum=self.ask)
         self.ask.baskan = b
         self.ask.save()

@@ -1,6 +1,7 @@
 """Personel kartı yardımcıları: ek bilgi alanları, teşkilat ağacı, ders / sınav kullanımı."""
 
 import datetime
+import re
 from collections import defaultdict
 
 from django.db.models import Count, Q
@@ -74,10 +75,11 @@ def agac():
                    .values_list("teskilat_birimi").annotate(n=Count("pk")))
     bolum_sayilari = dict(Personel.objects.filter(aktif=True, teskilat_birimi__isnull=True, bolum__isnull=False)
                           .values_list("bolum").annotate(n=Count("pk")))
-    sorumlular = {}
+    gorevliler = defaultdict(list)
     for p in (Personel.objects.filter(aktif=True, teskilat_birimi__isnull=False).exclude(gorev_unvani="")
-              .select_related("rutbe", "sinif", "unvan").order_by("-idari_kadro", "pk")):
-        sorumlular.setdefault(p.teskilat_birimi_id, p)
+              .select_related("rutbe", "sinif", "unvan")):
+        gorevliler[p.teskilat_birimi_id].append(p)
+    sorumlular = {bid: sorumlu_sec(ps) for bid, ps in gorevliler.items()}
     cocuklar = defaultdict(list)
     for b in birimler:
         b.sayi = sayilar.get(b.pk, 0) + (bolum_sayilari.get(b.bolum_id, 0) if b.bolum_id else 0)
@@ -90,21 +92,36 @@ def agac():
     return cocuklar.get(None, [])
 
 
+_YONETICI_SOZ = re.compile(r"\b(müdür|müdürü|amir|amiri|başkan|başkanı|koordinatör|koordinatörü|sekreter|sekreteri|"
+                           r"komutan|komutanı)\b")
+
+
+def gorev_derecesi(p):
+    """Görev unvanına göre yetki derecesi (küçük = yetkili): birim yöneticisi (müdür, amir, başkan, koordinatör,
+    sekreter; idari kadro önce) → yardımcı → diğer idari görevli → diğer görevli → görevsiz."""
+    t = (p.gorev_unvani or "").replace("İ", "i").replace("I", "ı").lower().strip()
+    if not t:
+        return 6
+    if "yardımcı" in t:
+        return 3
+    if _YONETICI_SOZ.search(t):
+        return 1 if p.idari_kadro else 2
+    return 4 if p.idari_kadro else 5
+
+
+def sorumlu_sec(kisiler):
+    """Birimin sorumlusu: görev unvanı olanlardan en yetkilisi (eşitse önce kaydedilen)."""
+    adaylar = [p for p in kisiler if p.gorev_unvani]
+    return min(adaylar, key=lambda p: (gorev_derecesi(p), p.pk)) if adaylar else None
+
+
 def yetki_sirali(kisiler, birim=None):
-    """Birim listesinde en yetkili başta: bölüm başkanı, idari kadrodaki görev unvanlılar (müdür, şube müdürü),
-    diğer görev unvanlılar (ör. emir astsubayı); sonra gelen sırayla (alfabetik). Sıralama kararlıdır."""
+    """Birim listesinde en yetkili başta: bölüm başkanı, birim yöneticisi (ör. kısım amiri, şube müdürü), yardımcı,
+    diğer görevliler (ör. ders plan subayı, emir astsubayı); sonra gelen sırayla (alfabetik). Sıralama kararlıdır."""
     baskan_id = None
     if birim is not None and getattr(birim, "bolum_id", None):
         baskan_id = birim.bolum.baskan_id
-
-    def derece(p):
-        if baskan_id and p.pk == baskan_id:
-            return 0
-        if p.gorev_unvani:
-            return 1 if p.idari_kadro else 2
-        return 3
-
-    return sorted(kisiler, key=derece)
+    return sorted(kisiler, key=lambda p: 0 if baskan_id and p.pk == baskan_id else gorev_derecesi(p))
 
 
 def birim_personeli(birim):
@@ -179,7 +196,7 @@ def birim_ozetleri(agac, kisiler, kokler=None, eksikmap=None, haric=None):
         if getattr(b, "bolum_id", None) and b.bolum.baskan_id:
             sorumlu = b.bolum.baskan
         else:
-            sorumlu = next((p for p in sorted(ps, key=lambda x: (not x.idari_kadro, x.pk)) if p.gorev_unvani), None)
+            sorumlu = sorumlu_sec(ps)
         out.append({"birim": b, "derinlik": d, "toplam": len(ps), "alt_toplam": alt_toplam.get(b.pk, 0),
                     "fotosuz": sum(1 for p in ps if not p.fotograf),
                     "eksik": sum(1 for p in ps if eksikmap and eksikmap.get(p.pk)) if eksikmap is not None else None,
