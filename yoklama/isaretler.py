@@ -356,6 +356,27 @@ def makam(p):
     return None
 
 
+def emir_armasi(no=0):
+    """Emir astsubayı: kırmızı keçe kalkan üzerinde iki beyaz işlemeli yıldız (kenarı dikişli)."""
+    kalkan = "M7 12 Q19 15 31 10 Q43 5 55 4 L55 30 Q55 53 31 64 Q7 53 7 30 Z"
+    yildizlar = "".join(
+        _yildiz(x, y, 8.2).replace(f'fill="{ALTIN}" stroke="{KOYU}" stroke-width=".6"',
+                                   'fill="#fbfbfb" stroke="#d4d4d8" stroke-width=".8"')
+        for x, y in ((23, 27), (39, 42)))
+    return ('<svg viewBox="0 0 62 68" width="52" height="58" aria-hidden="true">'
+            f'<defs><radialGradient id="emr{no}" cx="40%" cy="30%" r="75%">'
+            '<stop offset="0" stop-color="#e3263b"/><stop offset="1" stop-color="#a50f22"/></radialGradient></defs>'
+            f'<path d="{kalkan}" fill="url(#emr{no})" stroke="#7f0a18" stroke-width="2.2" stroke-linejoin="round"/>'
+            f'<path d="{kalkan}" fill="none" stroke="#f05a6b" stroke-width=".9" stroke-dasharray="1.6 1.3" '
+            'transform="translate(31 34) scale(.9) translate(-31 -34)"/>'
+            f'{yildizlar}</svg>')
+
+
+def emir_astsubayi_mi(p):
+    unvan = str(getattr(p, "gorev_unvani", "") or "").replace("İ", "i").replace("I", "ı").lower()
+    return "emir astsubay" in unvan
+
+
 def personel_isaretleri(p):
     """[(svg, etiket)] — kartta fotoğrafın yanında gösterilecek işaretler (yoksa boş liste)."""
     rutbe, sinif, unvan = (str(x or "").strip() for x in (p.rutbe, p.sinif, p.unvan))
@@ -382,4 +403,6 @@ def personel_isaretleri(p):
         out.append((muhur(mk, p.pk), "Yüksekokul müdürü" if mk == "mudur" else "Müdür yardımcısı"))
     elif getattr(p, "idari_kadro", False):
         out.append((idari_nisan(p.pk), getattr(p, "gorev_unvani", "") or "İdari kadro"))
+    if emir_astsubayi_mi(p):
+        out.append((emir_armasi(p.pk), p.gorev_unvani))
     return [(mark_safe(svg), escape(etiket)) for svg, etiket in out]
