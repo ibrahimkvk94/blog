@@ -21,3 +21,5 @@ yedekler/
 .dis_adres
 # Yuklenen dosyalar (personel fotograflari) - kisisel veri, paylasilmaz
 medya/
+# Okuyucu Excel (makrolu ikili dosya) depoya girmez; ogrenci/okuyucu/vba/olustur.ps1 ile uretilir
+ogrenci/okuyucu/*.xlsm

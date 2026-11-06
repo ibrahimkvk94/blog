@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Kare kodlu bilgi formu{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Öğrenci kaydı</h1>
+    <p class="text-secondary mb-0">Aday öğrenciler bilgilerini kendi telefonlarında doldurur; kayıt masasında telefonda çıkan kare kod okutulur ve bilgiler Excel'e satır olarak eklenir.</p>
+  </div>
+</div>
+
+{% include "ogrenci/_sekmeler.html" %}
+
+<div class="row g-3">
+  <div class="col-lg-5">
+    <div class="kart p-3 text-center afis">
+      <div class="fw-semibold fs-5 mb-1">Öğrenci Bilgi Formu</div>
+      <div class="small text-secondary mb-2">Telefonunuzun kamerasıyla okutun, formu doldurun.</div>
+      <div class="afis-kod mx-auto">{{ karekod|safe }}</div>
+      <div class="small font-monospace text-break mt-2">{{ adres }}</div>
+    </div>
+    <div class="d-flex flex-wrap gap-2 mt-2">
+      <a class="btn btn-primary" href="{% url 'ogrenci:bilgi_formu' %}" target="_blank" rel="noopener"><i class="bi bi-box-arrow-up-right me-1"></i>Formu aç</a>
+      <button type="button" class="btn btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer me-1"></i>Afişi yazdır</button>
+      <button type="button" class="btn btn-outline-secondary" id="adresKopyala" data-adres="{{ adres }}"><i class="bi bi-clipboard me-1"></i>Bağlantıyı kopyala</button>
+    </div>
+    {% if not dis_adres_var %}
+    <div class="alert alert-warning small mt-3 mb-0"><i class="bi bi-exclamation-triangle me-1"></i>İnternet adresi tanımlı değil; bu bağlantı yalnızca kurum ağından açılır.</div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-7">
+    <div class="kart p-3 mb-3">
+      <h2 class="h6 fw-semibold mb-2"><i class="bi bi-1-circle me-1"></i>Öğrenci formu doldurur</h2>
+      <p class="small mb-0">Form dört bölümden oluşur: <b>kişisel bilgiler</b>, <b>aile bilgileri</b>, <b>iletişim</b>, <b>ÖSYM ve lise</b>.
+        Giriş gerekmez. Yazılanlar <b>sunucuya gönderilmez</b>; kare kod öğrencinin telefonunda üretilir ve bilgiler yalnızca o telefonda saklanır.
+        T.C. kimlik no, telefon ve puan biçimi formda denetlenir.</p>
+    </div>
+    <div class="kart p-3 mb-3">
+      <h2 class="h6 fw-semibold mb-2"><i class="bi bi-2-circle me-1"></i>Kayıt masasında kod okutulur</h2>
+      <p class="small mb-2">Kayıt bilgisayarında <b>Öğrenci Kare Kod Okuyucu</b> Excel dosyası açılır, “İçeriği Etkinleştir” denir.
+        “Okut” sayfasındaki sarı hücre seçiliyken öğrencinin telefonundaki kod USB kare kod okuyucuyla okutulur.
+        Öğrenci “Kayıtlar” sayfasına eklenir (sütunlar: Sıra No, TC, Ad, Soyad … Lise Programı); aynı T.C. no ikinci kez eklenmez.</p>
+      <ul class="small mb-2">
+        <li>Okuyucu <b>2D (QR) okuyabilen, ekrandan okuyan</b> bir USB okuyucu olmalı; klavye (HID) kipinde çalışır, sürücü gerekmez.</li>
+        <li>Kod yalnızca rakamlardan oluşur; okuyucunun klavye düzeni Türkçe harfleri bozmaz. Eksik okunan kod reddedilir.</li>
+        <li>Bilgisayarın ağa bağlı olması gerekmez.</li>
+      </ul>
+      {% if okuyucu_var %}
+      <a class="btn btn-outline-success btn-sm" href="{% url 'ogrenci:okuyucu' %}" download><i class="bi bi-file-earmark-spreadsheet me-1"></i>Okuyucu Excel'i indir (.xlsm)</a>
+      {% else %}
+      <div class="small text-secondary">Okuyucu Excel bu sunucuda yok (ogrenci/okuyucu/vba/olustur.ps1 ile üretilir).</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<style>
+  .afis-kod svg { width: 100%; max-width: 280px; height: auto; }
+  @media print {
+    body * { visibility: hidden !important; }
+    .afis, .afis * { visibility: visible !important; }
+    .afis { position: absolute; left: 0; top: 0; width: 100%; border: 0 !important; box-shadow: none !important; }
+    .afis-kod svg { max-width: 12cm; }
+  }
+</style>
+<script>
+  document.getElementById("adresKopyala").addEventListener("click", function () {
+    var b = this, a = b.dataset.adres;
+    (navigator.clipboard ? navigator.clipboard.writeText(a) : Promise.reject()).then(function () {
+      b.innerHTML = '<i class="bi bi-check2 me-1"></i>Kopyalandı';
+    }, function () { window.prompt("Bağlantı:", a); });
+  });
+</script>
+{% endblock %}
