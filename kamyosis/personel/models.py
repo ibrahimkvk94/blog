@@ -32,7 +32,7 @@ class Bolum(models.Model):
 
 OGRETIM_UYESI_UNVANLARI = {"Prof.Dr.", "Doç.Dr.", "Dr.Öğt.Üyesi"}
 AKADEMIK_UNVANLAR = OGRETIM_UYESI_UNVANLARI | {"Öğt.Gör.", "Öğt.Gör.Dr.", "Dr.", "Arş.Gör.", "Okt.", "Uzm."}
-MEMUR_UNVANLARI = {"De.Me.", "VHKİ"}
+MEMUR_UNVANLARI = {"De.Me.", "Söz.De.Me.", "VHKİ"}
 
 
 class Secenek(models.Model):
