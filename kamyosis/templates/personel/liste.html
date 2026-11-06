@@ -79,17 +79,12 @@
       <span><i class="bi bi-camera"></i>{{ fotosuz }} fotoğrafsız</span>
       {% if eksik_sayi is not None %}<a href="?birim={{ birim.pk }}&eksik=1"><i class="bi bi-exclamation-circle"></i>{{ eksik_sayi }} kartı eksik</a>{% endif %}
     </div>
-    {% if alt_birimler %}
-    <div class="kart p-3 mb-3 d-print-none">
-      <h2 class="h6 fw-bold mb-2"><i class="bi bi-diagram-3 me-1"></i>Alt birimler</h2>
-      <div class="yk-birimler">{% for o in alt_birimler %}{% include "personel/_birim_kutusu.html" %}{% endfor %}</div>
-    </div>
-    {% endif %}
   {% else %}
     <div class="pk-ozet mb-3"><span><i class="bi bi-search"></i>{% if q %}“{{ q }}” · {% endif %}{% if yalniz_eksik %}kartı eksik olanlar · {% endif %}{{ toplam }} kişi</span>{% if birim %}<span>{{ birim.ad }} ve alt birimleri</span>{% endif %}</div>
   {% endif %}
 
-  {% if gorunum == 'tablo' %}
+  {% if kip == 'birim' and not kisiler and alt_birimler %}{# kendi kadrosu boş: yalnız alt birimler #}
+  {% elif gorunum == 'tablo' %}
   <div class="kart">
     <div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
@@ -117,8 +112,14 @@
   {% else %}
   <div class="pk-vitrin">
     {% for p in kisiler %}{% include "personel/_kisi_karti.html" %}
-    {% empty %}<div class="kart p-5 text-center text-secondary" style="grid-column:1/-1">{% if kip == 'birim' and alt_birimler %}Bu birimin kendi kadrosunda personel yok; yukarıdan bir alt birim seçin.{% else %}Kayıt bulunamadı.{% endif %}</div>
+    {% empty %}<div class="kart p-5 text-center text-secondary" style="grid-column:1/-1">Kayıt bulunamadı.</div>
     {% endfor %}
+  </div>
+  {% endif %}
+  {% if kip == 'birim' and alt_birimler %}
+  <div class="kart p-3 mt-3 d-print-none">
+    <h2 class="h6 fw-bold mb-2"><i class="bi bi-diagram-3 me-1"></i>Alt birimler</h2>
+    <div class="yk-birimler">{% for o in alt_birimler %}{% include "personel/_birim_kutusu.html" %}{% endfor %}</div>
   </div>
   {% endif %}
 {% endif %}
