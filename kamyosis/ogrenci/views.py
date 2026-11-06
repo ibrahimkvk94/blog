@@ -5,12 +5,17 @@ kimlik bilgilerini görür, öğrenci ekler / düzenler. Kimlik kartından toplu
 """
 
 import datetime
+from pathlib import Path
 
 from django import forms
+from django.conf import settings
 from django.contrib import messages
-from django.http import HttpResponse
+from django.contrib.auth.decorators import login_not_required
+from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
+from accounts.iki_adim import karekod_svg
 from core.arama import ara
 from core.yetki import GORUNTULEME, YONETIM, yetki_gerekli, yol
 from kimlik.okuma import tr_buyuk
@@ -19,6 +24,7 @@ from personel.models import Bolum
 from .models import Ogrenci
 
 BIRIM = "ogrenci-kaydi"
+OKUYUCU = Path(__file__).resolve().parent / "okuyucu" / "Ogrenci_KareKod_Okuyucu.xlsm"
 
 
 class OgrenciFormu(forms.ModelForm):
@@ -84,7 +90,7 @@ def liste(request):
     return render(request, "ogrenci/liste.html", {
         "yol": yol(request, request.birim), "ogrenciler": qs[:1000], "toplam": qs.count(), "q": q, "durum": durum,
         "bolumler": Bolum.objects.filter(aktif=True), "secili_bolum": request.GET.get("bolum", ""),
-        "yonetici": _yonetici(request)})
+        "yonetici": _yonetici(request), "sekme": "liste"})
 
 
 @yetki_gerekli(BIRIM, GORUNTULEME)
@@ -135,3 +141,37 @@ def duzenle(request, pk=None):
         return redirect("ogrenci:liste")
     return render(request, "ogrenci/form.html", {"yol": yol(request, request.birim), "form": form, "nesne": o,
                                                  "breadcrumb_ek": True})
+
+
+# --- Kare kodlu öğrenci bilgi formu ------------------------------------------------------------------------------
+# Öğrenci formu kendi telefonunda doldurur; bilgiler sunucuya gönderilmez, kare kod tarayıcıda üretilir.
+# Kayıt masasında kod USB kare kod okuyucuyla "Öğrenci Kare Kod Okuyucu" Excel'ine (ağa bağlı olmayan PC) okutulur.
+
+@login_not_required
+def bilgi_formu(request):
+    """Herkese açık form sayfası (giriş gerekmez). Sunucuya veri gelmez: sayfada form gönderimi yoktur."""
+    return render(request, "ogrenci/bilgi_formu.html")
+
+
+def form_adresi(request):
+    """Öğrencilerin açacağı adres: internet (Funnel) adresi varsa o, yoksa sayfanın açıldığı adres."""
+    yol_ = reverse("ogrenci:bilgi_formu")
+    if settings.DIS_ADRESLER:
+        return settings.DIS_ADRESLER[0] + yol_
+    return request.build_absolute_uri(yol_)
+
+
+@yetki_gerekli(BIRIM, GORUNTULEME)
+def karekod(request):
+    adres = form_adresi(request)
+    return render(request, "ogrenci/karekod.html", {
+        "yol": yol(request, request.birim), "adres": adres, "karekod": karekod_svg(adres),
+        "dis_adres_var": bool(settings.DIS_ADRESLER), "okuyucu_var": OKUYUCU.exists(), "sekme": "karekod"})
+
+
+@yetki_gerekli(BIRIM, GORUNTULEME)
+def okuyucu_indir(request):
+    if not OKUYUCU.exists():
+        raise Http404("Okuyucu Excel dosyası sunucuda yok.")
+    return FileResponse(OKUYUCU.open("rb"), as_attachment=True, filename=OKUYUCU.name,
+                        content_type="application/vnd.ms-excel.sheet.macroEnabled.12")
