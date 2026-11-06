@@ -75,14 +75,8 @@
 </div>
 {% endif %}
 
-{% if alt_birimler %}
-<div class="kart p-3 mb-3">
-  <h2 class="h6 fw-bold mb-2"><i class="bi bi-diagram-3 me-1"></i>Alt birimler</h2>
-  <div class="yk-birimler">{% for o in alt_birimler %}{% include "yoklama/_birim_kutusu.html" %}{% endfor %}</div>
-</div>
-{% endif %}
-
-{# ---- personel listesi ---- #}
+{# ---- personel listesi (kendi kadrosu boşsa yalnız alt birimler) ---- #}
+{% if kendi_sayi or not alt_birimler %}
 <div class="kart">
   <div class="islem-cubugu d-flex flex-wrap align-items-center gap-2 p-2 border-bottom d-print-none">
     <div class="position-relative ms-1" style="max-width:300px;flex:1">
@@ -108,12 +102,20 @@
           </td>
         </tr>
       {% empty %}
-        <tr><td colspan="3" class="text-center text-secondary py-5">{% if kendi_sayi %}Bu filtrede personel yok.{% else %}Bu birimin kendi kadrosunda personel yok{% if alt_birimler %}; yukarıdan bir alt birim seçin{% endif %}.{% endif %}</td></tr>
+        <tr><td colspan="3" class="text-center text-secondary py-5">{% if kendi_sayi %}Bu filtrede personel yok.{% else %}Bu birimin kendi kadrosunda personel yok.{% endif %}</td></tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
 </div>
+{% endif %}
+
+{% if alt_birimler %}
+<div class="kart p-3 mt-3">
+  <h2 class="h6 fw-bold mb-2"><i class="bi bi-diagram-3 me-1"></i>Alt birimler</h2>
+  <div class="yk-birimler">{% for o in alt_birimler %}{% include "yoklama/_birim_kutusu.html" %}{% endfor %}</div>
+</div>
+{% endif %}
 
 {% if y.giris %}
 <div class="modal fade" id="ykEkle" tabindex="-1" aria-labelledby="ykEkleBaslik" aria-hidden="true">
