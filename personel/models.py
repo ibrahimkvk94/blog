@@ -115,6 +115,8 @@ class Personel(models.Model):
     gorev_unvani = models.CharField("Görev unvanı", max_length=80, blank=True,
                                     help_text="ör. Şube Müdürü, Kısım Amiri, Müdür Yardımcısı")
     idari_kadro = models.BooleanField("İdari kadro", default=False)
+    gelistirici = models.BooleanField("Geliştirici", default=False,
+                                      help_text="KAMYOSİS'i geliştirenler: kartta neon geliştirici nişanı.")
     brans = models.CharField("Branş", max_length=60, blank=True,
                              help_text="Öğretim elemanının alanı, ör. Fizik, Matematik, Elektronik. Görev unvanı yoksa "
                                        "raporlarda “Fizik Öğretim Görevlisi” gibi yazılır.")

@@ -351,6 +351,27 @@ def makam(p):
     return None
 
 
+def gelistirici_nisani(no=0):
+    """Geliştirici: turkuaz-mor-pembe geçişli altıgen kalkan, ortada parlayan </>, dönen kesik halka ve iki kıvılcım.
+    Hareketler CSS ile (kamyosis.css .gl-*): hareket azaltma tercihinde durur."""
+    kod = "M30 31 L21 40 L30 49 M50 31 L59 40 L50 49 M44.5 27 L35.5 53"
+    kivilcim = "l1.2 3 3 1.2 -3 1.2 -1.2 3 -1.2 -3 -3 -1.2 3 -1.2z"
+    return ('<svg viewBox="0 0 80 80" width="58" height="58" aria-hidden="true">'
+            f'<defs><linearGradient id="gl{no}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22d3ee"/>'
+            '<stop offset=".5" stop-color="#8b5cf6"/><stop offset="1" stop-color="#ec4899"/></linearGradient>'
+            f'<radialGradient id="gl{no}i" cx="50%" cy="40%" r="65%"><stop offset="0" stop-color="#312e81"/>'
+            '<stop offset="1" stop-color="#0b1020"/></radialGradient></defs>'
+            f'<polygon points="40,3 72,21.5 72,58.5 40,77 8,58.5 8,21.5" fill="url(#gl{no})"/>'
+            f'<polygon points="40,9 66.5,24.5 66.5,55.5 40,71 13.5,55.5 13.5,24.5" fill="url(#gl{no}i)"/>'
+            f'<circle class="gl-halka" cx="40" cy="40" r="25" fill="none" stroke="url(#gl{no})" stroke-width="1.6" '
+            'stroke-dasharray="3 5"/>'
+            f'<path d="{kod}" fill="none" stroke="#22d3ee" stroke-width="8" opacity=".3" stroke-linecap="round" '
+            'stroke-linejoin="round"/>'
+            f'<path d="{kod}" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>'
+            f'<path class="gl-kivilcim" d="M16 14 {kivilcim}" fill="#fff"/>'
+            f'<path class="gl-kivilcim gl-gec" d="M64 62 {kivilcim}" fill="#fff"/></svg>')
+
+
 def emir_armasi(no=0):
     """Emir astsubayı: kırmızı keçe kalkan üzerinde iki beyaz işlemeli yıldız (kenarı dikişli)."""
     kalkan = "M7 12 Q19 15 31 10 Q43 5 55 4 L55 30 Q55 53 31 64 Q7 53 7 30 Z"
@@ -398,6 +419,8 @@ def personel_isaretleri(p):
         out.append((muhur(mk, p.pk), "Yüksekokul müdürü" if mk == "mudur" else "Müdür yardımcısı"))
     elif getattr(p, "idari_kadro", False):
         out.append((idari_nisan(p.pk), getattr(p, "gorev_unvani", "") or "İdari kadro"))
+    if getattr(p, "gelistirici", False):
+        out.append((gelistirici_nisani(p.pk), "Geliştirici"))
     if emir_astsubayi_mi(p):
         out.append((emir_armasi(p.pk), p.gorev_unvani))
     return [(mark_safe(svg), escape(etiket)) for svg, etiket in out]
