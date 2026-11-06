@@ -405,6 +405,12 @@ class YoklamaFormuTestleri(SaatSabit, TestCase):
         self.assertEqual(self.oe_subay.kadro_gorevi, "Ders Plan Subayı")
         memur = Personel.objects.create(ad_soyad="Deneme ELMA", unvan=deme)
         self.assertEqual(form.otomatik_gorev(memur, G.SIVIL_MEMUR), "De.Me.")
+        # bölüm başkanlığında çalışan (sözleşmeli) devlet memuru öğretim elemanı sayılmaz
+        soz = Secenek.objects.create(tur=U, metin="Söz.De.Me.")
+        for u in (deme, soz):
+            bm = Personel.objects.create(ad_soyad=f"Deneme {u.pk}", unvan=u, bolum=self.tem, brans="Fizik")
+            self.assertEqual(form.otomatik_grup(bm), G.SIVIL_MEMUR)
+            self.assertEqual(bm.kadro_gorevi, u.metin)
         self.assertEqual(form.otomatik_gorev(self.subay, G.SUBAY), "")  # bilgi yoksa boş
         self.subay.brans = "Fizik"  # öğretim elemanı değilse branş görev sayılmaz
         self.assertEqual(form.otomatik_gorev(self.subay, G.SUBAY), "")

@@ -204,7 +204,9 @@ def kep(serit):
 
 
 # sivil personel: gömlek ve kravat (Devlet memuru / VHKİ: Veri Hazırlama Kontrol İşletmeni)
-SIVIL = {"De.Me": ("Devlet memuru", "#f8fafc", "#1f3a5f"), "VHK": ("VHKİ", "#cfe3f5", "#7d2f45")}
+SIVIL = {"De.Me": ("Devlet memuru", "#f8fafc", "#1f3a5f"),
+         "Söz.De.Me": ("Sözleşmeli devlet memuru", "#f8fafc", "#1f3a5f"),
+         "VHK": ("VHKİ", "#cfe3f5", "#7d2f45")}
 
 
 def gomlek(gomlek_rengi, kravat_rengi):

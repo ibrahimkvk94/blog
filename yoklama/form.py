@@ -12,7 +12,7 @@ import datetime
 from django.conf import settings
 from django.http import HttpResponse
 
-from personel.models import AKADEMIK_UNVANLAR
+from personel.models import AKADEMIK_UNVANLAR, MEMUR_UNVANLARI
 
 from . import servis
 from .models import PersonelGrubu
@@ -38,7 +38,9 @@ def otomatik_grup(p):
     akademik = str(p.unvan or "").strip() in AKADEMIK_UNVANLAR
     ogretim = bool(p.bolum_id) or sinif == "Öğ." or akademik
     if not rutbe:
-        return G.OE_SIVIL if ogretim else G.SIVIL_MEMUR
+        # bölüm başkanlığında çalışan De.Me. / VHKİ öğretim elemanı sayılmaz
+        memur = str(p.unvan or "").strip() in MEMUR_UNVANLARI
+        return G.OE_SIVIL if ogretim and not memur else G.SIVIL_MEMUR
     if rutbe in GENERAL_RUTBELERI:
         return G.GENERAL
     astsubay = rutbe.startswith("Asb.") or rutbe.startswith("Yd.Asb.")
