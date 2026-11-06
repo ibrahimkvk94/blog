@@ -4,6 +4,7 @@
   <li class="nav-item"><a class="nav-link {% if sekme == 'form' %}active{% endif %}" href="{% url 'yoklama:form' %}"><i class="bi bi-file-earmark-text me-1"></i>Yoklama formu</a></li>
   <li class="nav-item"><a class="nav-link {% if sekme == 'gecmis' %}active{% endif %}" href="{% url 'yoklama:gecmis' %}"><i class="bi bi-clock-history me-1"></i>Değişiklikler</a></li>
   {% if y.yonetim %}
+  <li class="nav-item"><a class="nav-link {% if sekme == 'izin_dokumu' %}active{% endif %}" href="{% url 'yoklama:izin_dokumu' %}"><i class="bi bi-file-earmark-pdf me-1"></i>İzin dökümü</a></li>
   <li class="nav-item"><a class="nav-link {% if sekme == 'turler' %}active{% endif %}" href="{% url 'yoklama:turler' %}"><i class="bi bi-tags me-1"></i>İzin türleri</a></li>
   <li class="nav-item"><a class="nav-link {% if sekme == 'gruplar' %}active{% endif %}" href="{% url 'yoklama:gruplar' %}"><i class="bi bi-diagram-3 me-1"></i>Yoklama grupları</a></li>
   <li class="nav-item"><a class="nav-link {% if sekme == 'foto' %}active{% endif %}" href="{% url 'yoklama:toplu_fotograf' %}"><i class="bi bi-images me-1"></i>Toplu fotoğraf</a></li>

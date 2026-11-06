@@ -7,7 +7,7 @@ from django.core.exceptions import PermissionDenied
 from django.db.models import Count, F
 from urllib.parse import quote
 
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -404,6 +404,29 @@ def rapor(request):
     from .rapor import excel
 
     return excel(bas, bit, list(servis.personeller(y, birim)), birim)
+
+
+@login_required
+def izin_dokumu(request):
+    """Yıllık izin dökümü: kişi kişi hangi izni kaç kez, kaç gün kullandı. Ekranda önizleme, ?pdf=1 ile PDF.
+    Yalnız tüm okulu yönetenler (idari işler yetkilisi, sistem yöneticileri)."""
+    from . import izin_dokumu as dokum
+
+    y = _yonetim(request)
+    bugun = timezone.localdate()
+    yil = int(request.GET["yil"]) if (request.GET.get("yil") or "").isdigit() else bugun.year
+    yil = min(max(yil, 2020), bugun.year + 1)
+    birim = _secili_birim(request, y)
+    yalniz = request.GET.get("yalniz") == "1"
+    veri = dokum.hazirla(y, yil, birim, yalniz)
+    if request.GET.get("pdf") == "1":
+        return HttpResponse(dokum.pdf(veri), content_type="application/pdf",
+                            headers={"Content-Disposition": f'attachment; filename="izin_dokumu_{yil}.pdf"'})
+    ilk = YoklamaKaydi.objects.order_by("baslangic").values_list("baslangic", flat=True).first()
+    ilk_yil = timezone.localtime(ilk).year if ilk else bugun.year
+    return render(request, "yoklama/izin_dokumu.html", _baglam(
+        request, v=veri, yil=yil, yillar=range(bugun.year + 1, min(ilk_yil, bugun.year) - 1, -1), yalniz=yalniz,
+        secili_birim=birim, birim_q=_birim_q(birim), birim_secenekleri=servis.birim_secenekleri(y)))
 
 
 @login_required

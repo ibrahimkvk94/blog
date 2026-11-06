@@ -696,3 +696,54 @@ class IzinHakkiTestleri(SaatSabit, TestCase):
         self.client.post(reverse("yoklama:turler"), v)
         self.rapor.refresh_from_db()
         self.assertEqual((self.rapor.rapor_sirasi, self.rapor.yillik_hak), (1, None))
+
+
+class IzinDokumuTests(TestCase):
+    """Yıllık izin dökümü: yalnız tüm okulu yöneten görür; kişi kişi kez / gün; PDF üretilir."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth import get_user_model
+
+        from core.models import Birim, Yetki
+        from personel.models import Bolum, Personel
+
+        from .models import IzinTuru
+
+        U = get_user_model()
+        birim = Birim.objects.get(slug="personel-yoklamasi")
+        cls.iiy = U.objects.create_user("iiy", password="x-Parola-123")
+        Yetki.objects.create(kullanici=cls.iiy, birim=birim, seviye=Yetki.YONETIM, kapsam=Yetki.TUM)
+        cls.bolum = Bolum.objects.create(ad="Temel Bilimler", kod="TEM")
+        cls.bolumcu = U.objects.create_user("tem", password="x-Parola-123", bolum=cls.bolum)
+        Yetki.objects.create(kullanici=cls.bolumcu, birim=birim, seviye=Yetki.DUZENLEME, kapsam=Yetki.BOLUM)
+        cls.ali = Personel.objects.create(ad_soyad="Ali KAYA", bolum=cls.bolum)
+        cls.veli = Personel.objects.create(ad_soyad="Veli ACAR", bolum=cls.bolum)
+        cls.yillik = IzinTuru.objects.get_or_create(ad="Yıllık izin", defaults={"kisa": "Yİ", "yillik_hak": 30})[0]
+
+    def _kayit(self, p, bas, bit):
+        from . import servis
+        from .models import YoklamaKaydi
+
+        b, s = servis.aralik(True, bas, bit)
+        return YoklamaKaydi.objects.create(personel=p, tur=self.yillik, baslangic=b, bitis=s, olusturan=self.iiy)
+
+    def test_yetki_ve_icerik(self):
+        import datetime
+
+        self._kayit(self.ali, datetime.date(2026, 3, 2), datetime.date(2026, 3, 6))   # 5 gün
+        self._kayit(self.ali, datetime.date(2026, 12, 30), datetime.date(2027, 1, 2))  # 2026'ya 2 gün düşer
+        url = reverse("yoklama:izin_dokumu")
+        self.client.force_login(self.bolumcu)
+        self.assertEqual(self.client.get(url).status_code, 403)
+        self.client.force_login(self.iiy)
+        r = self.client.get(url + "?yil=2026")
+        self.assertContains(r, "Ali KAYA")
+        self.assertContains(r, "7 / 30 gün")
+        self.assertContains(r, "2 kez")
+        r = self.client.get(url + "?yil=2026&yalniz=1")
+        self.assertContains(r, "Ali KAYA")
+        self.assertNotContains(r, "Veli ACAR")
+        r = self.client.get(url + "?yil=2026&pdf=1")
+        self.assertEqual(r["Content-Type"], "application/pdf")
+        self.assertTrue(r.content.startswith(b"%PDF"))
