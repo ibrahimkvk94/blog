@@ -75,6 +75,7 @@
   document.querySelectorAll("[data-yk-ara]").forEach((kutu) => {
     const hedef = document.querySelector(kutu.dataset.ykAra);
     if (!hedef) return;
+    kutu.addEventListener("keydown", (e) => { if (e.key === "Enter") e.preventDefault(); });
     kutu.addEventListener("input", () => {
       const k = sade(kutu.value).split(/\s+/).filter(Boolean);
       hedef.querySelectorAll("[data-ara]").forEach((s) => {

@@ -724,3 +724,6 @@ a.sl-mini-hucre:hover { background: var(--bs-tertiary-bg); color: var(--bs-body-
 .is-islemler { display: flex; flex-wrap: wrap; gap: .4rem; margin: .75rem 0 0 2.4rem; }
 .is-islemler .form-control { flex: 1 1 220px; max-width: 520px; }
 @media (max-width: 575.98px) { .is-notlar, .is-islemler { margin-left: 0; } }
+
+/* hidden özniteliği her zaman gizler (ör. aramada süzülen .d-flex satırlar) */
+[hidden] { display: none !important; }
