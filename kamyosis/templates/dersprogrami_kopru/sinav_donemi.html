@@ -45,7 +45,7 @@
       <tbody>
       {% for gun in takvim %}
         <tr><th class="text-nowrap">{{ gun.date|date:"d.m.Y" }}<div class="small text-secondary fw-normal">{{ gun.day }}</div></th>
-          {% for hucre in gun.cells %}<td>{% for pl in hucre %}
+          {% for hucre in gun.cells %}<td>{% if hucre %}<div class="sp-toplam"><i class="bi bi-people-fill me-1"></i>{{ hucre.students }} öğrenci · {{ hucre.room_count }} salon</div>{% endif %}{% for pl in hucre %}
             <div class="sp-sinav"><div class="fw-semibold">{{ pl.exam.title }}</div>
               <div class="small text-secondary">{% for c in pl.exam.classes.all %}{{ c.short|default:c.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
               <div class="small"><i class="bi bi-door-open me-1"></i>{% for r in pl.rooms.all %}{{ r.classroom }}{% if not forloop.last %}, {% endif %}{% empty %}–{% endfor %}</div>

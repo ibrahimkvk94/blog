@@ -356,7 +356,7 @@ def gelistirici_nisani(no=0):
     Hareketler CSS ile (kamyosis.css .gl-*): hareket azaltma tercihinde durur."""
     kod = "M30 31 L21 40 L30 49 M50 31 L59 40 L50 49 M44.5 27 L35.5 53"
     kivilcim = "l1.2 3 3 1.2 -3 1.2 -1.2 3 -1.2 -3 -3 -1.2 3 -1.2z"
-    return ('<svg viewBox="0 0 80 80" width="58" height="58" aria-hidden="true">'
+    return ('<svg viewBox="0 0 80 80" width="78" height="78" aria-hidden="true">'
             f'<defs><linearGradient id="gl{no}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22d3ee"/>'
             '<stop offset=".5" stop-color="#8b5cf6"/><stop offset="1" stop-color="#ec4899"/></linearGradient>'
             f'<radialGradient id="gl{no}i" cx="50%" cy="40%" r="65%"><stop offset="0" stop-color="#312e81"/>'
