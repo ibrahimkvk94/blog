@@ -90,6 +90,23 @@ def agac():
     return cocuklar.get(None, [])
 
 
+def yetki_sirali(kisiler, birim=None):
+    """Birim listesinde en yetkili başta: bölüm başkanı, idari kadrodaki görev unvanlılar (müdür, şube müdürü),
+    diğer görev unvanlılar (ör. emir astsubayı); sonra gelen sırayla (alfabetik). Sıralama kararlıdır."""
+    baskan_id = None
+    if birim is not None and getattr(birim, "bolum_id", None):
+        baskan_id = birim.bolum.baskan_id
+
+    def derece(p):
+        if baskan_id and p.pk == baskan_id:
+            return 0
+        if p.gorev_unvani:
+            return 1 if p.idari_kadro else 2
+        return 3
+
+    return sorted(kisiler, key=derece)
+
+
 def birim_personeli(birim):
     q = Q(teskilat_birimi=birim)
     if birim.bolum_id:

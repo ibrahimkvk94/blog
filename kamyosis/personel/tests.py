@@ -116,6 +116,22 @@ class PersonelKartiTestleri(TestCase):
         cls.ask_tk.ust = cls.bas
         cls.ask_tk.save()
 
+    def test_birim_listesinde_en_yetkili_basta(self):
+        from .kart import yetki_sirali
+        a = Personel.objects.create(ad_soyad="Ahmet ARSLAN", teskilat_birimi=self.mudurluk)
+        e = Personel.objects.create(ad_soyad="Bekir EMİR", teskilat_birimi=self.mudurluk, gorev_unvani="Emir Astsubayı")
+        m = Personel.objects.create(ad_soyad="Zeki MÜDÜR", teskilat_birimi=self.mudurluk,
+                                    gorev_unvani="Yüksekokul Müdürü", idari_kadro=True)
+        self.assertEqual(yetki_sirali([a, e, m], self.mudurluk), [m, e, a])
+        b = Personel.objects.create(ad_soyad="Zafer BAŞKAN", bolum=self.ask)
+        self.ask.baskan = b
+        self.ask.save()
+        self.assertEqual(yetki_sirali([self.p, b], TeskilatBirimi.objects.get(pk=self.ask_tk.pk)), [b, self.p])
+        self.client.force_login(self.yonetici)
+        h = self.client.get(reverse("personel:liste") + f"?birim={self.mudurluk.pk}").content.decode()
+        self.assertLess(h.index("Zeki MÜDÜR"), h.index("Bekir EMİR"))
+        self.assertLess(h.index("Bekir EMİR"), h.index("Ahmet ARSLAN"))
+
     def test_birim_adi_ve_baslangic_alanlari(self):
         self.assertEqual(Birim.objects.get(slug="personel-bilgileri").ad, "Personel Kartları")
         self.assertTrue(KartAlani.objects.filter(ad="Cep telefonu").exists())
