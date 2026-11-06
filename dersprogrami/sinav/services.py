@@ -413,13 +413,14 @@ def build_problem(period, keep_locked=True):
         ))
     pool = proctor_pool(period)
     blocks = proctor_blocks(period)
+    shared = set(period.shared_rooms.values_list("pk", flat=True))  # KAMYOSİS: ortak salonlar
     unavailable = {t.pk: {slot_of(d, s) for d, s in blocks.get(t.pk, ())} - {-1} for t in pool}
     soft = proctor_soft(period)
     prior = {int(k): float(v) for k, v in prior_scores(period).items()}
     base = min(prior.values(), default=0)  # yalnızca farklar önemli; en düşük puan 0 olsun (z puanı eksi olabilir)
     return exams_solver.Problem(
         n_days=len(dates), n_sessions=n_s, exams=p_exams,
-        rooms=[exams_solver.PRoom(r.pk, str(r), exam_capacity(r, period)) for r in rooms],
+        rooms=[exams_solver.PRoom(r.pk, str(r), exam_capacity(r, period), r.pk in shared) for r in rooms],
         proctors=[t.pk for t in pool], unavailable=unavailable, max_per_day=max(1, period.max_per_day),
         proctors_per_room=period.proctors_per_room, time_limit=max(5, period.time_limit),
         class_names={c.pk: c.short or c.name for c in period.school.classes.all()},
@@ -560,6 +561,8 @@ def validate(period, only=None):
     per_day = defaultdict(list)
     # KAMYOSİS: dönem için seçilmiş salonlar dışında salon kullanılmışsa (ör. salonlar plandan sonra değişti) uyar
     selected = set(period.rooms.values_list("pk", flat=True))
+    shared_ids = set(period.shared_rooms.values_list("pk", flat=True))
+    shared_load = defaultdict(list)  # (tarih, oturum, ortak salon) → [(sınav, oturan)]
     for pl in rows:
         e = pl.exam
         label = slot_label(pl.date, pl.session, period)
@@ -589,10 +592,18 @@ def validate(period, only=None):
                     add("error", f"{c.short or c.name}: «{other.title}» ile «{e.title}» aynı oturumda ({label}).", e, other)
                 by_slot_class[(pl.date, s, c.pk)] = e
             for r in pl.rooms.all():
-                other = by_slot_room.get((pl.date, s, r.classroom_id))
-                if other is not None and other.pk != e.pk:
-                    add("error", f"{r.classroom}: «{other.title}» ile «{e.title}» aynı anda aynı salonda ({label}).", e, other)
-                by_slot_room[(pl.date, s, r.classroom_id)] = e
+                if r.classroom_id in shared_ids:  # KAMYOSİS: ortak salonda birden çok sınav olur; kapasite aşılmasın
+                    yuk = shared_load[(pl.date, s, r.classroom_id)]
+                    yuk.append((e, r.seats))
+                    toplam, cap = sum(n for _e, n in yuk), exam_capacity(r.classroom, period)
+                    if toplam > cap and len(yuk) > 1:
+                        add("error", f"{r.classroom}: ortak salonda {label} oturumunda {toplam} öğrenci var, sınav "
+                                     f"kapasitesi {cap}.", e, *[x for x, _n in yuk if x.pk != e.pk])
+                else:
+                    other = by_slot_room.get((pl.date, s, r.classroom_id))
+                    if other is not None and other.pk != e.pk:
+                        add("error", f"{r.classroom}: «{other.title}» ile «{e.title}» aynı anda aynı salonda ({label}).", e, other)
+                    by_slot_room[(pl.date, s, r.classroom_id)] = e
                 for t in r.proctors.all():
                     other = by_slot_teacher.get((pl.date, s, t.pk))
                     if other is not None and other != (e.pk, r.classroom_id):
@@ -674,6 +685,7 @@ def busy_at(period, date, session, duration, skip_exam=None):
     """Bu oturumlarda dolu salonlar ve gözetmenler: ({salon: sınav}, {öğretmen: sınav})."""
     rooms, teachers = {}, {}
     wanted = {(date, session + k) for k in range(max(1, duration))}
+    shared = set(period.shared_rooms.values_list("pk", flat=True))  # KAMYOSİS: ortak salon dolu sayılmaz
     for pl in placements(period):
         if pl.exam_id == skip_exam:
             continue
@@ -681,7 +693,8 @@ def busy_at(period, date, session, duration, skip_exam=None):
         if not span & wanted:
             continue
         for r in pl.rooms.all():
-            rooms[r.classroom_id] = pl.exam.title
+            if r.classroom_id not in shared:
+                rooms[r.classroom_id] = pl.exam.title
             for t in r.proctors.all():
                 teachers[t.pk] = pl.exam.title
     return rooms, teachers
@@ -741,7 +754,17 @@ def set_rooms(period, placement, room_ids):
         if rid not in existing:
             ExamRoom.objects.create(placement=placement, classroom=rooms[rid])
     ordered = sorted(placement.rooms.select_related("classroom"), key=lambda r: -exam_capacity(r.classroom, period))
-    seats = exams_solver.seat_split(placement.exam.student_count, [exam_capacity(r.classroom, period) for r in ordered])
+    shared = set(period.shared_rooms.values_list("pk", flat=True))
+
+    def kalan(r):  # KAMYOSİS: ortak salonda aynı oturumdaki diğer sınavların oturanı düşülür
+        cap = exam_capacity(r.classroom, period)
+        if r.classroom_id in shared:
+            cap -= sum(ExamRoom.objects.filter(placement__exam__period=period, placement__date=placement.date,
+                                               placement__session=placement.session, classroom_id=r.classroom_id)
+                       .exclude(placement=placement).values_list("seats", flat=True))
+        return max(0, cap)
+
+    seats = exams_solver.seat_split(placement.exam.student_count, [kalan(r) for r in ordered])
     for r, n in zip(ordered, seats):
         if r.seats != n:
             r.seats = n

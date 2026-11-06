@@ -26,4 +26,8 @@
     <label class="label">{{ form.rooms.label }}</label>{{ form.rooms }}
     <div class="help">{{ form.rooms.help_text }} Parantez içinde derslik kapasitesi; sınavda alınan öğrenci bunun “sınav kapasitesi” oranı kadardır.</div>
   </div>
+  <div class="form-row form-row-wide">
+    <label class="label">{{ form.shared_rooms.label|capfirst }}</label>{{ form.shared_rooms }}
+    <div class="help">{{ form.shared_rooms.help_text }}</div>
+  </div>
 </div>

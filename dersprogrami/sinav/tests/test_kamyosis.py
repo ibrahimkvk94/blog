@@ -351,3 +351,29 @@ class OturumDuzeniTests(TestCase):
         siniflar = [SchoolClass(grade=2), SchoolClass(grade=2)]
         self.assertEqual(kurallar.sinav_duzeyi(siniflar, "TEM101"), 2)
         self.assertEqual(kurallar.sinav_duzeyi([SchoolClass(grade=1), SchoolClass(grade=2)], "TEM101"), 1)  # karışık: koddan
+
+
+class OrtakSalonTests(TestCase):
+    """KAMYOSİS: ortak salonda (yemekhane) aynı oturumda birden çok sınav; kapasite aşılmaz, diğer salonlarda tek sınav."""
+
+    def _p(self, shared):
+        exams_ = [exams_solver.PExam(i, f"S{i}", classes=(i,), students=40, fixed=0) for i in range(1, 4)]
+        return exams_solver.Problem(
+            n_days=1, n_sessions=1, exams=exams_, rooms=[exams_solver.PRoom(1, "Yemekhane", 130, shared),
+                                                       exams_solver.PRoom(2, "Derslik", 50)],
+            proctors=[], max_per_day=2, proctors_per_room=0, time_limit=10, workers=2)
+
+    def test_ortak_salonda_birden_cok_sinav(self):
+        r = exams_solver.solve(self._p(True))
+        self.assertEqual(r.status, "ok")
+        yemekhane = [n for _t, rows in r.placements.values() for rid, n, _g, _r in rows if rid == 1]
+        self.assertGreaterEqual(len(yemekhane), 2)
+        self.assertLessEqual(sum(yemekhane), 130)
+        for _t, rows in r.placements.values():  # her sınavın öğrencisi tam oturdu
+            self.assertEqual(sum(n for _rid, n, _g, _r in rows), 40)
+
+    def test_ortak_degilse_salon_basina_tek_sinav(self):
+        r = exams_solver.solve(self._p(False))
+        self.assertNotEqual(r.status, "ok")  # 3 sabit sınav, 2 salon: sığmaz
+        salonlar = [rid for _t, rows in r.placements.values() for rid, _n, _g, _r in rows]
+        self.assertEqual(len(salonlar), len(set(salonlar)))  # hiçbir salonda iki sınav yok

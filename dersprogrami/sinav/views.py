@@ -57,14 +57,16 @@ class PeriodForm(StyledFormMixin, forms.ModelForm):
         model = ExamPeriod
         fields = ["name", "kind", "start_date", "end_date", "exam_minutes", "max_per_day", "proctors_per_room", "duty_roles",
                   "carriers_per_session",
-                  "capacity_percent", "default_seats", "time_limit", "use_availability", "rooms"]
+                  "capacity_percent", "default_seats", "time_limit", "use_availability", "rooms", "shared_rooms"]
         widgets = {"start_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
                    "end_date": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
-                   "rooms": ChipSelectMultiple()}
+                   "rooms": ChipSelectMultiple(), "shared_rooms": ChipSelectMultiple()}
 
     def __init__(self, *args, school=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["rooms"].queryset = Classroom.objects.filter(school=school).order_by("name")
+        self.fields["shared_rooms"].queryset = Classroom.objects.filter(school=school).order_by("name")
+        self.fields["shared_rooms"].label_from_instance = lambda r: f"{r} ({r.capacity or 'kapasite yok'})"
         self.fields["rooms"].label_from_instance = lambda r: f"{r} ({r.capacity or 'kapasite yok'})"
         self.fields["max_per_day"].widget.attrs.update(min=1, max=8)
         self.fields["carriers_per_session"].required = False  # KAMYOSİS: boş = 2

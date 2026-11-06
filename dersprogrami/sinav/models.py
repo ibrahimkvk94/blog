@@ -52,6 +52,11 @@ class ExamPeriod(models.Model):
         help_text="Öğretmenin ders programındaki yasak saatleri (aynı hafta günü ve saatte) gözetmenlikte de kapalı sayılır.")
     rooms = models.ManyToManyField("timetable.Classroom", blank=True, related_name="+", verbose_name="sınav salonları",
                                    help_text="Boş = sınav kapasitesi olan tüm derslikler.")
+    # KAMYOSİS: ortak salonlarda (yemekhane vb.) aynı oturumda birden çok sınav yapılır; kapasite sınavlar arasında bölünür
+    shared_rooms = models.ManyToManyField(
+        "timetable.Classroom", blank=True, related_name="+", verbose_name="ortak salonlar",
+        help_text="Aynı oturumda birden çok sınavın birlikte yapılabildiği büyük salonlar (ör. yemekhane); salonun sınav "
+                  "kapasitesi o oturumdaki sınavlar arasında bölüşülür. Diğer salonlarda aynı anda tek sınav olur.")
     proctor_exempt = models.ManyToManyField("timetable.Teacher", blank=True, related_name="+", verbose_name="gözetmenlikten muaf")
     # Öğretmenin gözetmenlik yapamayacağı gün/oturumlar: {"öğretmen kimliği": ["2026-11-02", "2026-11-03#1", ...]}
     # ("#n" yalnızca o günün n. oturumu, 0'dan başlar).

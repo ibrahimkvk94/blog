@@ -10,6 +10,7 @@ Zaman dilimi (slot) = gün sırası × oturum sayısı + oturum. Çözüm üç a
    oturumlara düşmesin, aynı öğretmenin iki sınavı aynı anda olmasın.
 2. Salonlar: her sınava toplam sınav kapasitesi öğrenci sayısına yeten salonlar (bir sınav birden çok salona
    bölünebilir); bir salonda aynı anda tek sınav. Tercih: az salon, öğrenci sayısına yakın kapasite.
+   KAMYOSİS: ortak salonda (yemekhane vb.) aynı anda birden çok sınav olur; oturanların toplamı kapasiteyi aşmaz.
 3. Gözetmenler: her salona gereken sayıda öğretmen; öğretmen aynı anda iki salonda olamaz, müsait olmadığı
    oturumda görev almaz. Tercihler: dersin kendi öğretmeni sınavında bulunsun, yük öğretmenlere dengeli dağılsın
    (en yüksek yük ve ortalamanın üstü cezalı, günde ikiden fazla görev cezalı).
@@ -90,6 +91,7 @@ class PRoom:
     id: int
     name: str
     capacity: int                     # sınav kapasitesi
+    shared: bool = False              # KAMYOSİS: ortak salon (aynı anda birden çok sınav, kapasite paylaşılır)
 
 
 @dataclass
@@ -166,6 +168,11 @@ def _min_rooms(p, exam):
     if exam.locked_rooms:
         k = len(exam.locked_rooms)
     return k
+
+
+def _room_limit(p):
+    """KAMYOSİS: oturumda kullanılabilecek salon sayısı sınırı; ortak salon varsa yok (yalnızca kapasite sınırlar)."""
+    return None if any(r.shared for r in p.rooms) else len(p.rooms)
 
 
 def _available(p, teacher, slots):
@@ -294,6 +301,7 @@ def _greedy_timing(p, need):
     """Başlangıç çözümü: büyük ve çok sınıflı sınavlar önce, kuralları bozmayan ilk (en az dolu) oturuma."""
     S, T = p.n_sessions, p.n_slots
     total_cap = sum(r.capacity for r in p.rooms)
+    room_limit = _room_limit(p)
     pool = _duty_pool(p)
     free = [sum(1 for tch in pool if t not in (p.unavailable.get(tch) or ())) for t in range(T)]
     seats, rooms, proctors = [0] * T, [0] * T, [0] * T
@@ -311,7 +319,8 @@ def _greedy_timing(p, need):
                 continue
             if any(class_day.get((c, t // S), 0) >= p.max_per_day for c in e.classes):
                 continue
-            if any(seats[s] + e.students > total_cap or rooms[s] + k > len(p.rooms) for s in span):
+            if any(seats[s] + e.students > total_cap or (room_limit is not None and rooms[s] + k > room_limit)
+                   for s in span):
                 continue
             duty = _duty_estimate(p, e, k)
             if duty and any(proctors[s] + duty > free[s] for s in span):
@@ -421,7 +430,8 @@ def _solve_timing(p, limit):
         if not cover[t]:
             continue
         m.Add(sum(v * p.exams[i].students for i, v in cover[t]) <= total_cap)
-        m.Add(sum(v * need[p.exams[i].id] for i, v in cover[t]) <= n_rooms)
+        if _room_limit(p) is not None:
+            m.Add(sum(v * need[p.exams[i].id] for i, v in cover[t]) <= n_rooms)
         if _duties_on(p):
             free = sum(1 for tch in _duty_pool(p) if t not in (p.unavailable.get(tch) or ()))
             m.Add(sum(v * _duty_estimate(p, p.exams[i], need[p.exams[i].id]) for i, v in cover[t]) <= free)
@@ -531,44 +541,59 @@ def _kamyosis_terms(m, p, x, occ, day_start):
 # --- 2. salonlar --------------------------------------------------------------------------------
 
 def _greedy_rooms(p, timing):
+    """Dönüş: ({sınav: [salon, ...]}, {(sınav, ortak salon): oturan}). KAMYOSİS: ortak salonun o oturumda kalan
+    kapasitesi kullanılır; diğer salonlar sınava tümüyle ayrılır."""
     by_id = {e.id: e for e in p.exams}
     busy = {}  # (salon, dilim) → sınav
-    out = {}
+    used = {}  # KAMYOSİS: (ortak salon, dilim) → oturan
+    out, shared_seats = {}, {}
     for eid in sorted(timing, key=lambda k: (-len(by_id[k].locked_rooms), -by_id[k].students)):
         e = by_id[eid]
         slots = range(timing[eid], timing[eid] + e.duration)
-        free = [r for r in _candidate_rooms(p, e) if all((r.id, t) not in busy for t in slots)]
+
+        def free_cap(r):
+            if r.shared:
+                return r.capacity - max(used.get((r.id, t), 0) for t in slots)
+            return r.capacity if all((r.id, t) not in busy for t in slots) else 0
+
+        free = [(r, c) for r, c in ((r, free_cap(r)) for r in _candidate_rooms(p, e)) if c > 0]
         if e.locked_rooms:
-            chosen = [r for r in free if r.id in e.locked_rooms]
+            chosen = [(r, c) for r, c in free if r.id in e.locked_rooms]
         else:
             chosen, total = [], 0
             want = e.rooms_needed or 0
             # önce tek salonda sığdır, sığmazsa büyükten küçüğe doldur
-            single = sorted((r for r in free if r.capacity >= e.students), key=lambda r: r.capacity)
+            single = sorted(((r, c) for r, c in free if c >= e.students), key=lambda rc: rc[1])
             if single and want <= 1:
                 chosen = [single[0]]
             else:
-                for r in sorted(free, key=lambda r: -r.capacity):
+                for r, c in sorted(free, key=lambda rc: -rc[1]):
                     if (total >= e.students and len(chosen) >= max(1, want)) or (want and len(chosen) >= want):
                         break
-                    chosen.append(r)
-                    total += r.capacity
-        if sum(r.capacity for r in chosen) < e.students or not chosen:
+                    chosen.append((r, c))
+                    total += c
+        if sum(c for _r, c in chosen) < e.students or not chosen:
             continue
-        for r in chosen:
+        for (r, _c), n in zip(chosen, seat_split(e.students, [c for _r, c in chosen])):
+            if r.shared:
+                shared_seats[eid, r.id] = n
             for t in slots:
-                busy[r.id, t] = eid
-        out[eid] = [r.id for r in chosen]
-    return out
+                if r.shared:
+                    used[r.id, t] = used.get((r.id, t), 0) + n
+                else:
+                    busy[r.id, t] = eid
+        out[eid] = [r.id for r, _c in chosen]
+    return out, shared_seats
 
 
 def _solve_rooms(p, timing, limit):
     by_id = {e.id: e for e in p.exams}
     caps = {r.id: r.capacity for r in p.rooms}
-    greedy = _greedy_rooms(p, timing)
+    greedy, greedy_seats = _greedy_rooms(p, timing)
     m = cp_model.CpModel()
     y, ok, obj = {}, {}, []
     active = {}
+    z, shared_use = {}, {}  # KAMYOSİS: ortak salonda sınavın oturanı; (salon, dilim) → oturanlar
     for eid, t0 in timing.items():
         e = by_id[eid]
         ok[eid] = m.NewBoolVar(f"ok{eid}")
@@ -578,6 +603,15 @@ def _solve_rooms(p, timing, limit):
             y[eid, r.id] = m.NewBoolVar(f"y{eid}_{r.id}")
             m.Add(y[eid, r.id] <= ok[eid])
             m.AddHint(y[eid, r.id], int(r.id in greedy.get(eid, ())))
+            if r.shared:  # KAMYOSİS: ortak salonda yalnızca kullanılan koltuk kadar yer tutar
+                z[eid, r.id] = m.NewIntVar(0, r.capacity, f"z{eid}_{r.id}")
+                m.Add(z[eid, r.id] <= r.capacity * y[eid, r.id])
+                m.Add(z[eid, r.id] >= y[eid, r.id])
+                m.AddHint(z[eid, r.id], greedy_seats.get((eid, r.id), 0))
+                obj.append(W_ROOM * y[eid, r.id] + z[eid, r.id])
+                for t in range(t0, t0 + e.duration):
+                    shared_use.setdefault((r.id, t), []).append(z[eid, r.id])
+                continue
             obj.append((W_ROOM + r.capacity) * y[eid, r.id])
             for t in range(t0, t0 + e.duration):
                 active.setdefault((r.id, t), []).append(y[eid, r.id])
@@ -587,7 +621,7 @@ def _solve_rooms(p, timing, limit):
             for r in rooms:
                 m.Add(y[eid, r.id] == ok[eid])
         if e.students:
-            m.Add(sum(y[eid, r.id] * r.capacity for r in rooms) >= e.students * ok[eid])
+            m.Add(sum(z[eid, r.id] if r.shared else y[eid, r.id] * r.capacity for r in rooms) >= e.students * ok[eid])
         if e.rooms_needed and not e.locked_rooms:
             m.Add(sum(terms) == e.rooms_needed * ok[eid])
         else:
@@ -595,19 +629,24 @@ def _solve_rooms(p, timing, limit):
     for terms in active.values():
         if len(terms) > 1:
             m.Add(sum(terms) <= 1)
+    for (rid, _t), terms in shared_use.items():
+        m.Add(sum(terms) <= caps[rid])
     m.Minimize(sum(obj))
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = max(1.0, limit)
     solver.parameters.num_workers = p.workers
     status = solver.Solve(m)
     if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-        return greedy
-    out = {}
+        return greedy, greedy_seats
+    out, shared_seats = {}, {}
     for eid in timing:
         if solver.Value(ok[eid]):
             out[eid] = sorted((rid for (e2, rid), v in y.items() if e2 == eid and solver.Value(v)),
                               key=lambda rid: -caps[rid])
-    return out
+            for rid in out[eid]:
+                if (eid, rid) in z:
+                    shared_seats[eid, rid] = solver.Value(z[eid, rid])
+    return out, shared_seats
 
 
 def seat_split(students, capacities):
@@ -839,7 +878,7 @@ def solve(p, progress=None):
         return Result("failed", errors=[msg])
     if progress:
         progress("Salonlar atanıyor…")
-    rooms = _solve_rooms(p, timing, remaining(0.4))
+    rooms, shared_seats = _solve_rooms(p, timing, remaining(0.4))
     if progress:
         progress("Gözetmenler atanıyor…")
     by_id = {e.id: e for e in p.exams}
@@ -847,7 +886,12 @@ def solve(p, progress=None):
     names = {r.id: r.name for r in p.rooms}
     seats = {}
     for eid, rids in rooms.items():
-        for rid, n in zip(rids, seat_split(by_id[eid].students, [caps[r] for r in rids])):
+        # KAMYOSİS: ortak salonda oturan çözümden; kalan öğrenciler sınava ayrılmış salonlara bölünür
+        fixed = {rid: shared_seats.get((eid, rid), 0) for rid in rids if (eid, rid) in shared_seats}
+        own = [rid for rid in rids if rid not in fixed]
+        rest = max(0, by_id[eid].students - sum(fixed.values()))
+        seats.update({(eid, rid): n for rid, n in fixed.items()})
+        for rid, n in zip(own, seat_split(rest, [caps[r] for r in own])):
             seats[eid, rid] = n
     proctors = _solve_proctors(p, timing, rooms, seats, remaining(0.9))
     needs = _needs(p, _units(p, timing, rooms), seats)
