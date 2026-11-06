@@ -305,6 +305,11 @@ class YoklamaTestleri(SaatSabit, TestCase):
         self.veli.rutbe = sec(Secenek.RUTBE, "Asb.Kd.Bçvş.")
         self.veli.save()
         self.assertEqual([e for _, e in personel_isaretleri(self.veli)], ["Astsubay Kd. Başçavuş"])
+        from .isaretler import ASTSUBAY, kol_isareti
+        for r in ASTSUBAY:  # orijinal çizimler: dosya var, yalnız şekil (betik yok)
+            svg = kol_isareti(r)
+            self.assertTrue(svg.startswith("<svg ") and "viewBox" in svg, r)
+            self.assertNotRegex(svg.lower(), r"<script|javascript:|\son\w+=|<foreignobject|<image")
         self.veli.gorev_unvani = "Müdürlük Emir Astsubayı"  # iki yıldızlı kırmızı kalkan
         self.assertEqual([e for _, e in personel_isaretleri(self.veli)],
                          ["Astsubay Kd. Başçavuş", "Müdürlük Emir Astsubayı"])

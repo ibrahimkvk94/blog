@@ -1,13 +1,16 @@
-"""Personel kartı için rütbe, sınıf ve akademik unvan işaretleri (sade vektör çizimler, dosya gerekmez).
+"""Personel kartı için rütbe, sınıf ve akademik unvan işaretleri (vektör çizimler).
 
 Subay: apolet (yıldız; binbaşı-albay defne çelenk; generaller kırmızı zeminli çelenk ve kılıçlar; asteğmen şerit).
-Astsubay: ay-yıldızlı kol işareti (çavuştan kıdemli üstçavuşa 1–4 şerit; başçavuşlarda kare zemin ve alt çizgi).
+Astsubay: orijinal TSK rütbe işaretleri (yoklama/rutbe_svg; çavuşta 2, kd. üstçavuşta 5 kıvrımlı şerit;
+başçavuşlarda kare zemin ve alt çizgi).
 Sınıf: yaka işareti (sınıfın kumaş rengi ve amblemi). Akademik unvan: kep; doktor öğretim üyesi, doçent ve
 profesör için 1, 2, 3 altın şerit.
 """
 
 import math
 import re
+from functools import lru_cache
+from pathlib import Path
 
 from django.utils.html import escape
 from django.utils.safestring import mark_safe
@@ -66,28 +69,20 @@ def apolet(rutbe):
     return f'<svg viewBox="0 0 48 122" width="48" height="122" aria-hidden="true">{"".join(s)}</svg>'
 
 
-# astsubay: (şerit, alt çizgi, kare zemin)
-ASTSUBAY = {"Asb.Astçvş.": (0, 1, False), "Asb.Çvş.": (1, 0, False), "Asb.Kd.Çvş.": (2, 0, False),
-            "Asb.Üçvş.": (3, 0, False), "Asb.Kd.Üçvş.": (4, 0, False), "Asb.Bçvş.": (4, 1, True),
-            "Asb.Kd.Bçvş.": (4, 2, True)}
+# astsubay: orijinal TSK rütbe işaretleri (yoklama/rutbe_svg, kaynak ve lisanslar KAYNAK.txt'de)
+ASTSUBAY = {"Asb.Astçvş.": "astcavus", "Asb.Çvş.": "cavus", "Asb.Kd.Çvş.": "kd_cavus", "Asb.Üçvş.": "ustcavus",
+            "Asb.Kd.Üçvş.": "kd_ustcavus", "Asb.Bçvş.": "bascavus", "Asb.Kd.Bçvş.": "kd_bascavus"}
 ASTSUBAY_ADI = {"Asb.Astçvş.": "Astsubay Astçavuş", "Asb.Çvş.": "Astsubay Çavuş", "Asb.Kd.Çvş.": "Astsubay Kd. Çavuş",
                 "Asb.Üçvş.": "Astsubay Üstçavuş", "Asb.Kd.Üçvş.": "Astsubay Kd. Üstçavuş",
                 "Asb.Bçvş.": "Astsubay Başçavuş", "Asb.Kd.Bçvş.": "Astsubay Kd. Başçavuş"}
+RUTBE_SVG = Path(__file__).resolve().parent / "rutbe_svg"
 
 
+@lru_cache(maxsize=None)
 def kol_isareti(rutbe):
-    serit, cizgi, kare = ASTSUBAY[rutbe]
-    s = ['<rect x="2" y="2" width="68" height="70" rx="3" fill="#161616"/>' if kare else
-         '<path d="M2 4 L36 18 L70 4 L70 44 L36 68 L2 44 Z" fill="#161616"/>']
-    for i in range(serit):  # şeritler ay-yıldızı içten dışa sarar
-        y = 30 + i * 7
-        s.append(f'<path d="M9 {y - 14} L36 {y + 4} L63 {y - 14}" fill="none" stroke="{ALTIN}" '
-                 f'stroke-width="4" stroke-linecap="round"/>')
-    s.append(f'<path d="M30 16 A7 7 0 1 0 42 16 A5.5 5.5 0 1 1 30 16" fill="{ALTIN}"/>')
-    s.append(_yildiz(36, 13, 3.2))
-    for i in range(cizgi):
-        s.append(f'<rect x="10" y="{54 + i * 7 if kare else 46 + i * 7}" width="52" height="4" rx="1" fill="{ALTIN}"/>')
-    return f'<svg viewBox="0 0 72 74" width="72" height="74" aria-hidden="true">{"".join(s)}</svg>'
+    """Astsubay rütbe işareti: siyah zemin üzerinde ay-yıldızı saran kıvrımlı sarı şeritler (orijinal çizim)."""
+    svg = (RUTBE_SVG / f"{ASTSUBAY[rutbe]}.svg").read_text(encoding="utf-8").strip()
+    return svg.replace("<svg ", '<svg width="72" aria-hidden="true" ', 1)
 
 
 def _g(icerik, kalinlik=1.8):
