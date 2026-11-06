@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}İş listesi{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>İş listesi</h1>
+    <p class="text-secondary mb-0">Claude'a bıraktığınız işler. Claude listeyi kontrol ettiğinde işi yapar ve sonucunu buraya yazar. Canlıya alma, ortak depoya gönderme, veri silme, parola ya da yetki değişikliği gibi işler önce <strong>onayınıza</strong> gelir.</p>
+  </div>
+</div>
+
+<form method="post" class="kart p-3 mb-3 is-yeni">
+  {% csrf_token %}<input type="hidden" name="islem" value="ekle">
+  <div class="row g-2 align-items-start">
+    <div class="col-12 col-lg-5"><input class="form-control" name="baslik" maxlength="200" required placeholder="Yapılacak iş, ör. Nöbet listesine Excel çıktısı ekle" aria-label="Başlık"></div>
+    <div class="col-12 col-lg-4"><textarea class="form-control" name="aciklama" rows="1" placeholder="Ayrıntı (isteğe bağlı): nerede, nasıl, örnek…" aria-label="Açıklama" oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea></div>
+    <div class="col-7 col-lg-2"><select class="form-select" name="oncelik" aria-label="Öncelik" data-arama="yok">{% for k, ad in oncelikler %}<option value="{{ k }}" {% if k == "normal" %}selected{% endif %}>{{ ad }}</option>{% endfor %}</select></div>
+    <div class="col-5 col-lg-1 d-grid"><button class="btn btn-primary"><i class="bi bi-plus-lg"></i><span class="d-lg-none ms-1">Ekle</span></button></div>
+  </div>
+  {% if dis_erisim %}<div class="small text-warning-emphasis mt-2"><i class="bi bi-globe me-1"></i>İnternet üzerinden bağlısınız; eklenen iş "internetten girildi" diye işaretlenir.</div>{% endif %}
+</form>
+
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+  <ul class="nav nav-pills">
+    {% for k, ad in sekmeler %}<li class="nav-item"><a class="nav-link py-1 {% if k == sekme %}active{% endif %}" href="?sekme={{ k }}">{{ ad }}{% if k == "acik" and acik_sayi %} <span class="badge text-bg-light ms-1">{{ acik_sayi }}</span>{% endif %}</a></li>{% endfor %}
+  </ul>
+  <div class="ms-auto d-flex flex-wrap gap-2 small">
+    {% if sayilar.soru %}<span class="is-durum soru">{{ sayilar.soru }} soru var</span>{% endif %}
+    {% if sayilar.onay %}<span class="is-durum onay">{{ sayilar.onay }} onay bekliyor</span>{% endif %}
+    {% if sayilar.yapiliyor %}<span class="is-durum yapiliyor">{{ sayilar.yapiliyor }} yapılıyor</span>{% endif %}
+    {% if sayilar.bekliyor %}<span class="is-durum bekliyor">{{ sayilar.bekliyor }} sırada</span>{% endif %}
+  </div>
+</div>
+
+<div class="d-grid gap-2">
+{% for i in isler %}
+  <article class="kart is-kart durum-{{ i.durum }}">
+    <div class="d-flex flex-wrap align-items-start gap-2">
+      <span class="is-no">#{{ i.pk }}</span>
+      <div class="flex-grow-1 min-w-0">
+        <div class="is-baslik">{{ i.baslik }}{% if i.oncelik == "acil" %} <span class="badge text-bg-danger">Acil</span>{% elif i.oncelik == "dusuk" %} <span class="badge text-bg-light">Düşük</span>{% endif %}</div>
+        {% if i.aciklama %}<div class="is-aciklama">{{ i.aciklama|linebreaksbr }}</div>{% endif %}
+        <div class="is-meta">{{ i.olusturma|date:"d.m.Y H:i" }}{% if i.dis_erisim %} · <i class="bi bi-globe"></i> internetten girildi{% endif %}{% if i.tamamlanma %} · tamamlandı {{ i.tamamlanma|date:"d.m.Y H:i" }}{% endif %}</div>
+      </div>
+      <span class="is-durum {{ i.durum }}">{% if i.durum == "onay" and i.onaylandi %}Onaylandı, sırada{% else %}{{ i.get_durum_display }}{% endif %}</span>
+    </div>
+    {% if i.notlar.all %}
+    <ol class="is-notlar">
+      {% for n in i.notlar.all %}
+      <li class="{% if n.claude %}claude{% else %}sahip{% endif %}">
+        <span class="kim">{% if n.claude %}<i class="bi bi-stars"></i> Claude{% else %}<i class="bi bi-person"></i> {{ n.yazan|default:"–" }}{% endif %}</span>
+        <span class="zaman">{{ n.zaman|date:"d.m.Y H:i" }}{% if n.durum %} · <b>{{ n.get_durum_display }}</b>{% endif %}</span>
+        {% if n.metin %}<div class="metin">{{ n.metin|linebreaksbr|urlize }}</div>{% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+    {% endif %}
+    <form method="post" class="is-islemler">
+      {% csrf_token %}<input type="hidden" name="pk" value="{{ i.pk }}"><input type="hidden" name="geri" value="{{ request.get_full_path }}">
+      {% if i.acik %}
+        <input class="form-control form-control-sm" name="metin" placeholder="{% if i.durum == 'soru' %}Sorunun cevabı…{% elif i.durum == 'onay' %}Onay notu ya da değişiklik isteği (isteğe bağlı)…{% else %}Ek bilgi / not…{% endif %}" aria-label="Not">
+        {% if i.durum == "onay" and not i.onaylandi %}<button class="btn btn-sm btn-success" name="islem" value="onayla"><i class="bi bi-check2-circle me-1"></i>Onayla</button>{% endif %}
+        <button class="btn btn-sm btn-outline-primary" name="islem" value="cevap">{% if i.durum == "soru" %}Cevapla{% else %}Not ekle{% endif %}</button>
+        <button class="btn btn-sm btn-outline-secondary" name="islem" value="iptal" onclick="return confirm('#{{ i.pk }} iptal edilsin mi?')">İptal et</button>
+        {% if i.durum == "bekliyor" %}<button class="btn btn-sm btn-link text-danger" name="islem" value="sil" onclick="return confirm('#{{ i.pk }} silinsin mi?')">Sil</button>{% endif %}
+      {% else %}
+        <button class="btn btn-sm btn-outline-secondary" name="islem" value="yeniden_ac"><i class="bi bi-arrow-counterclockwise me-1"></i>Yeniden aç</button>
+      {% endif %}
+    </form>
+  </article>
+{% empty %}
+  <div class="kart p-5 text-center text-secondary"><i class="bi bi-check2-all d-block fs-2 mb-2"></i>{% if sekme == "acik" %}Açık iş yok.{% else %}Kayıt yok.{% endif %}</div>
+{% endfor %}
+</div>
+{% endblock %}

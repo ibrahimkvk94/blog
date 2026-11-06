@@ -23,6 +23,7 @@ KISAYOLLAR = [
     ("sinav-gorev-puantaji", "sinavgorev:puantaj", "Sınav görev puantajı", "clipboard-data", "sinav-gorev-puantaji"),
     ("personel", "personel:liste", "Personel kartları", "person-vcard", "personel-bilgileri"),
     ("personel-yoklamasi", "yoklama:ana", "Personel yoklaması", "person-check", "personel-yoklamasi"),
+    ("salon-durumu", "salon:yil", "Salon durumu", "calendar-week", None),  # None: herkes görür
 ]
 # Kısayolun kapsadığı sayfalar: {kod: [(ad alanı, adlar ya da None = ad alanının tümü)]}
 ADRESLER = {
@@ -36,10 +37,11 @@ ADRESLER = {
     "sinav-gorev-puantaji": [("sinavgorev", None)],
     "personel": [("personel", None)],
     "personel-yoklamasi": [("yoklama", None)],
+    "salon-durumu": [("salon", None)],
 }
 # Bölüm hesapları dışındaki kullanıcıların menüsünde de bulunan kısayollar (eski düzen)
 GENEL = {"ders-takibi", "haftalik-program", "devir-talepleri", "ders-mazeretleri", "sinav-mazeretleri", "personel",
-         "personel-yoklamasi"}
+         "personel-yoklamasi", "salon-durumu"}
 
 
 def bolum_hesabi_mi(user):
@@ -79,6 +81,8 @@ def kapali_mi(user, eslesme):
 
 
 def _gorur(request, slug):
+    if slug is None:  # herkese açık kısayol
+        return True
     try:
         return etkin_yetki(request, birim_bul(request, slug))[0] >= GORUNTULEME
     except Http404:

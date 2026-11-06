@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% load l10n %}
+{% block title %}Salon durumu · {{ t|date:"d.m.Y" }}{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item"><a href="{% url 'salon:ay' t.year t.month %}{% if sq %}?{{ sq|slice:'1:' }}{% endif %}">{{ ay_adi }} {{ t.year }}</a></li><li class="breadcrumb-item active" aria-current="page">{{ t|date:"d.m.Y" }}</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <a class="btn btn-sm btn-light" href="{% url 'salon:gun' onceki|date:'Y-m-d' %}{% if sq %}?{{ sq|slice:'1:' }}{% endif %}" aria-label="Önceki gün"><i class="bi bi-chevron-left"></i></a>
+    <h1 class="mb-0">{{ t.day }} {{ ay_adi }} <span class="text-secondary fw-normal">{{ gun_adi }}</span></h1>
+    <a class="btn btn-sm btn-light" href="{% url 'salon:gun' sonraki|date:'Y-m-d' %}{% if sq %}?{{ sq|slice:'1:' }}{% endif %}" aria-label="Sonraki gün"><i class="bi bi-chevron-right"></i></a>
+    {% if t != bugun %}<a class="btn btn-sm btn-outline-primary" href="{% url 'salon:gun' bugun|date:'Y-m-d' %}{% if sq %}?{{ sq|slice:'1:' }}{% endif %}">Bugün</a>{% endif %}
+  </div>
+</div>
+
+{% include "salon/_ust.html" with gorunum="gun" yil_q=t.year ay_q_yil=t.year ay_q_ay=t.month gun_q=t|date:"Y-m-d" yeni_q="tarih="|add:t.isoformat %}
+
+<div class="sl-hafta d-print-none">
+  {% for h in hafta %}<a class="{% if h.tarih == t %}secili{% endif %}{% if h.tarih == bugun %} bugun{% endif %}" href="{% url 'salon:gun' h.tarih|date:'Y-m-d' %}{% if sq %}?{{ sq|slice:'1:' }}{% endif %}"><small>{{ h.ad }}</small><span>{{ h.tarih.day }}</span></a>{% endfor %}
+</div>
+
+{% localize off %}
+<div class="kart sl-gun" style="--sutun: {{ sutunlar|length }}">
+  <div class="sl-gun-ust">
+    <div></div>
+    {% for c in sutunlar %}
+      <div class="sl-gun-baslik" style="--renk: {{ c.salon.renk }}">
+        <span class="sl-nokta"></span><span class="ad">{{ c.salon.ad }}</span>
+        {% if c.durum %}<span class="sl-anlik {% if c.durum.dolu %}dolu{% else %}musait{% endif %}">{% if c.durum.dolu %}şu an dolu{% else %}şu an müsait{% endif %}</span>{% endif %}
+        <div class="sl-musait-ozet">{% for m in c.musait %}<span>{{ m.bas }}–{{ m.bit }}</span>{% empty %}<span class="dolu">Gün boyu dolu</span>{% endfor %}</div>
+      </div>
+    {% endfor %}
+  </div>
+  <div class="sl-gun-govde">
+    <div class="sl-saatler">{% for s in saatler %}<span style="top: {{ s.ust }}%">{{ s.saat }}</span>{% endfor %}</div>
+    {% for c in sutunlar %}
+    <div class="sl-sutun" style="--renk: {{ c.salon.renk }}"{% if duzenleyebilir %} data-yeni="{% url 'salon:yeni' %}?tarih={{ t|date:'Y-m-d' }}&salon={{ c.salon.pk }}&geri={{ request.get_full_path|urlencode }}" title="Boş saate tıklayın: kayıt ekle"{% endif %}>
+      {% for s in saatler %}<i class="sl-cizgi" style="top: {{ s.ust }}%"></i>{% endfor %}
+      {% for m in c.musait %}{% if m.uzun %}<div class="sl-bos" style="top: {{ m.ust }}%; height: {{ m.boy }}%"><span>Müsait</span></div>{% endif %}{% endfor %}
+      {% for b in c.bloklar %}
+        <a class="sl-blok{% if b.boy < 7 %} kisa{% endif %}" style="top: {{ b.ust }}%; height: {{ b.boy }}%" href="{% url 'salon:kayit' b.kayit.pk %}?geri={{ request.get_full_path|urlencode }}">
+          <b>{{ b.kayit.baslik }}</b>
+          <span>{{ b.kayit.saat_metni }}{% if b.kayit.aciklama %} · {{ b.kayit.aciklama }}{% endif %}</span>
+        </a>
+      {% endfor %}
+    </div>
+    {% endfor %}
+    {% if simdi_ust is not None %}<div class="sl-simdi-cizgi" style="top: {{ simdi_ust }}%"></div>{% endif %}
+  </div>
+</div>
+{% endlocalize %}
+<p class="small text-secondary mt-2">Takvim {{ gun_bas|time:"H:i" }}–{{ gun_bit|time:"H:i" }} arasını gösterir.{% if duzenleyebilir %} Kayıt eklemek için ilgili salonun boş saatine tıklayın.{% endif %}</p>
+
+{% if duzenleyebilir %}
+<script>
+/* boş saate tıklayınca o salon ve saat için kayıt formu */
+document.querySelectorAll(".sl-sutun[data-yeni]").forEach(function (s) {
+  s.addEventListener("click", function (e) {
+    if (e.target.closest(".sl-blok")) return;
+    var r = s.getBoundingClientRect(), oran = (e.clientY - r.top) / r.height;
+    var dk = {{ gun_bas.hour }} * 60 + Math.floor(oran * ({{ gun_bit.hour }} - {{ gun_bas.hour }}) * 2) * 30;
+    var saat = String(Math.floor(dk / 60)).padStart(2, "0") + ":" + String(dk % 60).padStart(2, "0");
+    location.href = s.dataset.yeni + "&bas=" + saat;
+  });
+});
+</script>
+{% endif %}
+{% endblock %}

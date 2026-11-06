@@ -43,7 +43,10 @@ def panel(request):
     from takip.servis import panel_gorevleri
     from yoklama.servis import panel_gorevleri as yoklama_gorevleri
 
-    gorevler = panel_gorevleri(request, ek=[*yoklama_gorevleri(request), *mazeret_gorevleri(request)])
+    from isler.gorevler import panel_gorevleri as is_gorevleri
+
+    gorevler = panel_gorevleri(request, ek=[*is_gorevleri(request), *yoklama_gorevleri(request),
+                                            *mazeret_gorevleri(request)])
     if gizli_kodlar(request.user):  # bölüme kapatılmış kısayolların görev kartları gösterilmez
         gorevler = [g for g in gorevler if not (g.get("url") and kapali_mi(request.user, _cozumle(g["url"])))]
     return render(request, "core/panel.html", {
