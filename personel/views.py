@@ -154,7 +154,7 @@ def liste(request):
         alttakiler = [x for x in kisiler if agac.kisi_birimi(x) in alt_idler]
         ctx["alt_birimler"] = [o for o in kart.birim_ozetleri(agac, alttakiler, [birim.pk], v["eksikmap"], haric=birim)
                                if o["toplam"]] if birim.pk else []
-        ctx["kisiler"] = [x for x in alttakiler if agac.kisi_birimi(x) == birim.pk]
+        ctx["kisiler"] = kart.yetki_sirali([x for x in alttakiler if agac.kisi_birimi(x) == birim.pk], birim)
         ctx["toplam"] = len(ctx["kisiler"])
         ctx["fotosuz"] = sum(1 for x in ctx["kisiler"] if not x.fotograf)
         ctx["eksik_sayi"] = sum(1 for x in ctx["kisiler"] if x.eksik_listesi) if v["eksikmap"] is not None else None

@@ -164,7 +164,9 @@ def ana(request):
             request, **ctx, ozet=servis.ozet(durumlar), gruplar=servis.bolumle(ozetler), q=q, bulunan=bulunan,
             eksik=sum(1 for o in ozetler if o["toplam"] and o["birim"].pk and not o["onay"])))
 
-    kendi = list(servis.personeller(y, birim, alt=False))
+    from personel.kart import yetki_sirali
+
+    kendi = yetki_sirali(servis.personeller(y, birim, alt=False), birim)  # en yetkili başta, sonra alfabetik
     durumlar = servis.gun_durumu(tarih, kendi)
     filtre = request.GET.get("durum", "")
     secim = {"yok": lambda d: not d.mevcut, "gun_boyu": lambda d: d.gun_boyu, "kismi": lambda d: d.kismi,
