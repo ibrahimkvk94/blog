@@ -159,8 +159,7 @@ def liste(request):
         ctx["fotosuz"] = sum(1 for x in ctx["kisiler"] if not x.fotograf)
         ctx["eksik_sayi"] = sum(1 for x in ctx["kisiler"] if x.eksik_listesi) if v["eksikmap"] is not None else None
         ctx["sorumlu"] = (birim.bolum.baskan if getattr(birim, "bolum_id", None) and birim.bolum.baskan_id else
-                          next((x for x in ctx["kisiler"] if x.gorev_unvani and x.idari_kadro), None)
-                          or next((x for x in ctx["kisiler"] if x.gorev_unvani), None))
+                          kart.sorumlu_sec(ctx["kisiler"]))
     else:
         ctx["toplam"] = len(kisiler)
         ctx["kisiler"] = kisiler[:300]
