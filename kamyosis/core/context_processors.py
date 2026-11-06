@@ -11,4 +11,7 @@ def navigation(request):
         ctx["bolum_hesabi"] = bolum_hesabi_mi(request.user)
         ctx["menu"] = [] if ctx["bolum_hesabi"] else menu_agaci(request)
         ctx["kisayollar"] = kisayollar(request)
+        from isler.servis import sahibi_mi
+
+        ctx["is_listesi_sahibi"] = sahibi_mi(request.user)
     return ctx

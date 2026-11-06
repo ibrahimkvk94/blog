@@ -14,6 +14,12 @@ modülün içinden yeni sekmede açılan (ör. yazdırma) sayfalar olduğu gibi 
     return;
   }
   r.classList.add("gomulu");
+  // KAMYOSİS'te tema değişince (aynı "theme" anahtarı) çerçevedeki modül de değişir
+  addEventListener("storage", function (e) {
+    if (e.key !== "theme") return;
+    var koyu = e.newValue ? e.newValue === "dark" : !!(window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
+    r.dataset.theme = koyu ? "dark" : "light";
+  });
   r.classList.remove("layout-side", "nav-collapsed");
   // KAMYOSİS sayfalarına giden bağlantılar çerçevede değil, ana pencerede açılır
   document.addEventListener("click", function (e) {

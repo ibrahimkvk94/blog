@@ -1,0 +1,15 @@
+{% comment %}Salon durumu üst çubuğu: görünüm (yıl / ay / gün), salon süzgeci ve kayıt girişi.
+Değişkenler: gorunum, filtre, sq, duzenleyebilir, yeni_q (yeni kayıt adresine eklenecek sorgu){% endcomment %}
+<div class="sl-ust d-print-none">
+  <div class="btn-group" role="group" aria-label="Görünüm">
+    <a class="btn btn-sm {% if gorunum == 'yil' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'salon:yil' %}?yil={{ yil_q }}{{ sq }}"><i class="bi bi-grid-3x3 me-1"></i>Yıl</a>
+    <a class="btn btn-sm {% if gorunum == 'ay' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'salon:ay' ay_q_yil ay_q_ay %}?{{ sq|slice:'1:' }}"><i class="bi bi-calendar3 me-1"></i>Ay</a>
+    <a class="btn btn-sm {% if gorunum == 'gun' %}btn-primary{% else %}btn-outline-primary{% endif %}" href="{% url 'salon:gun' gun_q %}?{{ sq|slice:'1:' }}"><i class="bi bi-calendar-day me-1"></i>Gün</a>
+  </div>
+  <div class="sl-filtre" role="group" aria-label="Gösterilen salonlar">
+    {% for f in filtre %}
+      <a class="sl-filtre-cip{% if f.secili %} secili{% endif %}" style="--renk: {{ f.salon.renk }}" href="?{% if yil_q and gorunum == 'yil' %}yil={{ yil_q }}&{% endif %}{% if f.q %}s={{ f.q }}{% endif %}" title="{% if f.secili %}Gizle{% else %}Göster{% endif %}: {{ f.salon.ad }}"><span class="sl-nokta"></span>{{ f.salon.ad }}</a>
+    {% endfor %}
+  </div>
+  {% if duzenleyebilir %}<a class="btn btn-sm btn-primary ms-auto" href="{% url 'salon:yeni' %}?{{ yeni_q }}&geri={{ request.get_full_path|urlencode }}"><i class="bi bi-plus-lg me-1"></i>Kayıt ekle</a>{% endif %}
+</div>
