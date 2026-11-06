@@ -414,6 +414,13 @@ a.yk-kisi:hover .ad { color: #2f5d8a; text-decoration: underline; }
 @keyframes yk-parilti { 0%, 55% { transform: translateX(0) skewX(-18deg); } 85%, 100% { transform: translateX(130px) skewX(-18deg); } }
 .yk-isaretler figure.nisan figcaption { color: #f3d77a; font-weight: 600; }
 @media (prefers-reduced-motion: reduce) { .yk-isaretler .yk-parilti { animation: none; display: none; } }
+/* geliştirici nişanı: dönen halka, yanıp sönen kıvılcımlar */
+.gl-halka { transform-box: fill-box; transform-origin: center; animation: gl-don 14s linear infinite; }
+.gl-kivilcim { animation: gl-yan 2.4s ease-in-out infinite; opacity: 0; }
+.gl-kivilcim.gl-gec { animation-delay: 1.2s; }
+@keyframes gl-don { to { transform: rotate(360deg); } }
+@keyframes gl-yan { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .gl-halka { animation: none; } .gl-kivilcim { animation: none; opacity: .8; } }
 
 /* Teşkilat şeması */
 .tk-sema { display: flex; flex-direction: column; align-items: stretch; gap: 0; margin-bottom: 2rem; }

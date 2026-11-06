@@ -41,6 +41,7 @@
           <div class="form-text">{{ form.gorev_unvani.help_text }}</div>
         </div>
         <div class="form-check form-switch mb-2">{{ form.idari_kadro }} <label class="form-check-label" for="{{ form.idari_kadro.id_for_label }}">İdari kadro <span class="text-secondary small">(kartta idari kadro nişanı)</span></label></div>
+        <div class="form-check form-switch mb-2">{{ form.gelistirici }} <label class="form-check-label" for="{{ form.gelistirici.id_for_label }}">Geliştirici <span class="text-secondary small">(kartta neon geliştirici nişanı)</span></label></div>
         <div class="form-check form-switch">
           <input class="form-check-input" type="checkbox" role="switch" id="bolumBaskani" name="bolum_baskani" value="1" {% if baskan_mi %}checked{% endif %}>
           <label class="form-check-label" for="bolumBaskani">Bölüm başkanı <span class="text-secondary small">(kendi bölümünün; önceki başkanın yerine geçer)</span></label>

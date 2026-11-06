@@ -3,7 +3,7 @@ from django import forms
 from .models import Bolum, KartAlani, Personel, Secenek, TeskilatBirimi
 
 YONETICI_ALANLARI = ["personel_kodu", "derse_girebilir", "sinav_gorevi_alabilir", "teskilat_birimi", "gorev_unvani",
-                     "idari_kadro"]
+                     "idari_kadro", "gelistirici"]
 
 
 class PersonelForm(forms.ModelForm):
