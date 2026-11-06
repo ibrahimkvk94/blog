@@ -182,6 +182,11 @@ class PersonelKartiTestleri(TestCase):
         self.client.post(u, {"islem": "ata", "personel": [self.p.pk], "gorev_unvani": "Kısım Amiri"})
         self.p.refresh_from_db()
         self.assertEqual((self.p.teskilat_birimi, self.p.gorev_unvani), (self.sube, "Kısım Amiri"))
+        # kimse seçilmeden gönderilen atama (ör. arama kutusunda Enter) hiçbir şeyi değiştirmez
+        r = self.client.post(u, {"islem": "ata", "gorev_unvani": "Başka Görev"}, follow=True)
+        self.assertContains(r, "Atanacak personel seçilmedi")
+        self.p.refresh_from_db()
+        self.assertEqual(self.p.gorev_unvani, "Kısım Amiri")
         self.client.post(u, {"islem": "alt_birim", "ad": "Personel Kısmı", "tur": "kisim"})
         self.assertTrue(TeskilatBirimi.objects.filter(ad="Personel Kısmı", ust=self.sube).exists())
         self.client.post(u, {"islem": "sil"})  # personeli ve alt birimi var: silinmez

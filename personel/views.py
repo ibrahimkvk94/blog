@@ -357,6 +357,9 @@ def teskilat_birimi(request, pk):
         if islem == "ata":
             ids = [int(x) for x in request.POST.getlist("personel") if x.isdigit()]
             gorev = request.POST.get("gorev_unvani", "").strip()[:80]
+            if not ids:
+                messages.warning(request, "Atanacak personel seçilmedi; hiçbir değişiklik yapılmadı.")
+                return redirect("personel:teskilat_birimi", pk=b.pk)
             for p in Personel.objects.filter(pk__in=ids):
                 p.teskilat_birimi = b
                 if gorev:
