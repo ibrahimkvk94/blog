@@ -45,9 +45,10 @@ GENEL = {"ders-takibi", "haftalik-program", "devir-talepleri", "ders-mazeretleri
 
 
 def bolum_hesabi_mi(user):
-    """Bölüm hesabı: sistem yöneticisi değil, bir bölüme bağlı ve "tüm bölümler" kapsamlı yetkisi yok
-    (bolum_yetkileri.bolum_hesaplari ile aynı tanım)."""
-    if not user.is_authenticated or user.is_superuser or user.bolum_id is None:
+    """Bölüm ya da birim hesabı: sistem yöneticisi değil, bir bölüme ya da teşkilat birimine (şube müdürlüğü, kısım)
+    bağlı ve "tüm bölümler" kapsamlı yetkisi yok. Menüsünde yalnız kısayollar bulunur. (Bölüm yetkileri sayfasındaki
+    bolum_yetkileri.bolum_hesaplari yalnız bölüme bağlı olanları alır.)"""
+    if not user.is_authenticated or user.is_superuser or (user.bolum_id is None and user.teskilat_birimi_id is None):
         return False
     if not hasattr(user, "_tum_kapsam"):
         user._tum_kapsam = user.yetkiler.filter(kapsam=Yetki.TUM).exists()
@@ -56,7 +57,7 @@ def bolum_hesabi_mi(user):
 
 def gizli_kodlar(user):
     """Bölüm hesabı için kapatılmış kısayollar; diğer kullanıcılar için boş küme."""
-    if not bolum_hesabi_mi(user):
+    if not bolum_hesabi_mi(user) or user.bolum_id is None:  # birim hesaplarında kapatılan kısayol yok
         return set()
     if not hasattr(user, "_gizli_kisayollar"):
         ayar = BolumMenusu.objects.filter(bolum_id=user.bolum_id).first()

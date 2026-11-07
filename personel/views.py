@@ -404,8 +404,10 @@ def teskilat_birimi(request, pk):
                     return redirect("personel:teskilat_birimi", pk=ust.pk) if ust else redirect("personel:teskilat")
         return redirect("personel:teskilat_birimi", pk=b.pk)
     kisiler = list(kart.birim_personeli(b))
-    if request.yetki_kapsam == Yetki.BOLUM:
-        kisiler = [p for p in kisiler if p.bolum_id == request.user.bolum_id]
+    _, idler = _kapsam(request)
+    if idler is not None:  # kendi bölümü / birimi kapsamlı hesap: yalnız kapsamındaki personel (kartı da açılabilen)
+        agac = _agac(request)
+        kisiler = [p for p in kisiler if agac.kisi_birimi(p) in idler]
     zincir, u = [], b.ust
     while u is not None and len(zincir) < 10:
         zincir.append(u)
