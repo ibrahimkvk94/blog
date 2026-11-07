@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Yeni hesap{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item"><a href="{% url 'core:kullanicilar' %}">Kullanıcılar ve yetkiler</a></li><li class="breadcrumb-item active" aria-current="page">Yeni hesap</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Kullanıcılar ve yetkiler</h1>
+    <p class="text-secondary mb-0">Yeni hesap açın; yetkileri benzer bir hesaptan tek seçimle kopyalayın, sonra hesap sayfasından ince ayar yapın.</p>
+  </div>
+</div>
+{% include "core/_kullanici_sekmeler.html" %}
+
+<form method="post" class="row g-3" id="kyYeni" novalidate>
+  {% csrf_token %}
+  <div class="col-lg-7">
+    <div class="kart p-3 h-100">
+      <h2 class="h6 mb-3"><span class="ky-adim">1</span>Hesap türü</h2>
+      <div class="ky-tur-secim" role="radiogroup" aria-label="Hesap türü">
+        <input type="radio" class="btn-check" name="_tur" id="turBolum" value="bolum" autocomplete="off">
+        <label for="turBolum" style="--renk:#2f5d8a"><i class="bi bi-mortarboard"></i><b>Bölüm hesabı</b><span>Bölümün kendi personeli ve kayıtları</span></label>
+        <input type="radio" class="btn-check" name="_tur" id="turBirim" value="birim" autocomplete="off">
+        <label for="turBirim" style="--renk:#0f766e"><i class="bi bi-diagram-3"></i><b>Şube / kısım hesabı</b><span>Birimi ve alt birimleri</span></label>
+        <input type="radio" class="btn-check" name="_tur" id="turKisi" value="kisisel" autocomplete="off">
+        <label for="turKisi" style="--renk:#64748b"><i class="bi bi-person"></i><b>Kişisel hesap</b><span>Bir personele ait; yetkisi kadar görür</span></label>
+      </div>
+      <div class="ky-tur-alan mt-3" data-tur="bolum">
+        <label class="form-label small mb-1" for="{{ form.bolum.id_for_label }}">{{ form.bolum.label }}</label>{{ form.bolum }}
+      </div>
+      <div class="ky-tur-alan mt-3" data-tur="birim">
+        <label class="form-label small mb-1" for="{{ form.teskilat_birimi.id_for_label }}">{{ form.teskilat_birimi.label }}</label>{{ form.teskilat_birimi }}
+        <div class="form-text">{{ form.teskilat_birimi.help_text }}</div>
+      </div>
+      <div class="ky-tur-alan mt-3" data-tur="kisisel">
+        <label class="form-label small mb-1" for="{{ form.personel.id_for_label }}">{{ form.personel.label }}</label>{{ form.personel }}
+        <div class="form-text">Personele bağlı hesapla “Derslerim” sayfası açılır. Bölümü de seçilirse bölüm kapsamlı yetkiler o bölümü gösterir.</div>
+        <div class="mt-2"><label class="form-label small mb-1" for="kyKisiBolum">Bölümü (isteğe bağlı)</label>
+          <select class="form-select" id="kyKisiBolum" aria-label="Kişisel hesabın bölümü"></select></div>
+      </div>
+
+      <h2 class="h6 mt-4 mb-3"><span class="ky-adim">2</span>Kimlik</h2>
+      <div class="row g-2">
+        <div class="col-md-6"><label class="form-label small mb-1" for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>{{ form.username }}
+          {% for e in form.username.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}<div class="form-text">{{ form.username.help_text }}</div></div>
+        <div class="col-md-6"><label class="form-label small mb-1" for="{{ form.first_name.id_for_label }}">{{ form.first_name.label }}</label>{{ form.first_name }}
+          <div class="form-text">Listede görünen ad, ör. “Plan Program Kısmı” ya da kişinin adı.</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="kart p-3 mb-3">
+      <h2 class="h6 mb-3"><span class="ky-adim">3</span>Parola</h2>
+      <div class="input-group mb-1">
+        {{ form.parola }}
+        <button type="button" class="btn btn-outline-secondary" id="kyUret" title="Yeni öneri"><i class="bi bi-dice-5"></i></button>
+        <button type="button" class="btn btn-outline-secondary" id="kyKopyala" title="Kopyala"><i class="bi bi-clipboard"></i></button>
+      </div>
+      {% for e in form.parola.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      {% if zayif %}<div class="form-check mt-1">{{ form.zayif_onay }}<label class="form-check-label small" for="{{ form.zayif_onay.id_for_label }}">{{ form.zayif_onay.label }}</label></div>{% endif %}
+      <div class="form-check form-switch mt-2">{{ form.parola_degismeli }}<label class="form-check-label small" for="{{ form.parola_degismeli.id_for_label }}">İlk girişte kendi parolasını belirlesin</label></div>
+      <div class="form-check form-switch">{{ form.is_active }}<label class="form-check-label small" for="{{ form.is_active.id_for_label }}">Hesap açık</label></div>
+    </div>
+    <div class="kart p-3 mb-3">
+      <h2 class="h6 mb-3"><span class="ky-adim">4</span>Yetkiler</h2>
+      <label class="form-label small mb-1" for="{{ form.sablon.id_for_label }}">{{ form.sablon.label }}</label>{{ form.sablon }}
+      <div class="form-text">Ör. yeni bir bölüm hesabı için aynı türden bir bölüm hesabını seçin. Boş bırakırsanız hesap açılır, yetkileri sonra verirsiniz.</div>
+    </div>
+    {% for e in form.non_field_errors %}<div class="alert alert-danger py-2">{{ e }}</div>{% endfor %}
+    <button class="btn btn-primary w-100"><i class="bi bi-person-plus me-1"></i>Hesabı aç</button>
+  </div>
+</form>
+
+<script>
+(function () {
+  const form = document.getElementById('kyYeni');
+  const bolum = document.getElementById('{{ form.bolum.id_for_label }}');
+  const birim = document.getElementById('{{ form.teskilat_birimi.id_for_label }}');
+  const kisi = document.getElementById('{{ form.personel.id_for_label }}');
+  const kisiBolum = document.getElementById('kyKisiBolum');
+  kisiBolum.innerHTML = bolum.innerHTML;
+  const radyolar = Array.from(form.querySelectorAll('input[name="_tur"]'));
+  // başlangıç türü: dolu alana göre (hata sonrası geri dönüşte)
+  let tur = birim.value ? 'birim' : kisi.value ? 'kisisel' : 'bolum';
+  if (kisi.value && bolum.value) kisiBolum.value = bolum.value;
+  radyolar.find(r => r.value === tur).checked = true;
+  function goster() {
+    tur = radyolar.find(r => r.checked).value;
+    form.querySelectorAll('.ky-tur-alan').forEach(a => { a.hidden = a.dataset.tur !== tur; });
+  }
+  radyolar.forEach(r => r.addEventListener('change', goster));
+  goster();
+  form.addEventListener('submit', () => {
+    if (tur !== 'birim') birim.value = ''; else bolum.value = '';
+    if (tur !== 'kisisel') kisi.value = '';
+    if (tur === 'kisisel') bolum.value = kisiBolum.value;
+  });
+  const p = document.getElementById('{{ form.parola.id_for_label }}');
+  const H = 'abcdefghjkmnpqrstuvwxyz', B = 'ABCDEFGHJKLMNPQRSTUVWXYZ', R = '23456789';
+  const sec = a => a[crypto.getRandomValues(new Uint32Array(1))[0] % a.length];
+  const parca = () => sec(B) + sec(H) + sec(H) + sec(R);
+  document.getElementById('kyUret').addEventListener('click', () => { p.value = parca() + '-' + parca() + '-' + sec(B) + sec(H); });
+  document.getElementById('kyKopyala').addEventListener('click', e => {
+    const d = e.currentTarget;
+    (navigator.clipboard ? navigator.clipboard.writeText(p.value) : Promise.reject()).then(
+      () => { d.innerHTML = '<i class="bi bi-check2"></i>'; setTimeout(() => { d.innerHTML = '<i class="bi bi-clipboard"></i>'; }, 1500); },
+      () => { p.select(); document.execCommand('copy'); });
+  });
+})();
+</script>
+{% endblock %}

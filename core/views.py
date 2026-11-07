@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.utils import timezone
 
 from personel.models import Bolum, Personel
@@ -102,6 +103,8 @@ def bolum_yetkileri(request):
         n = by.kaydet(secim, seviyeler)
         messages.success(request, f"Bölüm yetkileri kaydedildi ({n} değişiklik)." if n else "Değişiklik yok.")
         return redirect("core:bolum_yetkileri")
+    if request.GET.get("eski") != "1":  # sayfa "Kullanıcılar ve yetkiler"e taşındı
+        return redirect(reverse("core:kullanicilar") + "?tur=bolum")
     moduller, satirlar, sutun_seviye = by.tablo()
     gruplar = []
     for m in moduller:
