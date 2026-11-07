@@ -277,3 +277,37 @@ class KartVitriniTestleri(TestCase):
         # şube hesabının eklediği personel kendi birimine yazılır
         self.client.post(reverse("personel:ekle"), {"ad_soyad": "Can DEMİR", "sicil": "", "aktif": "on"})
         self.assertEqual(Personel.objects.get(ad_soyad="Can DEMİR").teskilat_birimi, self.sube)
+
+
+class BirimHesabiTestleri(TestCase):
+    """Şube müdürlüğü / kısım hesabı: menüde yalnız kısayollar; birim sayfalarında yalnız kendi kapsamındaki kişiler."""
+
+    @classmethod
+    def setUpTestData(cls):
+        T = TeskilatBirimi
+        kok = T.objects.create(ad="Müdürlük", tur=T.MUDURLUK)
+        cls.sube = T.objects.create(ad="Öğrenci İşleri Şube Müdürlüğü", tur=T.SUBE, ust=kok)
+        cls.kisim = T.objects.create(ad="Plan Program Kısmı", tur=T.KISIM, ust=cls.sube)
+        cls.diger = T.objects.create(ad="Mali İşler Kısmı", tur=T.KISIM, ust=kok)
+        ott = Bolum.objects.create(ad="Otomotiv Teknolojisi", kod="OTT")
+        Personel.objects.create(ad_soyad="Ali KAYA", teskilat_birimi=cls.kisim, bolum=ott)  # bölümlü ama kısımda
+        Personel.objects.create(ad_soyad="Veli ÇELİK", teskilat_birimi=cls.diger)
+        cls.u = User.objects.create_user("plan", password="x-Parola-123", teskilat_birimi=cls.kisim)
+        Yetki.objects.create(kullanici=cls.u, birim=Birim.objects.get(slug="personel-bilgileri"),
+                             seviye=Yetki.GORUNTULEME, kapsam=Yetki.BOLUM)
+        Yetki.objects.create(kullanici=cls.u, birim=Birim.objects.get(slug="personel-yoklamasi"),
+                             seviye=Yetki.DUZENLEME, kapsam=Yetki.BOLUM)
+
+    def test_menu_ve_kapsam(self):
+        self.client.force_login(self.u)
+        r = self.client.get(reverse("core:panel"))
+        self.assertNotContains(r, "Organizasyon şeması")
+        self.assertContains(r, "Personel kartları")
+        self.assertContains(r, "Personel yoklaması")
+        r = self.client.get(reverse("personel:teskilat_birimi", args=[self.kisim.pk]))
+        self.assertContains(r, "Ali KAYA")
+        r = self.client.get(reverse("personel:teskilat_birimi", args=[self.diger.pk]))
+        self.assertNotContains(r, "Veli ÇELİK")
+        r = self.client.get(reverse("yoklama:ana"))
+        self.assertContains(r, "Ali KAYA")
+        self.assertNotContains(r, "Veli ÇELİK")
