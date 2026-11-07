@@ -1,13 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Bölüm kısayolları{% endblock %}
-{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Bölüm kısayolları</li>{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item"><a href="{% url 'core:kullanicilar' %}">Kullanıcılar ve yetkiler</a></li><li class="breadcrumb-item active" aria-current="page">Bölüm kısayolları</li>{% endblock %}
 {% block content %}
 <div class="sayfa-baslik">
   <div>
-    <h1>Bölüm kısayolları</h1>
+    <h1>Kullanıcılar ve yetkiler</h1>
     <p class="text-secondary mb-0">Bölüm hesaplarının menüsünde yalnızca kısayollar bulunur; birim ağacı ve organizasyon şeması gizlidir. Hangi kısayolun görüneceğini buradan seçin.</p>
   </div>
 </div>
+{% include "core/_kullanici_sekmeler.html" with sekme="kisayol" %}
 
 <form method="post">
   {% csrf_token %}
@@ -16,7 +17,7 @@
       <span class="small text-secondary ms-2 me-auto">✓ menüde görünür, ✗ gizli</span>
       <button class="btn btn-sm btn-primary"><i class="bi bi-check2"></i> Kaydet</button>
     </div>
-    <div class="yardim-satiri"><i class="bi bi-info-circle"></i> Kısayol yalnızca bölümün o modülde yetkisi varsa görünür (Bölüm yetkileri). Kapatılan kısayolun sayfaları o bölüme tamamen kapanır (ana sayfa kartları ve adres yazarak da açılmaz). “Tüm bölümler” satırı bir sütunu tek tıkla açar ya da kapatır; değişiklikler Kaydet ile geçerli olur.</div>
+    <div class="yardim-satiri"><i class="bi bi-info-circle"></i> Kısayol yalnızca bölümün o modülde yetkisi varsa görünür (Hesaplar ve yetkiler sekmesi). Kapatılan kısayolun sayfaları o bölüme tamamen kapanır (ana sayfa kartları ve adres yazarak da açılmaz). “Tüm bölümler” satırı bir sütunu tek tıkla açar ya da kapatır; değişiklikler Kaydet ile geçerli olur.</div>
     <div class="table-responsive">
       <table class="table align-middle mb-0 yb-tablo">
         <thead>

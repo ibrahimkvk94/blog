@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% block title %}{{ h.username }} · Kullanıcılar{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item"><a href="{% url 'core:kullanicilar' %}">Kullanıcılar ve yetkiler</a></li><li class="breadcrumb-item active" aria-current="page">{{ h.username }}</li>{% endblock %}
+{% block content %}
+<div class="ky-profil-bas" style="--renk:{{ h.tur.renk }}">
+  <span class="ky-avatar ky-avatar-buyuk">{{ h.harfler }}</span>
+  <div class="ky-profil-metin">
+    <div class="ky-tur-rozet"><i class="bi bi-{{ h.tur.ikon }}"></i>{{ h.tur.ad }}</div>
+    <h1>{{ h.gorunen }}</h1>
+    <div class="ky-profil-alt"><code>{{ h.username }}</code>{% if h.yer_alt %} · {{ h.yer_alt }}{% endif %}</div>
+  </div>
+  <div class="ky-profil-cipler">
+    {% if h.is_active %}<span class="ky-durum iyi"><i class="bi bi-check-circle-fill"></i>Hesap açık</span>{% else %}<span class="ky-durum kotu"><i class="bi bi-slash-circle"></i>Pasif</span>{% endif %}
+    {% if h.iki_adim_acik %}<span class="ky-durum iyi"><i class="bi bi-shield-fill-check"></i>İki adımlı doğrulama</span>{% else %}<span class="ky-durum"><i class="bi bi-shield"></i>İki adımlı doğrulama yok</span>{% endif %}
+    {% if h.kilit_dk %}<span class="ky-durum uyari"><i class="bi bi-lock-fill"></i>Giriş kilitli · {{ h.kilit_dk }} dk</span>{% endif %}
+    {% if h.parola_degismeli %}<span class="ky-durum"><i class="bi bi-key-fill"></i>İlk girişte parola değiştirecek</span>{% endif %}
+    <span class="ky-durum"><i class="bi bi-box-arrow-in-right"></i>{% if h.last_login %}Son giriş {{ h.last_login|date:"d.m.Y H:i" }}{% else %}Hiç giriş yapmadı{% endif %}</span>
+  </div>
+</div>
+
+{% if salt_okunur %}
+<div class="alert alert-info d-flex gap-2 align-items-start"><i class="bi bi-shield-lock fs-5"></i><div><strong>Sistem yöneticisi hesabı.</strong> Her modülde tam yetkisi vardır; bu sayfadan değiştirilmez{% if kendisi %} — kendi parolanızı ve iki adımlı doğrulamanızı sağ üstteki hesap menünüzden yönetin{% else %} (gerekirse Yönetim Paneli → Kullanıcılar){% endif %}.</div></div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-xl-8">
+    <form method="post" id="kyYetki" class="kart">
+      {% csrf_token %}<input type="hidden" name="islem" value="yetki">
+      <fieldset {% if salt_okunur %}disabled{% endif %}>
+      <div class="islem-cubugu ky-cubuk">
+        <h2 class="h6 m-0 me-2"><i class="bi bi-shield-check me-1"></i>Yetkiler</h2>
+        {% if not salt_okunur %}
+        <div class="dropdown">
+          <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown"><i class="bi bi-magic"></i> Hızlı</button>
+          <ul class="dropdown-menu shadow-sm">
+            <li><button type="button" class="dropdown-item" data-hizli="hepsi-yok"><i class="bi bi-x-circle me-2"></i>Tüm yetkileri kaldır</button></li>
+            <li><button type="button" class="dropdown-item" data-hizli="kendi"><i class="bi bi-house-door me-2"></i>Hepsinin kapsamı: kendi birimi</button></li>
+            <li><button type="button" class="dropdown-item" data-hizli="tum"><i class="bi bi-globe2 me-2"></i>Hepsinin kapsamı: tüm okul</button></li>
+          </ul>
+        </div>
+        {% if kopya_hesaplar %}
+        <select class="form-select form-select-sm w-auto" id="kyKopya" aria-label="Başka hesabın yetkilerini uygula">
+          <option value="">Şu hesap gibi yap…</option>
+          {% for k, ad in kopya_hesaplar %}<option value="{{ k.pk }}">{{ k.username }}{% if ad != k.username %} · {{ ad }}{% endif %}</option>{% endfor %}
+        </select>
+        {% endif %}
+        <span class="small text-secondary ms-auto" id="kyYDurum">Değişiklik yok</span>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="kyYGeri" disabled><i class="bi bi-arrow-counterclockwise"></i></button>
+        <button class="btn btn-sm btn-primary" id="kyYKaydet" disabled><i class="bi bi-check2"></i> Kaydet</button>
+        {% endif %}
+      </div>
+      <div class="ky-yetki-liste">
+        {% for g in gruplar %}
+        <div class="ky-yetki-grup">{{ g.grup.ad }}</div>
+        {% for r in satirlar %}{% if r.modul.grup == g.grup %}
+        <div class="ky-yetki-satir" data-m="{{ r.modul.pk }}" data-ilk="{{ r.seviye }}:{{ r.kapsam }}">
+          <div class="ky-yetki-ad"><i class="bi bi-{{ r.modul.ikon }}"></i><span>{{ r.modul.ad }}</span>{% if r.miras %}<span class="ky-miras-rozet" title="Bu seviye {{ r.miras.birim.ad }} yetkisinden geliyor; değiştirirseniz o yetki modül modül yazılır">üst birimden</span>{% endif %}</div>
+          <div class="ky-seg ky-seviye" role="radiogroup" aria-label="{{ r.modul.ad }} seviyesi">
+            {% for s, ad in seviye_adlari.items %}<input type="radio" class="btn-check" name="s_{{ r.modul.pk }}" id="s{{ r.modul.pk }}_{{ s }}" value="{{ s }}" {% if s == r.seviye %}checked{% endif %} autocomplete="off"><label class="s{{ s }}" for="s{{ r.modul.pk }}_{{ s }}">{{ ad }}</label>{% endfor %}
+          </div>
+          <div class="ky-seg ky-kapsam" role="radiogroup" aria-label="{{ r.modul.ad }} kapsamı">
+            <input type="radio" class="btn-check" name="k_{{ r.modul.pk }}" id="k{{ r.modul.pk }}_b" value="bolum" {% if r.kapsam != 'tum' %}checked{% endif %} autocomplete="off"><label for="k{{ r.modul.pk }}_b" title="Bölüm hesabında kendi bölümü, şube / kısım hesabında kendi birimi ve alt birimleri"><i class="bi bi-house-door"></i>Kendi birimi</label>
+            <input type="radio" class="btn-check" name="k_{{ r.modul.pk }}" id="k{{ r.modul.pk }}_t" value="tum" {% if r.kapsam == 'tum' %}checked{% endif %} autocomplete="off"><label for="k{{ r.modul.pk }}_t"><i class="bi bi-globe2"></i>Tüm okul</label>
+          </div>
+        </div>
+        {% endif %}{% endfor %}
+        {% endfor %}
+        {% if diger %}
+        <div class="ky-yetki-grup">Üst birim ve hazırlanan modül yetkileri</div>
+        {% for y in diger %}
+        <div class="ky-yetki-satir">
+          <div class="ky-yetki-ad"><i class="bi bi-{{ y.birim.ikon }}"></i><span>{{ y.birim.ad }}</span><span class="small text-secondary">alt birimlerine de geçer</span></div>
+          <span class="ky-durum">{{ y.get_seviye_display }} · {% if y.kapsam == 'tum' %}tüm okul{% else %}kendi birimi{% endif %}</span>
+          <div class="form-check m-0"><input class="form-check-input ky-kaldir" type="checkbox" name="kaldir" value="{{ y.pk }}" id="kaldir{{ y.pk }}"><label class="form-check-label small" for="kaldir{{ y.pk }}">Kaldır</label></div>
+        </div>
+        {% endfor %}
+        {% endif %}
+      </div>
+      {% if not salt_okunur and not h.bolum_id and not h.teskilat_birimi_id %}
+      <div class="yardim-satiri"><i class="bi bi-info-circle"></i> Bu hesap bir bölüme ya da birime bağlı değil: "kendi birimi" kapsamlı yetkiler hiçbir kaydı göstermez. Ya "tüm okul" verin ya da sağdan bölüm / birim seçin.</div>
+      {% endif %}
+      </fieldset>
+    </form>
+
+    <div class="kart mt-3">
+      <div class="px-3 pt-3 pb-1"><h2 class="h6 m-0"><i class="bi bi-clock-history me-1"></i>Bu hesabın geçmişi</h2></div>
+      {% include "core/_kullanici_gecmis_liste.html" with kayitlar=gecmis tek_hesap=True %}
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <form method="post" class="kart p-3 mb-3">
+      {% csrf_token %}<input type="hidden" name="islem" value="bilgi">
+      <h2 class="h6 mb-3"><i class="bi bi-person-vcard me-1"></i>Hesap bilgileri</h2>
+      <fieldset {% if salt_okunur %}disabled{% endif %}>
+      {% for f in bilgi_formu %}
+        {% if f.field.widget.input_type == 'checkbox' %}
+        <div class="form-check form-switch mb-2">{{ f }}<label class="form-check-label" for="{{ f.id_for_label }}">{{ f.label }}</label></div>
+        {% else %}
+        <div class="mb-2"><label class="form-label small mb-1" for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}{% if f.help_text %}<div class="form-text">{{ f.help_text }}</div>{% endif %}{% for e in f.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}</div>
+        {% endif %}
+      {% endfor %}
+      {% for e in bilgi_formu.non_field_errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      {% if not salt_okunur %}<button class="btn btn-sm btn-primary mt-1"><i class="bi bi-check2"></i> Kaydet</button>{% endif %}
+      </fieldset>
+    </form>
+
+    {% if not salt_okunur %}
+    <form method="post" class="kart p-3 mb-3">
+      {% csrf_token %}<input type="hidden" name="islem" value="parola">
+      <h2 class="h6 mb-3"><i class="bi bi-key me-1"></i>Parolayı yenile</h2>
+      <div class="input-group input-group-sm mb-1">
+        <input type="text" class="form-control ky-parola" name="p-parola" id="kyParola" value="{% if parola_formu.is_bound %}{{ parola_formu.parola.value|default_if_none:'' }}{% else %}{{ onerilen_parola }}{% endif %}" autocomplete="off" spellcheck="false" aria-label="Yeni parola" required>
+        <button type="button" class="btn btn-outline-secondary" id="kyUret" title="Yeni öneri"><i class="bi bi-dice-5"></i></button>
+        <button type="button" class="btn btn-outline-secondary" id="kyKopyala" title="Kopyala"><i class="bi bi-clipboard"></i></button>
+      </div>
+      {% for e in parola_formu.parola.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+      <div class="form-text mb-2">Önerilen parola rastgeledir; kopyalayıp kullanıcıya iletin.</div>
+      {% if parola_formu.zayif %}<div class="form-check mb-1">{{ parola_formu.zayif_onay }}<label class="form-check-label small" for="{{ parola_formu.zayif_onay.id_for_label }}">{{ parola_formu.zayif_onay.label }}</label></div>{% endif %}
+      <div class="form-check form-switch mb-2">{{ parola_formu.degistirsin }}<label class="form-check-label small" for="{{ parola_formu.degistirsin.id_for_label }}">{{ parola_formu.degistirsin.label }}</label></div>
+      <button class="btn btn-sm btn-warning"><i class="bi bi-arrow-repeat"></i> Parolayı yenile</button>
+      <div class="form-text">Yenilenince hesabın açık oturumları ve güvenilir cihazları kapanır, giriş kilidi açılır.</div>
+    </form>
+
+    <div class="kart p-3">
+      <h2 class="h6 mb-3"><i class="bi bi-shield-lock me-1"></i>Güvenlik</h2>
+      <div class="ky-guv">
+        <div><b>İki adımlı doğrulama</b><span>{% if iki_adim.etkin %}Açık · {{ iki_adim.acilis|date:"d.m.Y" }}{% if iki_adim.kalan_yedek %} · {{ iki_adim.kalan_yedek }} yedek kod{% endif %}{% elif iki_adim %}Kurulumu yarım{% else %}Kurulmamış{% endif %}</span></div>
+        {% if iki_adim %}<form method="post" onsubmit="return confirm('İki adımlı doğrulama sıfırlansın mı? Kullanıcı bir sonraki girişte yeniden kurar.')">{% csrf_token %}<input type="hidden" name="islem" value="iki_adim"><button class="btn btn-sm btn-outline-danger">Sıfırla</button></form>{% endif %}
+      </div>
+      <div class="ky-guv">
+        <div><b>Güvenilir cihazlar</b><span>{% for c in cihazlar %}{{ c.ad|default:"cihaz" }}{% if c.son_kullanim %} ({{ c.son_kullanim|date:"d.m.Y" }}){% endif %}{% if not forloop.last %}, {% endif %}{% empty %}Yok{% endfor %}</span></div>
+        {% if cihazlar %}<form method="post">{% csrf_token %}<input type="hidden" name="islem" value="cihazlar"><button class="btn btn-sm btn-outline-danger">Kaldır</button></form>{% endif %}
+      </div>
+      <div class="ky-guv">
+        <div><b>Açık oturumlar</b><span>Tüm tarayıcılarda çıkış yaptırır</span></div>
+        <form method="post">{% csrf_token %}<input type="hidden" name="islem" value="oturumlar"><button class="btn btn-sm btn-outline-secondary">Kapat</button></form>
+      </div>
+      {% if h.kilit_dk %}
+      <div class="ky-guv">
+        <div><b>Giriş kilidi</b><span>Hatalı denemeler yüzünden {{ h.kilit_dk }} dk kilitli</span></div>
+        <form method="post">{% csrf_token %}<input type="hidden" name="islem" value="kilit"><button class="btn btn-sm btn-outline-warning">Kilidi aç</button></form>
+      </div>
+      {% endif %}
+      <div class="small text-secondary mt-2">Hesap açılışı {{ h.date_joined|date:"d.m.Y" }}</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if not salt_okunur %}
+{{ kopya_json|json_script:"kyKopyaVeri" }}
+<script>
+(function () {
+  const form = document.getElementById('kyYetki');
+  const satirlar = Array.from(form.querySelectorAll('.ky-yetki-satir[data-m]'));
+  const kopya = JSON.parse(document.getElementById('kyKopyaVeri').textContent);
+  const varsayilan = '{{ varsayilan_kapsam }}';
+  let kaydediliyor = false;
+  const deger = r => (r.querySelector('.ky-seviye input:checked') || {}).value + ':' + (r.querySelector('.ky-kapsam input:checked') || {}).value;
+  function ayarla(r, s, k) {
+    const si = r.querySelector('.ky-seviye input[value="' + s + '"]'); if (si) si.checked = true;
+    if (k) { const ki = r.querySelector('.ky-kapsam input[value="' + k + '"]'); if (ki) ki.checked = true; }
+  }
+  function durum() {
+    let n = 0;
+    satirlar.forEach(r => {
+      const [s] = deger(r).split(':');
+      const [is_, ik] = r.dataset.ilk.split(':');
+      const degisti = s !== is_ || (s !== '0' && deger(r) !== r.dataset.ilk);
+      r.classList.toggle('degisti', degisti);
+      r.classList.toggle('bos', s === '0');
+      r.querySelectorAll('.ky-kapsam input').forEach(i => { i.disabled = s === '0'; });
+      if (degisti) n++;
+    });
+    n += form.querySelectorAll('.ky-kaldir:checked').length;
+    document.getElementById('kyYDurum').textContent = n ? n + ' kaydedilmemiş değişiklik' : 'Değişiklik yok';
+    document.getElementById('kyYKaydet').disabled = document.getElementById('kyYGeri').disabled = n === 0;
+  }
+  form.addEventListener('change', durum);
+  document.getElementById('kyYGeri').addEventListener('click', () => {
+    satirlar.forEach(r => { const [s, k] = r.dataset.ilk.split(':'); ayarla(r, s, k); });
+    form.querySelectorAll('.ky-kaldir').forEach(i => { i.checked = false; });
+    durum();
+  });
+  form.querySelectorAll('[data-hizli]').forEach(b => b.addEventListener('click', () => {
+    const h = b.dataset.hizli;
+    satirlar.forEach(r => h === 'hepsi-yok' ? ayarla(r, '0') : ayarla(r, null, h === 'tum' ? 'tum' : 'bolum'));
+    if (h === 'hepsi-yok') form.querySelectorAll('.ky-kaldir').forEach(i => { i.checked = true; });
+    durum();
+  }));
+  const kopyaSec = document.getElementById('kyKopya');
+  if (kopyaSec) kopyaSec.addEventListener('change', () => {
+    const v = kopya[kopyaSec.value];
+    if (!v) return;
+    satirlar.forEach(r => { const y = v[r.dataset.m]; ayarla(r, y ? y[0] : '0', y ? y[1] : varsayilan); });
+    kopyaSec.value = '';
+    durum();
+  });
+  form.addEventListener('submit', () => { kaydediliyor = true; satirlar.forEach(r => r.querySelectorAll('.ky-kapsam input').forEach(i => { i.disabled = false; })); });
+  addEventListener('beforeunload', e => {
+    if (!kaydediliyor && !document.getElementById('kyYKaydet').disabled) { e.preventDefault(); e.returnValue = ''; }
+  });
+  durum();
+
+  // parola önerisi
+  const p = document.getElementById('kyParola');
+  const H = 'abcdefghjkmnpqrstuvwxyz', B = 'ABCDEFGHJKLMNPQRSTUVWXYZ', R = '23456789';
+  const sec = a => a[crypto.getRandomValues(new Uint32Array(1))[0] % a.length];
+  const parca = () => sec(B) + sec(H) + sec(H) + sec(R);
+  document.getElementById('kyUret').addEventListener('click', () => { p.value = parca() + '-' + parca() + '-' + sec(B) + sec(H); });
+  document.getElementById('kyKopyala').addEventListener('click', e => {
+    const d = e.currentTarget;
+    (navigator.clipboard ? navigator.clipboard.writeText(p.value) : Promise.reject()).then(
+      () => { d.innerHTML = '<i class="bi bi-check2"></i>'; setTimeout(() => { d.innerHTML = '<i class="bi bi-clipboard"></i>'; }, 1500); },
+      () => { p.select(); document.execCommand('copy'); });
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

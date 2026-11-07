@@ -148,7 +148,7 @@ class BolumYetkileriTestleri(TestCase):
             "h": [f"{self.ask.pk}-{dp.pk}", f"{self.ask.pk}-{dm.pk}", f"{self.tem.pk}-{dm.pk}"],
             f"seviye_{dp.pk}": Yetki.DUZENLEME, f"seviye_{dm.pk}": Yetki.GORUNTULEME,
         })
-        self.assertRedirects(r, reverse("core:bolum_yetkileri"))
+        self.assertRedirects(r, reverse("core:bolum_yetkileri"), fetch_redirect_response=False)
         for u in (self.ask1, self.ask2):
             self.assertEqual(set(u.yetkiler.values_list("birim__slug", "seviye", "kapsam")),
                              {("ders-planlari", 2, "bolum"), ("ders-mazeretleri", 1, "bolum")})
@@ -172,7 +172,9 @@ class BolumYetkileriTestleri(TestCase):
         self.client.force_login(self.yon)
         self.assertEqual(self.client.get(reverse("core:bolum_yetkileri")).status_code, 403)
         self.client.force_login(self.su)
-        r = self.client.get(reverse("core:bolum_yetkileri"))
+        r = self.client.get(reverse("core:bolum_yetkileri"))  # sayfa Kullanıcılar ve yetkiler'e taşındı
+        self.assertRedirects(r, reverse("core:kullanicilar") + "?tur=bolum")
+        r = self.client.get(reverse("core:bolum_yetkileri") + "?eski=1")
         self.assertContains(r, "Askeri Bilimler")
         self.assertContains(r, "ask1, ask2")
 
@@ -265,3 +267,101 @@ class TurkceAramaTestleri(TestCase):
         Personel.objects.create(ad_soyad="Deneme KİRAZ")
         self.client.force_login(u)
         self.assertContains(self.client.get(reverse("personel:liste"), {"q": "kiraz"}), "KİRAZ")
+
+
+class KullaniciYonetimiTestleri(TestCase):
+    """Kullanıcılar ve yetkiler: yalnız sistem yöneticisi; tablo, hesap sayfası, parola, yeni hesap, günlük."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from personel.models import TeskilatBirimi
+
+        cls.ask = Bolum.objects.create(ad="Askeri Bilimler", kod="ASK")
+        cls.kisim = TeskilatBirimi.objects.create(ad="Plan Program Kısmı", tur=TeskilatBirimi.KISIM)
+        cls.su = User.objects.create_superuser("su", password="x-Parola-123")
+        cls.ask1 = User.objects.create_user("ask1", password="x-Parola-123", bolum=cls.ask)
+        cls.plan = User.objects.create_user("plan", password="x-Parola-123", teskilat_birimi=cls.kisim,
+                                            first_name="Plan Program Kısmı")
+        cls.yoklama = Birim.objects.get(slug="personel-yoklamasi")
+        cls.kartlar = Birim.objects.get(slug="personel-bilgileri")
+        Yetki.objects.create(kullanici=cls.ask1, birim=cls.yoklama, seviye=Yetki.DUZENLEME, kapsam=Yetki.BOLUM)
+
+    def test_yalniz_sistem_yoneticisi(self):
+        self.client.force_login(self.ask1)
+        for ad, arg in (("core:kullanicilar", []), ("core:kullanici", [self.plan.pk]), ("core:kullanici_yeni", []),
+                        ("core:kullanici_gecmisi", [])):
+            self.assertEqual(self.client.get(reverse(ad, args=arg)).status_code, 403)
+
+    def test_tablo_ve_toplu_kayit(self):
+        self.client.force_login(self.su)
+        r = self.client.get(reverse("core:kullanicilar"))
+        self.assertContains(r, "Plan Program Kısmı")
+        self.assertContains(r, "Şube / kısım hesabı")
+        self.assertContains(r, f'data-u="{self.ask1.pk}" data-m="{self.yoklama.pk}" data-s="2"')
+        r = self.client.post(reverse("core:kullanicilar"), {"c": [
+            f"{self.plan.pk}:{self.yoklama.pk}:2:bolum", f"{self.plan.pk}:{self.kartlar.pk}:1:bolum",
+            f"{self.ask1.pk}:{self.yoklama.pk}:0:bolum", f"{self.su.pk}:{self.yoklama.pk}:0:tum"]})
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(set(self.plan.yetkiler.values_list("birim__slug", "seviye", "kapsam")),
+                         {("personel-yoklamasi", 2, "bolum"), ("personel-bilgileri", 1, "bolum")})
+        self.assertFalse(self.ask1.yetkiler.exists())
+        self.assertTrue(User.objects.get(pk=self.su.pk).is_superuser)  # sistem yöneticisine dokunulmaz
+        r = self.client.get(reverse("core:kullanici_gecmisi"))
+        self.assertContains(r, "Personel Yoklaması: Yok → Düzenler (kendi birimi)")
+
+    def test_ust_birim_yetkisi_hucre_degisince_modullere_cevrilir(self):
+        plan_program = Birim.objects.get(slug="plan-program")
+        dp = Birim.objects.get(slug="ders-planlari")
+        Yetki.objects.create(kullanici=self.plan, birim=plan_program, seviye=Yetki.GORUNTULEME, kapsam=Yetki.BOLUM)
+        self.client.force_login(self.su)
+        self.assertContains(self.client.get(reverse("core:kullanicilar")), 'data-miras="Plan Program Kısmı"')
+        self.client.post(reverse("core:kullanicilar"), {"c": [f"{self.plan.pk}:{dp.pk}:0:bolum"]})
+        slugs = set(self.plan.yetkiler.values_list("birim__slug", flat=True))
+        self.assertNotIn("plan-program", slugs)
+        self.assertNotIn("ders-planlari", slugs)
+        self.assertIn("ders-mazeretleri", slugs)  # diğer modüller korunur
+
+    def test_hesap_sayfasi_yetki_ve_bilgi(self):
+        self.client.force_login(self.su)
+        url = reverse("core:kullanici", args=[self.plan.pk])
+        self.assertContains(self.client.get(url), "Yetkiler")
+        self.client.post(url, {"islem": "yetki", f"s_{self.yoklama.pk}": "3", f"k_{self.yoklama.pk}": "tum"})
+        self.assertEqual(list(self.plan.yetkiler.values_list("seviye", "kapsam")), [(3, "tum")])
+        self.client.post(url, {"islem": "bilgi", "h-first_name": "Plan", "h-last_name": "", "h-bolum": "",
+                               "h-teskilat_birimi": self.kisim.pk, "h-personel": "", "h-is_active": ""})
+        self.plan.refresh_from_db()
+        self.assertFalse(self.plan.is_active)
+        self.assertEqual(self.plan.first_name, "Plan")
+
+    def test_parola_yenileme_zayifsa_onay_ister(self):
+        self.client.force_login(self.su)
+        url = reverse("core:kullanici", args=[self.plan.pk])
+        r = self.client.post(url, {"islem": "parola", "p-parola": "plan", "p-degistirsin": "on"})
+        self.assertContains(r, "Parola zayıf olsa da kabul et")
+        self.assertTrue(User.objects.get(pk=self.plan.pk).check_password("x-Parola-123"))
+        self.client.post(url, {"islem": "parola", "p-parola": "plan", "p-zayif_onay": "on", "p-degistirsin": "on"})
+        u = User.objects.get(pk=self.plan.pk)
+        self.assertTrue(u.check_password("plan"))
+        self.assertTrue(u.parola_degismeli)
+
+    def test_sistem_yoneticisi_hesabi_salt_okunur(self):
+        diger = User.objects.create_superuser("su2", password="x-Parola-123")
+        self.client.force_login(self.su)
+        url = reverse("core:kullanici", args=[diger.pk])
+        self.assertContains(self.client.get(url), "Sistem yöneticisi hesabı")
+        self.assertEqual(self.client.post(url, {"islem": "parola", "p-parola": "Yeni-Parola-987"}).status_code, 403)
+
+    def test_yeni_hesap_yetkileri_kopyalar(self):
+        self.client.force_login(self.su)
+        r = self.client.post(reverse("core:kullanici_yeni"), {
+            "username": "ask2", "first_name": "", "last_name": "", "bolum": self.ask.pk, "teskilat_birimi": "",
+            "personel": "", "parola": "Guclu-Parola-482", "is_active": "on", "parola_degismeli": "on",
+            "sablon": self.ask1.pk})
+        u = User.objects.get(username="ask2")
+        self.assertRedirects(r, reverse("core:kullanici", args=[u.pk]))
+        self.assertEqual(list(u.yetkiler.values_list("birim__slug", "seviye", "kapsam")),
+                         [("personel-yoklamasi", 2, "bolum")])
+        self.assertTrue(u.check_password("Guclu-Parola-482") and u.parola_degismeli and u.bolum_id == self.ask.pk)
+        # büyük / küçük harf farkıyla aynı ad alınamaz
+        r = self.client.post(reverse("core:kullanici_yeni"), {"username": "ASK2", "parola": "Guclu-Parola-482"})
+        self.assertContains(r, "zaten var")

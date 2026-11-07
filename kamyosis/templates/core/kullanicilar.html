@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}Kullanıcılar ve yetkiler{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Kullanıcılar ve yetkiler</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Kullanıcılar ve yetkiler</h1>
+    <p class="text-secondary mb-0">Kim hangi modülü hangi seviyede kullanıyor, hesaplar güvende mi: tek ekranda. Yalnız sistem yöneticileri görür.</p>
+  </div>
+  <a class="btn btn-primary" href="{% url 'core:kullanici_yeni' %}"><i class="bi bi-person-plus me-1"></i>Yeni hesap</a>
+</div>
+
+{% include "core/_kullanici_sekmeler.html" %}
+
+<div class="ky-ozet mb-3">
+  <div class="ky-ozet-kutu" style="--renk:#2f5d8a"><i class="bi bi-people"></i><div><b>{{ ozet.toplam }}</b><span>hesap · {{ ozet.aktif }} açık{% if ozet.pasif %}, {{ ozet.pasif }} pasif{% endif %}</span></div></div>
+  <div class="ky-ozet-kutu" style="--renk:#15803d"><i class="bi bi-shield-check"></i><div><b>{{ ozet.iki_adim }}<small>/{{ ozet.aktif }}</small></b><span>iki adımlı doğrulama açık</span></div></div>
+  <div class="ky-ozet-kutu" style="--renk:#0f766e"><i class="bi bi-box-arrow-in-right"></i><div><b>{{ ozet.son_hafta }}</b><span>son 7 günde giriş yaptı</span></div></div>
+  <div class="ky-ozet-kutu" style="--renk:{% if ozet.kilitli %}#c2410c{% else %}#64748b{% endif %}"><i class="bi bi-lock"></i><div><b>{{ ozet.kilitli }}</b><span>hesap şu an giriş kilitli</span></div></div>
+</div>
+
+<div class="kart ky-arac mb-3">
+  <label class="ky-ara"><i class="bi bi-search"></i><input type="search" id="kyAra" placeholder="Hesap, ad, bölüm ya da birim ara…" autocomplete="off" aria-label="Hesap ara"></label>
+  <div class="ky-cipler" role="group" aria-label="Hesap türü">
+    <button type="button" class="ky-cip" data-tur="" style="--renk:#1f3a5f">Tümü <span>{{ ozet.toplam }}</span></button>
+    {% for t in ozet.turler %}{% if t.sayi %}<button type="button" class="ky-cip" data-tur="{{ t.kod }}" style="--renk:{{ t.renk }}"><i class="bi bi-{{ t.ikon }}"></i>{{ t.ad }} <span>{{ t.sayi }}</span></button>{% endif %}{% endfor %}
+  </div>
+  {% if ozet.pasif %}<div class="form-check form-switch m-0"><input class="form-check-input" type="checkbox" role="switch" id="kyPasif"><label class="form-check-label small" for="kyPasif">Pasifler</label></div>{% endif %}
+</div>
+
+<form method="post" id="kyForm">
+  {% csrf_token %}
+  <input type="hidden" name="tur" id="kyTur" value="{{ secili_tur }}">
+  <div class="kart">
+    <div class="islem-cubugu ky-cubuk">
+      <div class="ky-lejant">
+        <span class="ky-hucre s0" aria-hidden="true">–</span>Yok
+        <span class="ky-hucre s1" aria-hidden="true"><i class="bi bi-eye"></i></span>Görür
+        <span class="ky-hucre s2" aria-hidden="true"><i class="bi bi-pencil-fill"></i></span>Düzenler
+        <span class="ky-hucre s3" aria-hidden="true"><i class="bi bi-star-fill"></i></span>Yönetir
+        <span class="ky-lejant-not"><i class="bi bi-globe2"></i> tüm okul · <span class="ky-miras-ornek"></span> üst birimden</span>
+      </div>
+      <span class="small text-secondary ms-auto" id="kyDurum">Değişiklik yok</span>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="kyGeri" disabled><i class="bi bi-arrow-counterclockwise"></i> Geri al</button>
+      <button class="btn btn-sm btn-primary" id="kyKaydet" disabled><i class="bi bi-check2"></i> Kaydet</button>
+    </div>
+    <div class="yardim-satiri"><i class="bi bi-hand-index"></i> Hücreye tıkladıkça <strong>Yok → Görür → Düzenler → Yönetir</strong> sırasıyla değişir. Modül başlığına tıklayıp görünen tüm hesaplara birden verebilirsiniz. Kapsam (kendi birimi / tüm okul), parola, iki adımlı doğrulama gibi ayarlar için hesabın adına tıklayın.</div>
+    <div class="ky-tablo-kap">
+      <table class="ky-tablo">
+        <thead>
+          <tr>
+            <th rowspan="2" class="ky-sabit ky-sabit-bas">Hesap <span class="ky-say" id="kySayi"></span></th>
+            {% for g in gruplar %}<th colspan="{{ g.sayi }}" class="ky-grup">{{ g.grup.ad }}</th>{% endfor %}
+          </tr>
+          <tr>
+            {% for m in moduller %}
+            <th class="ky-modul">
+              <div class="dropdown">
+                <button type="button" class="ky-modul-dugme" data-bs-toggle="dropdown" aria-expanded="false" title="{{ m.ad }}: görünen tüm hesaplara ver">
+                  <i class="bi bi-{{ m.ikon }}"></i><span>{{ m.ad }}</span>
+                </button>
+                <ul class="dropdown-menu shadow-sm">
+                  <li><h6 class="dropdown-header">{{ m.ad }} · görünen hesaplara</h6></li>
+                  {% for s, ad in seviye_adlari.items %}<li><button type="button" class="dropdown-item ky-toplu" data-sutun="{{ m.pk }}" data-s="{{ s }}"><span class="ky-hucre ky-mini s{{ s }}"></span>{{ ad }}</button></li>{% endfor %}
+                </ul>
+              </div>
+            </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in satirlar %}
+          <tr data-tur="{{ u.tur.kod }}" data-aktif="{{ u.is_active|yesno:'1,0' }}" data-ara="{{ u.username|lower }} {{ u.gorunen|lower }} {{ u.yer|lower }}" class="{% if not u.is_active %}ky-pasif{% endif %}">
+            <th class="ky-sabit">
+              <a href="{% url 'core:kullanici' u.pk %}" class="ky-kisi">
+                <span class="ky-avatar" style="--renk:{{ u.tur.renk }}" title="{{ u.tur.ad }}">{{ u.harfler }}</span>
+                <span class="ky-kisi-metin">
+                  <span class="ky-kisi-ad">{{ u.gorunen }}</span>
+                  <span class="ky-kisi-alt"><code>{{ u.username }}</code>{% if u.yer_alt %} · {{ u.yer_alt }}{% endif %}</span>
+                </span>
+                <span class="ky-durumlar">
+                  {% if not u.is_active %}<i class="bi bi-slash-circle text-danger" title="Pasif hesap"></i>{% endif %}
+                  {% if u.iki_adim_acik %}<i class="bi bi-shield-fill-check text-success" title="İki adımlı doğrulama açık"></i>{% endif %}
+                  {% if u.kilit_dk %}<i class="bi bi-lock-fill text-warning" title="Giriş kilitli ({{ u.kilit_dk }} dk)"></i>{% endif %}
+                  {% if u.parola_degismeli %}<i class="bi bi-key-fill text-secondary" title="Bir sonraki girişte parolasını değiştirecek"></i>{% endif %}
+                </span>
+              </a>
+            </th>
+            {% if u.is_superuser %}
+            <td colspan="{{ moduller|length }}" class="ky-tam-hucre"><span class="ky-tam"><i class="bi bi-stars"></i>Sistem yöneticisi · tüm modüllerde tam yetki</span></td>
+            {% else %}
+            {% for h in u.hucreler %}
+            <td><button type="button" class="ky-hucre s{{ h.seviye }}" data-u="{{ u.pk }}" data-m="{{ h.modul.pk }}" data-s="{{ h.seviye }}" data-ilk="{{ h.seviye }}" data-k="{{ h.kapsam }}" data-ad="{{ h.modul.ad }}"{% if h.miras %} data-miras="{{ h.miras.birim.ad }}"{% endif %}{% if h.kilit %} disabled title="{{ h.kilit }}"{% endif %} aria-label="{{ u.username }} – {{ h.modul.ad }}"></button></td>
+            {% endfor %}
+            {% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div id="kyBos" class="text-center text-secondary py-5" hidden><i class="bi bi-search fs-3 d-block mb-2"></i>Bu süzgece uyan hesap yok.</div>
+    </div>
+  </div>
+</form>
+
+<div class="kart mt-3">
+  <div class="d-flex align-items-center px-3 pt-3 pb-1"><h2 class="h6 m-0"><i class="bi bi-clock-history me-1"></i>Son değişiklikler</h2><a class="ms-auto small" href="{% url 'core:kullanici_gecmisi' %}">Tüm geçmiş</a></div>
+  {% include "core/_kullanici_gecmis_liste.html" with kayitlar=gecmis %}
+</div>
+
+<script>
+(function () {
+  const form = document.getElementById('kyForm');
+  const hucreler = Array.from(form.querySelectorAll('td .ky-hucre'));
+  const satirlar = Array.from(form.querySelectorAll('tbody tr'));
+  const AD = ['Yok', 'Görür', 'Düzenler', 'Yönetir'];
+  const IKON = ['–', '<i class="bi bi-eye"></i>', '<i class="bi bi-pencil-fill"></i>', '<i class="bi bi-star-fill"></i>'];
+  let kaydediliyor = false;
+
+  function ciz(h) {
+    const s = +h.dataset.s, degisti = s !== +h.dataset.ilk, tum = h.dataset.k === 'tum' && s > 0;
+    h.className = 'ky-hucre s' + s + (h.dataset.miras && !degisti ? ' miras' : '') + (degisti ? ' degisti' : '');
+    h.innerHTML = IKON[s] + (tum ? '<span class="ky-k"><i class="bi bi-globe2"></i></span>' : '');
+    if (!h.disabled) {
+      h.title = h.dataset.ad + ': ' + AD[s] + (s ? (tum ? ' · tüm okul' : ' · kendi birimi') : '') +
+        (h.dataset.miras && !degisti ? ' (üst birimden: ' + h.dataset.miras + ')' : '') + (degisti ? ' · kaydedilmedi' : '');
+    }
+  }
+  function durum() {
+    const n = hucreler.filter(h => h.dataset.s !== h.dataset.ilk).length;
+    document.getElementById('kyDurum').textContent = n ? n + ' kaydedilmemiş değişiklik' : 'Değişiklik yok';
+    document.getElementById('kyKaydet').disabled = document.getElementById('kyGeri').disabled = n === 0;
+  }
+  hucreler.forEach(h => {
+    ciz(h);
+    h.addEventListener('click', () => { h.dataset.s = (+h.dataset.s + 1) % 4; ciz(h); durum(); });
+  });
+  form.querySelectorAll('.ky-toplu').forEach(d => d.addEventListener('click', () => {
+    hucreler.filter(h => h.dataset.m === d.dataset.sutun && !h.disabled && !h.closest('tr').hidden)
+      .forEach(h => { h.dataset.s = d.dataset.s; ciz(h); });
+    durum();
+  }));
+  document.getElementById('kyGeri').addEventListener('click', () => {
+    hucreler.forEach(h => { h.dataset.s = h.dataset.ilk; ciz(h); });
+    durum();
+  });
+  form.addEventListener('submit', () => {
+    kaydediliyor = true;
+    hucreler.filter(h => h.dataset.s !== h.dataset.ilk).forEach(h => {
+      const i = document.createElement('input');
+      i.type = 'hidden'; i.name = 'c'; i.value = [h.dataset.u, h.dataset.m, h.dataset.s, h.dataset.k].join(':');
+      form.appendChild(i);
+    });
+  });
+  addEventListener('beforeunload', e => {
+    if (!kaydediliyor && !document.getElementById('kyKaydet').disabled) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  // süzgeç: arama, hesap türü, pasifler
+  const ara = document.getElementById('kyAra'), pasif = document.getElementById('kyPasif');
+  const cipler = Array.from(document.querySelectorAll('.ky-cip'));
+  let tur = document.getElementById('kyTur').value;
+  if (!cipler.some(c => c.dataset.tur === tur)) tur = '';
+  function suz() {
+    const q = ara.value.trim().toLocaleLowerCase('tr');
+    let n = 0;
+    satirlar.forEach(r => {
+      const gor = (!tur || r.dataset.tur === tur) && (!q || r.dataset.ara.includes(q)) &&
+        (r.dataset.aktif === '1' || (pasif && pasif.checked) || !!q);
+      r.hidden = !gor;
+      if (gor) n++;
+    });
+    cipler.forEach(c => c.classList.toggle('aktif', c.dataset.tur === tur));
+    document.getElementById('kySayi').textContent = n + ' / ' + satirlar.length;
+    document.getElementById('kyBos').hidden = n > 0;
+    document.getElementById('kyTur').value = tur;
+  }
+  cipler.forEach(c => c.addEventListener('click', () => { tur = c.dataset.tur; suz(); }));
+  ara.addEventListener('input', suz);
+  if (pasif) pasif.addEventListener('change', suz);
+  suz();
+})();
+</script>
+{% endblock %}
