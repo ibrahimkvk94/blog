@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from personel.models import Bolum, Personel
 
+from . import istatistik, pano
 from .kisayollar import gizli_kodlar, kapali_mi
 from .models import Birim
 from .yetki import gorunur_cocuklar, gorunur_mu, menu_agaci, birim_bul, yol
@@ -55,6 +56,49 @@ def panel(request):
         "gorevler": gorevler,
         "kokler": menu_agaci(request),
     })
+
+
+@login_required
+def istatistikler(request):
+    """İstatistikler: "Bugün" (günlük gösterge paneli) ve "Personel" (kadro yapısı). Yalnız sistem yöneticileri."""
+    if not request.user.is_superuser:
+        raise PermissionDenied
+    if request.method == "POST" and request.POST.get("islem") == "kapasite":
+        return _kapasite_kaydet(request)
+    sekme = request.GET.get("sekme")
+    if sekme not in ("bugun", "personel"):
+        sekme = "bugun"
+    ctx = {"sekme": sekme}
+    if sekme == "bugun":
+        ctx["pano"] = pano.hazirla(request)
+    else:
+        ctx["kadro"] = istatistik.kadro()
+    return render(request, "core/istatistikler.html", ctx)
+
+
+def _kapasite_kaydet(request):
+    """Kadro kapasitesi formu (İstatistikler · Personel). Boş bırakılan kutu "girilmedi" demektir."""
+    from django.contrib import messages
+
+    from .models import KadroKapasitesi
+
+    k = KadroKapasitesi.al()
+    hatali = False
+    for alan in ("toplam", "subay", "astsubay", "sivil"):
+        deger = request.POST.get(alan, "").strip()
+        if not deger:
+            setattr(k, alan, None)
+        elif deger.isdigit() and int(deger) <= 100000:
+            setattr(k, alan, int(deger))
+        else:
+            hatali = True
+    if hatali:
+        messages.error(request, "Kapasite kutularına yalnız tam sayı yazılabilir; kaydedilmedi.")
+    else:
+        k.guncelleyen = request.user
+        k.save()
+        messages.success(request, "Kadro kapasitesi kaydedildi.")
+    return redirect(reverse("core:istatistikler") + "?sekme=personel#doluluk")
 
 
 @login_required

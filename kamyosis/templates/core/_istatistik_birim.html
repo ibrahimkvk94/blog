@@ -1,0 +1,5 @@
+<div class="pn-kume" tabindex="0" data-ipucu="{{ b.ad }} · {{ b.toplam }} kişi: {% for x in b.parcalar %}{{ x.ad|lower }} {{ x.sayi }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+  <span class="pn-kume-ad">{{ b.ad }}</span>
+  <span class="pn-birim-iz"><span style="width:{{ b.boy }}%">{% for x in b.parcalar %}<i style="flex-basis:{{ x.boy }}%;--n:{{ x.renk }}"></i>{% endfor %}</span></span>
+  <span class="pn-kume-sayi var">{{ b.toplam }}</span>
+</div>

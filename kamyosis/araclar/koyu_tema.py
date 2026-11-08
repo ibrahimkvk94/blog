@@ -17,7 +17,7 @@ KAYNAK = KOK / "static/css/kamyosis.css"
 HEDEF = KOK / "static/css/kamyosis-koyu.css"
 
 # Bu seçicileri içeren kurallar atlanır (zaten koyu ya da kâğıt/baskı görünümü)
-ATLA = ("kenar", "marka", "giris", "org-kok", "avatar", "yk-profil", "yk-kagit", "yk-resmi", "yk-sayim", "yk-beyan",
+ATLA = ("pn-ipucu", "kenar", "marka", "giris", "org-kok", "avatar", "yk-profil", "yk-kagit", "yk-resmi", "yk-sayim", "yk-beyan",
         "yk-isaretler", "tk-mudurluk", "tk-yardimci", "tk-kol-bas", "tk-sayi", "tk-hat", "yk-foto-bos", "nd-btn.aktif",
         "islem-cubugu .nd-", "btn-check:checked", "yk-hucre", "text-bg-primary", "btn-primary", "btn-outline-primary",
         "nav-pills", "form-check-input:checked", ":root", "@page")
@@ -71,6 +71,10 @@ EL_YAZMASI = '''/* KAMYOSİS koyu tema. Bu dosya araclar/koyu_tema.py ile üreti
 [data-bs-theme="dark"] .bolum-baslik .bi, [data-bs-theme="dark"] .birim-ikon, [data-bs-theme="dark"] .org-dal-baslik .bi { color: #8fb4dc; }
 
 /* ---- aşağısı otomatik üretilir ---- */
+[data-bs-theme="dark"] .pn { --pn-mevcut: #3a4a5f; --pn-iz: #1c2838; --pn-izgara: #223044; --pn-yazi: #e2e8f0; --pn-soluk: #94a3b8;
+  --pn-zemin: #111922; --pn-k1: #1d3550; --pn-k2: #254c78; --pn-k3: #3068a3; --pn-k4: #5a90c9; --pn-k5: #9cc2ea; --pn-k-yazi: #0d141d;
+  --pn-subay: #8fb8e6; --pn-astsubay: #2f8f9f; --pn-sivil: #e0bd4a; --pn-lacivert: #6f9fd3; --pn-camgobegi: #2aa3bd; }
+[data-bs-theme="dark"] .pn-ipucu { background: #e2e8f0; color: #0f172a; }
 '''
 
 HEX = re.compile(r"#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b")

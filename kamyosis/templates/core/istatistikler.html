@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}İstatistikler{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">İstatistikler</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>İstatistikler</h1>
+    <p class="text-secondary mb-0">Okulun durumu grafiklerle, tek bakışta. Yalnız sistem yöneticileri görür.</p>
+  </div>
+  {% if sekme == "bugun" and pano.hafta_sonu %}<span class="pn-rozet">Bugün hafta sonu</span>{% endif %}
+</div>
+
+<ul class="nav nav-tabs ky-sekmeler mb-3">
+  <li class="nav-item"><a class="nav-link {% if sekme == 'bugun' %}active{% endif %}" href="{% url 'core:istatistikler' %}"><i class="bi bi-speedometer2 me-1"></i>Bugün</a></li>
+  <li class="nav-item"><a class="nav-link {% if sekme == 'personel' %}active{% endif %}" href="{% url 'core:istatistikler' %}?sekme=personel"><i class="bi bi-people me-1"></i>Personel</a></li>
+</ul>
+
+{% if sekme == "bugun" %}
+{% include "core/_pano.html" %}
+{% else %}
+{% include "core/_istatistik_personel.html" %}
+{% endif %}
+{% endblock %}

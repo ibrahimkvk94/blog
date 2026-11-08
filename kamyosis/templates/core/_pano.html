@@ -1,0 +1,164 @@
+{# Yönetici gösterge paneli ("Bugün okulda"); veri: core/pano.py #}
+<section class="pn mb-4" aria-label="Bugün okulda">
+
+  {# --- Üst sayılar --- #}
+  <div class="pn-sayilar mb-3">
+    {% with p=pano.personel %}{% if p %}
+    <a class="pn-sayi" href="{{ p.url }}" style="--renk:#2f5d8a">
+      <span class="pn-halka" style="--oran:{{ p.oran }}" aria-hidden="true"><span>%{{ p.oran }}</span></span>
+      <div><b>{{ p.mevcut }}<small>/{{ p.toplam }}</small></b><span>personel mevcut{% if p.gun_boyu or p.kismi %} · {{ p.gun_boyu }} yok{% if p.kismi %}, {{ p.kismi }} kısmi{% endif %}{% endif %}</span></div>
+    </a>
+    {% with k=p.yoklama %}
+    <a class="pn-sayi" href="{{ p.url }}" style="--renk:{% if k.kesin == k.birim %}#15803d{% else %}#b45309{% endif %}" {% if k.eksik %}data-ipucu="Kesinleşmeyen: {{ k.eksik|slice:':6'|join:', ' }}{% if k.eksik|length > 6 %} …{% endif %}"{% endif %}>
+      <span class="pn-halka" style="--oran:{{ k.oran }}" aria-hidden="true"><i class="bi bi-person-check"></i></span>
+      <div><b>{{ k.kesin }}<small>/{{ k.birim }}</small></b><span>birim bugünün yoklamasını kesinleştirdi</span></div>
+    </a>
+    {% endwith %}{% endif %}{% endwith %}
+    {% with d=pano.dersler %}{% if d %}
+    <a class="pn-sayi" href="{{ d.url }}" style="--renk:#0e7490">
+      <span class="pn-ikon" aria-hidden="true"><i class="bi bi-journal-bookmark"></i></span>
+      <div><b>{% if pano.hafta_sonu %}{{ d.saat }}{% else %}{{ d.bugun }}{% endif %}</b><span>{% if pano.hafta_sonu %}ders saati gelecek hafta · {{ d.kisi }} öğretim elemanı{% else %}ders bugün · haftada {{ d.saat }} ders saati{% endif %}</span></div>
+    </a>
+    {% endif %}{% endwith %}
+    {% with s=pano.sinavlar %}{% if s %}
+    <a class="pn-sayi" href="{{ s.url }}" style="--renk:#7c3aed">
+      <span class="pn-ikon" aria-hidden="true"><i class="bi bi-pencil-square"></i></span>
+      <div>{% if s.suruyor %}<b>Sürüyor</b><span>{{ s.donem }} · {{ s.yerlesen }} sınav</span>{% else %}<b>{{ s.kalan }}<small> gün</small></b><span>sınav dönemine · {{ s.donem.start_date|date:"d.m" }}–{{ s.donem.end_date|date:"d.m" }}</span>{% endif %}</div>
+    </a>
+    {% endif %}{% endwith %}
+    {% with s=pano.salonlar %}{% if s %}
+    <a class="pn-sayi" href="{{ s.url }}" style="--renk:{% if s.dolu %}#be185d{% else %}#64748b{% endif %}">
+      <span class="pn-ikon" aria-hidden="true"><i class="bi bi-easel2"></i></span>
+      <div><b>{{ s.dolu }}<small>/{{ s.liste|length }}</small></b><span>salon şu an dolu</span></div>
+    </a>
+    {% endif %}{% endwith %}
+  </div>
+
+  <div class="row g-3">
+    {# --- Personel: her kişi bir nokta --- #}
+    {% with p=pano.personel %}{% if p %}
+    <div class="col-12">
+      <div class="kart pn-kart">
+        <div class="pn-kart-bas">
+          <div><h3>Personelin bugünkü durumu</h3><p>Her nokta bir kişi. Üzerine gelince kim olduğu ve neden yok olduğu görünür, tıklayınca yoklama kartı açılır.</p></div>
+          <div class="pn-lejant">
+            <span><i class="pn-nokta" aria-hidden="true"></i>Mevcut <b>{{ p.mevcut }}</b></span>
+            {% for t in p.turler %}<span><i class="pn-nokta" style="--n:{{ t.tur.renk }}" aria-hidden="true"></i>{{ t.tur.ad }} <b>{{ t.sayi }}</b></span>{% endfor %}
+            {% if p.kismi %}<span><i class="pn-nokta kismi" style="--n:#64748b" aria-hidden="true"></i>Günün bir kısmı</span>{% endif %}
+          </div>
+        </div>
+        <div class="pn-kumeler">
+          <div>
+            <div class="pn-kume-baslik">İdari birimler</div>
+            {% for g in p.idari %}{% include "core/_pano_kume.html" %}{% endfor %}
+          </div>
+          <div>
+            <div class="pn-kume-baslik">Bölümler</div>
+            {% for g in p.akademik %}{% include "core/_pano_kume.html" %}{% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}{% endwith %}
+
+    {# --- Son iş günleri: yok sayısı --- #}
+    {% with e=pano.egilim %}{% if e %}
+    <div class="col-12 col-xl-6">
+      <div class="kart pn-kart h-100">
+        <div class="pn-kart-bas">
+          <div><h3>Son {{ e.sutunlar|length }} iş günü: görevde olmayanlar</h3><p>Ortalama günde {{ e.ortalama }} kişi tüm gün yok.</p></div>
+          <div class="pn-lejant">
+            <span><i class="pn-kare" style="--n:#2f5d8a" aria-hidden="true"></i>Tüm gün</span>
+            <span><i class="pn-kare" style="--n:#94b0cf" aria-hidden="true"></i>Günün bir kısmı</span>
+          </div>
+        </div>
+        <div class="pn-sutun-grafik" role="img" aria-label="Son iş günlerinde görevde olmayan personel sayısı">
+          <div class="pn-eksen">{% for c in e.cizgiler %}<span style="bottom:{% widthratio c e.olcek 100 %}%">{{ c }}</span>{% endfor %}<span style="bottom:0">0</span></div>
+          <div class="pn-sutunlar">
+            {% for c in e.cizgiler %}<i class="pn-izgara" style="bottom:{% widthratio c e.olcek 100 %}%" aria-hidden="true"></i>{% endfor %}
+            {% for s in e.sutunlar %}
+            <div class="pn-sutun{% if s.bugun %} bugun{% endif %}" tabindex="0" data-ipucu="{{ s.gun }} {{ s.etiket }} · tüm gün {{ s.yok }}{% if s.kismi %}, kısmi {{ s.kismi }}{% endif %}">
+              <div class="pn-yigin">
+                {% if s.kismi %}<i style="height:{{ s.kismi_boy }}%;--n:#94b0cf"></i>{% endif %}
+                {% if s.yok %}<i style="height:{{ s.yok_boy }}%;--n:#2f5d8a"></i>{% endif %}
+              </div>
+              <span class="pn-sutun-etiket">{{ s.etiket }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}{% endwith %}
+
+    {# --- Sınav dönemi: gün × oturum --- #}
+    {% with s=pano.sinavlar %}{% if s %}
+    <div class="col-12 col-xl-6">
+      <div class="kart pn-kart h-100">
+        <div class="pn-kart-bas">
+          <div><h3>{{ s.donem }}</h3><p>{{ s.donem.start_date|date:"d.m.Y" }} – {{ s.donem.end_date|date:"d.m.Y" }} · {{ s.yerlesen }}/{{ s.sinav }} sınav yerleşti · {{ s.salon }} salon · {{ s.ogrenci }} öğrenci koltuğu</p></div>
+          {% if s.url %}<a class="btn btn-sm btn-outline-primary" href="{{ s.url }}">Programı aç</a>{% endif %}
+        </div>
+        <div class="pn-isi" style="--sutun:{{ s.gunler|length }}">
+          <span></span>
+          {% for g in s.gunler %}<span class="pn-isi-gun{% if g.bugun %} bugun{% endif %}">{{ g.gun }}<small>{{ g.etiket }}</small></span>{% endfor %}
+          {% for satir in s.satirlar %}
+          <span class="pn-isi-saat">{{ satir.saat }}</span>
+          {% for h in satir.hucreler %}<span class="pn-isi-hucre k{{ h.kademe }}" tabindex="0" data-ipucu="{{ h.ipucu }}">{% if h.sayi %}{{ h.sayi }}{% endif %}</span>{% endfor %}
+          {% endfor %}
+          <span class="pn-isi-saat">Toplam</span>
+          {% for g in s.gunler %}<span class="pn-isi-top">{{ g.sayi }}</span>{% endfor %}
+        </div>
+        <div class="pn-alt">
+          <span class="pn-isi-lejant" aria-hidden="true">Az <i class="pn-isi-hucre k1"></i><i class="pn-isi-hucre k2"></i><i class="pn-isi-hucre k3"></i><i class="pn-isi-hucre k4"></i><i class="pn-isi-hucre k5"></i> Çok</span>
+          {% if s.eksik_salon %}<span class="pn-uyari"><i class="bi bi-exclamation-triangle-fill"></i>{{ s.eksik_salon }} salonun gözetmeni eksik</span>
+          {% else %}<span class="pn-tamam"><i class="bi bi-check-circle-fill"></i>Bütün salonların gözetmeni tam</span>{% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}{% endwith %}
+
+    {# --- Ders yükü --- #}
+    {% with d=pano.dersler %}{% if d %}
+    <div class="col-12 col-xl-8">
+      <div class="kart pn-kart h-100">
+        <div class="pn-kart-bas">
+          <div><h3>{{ d.baslik }} ders yükü: bölümlere göre</h3><p>{{ d.bas|date:"d.m" }}–{{ d.bit|date:"d.m.Y" }} · {{ d.saat }} ders saati, {{ d.kisi }} öğretim elemanı. Ortak derslerde her öğretmen ayrı sayılır.</p></div>
+        </div>
+        <div class="pn-cubuklar">
+          {% for b in d.bolumler %}
+          <div class="pn-cubuk" tabindex="0" data-ipucu="{{ b.ad }} · {{ b.sayi }} ders saati">
+            <span class="pn-cubuk-ad">{{ b.ad }}</span>
+            <span class="pn-cubuk-iz"><i style="width:{{ b.boy }}%"></i></span>
+            <b>{{ b.sayi }}</b>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="col-12 col-xl-4">
+      <div class="kart pn-kart h-100">
+        <div class="pn-kart-bas"><div><h3>Günlere göre</h3><p>{{ d.baslik }}, öğretmen-ders saati</p></div></div>
+        <div class="pn-gunler">
+          {% for g in d.gunler %}
+          <div class="pn-gun{% if g.bugun %} bugun{% endif %}" tabindex="0" data-ipucu="{{ g.tarih|date:'d.m.Y' }} · {{ g.sayi }} ders saati">
+            <b>{{ g.sayi }}</b>
+            <span class="pn-gun-iz"><i style="height:{{ g.boy }}%"></i></span>
+            <span>{{ g.gun }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% with s=pano.salonlar %}{% if s %}
+        <div class="pn-salonlar">
+          <div class="pn-kume-baslik">Salonlar şu an</div>
+          {% for x in s.liste %}
+          <a class="pn-salon{% if x.dolu %} dolu{% endif %}" href="{{ s.url }}"><i class="bi bi-{% if x.dolu %}door-closed-fill{% else %}door-open{% endif %}" aria-hidden="true"></i><b>{{ x.salon.ad }}</b><span>{% if x.dolu %}Dolu · {% endif %}{{ x.metin }}</span></a>
+          {% endfor %}
+        </div>
+        {% endif %}{% endwith %}
+      </div>
+    </div>
+    {% endif %}{% endwith %}
+  </div>
+</section>
+{% include "core/_pano_ipucu.html" %}

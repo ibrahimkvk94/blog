@@ -1,0 +1,5 @@
+<div class="pn-kume">
+  <span class="pn-kume-ad" title="{{ g.ad }}">{{ g.ad }}</span>
+  <span class="pn-noktalar">{% for k in g.kisiler %}<a class="pn-nokta{% if k.kismi %} kismi{% endif %}" href="{{ k.url }}"{% if not k.mevcut %} style="--n:{{ k.renk }}"{% endif %} data-ipucu="{{ k.ad }} · {% if k.mevcut %}mevcut{% else %}{{ k.tur }}{% if k.saat %} ({{ k.saat }}){% endif %}{% endif %}" aria-label="{{ k.ad }}: {% if k.mevcut %}mevcut{% else %}{{ k.tur }}{% endif %}"></a>{% endfor %}</span>
+  <span class="pn-kume-sayi{% if g.yok %} var{% endif %}">{% if g.yok %}{{ g.yok }} yok · {% endif %}{{ g.kisiler|length }}</span>
+</div>

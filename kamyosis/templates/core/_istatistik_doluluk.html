@@ -1,0 +1,41 @@
+{# Kadro doluluğu: aktif personel / kapasite (core.KadroKapasitesi). d = istatistik.doluluk() #}
+{% with g=d.genel %}
+<div class="kart pn-kart h-100" id="doluluk">
+  <div class="pn-kart-bas"><div><h3>Kadro doluluğu</h3><p>Kadrodaki aktif personelin okulun kadro kapasitesine oranı</p></div></div>
+  {% if g.kapasite %}
+  <div class="pn-doluluk">
+    <span class="pn-halka buyuk" style="--oran:{{ g.oran }};--renk:var(--pn-lacivert)" aria-hidden="true"><span>%{{ g.oran }}</span></span>
+    <div>
+      <b>{{ g.mevcut }} <small>/ {{ g.kapasite }} kişi</small></b>
+      {% if g.fazla %}<span class="pn-uyari"><i class="bi bi-exclamation-triangle"></i>Kapasitenin {{ g.fazla }} kişi üstünde</span>
+      {% elif g.bos %}<span>{{ g.bos }} boş kadro</span>{% else %}<span class="pn-tamam"><i class="bi bi-check2-circle"></i>Kadro tam dolu</span>{% endif %}
+    </div>
+  </div>
+  {% if d.turler %}
+  <div class="pn-cubuklar mt-2">
+    {% for t in d.turler %}
+    <div class="pn-cubuk pn-dolu-satir" tabindex="0" data-ipucu="{{ t.ad }} · {{ t.mevcut }} / {{ t.kapasite }} (%{{ t.oran }}){% if t.fazla %} · {{ t.fazla }} kişi kapasite üstü{% elif t.bos %} · {{ t.bos }} boş kadro{% endif %}">
+      <span class="pn-cubuk-ad">{{ t.ad }}</span>
+      <span class="pn-cubuk-iz pn-dolu-iz"><i style="width:{{ t.boy }}%;--n:{{ t.renk }}"></i></span>
+      <b>{{ t.mevcut }}/{{ t.kapasite }}</b>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% else %}
+  <p class="pn-not mt-0">Kapasite henüz girilmedi. Okulun toplam kadro kapasitesini aşağıya yazın; isterseniz subay, astsubay ve sivil için ayrı ayrı da girebilirsiniz.</p>
+  {% endif %}
+  <details class="pn-duzenle"{% if not g.kapasite %} open{% endif %}>
+    <summary><i class="bi bi-pencil-square me-1"></i>Kapasiteyi düzenle</summary>
+    <form method="post" action="{% url 'core:istatistikler' %}" class="pn-kapasite-form">
+      {% csrf_token %}<input type="hidden" name="islem" value="kapasite">
+      <label>Toplam<input type="number" name="toplam" min="0" max="100000" inputmode="numeric" class="form-control form-control-sm" value="{{ d.kayit.toplam|default_if_none:'' }}"></label>
+      <label>Subay<input type="number" name="subay" min="0" max="100000" inputmode="numeric" class="form-control form-control-sm" value="{{ d.kayit.subay|default_if_none:'' }}"></label>
+      <label>Astsubay<input type="number" name="astsubay" min="0" max="100000" inputmode="numeric" class="form-control form-control-sm" value="{{ d.kayit.astsubay|default_if_none:'' }}"></label>
+      <label>Sivil<input type="number" name="sivil" min="0" max="100000" inputmode="numeric" class="form-control form-control-sm" value="{{ d.kayit.sivil|default_if_none:'' }}"></label>
+      <button class="btn btn-sm btn-primary">Kaydet</button>
+    </form>
+    <p class="pn-not mt-1">Toplam boş bırakılırsa türlerin toplamı alınır. Boş kutu "girilmedi" sayılır.</p>
+  </details>
+</div>
+{% endwith %}

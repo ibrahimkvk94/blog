@@ -1,0 +1,69 @@
+{# İstatistikler · Personel: kadro yapısı; veri core/istatistik.py #}
+{% with k=kadro %}
+<section class="pn" aria-label="Personel istatistikleri">
+  <div class="pn-sayilar mb-3">
+    <div class="pn-sayi" style="--renk:#2f5d8a"><span class="pn-ikon" aria-hidden="true"><i class="bi bi-people"></i></span><div><b>{{ k.toplam }}</b><span>aktif personel</span></div></div>
+    {% with g=k.doluluk.genel %}{% if g.kapasite %}
+    <a class="pn-sayi" href="#doluluk" style="--renk:var(--pn-lacivert)"><span class="pn-halka" style="--oran:{{ g.oran }}" aria-hidden="true"><span>%{{ g.oran }}</span></span><div><b>{{ g.kapasite }}</b><span>kadro kapasitesi</span></div></a>
+    {% endif %}{% endwith %}
+    {% for t in k.turler %}
+    <div class="pn-sayi" style="--renk:{{ t.renk }}"><span class="pn-halka" style="--oran:{{ t.oran }}" aria-hidden="true"><span>%{{ t.oran }}</span></span><div><b>{{ t.sayi }}</b><span>{{ t.ad|lower }}</span></div></div>
+    {% endfor %}
+    <div class="pn-sayi" style="--renk:#0e7490"><span class="pn-ikon" aria-hidden="true"><i class="bi bi-mortarboard"></i></span><div><b>{{ k.ogretim }}</b><span>derse girebilir · {{ k.doktora }} doktoralı</span></div></div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12">
+      <div class="kart pn-kart">
+        <div class="pn-kart-bas">
+          <div><h3>Kadro yapısı</h3><p>Rütbesi olanlar askerî personel (rütbesi "Asb." ile başlayanlar astsubay), olmayanlar sivil sayılır.</p></div>
+          <div class="pn-lejant">{% for t in k.turler %}<span><i class="pn-kare" style="--n:{{ t.renk }}" aria-hidden="true"></i>{{ t.ad }} <b>{{ t.sayi }}</b></span>{% endfor %}</div>
+        </div>
+        <div class="pn-yuzde-serit" role="img" aria-label="{% for t in k.turler %}{{ t.ad }} {{ t.sayi }}{% if not forloop.last %}, {% endif %}{% endfor %}">
+          {% for t in k.turler %}{% if t.sayi %}<span style="flex-basis:{{ t.boy }}%;--n:{{ t.renk }}" tabindex="0" data-ipucu="{{ t.ad }} · {{ t.sayi }} kişi (%{{ t.oran }})"></span>{% endif %}{% endfor %}
+        </div>
+        <div class="pn-yuzde-etiket" aria-hidden="true">
+          {% for t in k.turler %}{% if t.sayi %}<span style="flex-basis:{{ t.boy }}%">{{ t.ad }} <b>%{{ t.oran }}</b></span>{% endif %}{% endfor %}
+        </div>
+        {% if k.siviller %}<p class="pn-not">Siviller: {% for s in k.siviller %}{{ s.ad }} <b>{{ s.sayi }}</b>{% if not forloop.last %} · {% endif %}{% endfor %}</p>{% endif %}
+      </div>
+    </div>
+    <div class="col-12 col-lg-6 col-xl-4">{% include "core/_istatistik_doluluk.html" with d=k.doluluk %}</div>
+    <div class="col-12 col-lg-6 col-xl-4">{% include "core/_istatistik_kart_alani.html" with a=k.ogrenim alan_adi="Öğrenim durumu" %}</div>
+    <div class="col-12 col-xl-4">{% include "core/_istatistik_kart_alani.html" with a=k.kadro_durumu alan_adi="Kadro durumu" %}</div>
+
+    <div class="col-12 col-lg-6 col-xl-4">
+      <div class="kart pn-kart h-100">
+        <div class="pn-kart-bas"><div><h3>Rütbelere göre</h3><p>Kıdemliden başlayarak; astsubaylar ayrı renkte</p></div></div>
+        {% include "core/_istatistik_cubuklar.html" with liste=k.rutbeler %}
+      </div>
+    </div>
+    <div class="col-12 col-lg-6 col-xl-4">
+      <div class="kart pn-kart h-100">
+        <div class="pn-kart-bas"><div><h3>Akademik unvanlar</h3><p>Askerî ve sivil öğretim elemanları birlikte</p></div></div>
+        {% include "core/_istatistik_cubuklar.html" with liste=k.unvanlar %}
+      </div>
+    </div>
+    <div class="col-12 col-xl-4">
+      <div class="kart pn-kart h-100">
+        <div class="pn-kart-bas"><div><h3>Sınıflara göre</h3><p>Askerî personelin sınıfı</p></div></div>
+        {% include "core/_istatistik_cubuklar.html" with liste=k.siniflar %}
+      </div>
+    </div>
+
+    <div class="col-12">
+      <div class="kart pn-kart">
+        <div class="pn-kart-bas">
+          <div><h3>Birimlere göre personel</h3><p>Çubuğun boyu kişi sayısı; renkler kadro yapısı.</p></div>
+          <div class="pn-lejant">{% for t in k.turler %}<span><i class="pn-kare" style="--n:{{ t.renk }}" aria-hidden="true"></i>{{ t.ad }}</span>{% endfor %}</div>
+        </div>
+        <div class="pn-kumeler">
+          <div><div class="pn-kume-baslik">İdari birimler</div>{% for b in k.birimler_idari %}{% include "core/_istatistik_birim.html" %}{% endfor %}</div>
+          <div><div class="pn-kume-baslik">Bölümler</div>{% for b in k.birimler_akademik %}{% include "core/_istatistik_birim.html" %}{% endfor %}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endwith %}
+{% include "core/_pano_ipucu.html" %}
