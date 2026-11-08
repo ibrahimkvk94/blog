@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}{{ b.ad }} · Dozajmatik{% endblock %}
+{% block content %}
+{% include "dozaj/_ust.html" with alt_baslik=b.ad|add:" branşının ders saatleri ve öğretim elemanları" %}
+
+<div class="dz-ozet mb-3">
+  <div><b>{{ s.guz }}</b><span>Güz ders saati</span></div>
+  <div><b>{{ s.bahar }}</b><span>Bahar ders saati</span></div>
+  <div><b>{{ s.toplam }}</b><span>öğretim elemanı{% if s.kh or s.dis %} · +{{ s.kh|add:s.dis }} dışarıdan{% endif %}</span></div>
+  {% if hesapta %}
+  <div class="{% if s.guz_uyari %}uyari{% endif %}"><b>{{ s.ort_guz_g }}</b><span>Güz ortalaması ({{ s.ort_guz|floatformat:2 }})</span></div>
+  <div class="{% if s.bahar_uyari %}uyari{% endif %}"><b>{{ s.ort_bahar_g }}</b><span>Bahar ortalaması ({{ s.ort_bahar|floatformat:2 }})</span></div>
+  <div><b>{{ s.ihtiyac1 }} / {{ s.ihtiyac2 }}</b><span>ihtiyaç ({{ yil.ihtiyac_saat1 }} / {{ yil.ihtiyac_saat2 }} saate göre)</span></div>
+  {% else %}
+  <div><b>—</b><span>Bu branş tabloda hesaba katılmıyor</span></div>
+  {% endif %}
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-xl-8">
+    <div class="kart dz-kart">
+      <h3>Saatin geldiği dersler <span class="text-secondary fw-normal">({{ dersler|length }})</span></h3>
+      <p>Yük = dersin saati; uygulamaya 2. eleman giriyorsa uygulama saati bir kez daha eklenir. Saat = yük × o dönem dersi alan kısım.</p>
+      <div class="table-responsive">
+        <table class="dz-liste">
+          <thead><tr><th class="sol">Program</th><th>Yy.</th><th class="sol">Ders</th><th>DS</th><th>U</th><th title="Uygulamaya 2. eleman">2. el.</th><th>Yük</th><th>Güz kısım</th><th>Bahar kısım</th><th>Güz</th><th>Bahar</th></tr></thead>
+          <tbody>
+          {% for x in dersler %}{% with d=x.ders %}
+            <tr>
+              <td class="sol"><a href="{% url 'dozaj:program' d.program.pk %}#y{{ d.yariyil }}">{{ d.program.kod }}</a></td>
+              <td>{{ d.yariyil }}</td>
+              <td class="sol"><b>{{ d.kod }}</b> {{ d.ad }}</td>
+              <td>{{ d.ds }}</td><td>{{ d.u|default:"" }}</td>
+              <td>{% if d.ikinci_eleman and d.u %}<i class="bi bi-check2" aria-label="evet"></i>{% endif %}</td>
+              <td class="kalin">{{ d.yuk }}</td>
+              <td>{{ x.guz_kisim|default:"" }}</td><td>{{ x.bahar_kisim|default:"" }}{% if d.dagilim_ozel %} <i class="bi bi-shuffle text-secondary" title="Kısımlar dönemlere elle dağıtıldı"></i>{% endif %}</td>
+              <td>{{ x.guz|default:"" }}</td><td>{{ x.bahar|default:"" }}</td>
+            </tr>
+          {% endwith %}{% empty %}
+            <tr><td colspan="11" class="text-secondary py-3">Bu branşa bağlı ders yok.</td></tr>
+          {% endfor %}
+          </tbody>
+          <tfoot><tr><th colspan="9" class="sol">Toplam</th><td class="kalin">{{ s.guz }}</td><td class="kalin">{{ s.bahar }}</td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-4">
+    {% if duzenleyebilir %}
+    <form method="post" class="kart dz-kart mb-3">
+      {% csrf_token %}
+      <h3>Dışarıdan gelenler ve sayım</h3>
+      <div class="dz-ayar-form">
+        <label>Karargâhtan (Kh.) kişi<input type="number" min="0" name="kh_sayi" value="{{ s.ayar.kh_sayi }}" class="form-control form-control-sm"></label>
+        <label>Okul dışından kişi<input type="number" min="0" name="dis_sayi" value="{{ s.ayar.dis_sayi }}" class="form-control form-control-sm"></label>
+        <label>Haftalık ders saatleri<input type="number" min="0" name="dis_saat" value="{{ s.ayar.dis_saat }}" class="form-control form-control-sm"></label>
+        <label>Destek verdikleri dönem<select name="destek" class="form-select form-select-sm">{% for k, ad in destekler %}<option value="{{ k }}"{% if s.ayar.destek == k %} selected{% endif %}>{{ ad }}</option>{% endfor %}</select></label>
+      </div>
+      <div class="form-check mt-2"><input class="form-check-input" type="checkbox" name="atgm_dahil" value="1" id="dz-atgm"{% if s.ayar.atgm_dahil %} checked{% endif %}><label class="form-check-label" for="dz-atgm">Yedek subaylar toplama dahil</label></div>
+      <p class="dz-not">Kişi sayıları, Öğretim elemanları sekmesinde "Kh." ya da "Okul dışından" işaretlenenlere eklenir.</p>
+      <button class="btn btn-sm btn-primary">Kaydet</button>
+    </form>
+    {% endif %}
+    <div class="kart dz-kart">
+      <h3>Sayılan öğretim elemanları <span class="text-secondary fw-normal">({{ kisiler|length }})</span></h3>
+      <ul class="dz-kisiler">
+        {% for k in kisiler %}
+        <li{% if k.kadro == "haric" %} class="soluk"{% endif %}>
+          <span class="dz-kadro k-{{ k.kadro }}">{{ k.kadro_kisa }}</span>
+          <span>{{ k.personel.ad_soyad }} <small class="text-secondary">{{ k.personel.rutbe|default:k.personel.unvan|default:"" }}</small></span>
+          {% if not k.secildi %}<small class="text-secondary" title="Kart bilgisinden önerildi">öneri</small>{% endif %}
+        </li>
+        {% empty %}<li class="text-secondary">Bu branşta kimse yok.</li>{% endfor %}
+      </ul>
+      <a href="{% url 'dozaj:personel' %}" class="small">Öğretim elemanlarını düzenle</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

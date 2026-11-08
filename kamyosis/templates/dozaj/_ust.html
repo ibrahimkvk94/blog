@@ -1,0 +1,22 @@
+{% comment %}Dozajmatik üst kısmı: başlık, plan yılı seçimi ve sekmeler. Değişkenler: yil, yillar, sekme, sekmeler{% endcomment %}
+<div class="sayfa-baslik">
+  <div class="d-flex align-items-center gap-3">
+    <span class="birim-ikon buyuk"><i class="bi bi-calculator"></i></span>
+    <div>
+      <h1>Dozajmatik</h1>
+      <p class="text-secondary mb-0">{{ alt_baslik|default:"Öğretim programları ve kısım sayılarından branş başına ders yükü ve öğretim elemanı ihtiyacı." }}</p>
+    </div>
+  </div>
+  <form method="get" class="dz-yil d-print-none">
+    <label for="dz-yil" class="small text-secondary">Plan yılı</label>
+    <select id="dz-yil" name="yil" class="form-select form-select-sm" onchange="this.form.submit()">
+      {% for y in yillar %}<option value="{{ y.pk }}"{% if y.pk == yil.pk %} selected{% endif %}>{{ y.ad }}</option>{% endfor %}
+    </select>
+    <noscript><button class="btn btn-sm btn-outline-primary">Göster</button></noscript>
+  </form>
+</div>
+<ul class="nav nav-tabs ky-sekmeler mb-3 d-print-none">
+  {% for kod, ad, ikon in sekmeler %}
+  <li class="nav-item"><a class="nav-link{% if sekme == kod %} active{% endif %}" href="{% url 'dozaj:'|add:kod %}"><i class="bi bi-{{ ikon }} me-1"></i>{{ ad }}</a></li>
+  {% endfor %}
+</ul>

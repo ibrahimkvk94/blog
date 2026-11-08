@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Programlar · Dozajmatik{% endblock %}
+{% block content %}
+{% include "dozaj/_ust.html" %}
+
+<div class="row g-3">
+  <div class="col-12 col-xl-8">
+    <form method="post" class="kart dz-kart">
+      {% csrf_token %}<input type="hidden" name="islem" value="kisimlar">
+      <h3>Programlar ve kısım sayıları</h3>
+      <p>1. sınıf kısım sayıları Öğrenci İşleri'nin kontenjanlarına göre, 2. sınıf sayıları 1. sınıftan geçenlere göre girilir. Programın adına tıklayınca dersleri açılır.</p>
+      <div class="table-responsive">
+        <table class="dz-liste">
+          <thead><tr><th class="sol">Program</th><th>1. sınıf</th><th>2. sınıf</th><th>Ders</th><th title="Yarıyıllara göre haftalık ders saati toplamı">1. yy</th><th>2. yy</th><th>3. yy</th><th>4. yy</th></tr></thead>
+          <tbody>
+          {% for x in satirlar %}
+            <tr>
+              <td class="sol"><a href="{% url 'dozaj:program' x.p.pk %}"><b>{{ x.p.kod }}</b> {{ x.p.ad }}</a>{% if x.p.hazirlik %} <small class="text-secondary">hazırlık · toplama girmez</small>{% endif %}{% if not x.ders %} <small class="text-danger">ders yok</small>{% endif %}</td>
+              <td>{% if duzenleyebilir %}<input type="number" min="0" max="200" name="k1-{{ x.p.pk }}" value="{{ x.p.kisim1 }}" class="form-control form-control-sm dz-sayi" aria-label="{{ x.p.ad }} 1. sınıf kısım sayısı">{% else %}{{ x.p.kisim1 }}{% endif %}</td>
+              <td>{% if duzenleyebilir %}<input type="number" min="0" max="200" name="k2-{{ x.p.pk }}" value="{{ x.p.kisim2 }}" class="form-control form-control-sm dz-sayi" aria-label="{{ x.p.ad }} 2. sınıf kısım sayısı">{% else %}{{ x.p.kisim2 }}{% endif %}</td>
+              <td>{{ x.ders }}</td>
+              {% for ds in x.ds %}<td class="text-secondary">{{ ds|default:"" }}</td>{% endfor %}
+            </tr>
+          {% empty %}
+            <tr><td colspan="8" class="text-secondary py-3">Henüz program yok. Aşağıdan ekleyin ya da öğretim programları Excel'ini yükleyin.</td></tr>
+          {% endfor %}
+          </tbody>
+          {% if satirlar %}<tfoot><tr><th class="sol">Toplam (hazırlık hariç)</th><td class="kalin">{{ k1 }}</td><td class="kalin">{{ k2 }}</td><td colspan="5"></td></tr></tfoot>{% endif %}
+        </table>
+      </div>
+      {% if duzenleyebilir and satirlar %}<button class="btn btn-sm btn-primary mt-2">Kısım sayılarını kaydet</button>{% endif %}
+    </form>
+  </div>
+  {% if duzenleyebilir %}
+  <div class="col-12 col-xl-4">
+    <form method="post" action="{% url 'dozaj:excel' %}" enctype="multipart/form-data" class="kart dz-kart mb-3">
+      {% csrf_token %}
+      <h3><i class="bi bi-file-earmark-excel me-1"></i>Öğretim programlarını Excel'den yükle</h3>
+      <p>Her programın ayrı sayfada olduğu "Öğretim Programları" dosyası (.xlsx). Önce önizleme gösterilir; onaylayınca seçilen programların dersleri dosyadakilerle değişir. Aynı koddaki derslerin "2. eleman" ve kısım dağılımı ayarları korunur.</p>
+      <input type="file" name="dosya" accept=".xlsx,.xlsm" class="form-control form-control-sm mb-2" required>
+      <button class="btn btn-sm btn-primary">Önizle</button>
+    </form>
+    <details class="kart dz-kart mb-3">
+      <summary>Program ekle</summary>
+      <form method="post" class="dz-ayar-form">
+        {% csrf_token %}<input type="hidden" name="islem" value="program_ekle">
+        <label>Kod<input name="kod" maxlength="10" class="form-control form-control-sm" placeholder="BİL" required></label>
+        <label>Ad<input name="ad" maxlength="100" class="form-control form-control-sm" placeholder="Bilgisayar Teknolojisi" required></label>
+        <label class="dz-onay"><input type="checkbox" class="form-check-input" name="hazirlik" value="1"> Hazırlık programı</label>
+        <button class="btn btn-sm btn-primary">Ekle</button>
+      </form>
+    </details>
+    <details class="kart dz-kart">
+      <summary>Yeni plan yılı aç</summary>
+      <form method="post" class="dz-ayar-form">
+        {% csrf_token %}<input type="hidden" name="islem" value="yeni_yil">
+        <p class="dz-not mt-0">{{ yil.ad }} yılının programları, dersleri, branş ve kişi ayarları kopyalanır; sonra değiştirilir.</p>
+        <label>Yıl<input name="ad" maxlength="20" class="form-control form-control-sm" placeholder="2027-2028" required></label>
+        <button class="btn btn-sm btn-primary">Kopyalayarak aç</button>
+      </form>
+    </details>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

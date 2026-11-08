@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Excel önizleme · Dozajmatik{% endblock %}
+{% block content %}
+{% include "dozaj/_ust.html" %}
+<form method="post" class="kart dz-kart">
+  {% csrf_token %}<input type="hidden" name="islem" value="uygula">
+  <h3>Excel önizleme</h3>
+  <p>Her sayfanın hangi programa yükleneceğini kontrol edin. "Yükleme" seçilen sayfalar atlanır. Yarıyıl saat toplamları dosyadaki TOPLAM satırlarıyla karşılaştırmanız için gösteriliyor.</p>
+  <div class="table-responsive">
+    <table class="dz-liste">
+      <thead><tr><th class="sol">Sayfa</th><th class="sol">Dosyadaki program adı</th><th>Ders</th><th>1. yy</th><th>2. yy</th><th>3. yy</th><th>4. yy</th><th class="sol">Yükleneceği program</th></tr></thead>
+      <tbody>
+      {% for x in onizleme %}
+        <tr>
+          <td class="sol">{{ x.sf.sayfa }}</td>
+          <td class="sol">{{ x.sf.program_adi|default:"—" }}{% for u in x.sf.uyarilar %}<div class="text-warning small">{{ u }}</div>{% endfor %}</td>
+          <td>{{ x.sf.dersler|length }}</td>
+          {% for ds in x.ds %}<td>{{ ds }}</td>{% endfor %}
+          <td class="sol">
+            <select name="hedef-{{ x.i }}" class="form-select form-select-sm" aria-label="{{ x.sf.sayfa }} sayfasının programı">
+              <option value="">Yükleme</option>
+              {% for p in progs %}<option value="{{ p.pk }}"{% if x.eslesen.pk == p.pk %} selected{% endif %}>{{ p.kod }} {{ p.ad }}</option>{% endfor %}
+            </select>
+            {% if x.eslesen %}<small class="text-secondary">Şu an {{ x.mevcut }} ders var; yerine geçecek.</small>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="d-flex gap-2 mt-2">
+    <button class="btn btn-sm btn-primary">Seçilenleri yükle</button>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'dozaj:programlar' %}">Vazgeç</a>
+  </div>
+</form>
+{% endblock %}

@@ -21,6 +21,7 @@ urlpatterns = [
     path("kimlik-okuma/", include("kimlik.urls")),
     path("ogrenci/", include("ogrenci.urls")),
     path("salon-durumu/", include("salon.urls")),
+    path("dozajmatik/", include("dozaj.urls")),
     path("is-listesi/", include("isler.urls")),
     path("ders-programi/sinav-planlama/", include("sinav.urls")),  # timetable'dan önce
     path("ders-programi/", include("timetable.urls")),
