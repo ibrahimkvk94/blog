@@ -260,3 +260,31 @@
 [data-bs-theme="dark"] .pn-tamam { color: #afe8c4; }
 [data-bs-theme="dark"] .pn-salon .bi { color: #afe8c4; }
 [data-bs-theme="dark"] .pn-salon.dolu .bi { color: #e199b7; }
+[data-bs-theme="dark"] .dz-kart > p, [data-bs-theme="dark"] .dz-baslik p { color: #a0abbb; }
+[data-bs-theme="dark"] .dz-lejant { color: #a0abbb; }
+[data-bs-theme="dark"] .dz-kare.uyari { background: #341818; border: 1px solid #593131; }
+[data-bs-theme="dark"] .dz-not { color: #a0abbb; }
+[data-bs-theme="dark"] .dz-tablo th, [data-bs-theme="dark"] .dz-tablo td { border-bottom: 1px solid #323840; border-right: 1px solid #30363e; }
+[data-bs-theme="dark"] .dz-tablo thead th { background: #171d24; color: #c2ccdb; }
+[data-bs-theme="dark"] .dz-tablo tbody th.sol a:hover { color: #a6c4e1; }
+[data-bs-theme="dark"] .dz-tablo .dz-grup { color: #bac4d1; background: #161a21; }
+[data-bs-theme="dark"] .dz-tablo tr.grup-ilk > * { border-top: 2px solid #2c3b51; }
+[data-bs-theme="dark"] .dz-tablo td.uyari, [data-bs-theme="dark"] .dz-ozet .uyari { background: #2f1515; color: #e4a2a2; }
+[data-bs-theme="dark"] .dz-tablo tfoot td, [data-bs-theme="dark"] .dz-tablo tfoot th { background: #171d24; border-top: 2px solid #304053; }
+[data-bs-theme="dark"] .dz-donem { color: #a0abbb; }
+[data-bs-theme="dark"] .dz-ayar-form label { color: #a0abbb; }
+[data-bs-theme="dark"] .dz-ozet > div { background: #111922; }
+[data-bs-theme="dark"] .dz-ozet span { color: #a0abbb; }
+[data-bs-theme="dark"] .dz-liste th, [data-bs-theme="dark"] .dz-liste td { border-bottom: 1px solid #283848; }
+[data-bs-theme="dark"] .dz-liste thead th { color: #bac4d1; background: #171c21; }
+[data-bs-theme="dark"] .dz-liste tfoot th, [data-bs-theme="dark"] .dz-liste tfoot td { background: #171c21; }
+[data-bs-theme="dark"] .dz-ad-kutu:hover, [data-bs-theme="dark"] .dz-ad-kutu:focus { border-color: #304053; }
+[data-bs-theme="dark"] .dz-kaydet-cubuk { background: linear-gradient(transparent, var(--km-zemin, #151c27) 35%); }
+[data-bs-theme="dark"] .dz-ekle label { color: #a0abbb; }
+[data-bs-theme="dark"] .dz-onek { color: #bac4d1; }
+[data-bs-theme="dark"] .dz-kadro { background: #1a2432; color: #c2ccdb; }
+[data-bs-theme="dark"] .dz-kadro.k-sb { background: #1c2530; color: #b9cde8; }
+[data-bs-theme="dark"] .dz-kadro.k-asb { background: #1f3032; color: #b7e2ea; }
+[data-bs-theme="dark"] .dz-kadro.k-sivil { background: #39331d; color: #ebddb8; }
+[data-bs-theme="dark"] .dz-kadro.k-yedek { background: #231b2c; color: #bea8e4; }
+[data-bs-theme="dark"] .dz-suzgec label { color: #a0abbb; }

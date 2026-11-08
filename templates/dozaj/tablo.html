@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Dozajmatik · {{ yil.ad }}{% endblock %}
+{% block content %}
+{% include "dozaj/_ust.html" %}
+
+<div class="kart dz-kart mb-3">
+  <div class="dz-baslik">
+    <div>
+      <h2>{{ yil.ad }} Eğitim ve Öğretim Yılı Ders Yükleri ve Öğretim Elemanı Durumu</h2>
+      <p>1'inci sınıf: <b>{{ kisim1 }}</b> · 2'nci sınıf: <b>{{ kisim2 }}</b>{% if hazirlik %} · Hazırlık: <b>{{ hazirlik }}</b>{% endif %} kısım · {{ program_sayisi }} program</p>
+    </div>
+    <div class="dz-lejant">
+      <span><i class="dz-kare uyari"></i>Ortalama {{ yil.uyari_esigi }} saat ve üstü</span>
+      <button class="btn btn-sm btn-outline-secondary d-print-none" onclick="window.print()"><i class="bi bi-printer me-1"></i>Yazdır</button>
+    </div>
+  </div>
+  <div class="table-responsive dz-kap">
+    <table class="dz-tablo">
+      <thead>
+        <tr>
+          <th rowspan="2" class="sol">Bölüm</th>
+          <th rowspan="2" class="sol">Branş</th>
+          <th colspan="2">Ders saati</th>
+          <th colspan="5">Öğretim elemanı</th>
+          <th rowspan="2" title="Bölüm başkanı + subay + astsubay + sivil (+ yedek subay, branşta dahilse)">Toplam</th>
+          <th colspan="2">İdari ve dışarıdan</th>
+          <th rowspan="2" title="Karargâh ve okul dışından gelenlerin haftalık ders saati">Dışarıdan<br>saat</th>
+          <th colspan="2">Ders yükü ortalaması</th>
+          <th>{{ yil.ihtiyac_saat1 }} saat</th>
+          <th>{{ yil.ihtiyac_saat2 }} saat</th>
+        </tr>
+        <tr>
+          <th>Güz</th><th>Bahar</th>
+          <th title="Bölüm başkanı">Böl.Bşk</th><th>Sb.</th><th>Asb.</th><th>Sivil</th><th>Yedek</th>
+          <th title="Karargâh">Kh.</th><th>Okul dışı</th>
+          <th>Güz</th><th>Bahar</th>
+          <th>İhtiyaç</th><th>İhtiyaç</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in satirlar %}
+        <tr{% if s.grup_ilk %} class="grup-ilk"{% endif %}>
+          {% if s.grup_ilk %}<th rowspan="{{ s.grup_satir }}" class="dz-grup">{{ s.brans.grup }}</th>{% endif %}
+          <th class="sol"><a href="{% url 'dozaj:brans' s.brans.pk %}">{{ s.brans.ad }}</a></th>
+          <td>{{ s.guz }}</td><td>{{ s.bahar }}</td>
+          <td>{{ s.bb|default:"" }}</td><td>{{ s.sb|default:"" }}</td><td>{{ s.asb|default:"" }}</td><td>{{ s.sivil|default:"" }}</td>
+          <td{% if not s.ayar.atgm_dahil and s.yedek %} class="soluk" title="Toplama dahil değil"{% endif %}>{{ s.yedek|default:"" }}</td>
+          <td class="kalin">{{ s.toplam }}</td>
+          <td>{{ s.kh|default:"" }}</td><td>{{ s.dis|default:"" }}</td>
+          <td>{% if s.ayar.dis_saat %}{{ s.ayar.dis_saat }}{% if s.ayar.destek != "12" %}<small class="dz-donem">{% if s.ayar.destek == "1" %}Güz{% else %}Bahar{% endif %}</small>{% endif %}{% endif %}</td>
+          <td class="ort{% if s.guz_uyari %} uyari{% endif %}" title="{{ s.ort_guz|floatformat:2 }} saat">{{ s.ort_guz_g }}</td>
+          <td class="ort{% if s.bahar_uyari %} uyari{% endif %}" title="{{ s.ort_bahar|floatformat:2 }} saat">{{ s.ort_bahar_g }}</td>
+          <td>{{ s.ihtiyac1 }}</td><td>{{ s.ihtiyac2 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="17" class="text-secondary py-4">Henüz branş yok.</td></tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th colspan="2" class="sol">Toplam</th>
+          <td>{{ t.guz }}</td><td>{{ t.bahar }}</td>
+          <td>{{ t.bb }}</td><td>{{ t.sb }}</td><td>{{ t.asb }}</td><td>{{ t.sivil }}</td><td>{{ t.yedek }}</td>
+          <td class="kalin">{{ t.toplam }}</td><td>{{ t.kh }}</td><td>{{ t.dis }}</td>
+          <td class="sol" colspan="1" title="Toplam + karargâh + okul dışı">= {{ t.genel }}</td>
+          <td colspan="2" title="(Güz + Bahar) ÷ 2 ÷ toplam öğretim elemanı">Ortalama {{ t.ortalama|floatformat:2 }}</td>
+          <td class="kalin">{{ t.ihtiyac1 }}</td><td class="kalin">{{ t.ihtiyac2 }}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  <p class="dz-not">Ortalama = (saat − bölüm başkanı varsa {{ yil.baskan_saati }} − dışarıdan gelenlerin saati) ÷ (toplam − bölüm başkanı varsa 1). Dışarıdan gelenlerin saati yalnız destek verdikleri dönemde düşülür. Branşa tıklayınca hangi derslerin ve kimlerin sayıldığı görünür.</p>
+</div>
+
+{% if kodsuz or branssiz or hesap_disi %}
+<div class="row g-3 mb-3">
+  {% if kodsuz %}
+  <div class="col-12 col-lg-4"><div class="kart dz-kart h-100 dz-dikkat">
+    <h3><i class="bi bi-exclamation-triangle me-1"></i>Branşı seçilmemiş dersler</h3>
+    <p>Bu derslerin saatleri tabloya girmiyor.</p>
+    <ul>{% for kod, dersler in kodsuz|slice:":12" %}<li><b>{{ kod }}</b> {{ dersler.0.ad }} <span class="text-secondary">({{ dersler|length }} programda)</span></li>{% endfor %}</ul>
+    {% if kodsuz|length > 12 %}<p>… ve {{ kodsuz|length|add:"-12" }} ders daha.</p>{% endif %}
+    <a href="{% url 'dozaj:branslar' %}">Branşlar sekmesinde seçin</a>
+  </div></div>
+  {% endif %}
+  {% if branssiz %}
+  <div class="col-12 col-lg-4"><div class="kart dz-kart h-100 dz-dikkat">
+    <h3><i class="bi bi-person-exclamation me-1"></i>Branşı belli olmayan {{ branssiz|length }} öğretim elemanı</h3>
+    <p>Derse girebilir görünüyorlar ama branşları kart bilgisinden çıkarılamadı (ör. Temel Bilimler, Beşeri Bilimler); tabloda sayılmıyorlar.</p>
+    <a href="{% url 'dozaj:personel' %}?durum=branssiz">Öğretim elemanları sekmesinde seçin</a>
+  </div></div>
+  {% endif %}
+  {% if hesap_disi %}
+  <div class="col-12 col-lg-4"><div class="kart dz-kart h-100">
+    <h3><i class="bi bi-info-circle me-1"></i>Tabloya girmeyen saatler</h3>
+    <ul>{% for s in hesap_disi %}<li><a href="{% url 'dozaj:brans' s.brans.pk %}">{{ s.brans.ad }}</a>: Güz {{ s.guz }}, Bahar {{ s.bahar }} saat</li>{% endfor %}</ul>
+  </div></div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if duzenleyebilir %}
+<details class="kart dz-kart d-print-none">
+  <summary><i class="bi bi-sliders me-1"></i>Hesap ayarları</summary>
+  <form method="post" class="dz-ayar-form">
+    {% csrf_token %}
+    <label>Kırmızı gösterme eşiği (saat)<input type="number" min="1" max="60" name="uyari_esigi" value="{{ yil.uyari_esigi }}" class="form-control form-control-sm"></label>
+    <label>1. ihtiyaç hesabı (saat)<input type="number" min="1" max="60" name="ihtiyac_saat1" value="{{ yil.ihtiyac_saat1 }}" class="form-control form-control-sm"></label>
+    <label>2. ihtiyaç hesabı (saat)<input type="number" min="1" max="60" name="ihtiyac_saat2" value="{{ yil.ihtiyac_saat2 }}" class="form-control form-control-sm"></label>
+    <label>Bölüm başkanının ders saati<input type="number" min="0" max="60" name="baskan_saati" value="{{ yil.baskan_saati }}" class="form-control form-control-sm"></label>
+    <button class="btn btn-sm btn-primary">Kaydet</button>
+  </form>
+</details>
+{% endif %}
+{% endblock %}
