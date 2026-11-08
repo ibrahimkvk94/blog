@@ -47,6 +47,10 @@
 [data-bs-theme="dark"] .bolum-baslik .bi, [data-bs-theme="dark"] .birim-ikon, [data-bs-theme="dark"] .org-dal-baslik .bi { color: #8fb4dc; }
 
 /* ---- aşağısı otomatik üretilir ---- */
+[data-bs-theme="dark"] .pn { --pn-mevcut: #3a4a5f; --pn-iz: #1c2838; --pn-izgara: #223044; --pn-yazi: #e2e8f0; --pn-soluk: #94a3b8;
+  --pn-zemin: #111922; --pn-k1: #1d3550; --pn-k2: #254c78; --pn-k3: #3068a3; --pn-k4: #5a90c9; --pn-k5: #9cc2ea; --pn-k-yazi: #0d141d;
+  --pn-subay: #8fb8e6; --pn-astsubay: #2f8f9f; --pn-sivil: #e0bd4a; --pn-lacivert: #6f9fd3; --pn-camgobegi: #2aa3bd; }
+[data-bs-theme="dark"] .pn-ipucu { background: #e2e8f0; color: #0f172a; }
 
 [data-bs-theme="dark"] body { color: #cfd8e4; }
 [data-bs-theme="dark"] .page-link { color: #b0cbe5; }
@@ -250,3 +254,9 @@
 [data-bs-theme="dark"] .ky-tur-secim label { background: #111922; }
 [data-bs-theme="dark"] .ky-tur-secim label span { color: #a0abbb; }
 [data-bs-theme="dark"] .ky-tam { color: #e9dab3; background: linear-gradient(90deg, #373017, #312a13 60%, transparent); border: 1px solid #5a5034; }
+[data-bs-theme="dark"] .pn-rozet { background: #1a2432; color: #bac4d1; }
+[data-bs-theme="dark"] .pn-sayi { background: #111922; }
+[data-bs-theme="dark"] .pn-uyari { color: #e4bea1; }
+[data-bs-theme="dark"] .pn-tamam { color: #afe8c4; }
+[data-bs-theme="dark"] .pn-salon .bi { color: #afe8c4; }
+[data-bs-theme="dark"] .pn-salon.dolu .bi { color: #e199b7; }

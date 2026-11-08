@@ -1,0 +1,26 @@
+{# Gösterge kartlarının ortak ipucu kutusu (data-ipucu) #}
+<div class="pn-ipucu" id="pnIpucu" role="tooltip" hidden></div>
+<script>
+(function () {
+  var ip = document.getElementById("pnIpucu"), etkin = null;
+  function goster(el, x, y) {
+    ip.textContent = el.getAttribute("data-ipucu"); ip.hidden = false;
+    var w = ip.offsetWidth, h = ip.offsetHeight;
+    var l = Math.min(Math.max(8, x - w / 2), window.innerWidth - w - 8), t = y - h - 12;
+    if (t < 8) t = y + 18;
+    ip.style.left = l + "px"; ip.style.top = t + "px";
+  }
+  document.addEventListener("mouseover", function (e) {
+    var el = e.target.closest && e.target.closest(".pn [data-ipucu]");
+    if (!el) { if (etkin) { ip.hidden = true; etkin = null; } return; }
+    etkin = el;
+  });
+  document.addEventListener("mousemove", function (e) { if (etkin) goster(etkin, e.clientX, e.clientY); });
+  document.addEventListener("focusin", function (e) {
+    var el = e.target.closest && e.target.closest(".pn [data-ipucu]");
+    if (!el) return; var r = el.getBoundingClientRect(); etkin = null; goster(el, r.left + r.width / 2, r.top);
+  });
+  document.addEventListener("focusout", function () { ip.hidden = true; });
+  window.addEventListener("scroll", function () { ip.hidden = true; etkin = null; }, { passive: true });
+})();
+</script>

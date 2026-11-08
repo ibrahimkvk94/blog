@@ -365,3 +365,123 @@ class KullaniciYonetimiTestleri(TestCase):
         # büyük / küçük harf farkıyla aynı ad alınamaz
         r = self.client.post(reverse("core:kullanici_yeni"), {"username": "ASK2", "parola": "Guclu-Parola-482"})
         self.assertContains(r, "zaten var")
+
+
+class GostergePaneliTestleri(TestCase):
+    """İstatistikler sayfası (Bugün ve Personel sekmeleri): yalnız sistem yöneticisi görür; ana sayfa sade kalır;
+    bir kart hata verirse sayfa yine açılır."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.utils import timezone
+
+        from personel.models import Secenek
+        from yoklama import servis as ys
+        from yoklama.models import IzinTuru, YoklamaKaydi
+
+        cls.ask = Bolum.objects.create(ad="Askeri Bilimler", kod="ASK")
+        alb = Secenek.objects.create(tur=Secenek.RUTBE, metin="Alb.", sira=20)
+        asb = Secenek.objects.create(tur=Secenek.RUTBE, metin="Asb.Kd.Bçvş.", sira=5)
+        dm = Secenek.objects.create(tur=Secenek.UNVAN, metin="De.Me.", sira=1)
+        cls.p1 = Personel.objects.create(ad_soyad="Bir Deneme", personel_kodu="A1", bolum=cls.ask, rutbe=alb)
+        cls.p2 = Personel.objects.create(ad_soyad="İki Deneme", personel_kodu="A2", bolum=cls.ask, rutbe=asb)
+        cls.p3 = Personel.objects.create(ad_soyad="Üç Deneme", personel_kodu="A3", bolum=cls.ask, unvan=dm)
+        cls.su = User.objects.create_superuser("su", password="x-Parola-123")
+        cls.ask1 = User.objects.create_user("ask1", password="x-Parola-123", bolum=cls.ask)
+        Yetki.objects.create(kullanici=cls.ask1, birim=Birim.objects.get(slug="personel-yoklamasi"),
+                             seviye=Yetki.DUZENLEME, kapsam=Yetki.BOLUM)
+        tur = IzinTuru.objects.create(ad="Raporlu (deneme)", kisa="RP", renk="#b91c1c")
+        bas, bit = ys.gun_araligi(timezone.localdate())
+        YoklamaKaydi.objects.create(personel=cls.p2, tur=tur, baslangic=bas, bitis=bit)
+
+    def test_bugun_sekmesi(self):
+        self.client.force_login(self.su)
+        r = self.client.get(reverse("core:istatistikler"))
+        self.assertContains(r, "Personelin bugünkü durumu")
+        self.assertContains(r, "İki Deneme · Raporlu (deneme)")
+        self.assertContains(r, "Bir Deneme · mevcut")
+        self.assertContains(r, "Raporlu (deneme) <b>1</b>")
+        p = r.context["pano"]["personel"]
+        self.assertEqual((p["toplam"], p["mevcut"], p["gun_boyu"]), (3, 2, 1))
+
+    def test_personel_sekmesi(self):
+        self.client.force_login(self.su)
+        r = self.client.get(reverse("core:istatistikler") + "?sekme=personel")
+        self.assertContains(r, "Kadro yapısı")
+        k = r.context["kadro"]
+        self.assertEqual({t["kod"]: t["sayi"] for t in k["turler"]}, {"subay": 1, "astsubay": 1, "sivil": 1})
+        self.assertEqual([c["ad"] for c in k["rutbeler"]], ["Alb.", "Asb.Kd.Bçvş."])  # kıdemliden başlar
+        self.assertEqual(k["siviller"], [{"ad": "Devlet memuru", "sayi": 1}])
+
+    def test_ana_sayfa_sade_menude_baglanti(self):
+        self.client.force_login(self.su)
+        r = self.client.get(reverse("core:panel"))
+        self.assertNotContains(r, "Personelin bugünkü durumu")
+        self.assertContains(r, reverse("core:istatistikler"))
+
+    def test_yalniz_sistem_yoneticisi(self):
+        self.client.force_login(self.ask1)
+        self.assertEqual(self.client.get(reverse("core:istatistikler")).status_code, 403)
+        self.assertEqual(self.client.get(reverse("core:istatistikler") + "?sekme=personel").status_code, 403)
+        self.assertNotContains(self.client.get(reverse("core:panel")), reverse("core:istatistikler"))
+
+    def test_bir_kart_hata_verse_de_sayfa_acilir(self):
+        from unittest import mock
+
+        from . import pano
+
+        self.client.force_login(self.su)
+        with mock.patch.object(pano, "sinavlar", side_effect=RuntimeError("deneme")),                 self.assertLogs("core.pano", level="ERROR"):
+            r = self.client.get(reverse("core:istatistikler"))
+        self.assertEqual(r.status_code, 200)
+        self.assertIsNone(r.context["pano"]["sinavlar"])
+        self.assertContains(r, "Personelin bugünkü durumu")
+
+    def test_yuzde_yerel_ayardan_bagimsiz(self):
+        from . import pano
+
+        self.assertEqual(pano._yuzde(1, 3), "33.33")
+        self.assertEqual(pano._yuzde(5, 0), "0")
+        self.assertEqual(pano._olcek(7), 8)
+
+    def test_ogrenim_ve_kadro_durumu_kart_alanlari(self):
+        from personel.models import KartAlani, KartDegeri
+
+        ogr = KartAlani.objects.get(ad="Öğrenim durumu")  # personel/migrations/0017
+        kd = KartAlani.objects.get(ad="Kadro durumu")
+        self.assertEqual(ogr.secenek_listesi, ["Lise", "Ön lisans", "Lisans", "Yüksek lisans", "Doktora"])
+        self.assertIn("Görevlendirme", kd.secenek_listesi)
+        KartDegeri.objects.create(personel=self.p1, alan=ogr, deger="Yüksek lisans")
+        KartDegeri.objects.create(personel=self.p2, alan=ogr, deger="Lisans")
+        KartDegeri.objects.create(personel=self.p3, alan=ogr, deger="Lisans")
+        KartDegeri.objects.create(personel=self.p1, alan=kd, deger="Muvazzaf")
+        self.client.force_login(self.su)
+        k = self.client.get(reverse("core:istatistikler") + "?sekme=personel").context["kadro"]
+        o = k["ogrenim"]
+        self.assertEqual((o["girilen"], o["girilmemis"]), (3, 0))
+        self.assertEqual([(s["ad"], s["toplam"]) for s in o["satirlar"]], [("Lisans", 2), ("Yüksek lisans", 1)])
+        self.assertEqual([x["ad"] for x in o["satirlar"][0]["parcalar"]], ["Astsubay", "Sivil"])
+        self.assertEqual((k["kadro_durumu"]["girilen"], k["kadro_durumu"]["girilmemis"]), (1, 2))
+        kd.aktif = False
+        kd.save()
+        self.assertIsNone(self.client.get(reverse("core:istatistikler") + "?sekme=personel").context["kadro"]["kadro_durumu"])
+
+    def test_kadro_kapasitesi_ve_doluluk(self):
+        from .models import KadroKapasitesi
+
+        self.client.force_login(self.su)
+        url = reverse("core:istatistikler")
+        self.assertIsNone(self.client.get(url + "?sekme=personel").context["kadro"]["doluluk"]["genel"]["kapasite"])
+        r = self.client.post(url, {"islem": "kapasite", "toplam": "", "subay": "2", "astsubay": "1", "sivil": "1"})
+        self.assertRedirects(r, url + "?sekme=personel#doluluk", fetch_redirect_response=False)
+        d = self.client.get(url + "?sekme=personel").context["kadro"]["doluluk"]
+        self.assertEqual((d["genel"]["kapasite"], d["genel"]["oran"], d["genel"]["bos"]), (4, 75, 1))  # 3 kişi / 4
+        self.assertEqual([(t["ad"], t["oran"]) for t in d["turler"]], [("Subay", 50), ("Astsubay", 100), ("Sivil", 100)])
+        self.client.post(url, {"islem": "kapasite", "toplam": "2", "subay": "abc"})
+        self.assertEqual(KadroKapasitesi.al().toplam, None)  # hatalı giriş kaydedilmez
+        self.client.post(url, {"islem": "kapasite", "toplam": "2"})
+        g = self.client.get(url + "?sekme=personel").context["kadro"]["doluluk"]["genel"]
+        self.assertEqual((g["oran"], g["fazla"], g["boy"]), (150, 1, "100.00"))
+        self.assertEqual(KadroKapasitesi.objects.count(), 1)
+        self.client.force_login(self.ask1)
+        self.assertEqual(self.client.post(url, {"islem": "kapasite", "toplam": "9"}).status_code, 403)

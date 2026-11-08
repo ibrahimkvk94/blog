@@ -90,3 +90,33 @@ class BolumMenusu(models.Model):
 
     def __str__(self):
         return f"{self.bolum} menüsü"
+
+
+class KadroKapasitesi(models.Model):
+    """Okulun kadro kapasitesi (norm kadro). İstatistikler · Personel sekmesindeki doluluk oranı = aktif personel / kapasite.
+    Tek kayıt tutulur; türlere göre kapasite isteğe bağlıdır, toplam boşsa türlerin toplamı kullanılır."""
+
+    toplam = models.PositiveIntegerField("Toplam kapasite", null=True, blank=True)
+    subay = models.PositiveIntegerField("Subay kapasitesi", null=True, blank=True)
+    astsubay = models.PositiveIntegerField("Astsubay kapasitesi", null=True, blank=True)
+    sivil = models.PositiveIntegerField("Sivil kapasitesi", null=True, blank=True)
+    guncelleme = models.DateTimeField(auto_now=True)
+    guncelleyen = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                    related_name="+")
+
+    class Meta:
+        verbose_name = "Kadro kapasitesi"
+        verbose_name_plural = "Kadro kapasitesi"
+
+    def __str__(self):
+        return f"Kadro kapasitesi: {self.genel_toplam or '—'}"
+
+    @classmethod
+    def al(cls):
+        return cls.objects.order_by("pk").first() or cls()
+
+    @property
+    def genel_toplam(self):
+        if self.toplam:
+            return self.toplam
+        return sum(x for x in (self.subay, self.astsubay, self.sivil) if x) or None

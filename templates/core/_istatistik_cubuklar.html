@@ -1,0 +1,10 @@
+<div class="pn-cubuklar">
+  {% for c in liste %}
+  <div class="pn-cubuk dar" tabindex="0" data-ipucu="{{ c.ad }} · {{ c.sayi }} kişi">
+    <span class="pn-cubuk-ad">{{ c.ad }}</span>
+    <span class="pn-cubuk-iz"><i style="width:{{ c.boy }}%;--n:{{ c.renk }}"></i></span>
+    <b>{{ c.sayi }}</b>
+  </div>
+  {% empty %}<p class="pn-not">Kayıt yok.</p>
+  {% endfor %}
+</div>

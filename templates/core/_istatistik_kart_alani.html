@@ -1,0 +1,13 @@
+{# Bir kart seçim alanının dağılımı (Öğrenim durumu, Kadro durumu), kadro türüne bölünmüş. a = istatistik.kart_dagilimi() #}
+<div class="kart pn-kart h-100">
+  <div class="pn-kart-bas">
+    <div><h3>{{ alan_adi }}</h3><p>Personel kartlarındaki "{{ alan_adi }}" alanından; renkler kadro yapısı</p></div>
+    <div class="pn-lejant">{% for t in kadro.turler %}<span><i class="pn-kare" style="--n:{{ t.renk }}" aria-hidden="true"></i>{{ t.ad }}</span>{% endfor %}</div>
+  </div>
+  {% if a %}
+  <div class="pn-dar-adlar">{% for b in a.satirlar %}{% include "core/_istatistik_birim.html" %}{% empty %}<p class="pn-not mt-0">Henüz hiçbir kartta girilmedi.</p>{% endfor %}</div>
+  <p class="pn-not"><b>{{ a.girilen }}</b> / {{ kadro.toplam }} kartta girildi (%{{ a.oran }}){% if a.girilmemis %} · <b>{{ a.girilmemis }}</b> kişide boş{% endif %}</p>
+  {% else %}
+  <p class="pn-not mt-0">"{{ alan_adi }}" kart alanı kullanımda değil. <a href="{% url 'personel:alanlar' %}">Kart alanları</a> sayfasından açılabilir.</p>
+  {% endif %}
+</div>
