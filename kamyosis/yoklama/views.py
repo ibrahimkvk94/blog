@@ -18,7 +18,8 @@ from core.yetki import birim_bul, yol
 from personel.models import Bolum
 
 from . import foto, servis
-from .models import RENKLER, GunlukOnay, IzinTuru, PersonelGrubu, YoklamaGecmisi, YoklamaKaydi
+from .models import (OGLEDEN_ONCE, OGLEDEN_SONRA, RENKLER, GunlukOnay, IzinTuru, PersonelGrubu, YoklamaGecmisi,
+                     YoklamaKaydi)
 from .birim import BIRIMSIZ
 from .servis import YoklamaHatasi
 
@@ -102,10 +103,13 @@ def _birim_sayfasi(y, p, tarih):
 def _kayit_formu(request):
     """POST'tan (tür, başlangıç, bitiş, açıklama); hatalıysa YoklamaHatasi."""
     tur = IzinTuru.objects.filter(pk=request.POST.get("tur") or 0).first()
-    tam_gun = request.POST.get("bicim", "tam") == "tam"
+    bicim = request.POST.get("bicim", "tam")
+    tam_gun = bicim == "tam"
     bas_tarih = _tarih(request.POST.get("bas_tarih"))
     if tam_gun:
         bas, bit = servis.aralik(True, bas_tarih, _tarih(request.POST.get("bit_tarih"), bas_tarih))
+    elif bicim in ("oo", "os"):  # öğleden önce / sonra: sabit saatler
+        bas, bit = servis.aralik(False, bas_tarih, bas_tarih, *(OGLEDEN_ONCE if bicim == "oo" else OGLEDEN_SONRA))
     else:
         bas, bit = servis.aralik(False, bas_tarih, bas_tarih, _saat(request.POST.get("bas_saat")),
                                  _saat(request.POST.get("bit_saat")))
@@ -345,7 +349,8 @@ def toplu_fotograf(request):
 class TurFormu(forms.ModelForm):
     class Meta:
         model = IzinTuru
-        fields = ["ad", "kisa", "renk", "sira", "aktif", "aciklama", "yillik_hak", "mevcut_sayilir", "rapor_sirasi"]
+        fields = ["ad", "kisa", "grup", "renk", "sira", "aktif", "aciklama", "yillik_hak", "mevcut_sayilir", "rapor_sirasi",
+                  "yarim_gun", "hazir_saatler"]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -356,6 +361,10 @@ class TurFormu(forms.ModelForm):
             label=alan.label, help_text=alan.help_text, required=False, coerce=int, empty_value=None,
             choices=[("", "Sırasız (sonda)")] + [(i, f"{i}.") for i in range(1, max(adet, 1) + 1)])
         self.fields["yillik_hak"].widget.attrs.update({"placeholder": "Boş = sınırsız", "min": 0})
+        self.fields["grup"].required = False
+
+    def clean_grup(self):
+        return self.cleaned_data.get("grup") or self.instance.grup or "izin"
 
 
 @login_required
@@ -382,9 +391,9 @@ def turler(request):
         alan.widget.attrs.setdefault("class", "form-select" if isinstance(alan.widget, forms.Select) else "form-control")
     form.fields["aktif"].widget.attrs["class"] = "form-check-input"
     form.fields["mevcut_sayilir"].widget.attrs["class"] = "form-check-input"
+    form.fields["yarim_gun"].widget.attrs["class"] = "form-check-input"
     return render(request, "yoklama/turler.html", _baglam(
-        request, turler=IzinTuru.objects.annotate(kullanim=Count("kayitlar")).order_by(
-            F("rapor_sirasi").asc(nulls_last=True), "sira", "ad"), form=form, duzenlenen=duzenlenen,
+        request, turler=IzinTuru.objects.annotate(kullanim=Count("kayitlar")).order_by("sira", "ad"), form=form, duzenlenen=duzenlenen,
         renkler=RENKLER))
 
 

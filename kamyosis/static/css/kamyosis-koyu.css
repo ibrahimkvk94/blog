@@ -311,3 +311,6 @@
 [data-bs-theme="dark"] .mp-neden.n-ders i { color: #a6c4e1; }
 [data-bs-theme="dark"] .mp-neden.n-sinav i { color: #e4bea1; }
 [data-bs-theme="dark"] .mp-not { color: #a0abbb; }
+[data-bs-theme="dark"] .yk-tur-dugme.secili .yk-nokta { background: #111922; }
+[data-bs-theme="dark"] .ts-dropdown .optgroup-header { color: #a0abbb; }
+[data-bs-theme="dark"] .yk-hazir-saat { background: #111922; }

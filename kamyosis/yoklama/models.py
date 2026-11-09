@@ -8,6 +8,8 @@ Tam gün kaydı başlangıç günü 00:00'dan bitiş gününün ertesi 00:00'a k
 arasıdır. Aynı personelin kayıtları çakışamaz.
 """
 
+import datetime
+
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
@@ -18,6 +20,13 @@ RENKLER = [
     ("#2f5d8a", "Lacivert"), ("#0e7490", "Camgöbeği"), ("#15803d", "Yeşil"), ("#b45309", "Turuncu"),
     ("#b91c1c", "Kırmızı"), ("#7c3aed", "Mor"), ("#be185d", "Pembe"), ("#475569", "Gri"), ("#a16207", "Hardal"),
 ]
+
+
+# İzin türlerinin grupları (kayıt formundaki açılır listede başlıklar) ve yarım günün saatleri
+GRUPLAR = [("izin", "İzinler"), ("saglik", "Sağlık"), ("aile", "Aile ve doğum"), ("gorev", "Görev"),
+           ("egitim", "Eğitim ve kurs"), ("adli", "Adli ve idari durum"), ("diger", "Diğer")]
+OGLEDEN_ONCE = (datetime.time(8, 0), datetime.time(12, 30))
+OGLEDEN_SONRA = (datetime.time(13, 30), datetime.time(17, 0))
 
 
 class IzinTuru(models.Model):
@@ -38,6 +47,13 @@ class IzinTuru(models.Model):
     rapor_sirasi = models.PositiveSmallIntegerField(
         "Rapor sırası", null=True, blank=True,
         help_text="Yoklama formunda gayri mevcutlar bu sıraya göre listelenir (1 en başta); sırasızlar sonda.")
+    grup = models.CharField("Grup", max_length=10, choices=GRUPLAR, default="izin",
+                            help_text="Kayıt formundaki açılır listede altında göründüğü başlık.")
+    yarim_gun = models.BooleanField("Yarım gün alınabilir", default=False,
+                                    help_text="Formda \"Öğleden önce\" (08:00–12:30) ve \"Öğleden sonra\" (13:30–17:00) seçenekleri çıkar.")
+    hazir_saatler = models.CharField(
+        "Hazır saatler", max_length=120, blank=True,
+        help_text="Formda tek dokunuşla seçilen saat aralıkları, virgülle: ör. 14:00-15:30, 14:00-17:00")
 
     class Meta:
         ordering = ["sira", "ad"]
@@ -46,6 +62,16 @@ class IzinTuru(models.Model):
 
     def __str__(self):
         return self.ad
+
+    @property
+    def hazir_saat_listesi(self):
+        """[("14:00", "15:30"), …] — hatalı parçalar atlanır."""
+        out = []
+        for parca in self.hazir_saatler.split(","):
+            a, _, b = parca.strip().replace(".", ":").partition("-")
+            if len(a.strip()) == 5 and len(b.strip()) == 5:
+                out.append((a.strip(), b.strip()))
+        return out
 
 
 class YoklamaKaydi(models.Model):

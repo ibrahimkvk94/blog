@@ -66,8 +66,8 @@ class YoklamaTestleri(SaatSabit, TestCase):
         cls.iiy = User.objects.create_user("iiy", password="x-Parola-123")
         Yetki.objects.create(kullanici=cls.iiy, birim=birim, seviye=Yetki.YONETIM, kapsam=Yetki.TUM)
         cls.yetkisiz = User.objects.create_user("yok", password="x-Parola-123")
-        cls.yillik = IzinTuru.objects.get(ad="Yıllık izin")
-        cls.rapor = IzinTuru.objects.get(ad="Raporlu")
+        cls.yillik = IzinTuru.objects.get(ad="Yıllık İzin")
+        cls.rapor = IzinTuru.objects.get(ad="İstirahat")
 
     @classmethod
     def tearDownClass(cls):
@@ -230,7 +230,7 @@ class YoklamaTestleri(SaatSabit, TestCase):
         self.assertNotContains(r, "Veli ÇELİK")
         r = self.client.get(reverse("yoklama:ana"), {"bas": GUN.isoformat(), "bit": (GUN + datetime.timedelta(days=6)).isoformat()})
         self.assertContains(r, "Ayşe YILMAZ")
-        self.assertContains(r, ">RP<")
+        self.assertContains(r, ">İST<")
         r = self.client.get(reverse("yoklama:rapor"), {"bas": GUN.isoformat(), "bit": GUN.isoformat()})
         self.assertEqual(r["Content-Type"], "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         self.assertEqual(self.client.get(reverse("yoklama:kart", args=[self.ayse.pk])).status_code, 200)
@@ -249,6 +249,31 @@ class YoklamaTestleri(SaatSabit, TestCase):
         self.client.post(url, {"islem": "sil"})
         self.assertFalse(YoklamaKaydi.objects.filter(pk=k.pk).exists())
         self.assertEqual(list(YoklamaGecmisi.objects.values_list("islem", flat=True)), ["sil", "duzenle", "ekle"])
+
+    def test_tur_listesi_ve_yarim_gun(self):
+        from .models import OGLEDEN_ONCE, OGLEDEN_SONRA
+
+        aktif = list(IzinTuru.objects.filter(aktif=True).values_list("ad", flat=True))
+        self.assertEqual(len(aktif), 41)  # İdari İşler'in listesi; öğleden önce / sonra varyantları tek türde
+        self.assertNotIn("Gi (kaldırıldı)", aktif)
+        self.assertTrue(IzinTuru.objects.get(ad="Hastane").yarim_gun)
+        sut = IzinTuru.objects.get(ad="Süt İzni")
+        self.assertEqual(sut.hazir_saat_listesi, [("14:00", "15:30"), ("14:00", "17:00"), ("15:30", "17:00")])
+        self.assertEqual(self.yillik.yillik_hak, 30)  # eski "Yıllık izin" taşındı, hakkı korundu
+        hastane = IzinTuru.objects.get(ad="Hastane")
+        self.client.force_login(self.askci)
+        r = self.client.get(reverse("yoklama:kart", args=[self.ali.pk]))
+        self.assertContains(r, 'data-tur-sec')
+        self.assertContains(r, '<optgroup label="Sağlık">')
+        self.assertContains(r, 'data-saatler="14:00-15:30,14:00-17:00,15:30-17:00"')
+        for bicim, aralik in (("oo", OGLEDEN_ONCE), ("os", OGLEDEN_SONRA)):
+            YoklamaKaydi.objects.filter(personel=self.ali).delete()
+            self.client.post(reverse("yoklama:kart", args=[self.ali.pk]), {
+                "tur": hastane.pk, "bicim": bicim, "bas_tarih": GUN.isoformat(), "aciklama": ""})
+            k = YoklamaKaydi.objects.get(personel=self.ali)
+            self.assertEqual((k.yerel_bas.time(), k.yerel_bit.time(), k.yerel_bas.date()), (*aralik, GUN))
+            r = self.client.get(reverse("yoklama:kayit", args=[k.pk]))
+            self.assertContains(r, f'value="{bicim}" checked')
 
     def test_izin_turleri(self):
         self.client.force_login(self.iiy)
@@ -378,8 +403,8 @@ class YoklamaFormuTestleri(SaatSabit, TestCase):
         Yetki.objects.create(kullanici=cls.askci, birim=birim, seviye=Yetki.DUZENLEME, kapsam=Yetki.BOLUM)
         cls.iiy = User.objects.create_user("iiy", password="x-Parola-123")
         Yetki.objects.create(kullanici=cls.iiy, birim=birim, seviye=Yetki.YONETIM, kapsam=Yetki.TUM)
-        cls.yillik = IzinTuru.objects.get(ad="Yıllık izin")
-        cls.rapor = IzinTuru.objects.get(ad="Raporlu")
+        cls.yillik = IzinTuru.objects.get(ad="Yıllık İzin")
+        cls.rapor = IzinTuru.objects.get(ad="İstirahat")
 
     def y(self, user):
         return servis.yetki(SahteIstek(user))
@@ -442,7 +467,7 @@ class YoklamaFormuTestleri(SaatSabit, TestCase):
         self.assertEqual(hazir, [1, 1, 0, 1, 1, 1, 1, 6])
         self.assertEqual([b["personel"] for b in f["beyan"]], [self.oe_alb, self.oe_subay])  # kıdem sırası
         b = f["beyan"][1]
-        self.assertEqual((b["sebep"], b["ayrilis"], b["katilis"]), ("Yıllık izin", "10.11.2026", "13.11.2026"))
+        self.assertEqual((b["sebep"], b["ayrilis"], b["katilis"]), ("Yıllık İzin", "10.11.2026", "13.11.2026"))
         self.assertEqual(len(f["saatlik"]), 1)
         self.assertIn("PERSONEL YOKLAMASI (GÜNLÜK)", f["baslik"])
         self.assertIn("MÜDÜRLÜĞÜ", f["baslik"])
@@ -486,7 +511,7 @@ class YoklamaFormuTestleri(SaatSabit, TestCase):
         self.assertEqual([ws.cell(row=r_, column=10).value for r_ in (5, 6, 7)], [8, 2, 6])
         self.assertIn("Ayşe YILMAZ", ws["C11"].value)   # sütun sırası: öğretim elemanı (sivil) önce
         self.assertIn("Ali KAYA", ws["C12"].value)
-        self.assertEqual((ws["E12"].value, ws["G12"].value), ("Öğretim Elemanı (ASK)", "Raporlu"))
+        self.assertEqual((ws["E12"].value, ws["G12"].value), ("Öğretim Elemanı (ASK)", "İstirahat"))
         self.assertEqual(ws["B30"].value, 20)  # en az 20 beyan satırı (boş form gibi)
         # bölüm hesabı: yalnız kendi bölümü, grupları düzenleyemez
         self.client.force_login(self.askci)
@@ -527,7 +552,7 @@ class BirimKapsamiTestleri(SaatSabit, TestCase):
         cls.askci = hesap("ask", bolum=cls.ask)
         cls.iiy = User.objects.create_user("iiy", password="x-Parola-123")
         Yetki.objects.create(kullanici=cls.iiy, birim=birim, seviye=Yetki.YONETIM, kapsam=Yetki.TUM)
-        cls.yillik = IzinTuru.objects.get(ad="Yıllık izin")
+        cls.yillik = IzinTuru.objects.get(ad="Yıllık İzin")
 
     def y(self, user):
         return servis.yetki(SahteIstek(user))
@@ -593,10 +618,10 @@ class IzinHakkiTestleri(SaatSabit, TestCase):
         Yetki.objects.create(kullanici=cls.askci, birim=birim, seviye=Yetki.DUZENLEME, kapsam=Yetki.BOLUM)
         cls.iiy = User.objects.create_user("iiy", password="x-Parola-123")
         Yetki.objects.create(kullanici=cls.iiy, birim=birim, seviye=Yetki.YONETIM, kapsam=Yetki.TUM)
-        cls.yillik = IzinTuru.objects.get(ad="Yıllık izin")
-        cls.mazeret = IzinTuru.objects.get(ad="Mazeret izni")
-        cls.rapor = IzinTuru.objects.get(ad="Raporlu")
-        cls.gt = IzinTuru.objects.get(ad="Garnizon terk")
+        cls.yillik = IzinTuru.objects.get(ad="Yıllık İzin")
+        cls.mazeret = IzinTuru.objects.get(ad="Yıllık Mazeret İzni")
+        cls.rapor = IzinTuru.objects.get(ad="İstirahat")
+        cls.gt = IzinTuru.objects.get_or_create(ad="Garnizon terk", defaults={"kisa": "GT", "mevcut_sayilir": True, "grup": "diger"})[0]
 
     def y(self, user):
         return servis.yetki(SahteIstek(user))
@@ -607,7 +632,7 @@ class IzinHakkiTestleri(SaatSabit, TestCase):
     def test_varsayilan_haklar(self):
         self.assertEqual((self.yillik.yillik_hak, self.mazeret.yillik_hak), (30, 15))
         self.assertIsNone(self.rapor.yillik_hak)
-        self.assertIsNone(IzinTuru.objects.get(ad="Günlük izin").yillik_hak)
+        self.assertIsNone(IzinTuru.objects.get(ad="Günlük İzin").yillik_hak)
         self.assertTrue(self.gt.mevcut_sayilir)
 
     def test_bolum_hakki_asamaz(self):
@@ -663,7 +688,7 @@ class IzinHakkiTestleri(SaatSabit, TestCase):
         self.assertTrue(durum[self.can].mevcut)
         self.assertEqual([k.tur for k in durum[self.ali].kayitlar], [self.yillik])
         f = form.gunluk(d, [self.ali, self.can])
-        self.assertEqual([s["sebep"] for s in f["beyan"]], ["Yıllık izin"])
+        self.assertEqual([s["sebep"] for s in f["beyan"]], ["Yıllık İzin"])
 
     def test_rapor_sirasi(self):
         from . import form
@@ -691,7 +716,7 @@ class IzinHakkiTestleri(SaatSabit, TestCase):
         adet = IzinTuru.objects.count()
         self.assertContains(r, f'<option value="{adet}">{adet}.</option>')
         self.assertNotContains(r, f'<option value="{adet + 1}">')
-        v = {"pk": self.rapor.pk, "ad": "Raporlu", "kisa": "RP", "renk": "#b91c1c", "sira": 30, "aktif": "on",
+        v = {"pk": self.rapor.pk, "ad": "İstirahat", "kisa": "RP", "renk": "#b91c1c", "sira": 30, "aktif": "on",
              "rapor_sirasi": "1", "yillik_hak": ""}
         self.client.post(reverse("yoklama:turler"), v)
         self.rapor.refresh_from_db()
