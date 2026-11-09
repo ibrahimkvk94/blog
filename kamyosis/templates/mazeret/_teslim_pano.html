@@ -1,0 +1,24 @@
+<div class="kart mb-3">
+  <div class="yardim-satiri d-flex flex-wrap gap-2 align-items-center"><i class="bi bi-send-check"></i> Bölümlerin bildirim ve teslim durumu
+    <span class="ms-auto"><strong>{{ teslim_eden }}/{{ teslimler|length }}</strong> bölüm teslim etti{% if kalan_gun is not None %} · {% if kalan_gun > 0 %}son güne <strong>{{ kalan_gun }}</strong> gün{% elif kalan_gun == 0 %}<strong>son gün bugün</strong>{% else %}son gün geçti{% endif %}{% endif %}</span></div>
+  <div class="mz-ozet p-3">
+    {% for o in teslimler %}
+    <a class="mz-ozet-satir" href="{% url u.tablo donem.pk %}?bolum={{ o.bolum.pk }}" title="{{ o.bolum.ad }}: {{ o.bildirilen }}/{{ o.toplam }} bildirildi{% if o.teslim %} · teslim {{ o.teslim.zaman|date:'d.m.Y H:i' }}{% endif %}">
+      <span class="mz-ozet-ad">{{ o.bolum.kod|default:o.bolum.ad|truncatechars:6 }}</span>
+      <span class="progress flex-grow-1" role="progressbar" aria-label="{{ o.bolum.ad }}" aria-valuenow="{{ o.bildirilen }}" aria-valuemin="0" aria-valuemax="{{ o.toplam }}">
+        <span class="progress-bar {% if not o.eksik %}bg-success{% endif %}" style="width: {% widthratio o.bildirilen o.toplam 100 %}%"></span>
+      </span>
+      <span class="mz-ozet-sayi">{{ o.bildirilen }}/{{ o.toplam }}</span>
+      {% if o.teslim %}<i class="bi bi-send-check-fill text-success" title="Teslim edildi{% if o.sonradan %}; sonra {{ o.sonradan }} bildirim değişti{% endif %}"></i>{% else %}<i class="bi bi-send-x text-danger" title="Teslim edilmedi"></i>{% endif %}
+    </a>
+    {% endfor %}
+    {% if bolumsuz_ozet and bolumsuz_ozet.toplam %}
+    <a class="mz-ozet-satir" href="{% url u.tablo donem.pk %}?bolum=yok" title="Bölümü olmayan (idari birimlerdeki) personel: bildirimini Plan Program Kısmı yapar">
+      <span class="mz-ozet-ad">İdari</span>
+      <span class="progress flex-grow-1" role="progressbar" aria-label="Bölümü olmayanlar"><span class="progress-bar {% if bolumsuz_ozet.bildirilen == bolumsuz_ozet.toplam %}bg-success{% endif %}" style="width: {% widthratio bolumsuz_ozet.bildirilen bolumsuz_ozet.toplam 100 %}%"></span></span>
+      <span class="mz-ozet-sayi">{{ bolumsuz_ozet.bildirilen }}/{{ bolumsuz_ozet.toplam }}</span>
+      <i class="bi bi-building text-secondary" title="Teslimi yok"></i>
+    </a>
+    {% endif %}
+  </div>
+</div>

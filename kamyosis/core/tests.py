@@ -229,7 +229,7 @@ class BolumMenusuTestleri(TestCase):
         DersMazeretDonemi.objects.create(ad="Bahar")  # ana sayfada "bildirilmemiş" görev kartı çıksın
         Personel.objects.create(ad_soyad="Ask Personel", bolum=self.ask)
         self.client.force_login(self.ask1)
-        self.assertEqual(self.client.get(reverse("mazeret:ders")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("mazeret:ders"), follow=True).status_code, 200)  # açılış: toplu tablo
         self.assertContains(self.client.get(reverse("core:panel")), reverse("mazeret:ders"))
         self.client.force_login(self.su)
         self.client.post(reverse("core:bolum_kisayollari"), {"k": [f"{self.ask.pk}:ders-takibi"]})
@@ -240,7 +240,7 @@ class BolumMenusuTestleri(TestCase):
         self.assertEqual(self.client.get(reverse("takip:gunluk")).status_code, 200)
         # yönetici hesabı etkilenmez
         self.client.force_login(self.yon)
-        self.assertEqual(self.client.get(reverse("mazeret:ders")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("mazeret:ders"), follow=True).status_code, 200)
 
 
 class TurkceAramaTestleri(TestCase):

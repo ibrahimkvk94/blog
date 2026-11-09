@@ -97,6 +97,8 @@ def yetki(request, tur=None):
 def personeller(y, bolum=None):
     kosul = {"sinav_gorevi_alabilir": True} if y.tur_kod == "sinav" else {"derse_girebilir": True}
     qs = Personel.objects.filter(aktif=True, **kosul).select_related("bolum", "unvan", "rutbe", "sinif")
+    if y.tur_kod == "sinav":  # bölüm başkanları sınav görevi almaz, mazeret listesine girmez (09.11.2026)
+        qs = qs.filter(baskani_oldugu_bolumler__isnull=True)
     if y.kapsam_bolum is not None:
         qs = qs.filter(bolum=y.kapsam_bolum)
     elif bolum is not None:
@@ -341,9 +343,11 @@ def izin_isaretleri(donem, personel_idleri):
 # ---------------------------------------------------------------- toplu tablo
 
 @transaction.atomic
-def toplu_kaydet(user, y, donem, veriler, surumler):
+def toplu_kaydet(user, y, donem, veriler, surumler, aciklamalar=None):
     """Tablodan gelen {personel_id: hücreler}: değişen ya da bildirimi olmayan her satır kaydedilir (boş = mazereti yok).
-    surumler: {personel_id: formun açıldığı andaki sürüm}. Dönüş: (kaydedilen bildirimler, değişmeyen sayısı)."""
+    surumler: {personel_id: formun açıldığı andaki sürüm}; aciklamalar: {personel_id: satırın açıklaması} (gelmeyen
+    satırın açıklaması korunur). Dönüş: (kaydedilen bildirimler, değişmeyen sayısı)."""
+    aciklamalar = aciklamalar or {}
     if not degistirebilir_mi(y, donem):
         raise MazeretHatasi("Bu dönemde değişiklik yapma yetkiniz yok ya da dönem bildirime kapalı.")
     kisiler = {p.pk: p for p in Personel.objects.filter(pk__in=[int(k) for k in veriler], aktif=True)}
@@ -355,11 +359,12 @@ def toplu_kaydet(user, y, donem, veriler, surumler):
             raise MazeretHatasi("Tabloda kapsamınız dışında personel var; sayfayı yenileyin.")
         temiz = hucreleri_temizle(donem, hucreler)
         b = mevcut.get(p.pk)
-        if b is not None and b.hucreler == temiz:
+        eski = b.aciklama if b else ""
+        aciklama = str(aciklamalar.get(pid_metin, eski) or "").strip()[:500]
+        if b is not None and b.hucreler == temiz and b.aciklama == aciklama:
             degismeyen += 1
             continue
-        kaydedilen.append(kaydet(user, y, donem, p, temiz, b.aciklama if b else "",
-                                 int(surumler.get(pid_metin, 0) or 0)))
+        kaydedilen.append(kaydet(user, y, donem, p, temiz, aciklama, int(surumler.get(pid_metin, 0) or 0)))
     return kaydedilen, degismeyen
 
 

@@ -1204,6 +1204,9 @@ a.pn-nokta:hover, a.pn-nokta:focus-visible { transform: scale(1.45); outline: no
 .mz-tablo .mz-oturum .mz-baslik { font-size: .7rem; padding: .15rem .2rem; font-variant-numeric: tabular-nums; }
 .mz-tablo .mz-gun-bas { border-left: 2px solid #e2e8f0; }
 .mz-tablo .mz-kisi, .mz-tablo .mz-kisi-bas { position: sticky; left: 0; z-index: 1; text-align: left; min-width: 13rem; max-width: 16rem; border-right: 1px solid #e2e8f0; }
+.mz-tablo .mz-aciklama-bas { min-width: 14rem; border-left: 2px solid #e2e8f0; }
+.mz-tablo .mz-aciklama { border-left: 2px solid #e2e8f0; padding: 2px 4px; }
+.mz-tablo .mz-aciklama input { min-width: 14rem; font-size: .78rem; user-select: text; }
 .mz-tablo .mz-kisi-bas { z-index: 3; vertical-align: bottom; padding: .3rem .5rem; }
 .mz-tablo .mz-kisi-bas small { display: block; font-weight: 400; color: #94a3b8; }
 .mz-tablo .mz-kisi { display: flex; align-items: center; gap: .25rem; }
