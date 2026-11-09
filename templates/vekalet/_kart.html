@@ -1,7 +1,8 @@
 {% load yoklama_etiketleri %}<article class="vk-kart vk-{{ v.durum }}" data-ara="{{ v.veren.ad_soyad }} {{ v.vekil.ad_soyad }} {{ v.gorev }} {{ v.veren.bolum.ad|default:'' }}">
   <header class="vk-ust">
     <span class="vk-gorev"><i class="bi bi-briefcase"></i>{{ v.gorev }}</span>
-    {% if v.durum == 'yururlukte' %}<span class="vk-rozet{% if v.kalan_gun <= 1 %} vk-son{% endif %}">{% if v.kalan_gun == 1 %}bugün bitiyor{% else %}{{ v.kalan_gun }} gün kaldı{% endif %}</span>
+    {% if v.durum == 'yururlukte' and v.acik_uclu %}<span class="vk-rozet vk-acik">dönünceye kadar · {{ v.gun_sayisi }}. gün</span>
+    {% elif v.durum == 'yururlukte' %}<span class="vk-rozet{% if v.kalan_gun <= 1 %} vk-son{% endif %}">{% if v.kalan_gun == 1 %}bugün bitiyor{% else %}{{ v.kalan_gun }} gün kaldı{% endif %}</span>
     {% elif v.durum == 'baslayacak' %}<span class="vk-rozet vk-bekliyor">{% if v.kalan_gun == 1 %}yarın başlıyor{% else %}{{ v.kalan_gun }} gün sonra{% endif %}</span>{% endif %}
   </header>
   <div class="vk-kisiler">
@@ -16,7 +17,7 @@
     </div>
   </div>
   <footer class="vk-alt">
-    <span><i class="bi bi-calendar-range me-1"></i>{{ v.aralik_metni }} · {{ v.gun_sayisi }} gün</span>
+    <span><i class="bi bi-calendar-range me-1"></i>{{ v.aralik_metni }}{% if not v.acik_uclu %} · {{ v.gun_sayisi }} gün{% endif %}</span>
     {% if v.aciklama %}<span class="text-truncate" title="{{ v.aciklama }}"><i class="bi bi-chat-left-text me-1"></i>{{ v.aciklama }}</span>{% endif %}
   </footer>
 </article>

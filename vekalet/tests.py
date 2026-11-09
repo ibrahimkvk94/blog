@@ -208,3 +208,37 @@ class VekaletTestleri(TestCase):
         # tüm okul kapsamlı İdari İşler hesabı her şeyi görür
         self.client.force_login(self.idareci)
         self.assertEqual(len(self.client.get(reverse("vekalet:islemler")).context["kayitlar"]), 2)
+
+    def test_donunceye_kadar(self):
+        self.client.force_login(self.idareci)
+        veri = self._veri(bitis="")
+        r = self.client.post(reverse("vekalet:islemler"), veri)
+        self.assertContains(r, "Dönünceye kadar”ı işaretleyin")  # bitiş de seçenek de yoksa hata
+        r = self.client.post(reverse("vekalet:islemler"), {**veri, "donunceye": "on"}, follow=True)
+        self.assertContains(r, "dönünceye kadar")
+        v = Vekalet.objects.get()
+        self.assertEqual((v.bitis, v.durum, v.kalan_gun, v.gun_sayisi), (None, "yururlukte", None, 1))
+        # yürürlükte listesinde, notlarda ve ana sayfada
+        yururlukte, _, gecmis = servis.gruplar()
+        self.assertEqual((yururlukte, gecmis), ([v], []))
+        self.assertIn(v, servis.harita()[self.ayse.pk]["asil"])
+        r = self.client.get(reverse("vekalet:liste"))
+        self.assertContains(r, "dönünceye kadar · 1. gün")
+        # açık uçlu vekâlet sürerken aynı görev için yeni vekâlet (ileri tarihte bile) çakışır
+        bugun = timezone.localdate()
+        r = self.client.post(reverse("vekalet:islemler"), self._veri(
+            vekil=self.veli.pk, baslangic=(bugun + 40 * GUN).isoformat(), bitis=(bugun + 41 * GUN).isoformat()))
+        self.assertContains(r, "zaten vekâlet vermiş")
+        # düzenlemede seçenek işaretli gelir; asıl dönünce sonlandırılır
+        r = self.client.get(reverse("vekalet:duzenle", args=[v.pk]))
+        self.assertTrue(r.context["form"].initial.get("donunceye"))
+        self.client.post(reverse("vekalet:sonlandir", args=[v.pk]))
+        v.refresh_from_db()
+        self.assertEqual(v.durum_adi, "Asıl döndü")
+        self.assertIn("(döndü)", v.aralik_metni)
+        self.assertEqual(servis.gruplar()[2], [v])
+        # yoklamadaki rapor sürerken eksik vekâlet uyarısı açık uçlu vekâletle kalkar
+        self._izin(self.ayse, 1, 3)
+        self.assertEqual(len(servis.eksik_vekaletler()), 1)
+        Vekalet.objects.create(veren=self.ayse, vekil=self.ali, gorev="X", baslangic=bugun)
+        self.assertEqual(servis.eksik_vekaletler(), [])

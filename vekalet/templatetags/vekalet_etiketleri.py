@@ -8,6 +8,10 @@ from .. import servis
 register = template.Library()
 
 
+def _bitis(v):
+    return "dönünceye kadar" if v.acik_uclu else f"bitiş {v.bitis:%d.%m}"
+
+
 def _harita(context):
     request = context.get("request")
     if request is None:
@@ -29,11 +33,11 @@ def vekil_notu(context, p, kisa=False):
     for v in d["asil"]:
         parcalar.append(("vk-not", "bi-arrow-left-right",
                          format_html("Vekili: <b>{}</b>{}", v.vekil.ad_soyad,
-                                     "" if kisa else f" · bitiş {v.bitis:%d.%m}"),
+                                     "" if kisa else f" · {_bitis(v)}"),
                          f"{v.gorev}: {v.get_neden_display()}, {v.aralik_metni}"))
     for v in d["vekil"]:
         parcalar.append(("vk-not vk-not-vekil", "bi-person-up",
-                         format_html("Vekâleten: <b>{}</b>{}", v.gorev, "" if kisa else f" · bitiş {v.bitis:%d.%m}"),
+                         format_html("Vekâleten: <b>{}</b>{}", v.gorev, "" if kisa else f" · {_bitis(v)}"),
                          f"Asıl: {v.veren.ad_soyad} ({v.get_neden_display()}), {v.aralik_metni}"))
     return format_html_join("", '<span class="{}" title="{}"><i class="bi {}"></i>{}</span>',
                             ((s, t, i, m) for s, i, m, t in parcalar))

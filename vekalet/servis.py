@@ -3,7 +3,7 @@
 import datetime
 from dataclasses import dataclass
 
-from django.db.models import Q
+from django.db.models import F, Q
 from django.http import Http404
 from django.utils import timezone
 
@@ -122,8 +122,22 @@ def yaklasan_izinler(gun=90):
     return out
 
 
+def surenler(bugun=None):
+    """Sonlandırılmamış ve bitişi bugün ya da sonra (dönünceye kadar olanlar dahil) vekâletlerin koşulu."""
+    bugun = bugun or timezone.localdate()
+    return Q(sonlandirma__isnull=True) & (Q(bitis__isnull=True) | Q(bitis__gte=bugun))
+
+
+def yururlukteler(bugun=None):
+    bugun = bugun or timezone.localdate()
+    return (Vekalet.objects.filter(surenler(bugun), baslangic__lte=bugun)
+            .order_by(F("bitis").asc(nulls_last=True), "veren__ad_soyad"))
+
+
 def _ortusen(qs, bas, bit):
-    return qs.filter(sonlandirma__isnull=True, baslangic__lte=bit, bitis__gte=bas)
+    """bit None: dönünceye kadar (ucu açık)."""
+    qs = qs.filter(sonlandirma__isnull=True).filter(Q(bitis__isnull=True) | Q(bitis__gte=bas))
+    return qs if bit is None else qs.filter(baslangic__lte=bit)
 
 
 def kontrol(v):
@@ -131,7 +145,7 @@ def kontrol(v):
     hatalar, uyarilar = [], []
     if v.veren_id and v.veren_id == v.vekil_id:
         hatalar.append("Personel kendisine vekâlet veremez.")
-    if hatalar or not (v.baslangic and v.bitis and v.veren_id and v.vekil_id):
+    if hatalar or not (v.baslangic and v.veren_id and v.vekil_id):
         return hatalar, uyarilar
     diger = Vekalet.objects.exclude(pk=v.pk)
     for c in _ortusen(diger.filter(veren_id=v.veren_id), v.baslangic, v.bitis):
@@ -148,7 +162,8 @@ def kontrol(v):
 
     tz = timezone.get_current_timezone()
     bas = timezone.make_aware(datetime.datetime.combine(v.baslangic, datetime.time(0)), tz)
-    bit = timezone.make_aware(datetime.datetime.combine(v.bitis + GUN, datetime.time(0)), tz)
+    son = v.bitis or v.baslangic + datetime.timedelta(days=30)  # dönünceye kadar: ilk 30 güne bakılır
+    bit = timezone.make_aware(datetime.datetime.combine(son + GUN, datetime.time(0)), tz)
     for k in kayitlar([v.vekil_id], bas, bit, yoklama=True):
         b, s = _gun_araligi(k)
         uyarilar.append(f"Vekil {k.personel.ad_soyad} personel yoklamasında {b:%d.%m}"
@@ -161,12 +176,14 @@ def gruplar(tumu=False, gecmis_gun=60):
     bugun = timezone.localdate()
     qs = Vekalet.objects.select_related("veren__unvan", "veren__rutbe", "veren__sinif", "vekil__unvan",
                                         "vekil__rutbe", "vekil__sinif", "veren__bolum")
-    acik = qs.filter(sonlandirma__isnull=True)
-    yururlukte = list(acik.filter(baslangic__lte=bugun, bitis__gte=bugun).order_by("bitis", "veren__ad_soyad"))
-    baslayacak = list(acik.filter(baslangic__gt=bugun).order_by("baslangic", "veren__ad_soyad"))
-    gecmis = qs.filter(Q(sonlandirma__isnull=False) | Q(bitis__lt=bugun)).order_by("-bitis", "-pk")
+    yururlukte = list(qs.filter(surenler(bugun), baslangic__lte=bugun)
+                      .order_by(F("bitis").asc(nulls_last=True), "veren__ad_soyad"))
+    baslayacak = list(qs.filter(sonlandirma__isnull=True, baslangic__gt=bugun).order_by("baslangic", "veren__ad_soyad"))
+    gecmis = qs.filter(Q(sonlandirma__isnull=False) | Q(bitis__lt=bugun)).order_by(F("bitis").desc(nulls_first=True),
+                                                                                  "-sonlandirma", "-pk")
     if not tumu:
-        gecmis = gecmis.filter(bitis__gte=bugun - datetime.timedelta(days=gecmis_gun))
+        sinir = bugun - datetime.timedelta(days=gecmis_gun)
+        gecmis = gecmis.filter(Q(bitis__gte=sinir) | Q(bitis__isnull=True, sonlandirma__date__gte=sinir))
     return yururlukte, baslayacak, list(gecmis)
 
 
@@ -176,8 +193,7 @@ def harita(bugun=None):
     """Bugün yürürlükte olan vekâletler: {personel_id: {"asil": [vekâlet verdiği], "vekil": [vekili olduğu]}}."""
     bugun = bugun or timezone.localdate()
     out = {}
-    for v in (Vekalet.objects.filter(sonlandirma__isnull=True, baslangic__lte=bugun, bitis__gte=bugun)
-              .select_related("veren", "vekil").order_by("bitis")):
+    for v in yururlukteler(bugun).select_related("veren", "vekil"):
         out.setdefault(v.veren_id, {"asil": [], "vekil": []})["asil"].append(v)
         out.setdefault(v.vekil_id, {"asil": [], "vekil": []})["vekil"].append(v)
     return out
@@ -207,7 +223,7 @@ def eksik_vekaletler(gun=7, bugun=None, y=None):
     bas = timezone.make_aware(datetime.datetime.combine(bugun, datetime.time(0)), tz)
     bit = bas + datetime.timedelta(days=gun + 1)
     gorevler = gorev_onerileri(y)
-    vekaletler = list(Vekalet.objects.filter(veren_id__in=kisiler, sonlandirma__isnull=True, bitis__gte=bugun))
+    vekaletler = list(Vekalet.objects.filter(surenler(bugun), veren_id__in=kisiler))
     out, gorulen = [], set()
     for k in kayitlar(list(kisiler), bas, bit, yoklama=True):
         if k.bitis - k.baslangic < datetime.timedelta(hours=20):
@@ -216,7 +232,8 @@ def eksik_vekaletler(gun=7, bugun=None, y=None):
         b = max(b, bugun)
         if b > s or (k.personel_id, b) in gorulen:
             continue
-        if any(v.veren_id == k.personel_id and v.baslangic <= s and v.bitis >= b for v in vekaletler):
+        if any(v.veren_id == k.personel_id and v.baslangic <= s and (v.bitis is None or v.bitis >= b)
+               for v in vekaletler):
             continue
         gorulen.add((k.personel_id, b))
         out.append({"personel": kisiler[k.personel_id], "gorev": gorevler.get(k.personel_id, ""), "tur": k.tur.ad,
@@ -243,13 +260,13 @@ def panel_gorevleri(request):
                 "url": reverse("vekalet:islemler")})
     if y.goruntule:
         bugun = timezone.localdate()
-        aktif = list(Vekalet.objects.filter(sonlandirma__isnull=True, baslangic__lte=bugun, bitis__gte=bugun)
-                     .select_related("veren", "vekil").order_by("bitis"))
+        aktif = list(yururlukteler(bugun).select_related("veren", "vekil"))
         if aktif:
             v = aktif[0]
             gorevler.append({
                 "renk": "bekliyor", "ikon": "arrow-left-right", "sayi": len(aktif), "ad": "Yürürlükte vekâlet",
-                "aciklama": f"{v.gorev}: {v.vekil.ad_soyad} (bitiş {v.bitis:%d.%m})"
+                "aciklama": f"{v.gorev}: {v.vekil.ad_soyad} ("
+                            + ("dönünceye kadar" if v.acik_uclu else f"bitiş {v.bitis:%d.%m}") + ")"
                             + (f" · +{len(aktif) - 1} vekâlet" if len(aktif) > 1 else ""),
                 "url": reverse("vekalet:liste")})
     return gorevler

@@ -333,6 +333,7 @@
 [data-bs-theme="dark"] .vk-rozet { background: #163220; color: #b8ebcb; }
 [data-bs-theme="dark"] .vk-rozet.vk-son { background: #3b3417; color: #e7c2ac; }
 [data-bs-theme="dark"] .vk-rozet.vk-bekliyor { background: #142233; color: #9cace2; }
+[data-bs-theme="dark"] .vk-rozet.vk-acik { background: #18132d; }
 [data-bs-theme="dark"] .vk-kisi small { color: #a0abbb; }
 [data-bs-theme="dark"] .vk-alt { color: #a0abbb; }
 [data-bs-theme="dark"] .vk-izin-cip { border: 1px solid #322859; background: #14102a; }

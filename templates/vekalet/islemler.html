@@ -66,6 +66,7 @@
       <div class="col-6 col-sm-4 col-lg-2">
         <label class="form-label" for="{{ form.bitis.id_for_label }}">{{ form.bitis.label }}</label>
         {{ form.bitis }}
+        <div class="form-check mt-1"><label class="form-check-label small" title="{{ form.donunceye.help_text }}">{{ form.donunceye }} {{ form.donunceye.label }}</label></div>
         {% for e in form.bitis.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
       </div>
       <div class="col-12 col-lg-9">
@@ -97,14 +98,14 @@
           <td><b>{{ v.veren.ad_soyad }}</b> <i class="bi bi-arrow-right text-secondary mx-1"></i> {{ v.vekil.ad_soyad }}
             {% if v.aciklama %}<div class="small text-secondary text-truncate" style="max-width: 28rem">{{ v.aciklama }}</div>{% endif %}</td>
           <td class="small">{{ v.gorev }}</td>
-          <td class="small text-nowrap">{{ v.aralik_metni }}<div class="text-secondary">{{ v.gun_sayisi }} gün</div></td>
+          <td class="small text-nowrap">{{ v.aralik_metni }}<div class="text-secondary">{% if v.acik_uclu and not v.sonlandirma %}{{ v.gun_sayisi }}. gün{% else %}{{ v.gun_sayisi }} gün{% endif %}</div></td>
           <td class="small d-none d-lg-table-cell">{{ v.get_neden_display }}</td>
           <td><span class="durum-rozet {% if v.durum == 'yururlukte' %}durum-kullanimda{% elif v.durum == 'baslayacak' %}vk-d-baslayacak{% elif v.durum == 'sonlandirildi' %}durum-sirada{% else %}durum-planlandi{% endif %}">{{ v.durum_adi }}</span></td>
           <td class="text-end text-nowrap">
             <a class="btn btn-sm btn-outline-secondary" href="{% url 'vekalet:duzenle' v.pk %}" title="Düzenle"><i class="bi bi-pencil"></i></a>
             {% if v.durum == 'yururlukte' or v.durum == 'sonlandirildi' %}
-            <form method="post" action="{% url 'vekalet:sonlandir' v.pk %}" class="d-inline" onsubmit="return confirm('{% if v.sonlandirma %}Erken sonlandırma geri alınsın mı?{% else %}Vekâlet bugün itibarıyla sonlandırılsın mı? (Asıl görevine döndü){% endif %}')">
-              {% csrf_token %}<button class="btn btn-sm btn-outline-warning" title="{% if v.sonlandirma %}Sonlandırmayı geri al{% else %}Erken sonlandır{% endif %}"><i class="bi {% if v.sonlandirma %}bi-arrow-counterclockwise{% else %}bi-stop-circle{% endif %}"></i></button>
+            <form method="post" action="{% url 'vekalet:sonlandir' v.pk %}" class="d-inline" onsubmit="return confirm('{% if v.sonlandirma %}Sonlandırma geri alınsın mı?{% else %}Vekâlet bugün itibarıyla sonlandırılsın mı? (Asıl görevine döndü){% endif %}')">
+              {% csrf_token %}<button class="btn btn-sm btn-outline-warning" title="{% if v.sonlandirma %}Sonlandırmayı geri al{% elif v.acik_uclu %}Asıl döndü (sonlandır){% else %}Erken sonlandır{% endif %}"><i class="bi {% if v.sonlandirma %}bi-arrow-counterclockwise{% elif v.acik_uclu %}bi-box-arrow-in-left{% else %}bi-stop-circle{% endif %}"></i></button>
             </form>
             {% endif %}
             <form method="post" action="{% url 'vekalet:sil' v.pk %}" class="d-inline" onsubmit="return confirm('Bu vekâlet kaydı silinsin mi? Geri alınamaz.')">
@@ -121,5 +122,5 @@
 </div>
 {{ gorevler|json_script:"vkGorevJson" }}
 {{ izinler|json_script:"vkIzinJson" }}
-<script src="{% static 'js/vekalet.js' %}?v=1" defer></script>
+<script src="{% static 'js/vekalet.js' %}?v=2" defer></script>
 {% endblock %}
