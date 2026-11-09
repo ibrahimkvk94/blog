@@ -1148,3 +1148,26 @@ a.pn-nokta:hover, a.pn-nokta:focus-visible { transform: scale(1.45); outline: no
 .mp-neden.n-izin i { color: #b91c1c; } .mp-neden.n-ders i { color: #2f5d8a; } .mp-neden.n-sinav i { color: #b45309; }
 .mp-not { font-size: .78rem; color: #64748b; margin-top: .75rem; }
 @media print { .mp-mesgul { max-height: none; overflow: visible; } }
+/* Sol menüde arama (static/js/menu_ara.js) */
+.menu-ara { position: relative; margin: .5rem .25rem .15rem; }
+.menu-ara > .bi { position: absolute; left: .7rem; top: 50%; transform: translateY(-50%); color: #a9b8cc; font-size: .85rem; pointer-events: none; }
+.menu-ara input { width: 100%; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); border-radius: 8px; color: #fff;
+  padding: .42rem 1.9rem .42rem 2rem; font-size: .86rem; outline: none; transition: background .15s, border-color .15s; }
+.menu-ara input::placeholder { color: #a9b8cc; }
+.menu-ara input:focus { background: rgba(255,255,255,.14); border-color: var(--km-vurgu); }
+.menu-ara input::-webkit-search-cancel-button { filter: invert(1); opacity: .6; }
+.menu-ara kbd { position: absolute; right: .5rem; top: 50%; transform: translateY(-50%); font-size: .68rem; padding: .05rem .35rem;
+  background: rgba(255,255,255,.12); color: #c9d4e2; border-radius: 4px; box-shadow: none; pointer-events: none; }
+.menu-ara input:focus + kbd, .menu-ara input:not(:placeholder-shown) + kbd { display: none; }
+.menu-ara-yok { font-size: .8rem; color: #a9b8cc; padding: .5rem .75rem 0; margin: 0; }
+.kenar-menu .ara-gizli { display: none !important; }
+.kenar-menu.aramada ul.collapse.ara-acik { display: block !important; height: auto !important; }
+.kenar-menu.aramada .nav-link .ok { visibility: hidden; }
+.kenar .nav-link.ara-secili { background: rgba(255,255,255,.14); color: #fff; box-shadow: inset 3px 0 0 var(--km-vurgu); }
+@media (min-width: 992px) {
+  html.kenar-dar .kenar:not(.gezinti) .menu-ara { margin: .35rem 0; cursor: pointer; }
+  html.kenar-dar .kenar:not(.gezinti) .menu-ara input { padding: .55rem 0; color: transparent; cursor: pointer; }
+  html.kenar-dar .kenar:not(.gezinti) .menu-ara input::placeholder { color: transparent; }
+  html.kenar-dar .kenar:not(.gezinti) .menu-ara > .bi { left: 50%; transform: translate(-50%, -50%); font-size: 1.1rem; }
+  html.kenar-dar .kenar:not(.gezinti) .menu-ara kbd { display: none; }
+}

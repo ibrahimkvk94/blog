@@ -422,6 +422,13 @@ class GostergePaneliTestleri(TestCase):
         self.assertNotContains(r, "Personelin bugünkü durumu")
         self.assertContains(r, reverse("core:istatistikler"))
 
+    def test_menude_arama_kutusu(self):
+        for u in (self.su, self.ask1):  # yönetici ve bölüm hesabı (yalnız kısayollar)
+            self.client.force_login(u)
+            r = self.client.get(reverse("core:panel"))
+            self.assertContains(r, 'id="menuAra"')
+            self.assertContains(r, "js/menu_ara.js")
+
     def test_yalniz_sistem_yoneticisi(self):
         self.client.force_login(self.ask1)
         self.assertEqual(self.client.get(reverse("core:istatistikler")).status_code, 403)
