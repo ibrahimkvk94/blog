@@ -229,6 +229,38 @@ class GorunumTestleri(TestCase):
         self.bil.refresh_from_db()
         self.assertEqual(self.bil.kisim1, 3)  # hatalı giriş kaydedilmez
 
+    def test_egitim_bilimleri_ogretim_programlari(self):
+        from core.models import Birim, Yetki
+        self.assertEqual(Birim.objects.get(slug="ogrenci-isleri-sube").ad, "Öğrenci İşleri")
+        op = Birim.objects.get(slug="ogretim-programlari")
+        self.assertEqual(op.ust.slug, "egitim-bilimleri")
+        egitimci = User.objects.create_user("egitimci", password="x-Parola-123")
+        Yetki.objects.create(kullanici=egitimci, birim=op, seviye=Yetki.DUZENLEME)
+        self.client.force_login(egitimci)
+        menu = self.client.get("/")
+        self.assertContains(menu, "Eğitim Bilimleri")
+        self.assertContains(menu, f'href="{reverse("dozaj:op_programlar")}"')
+        r = self.client.get(reverse("dozaj:op_programlar"))
+        self.assertContains(r, "<h1>Öğretim Programları</h1>", html=False)
+        self.assertContains(r, reverse("dozaj:op_program", args=[self.bil.pk]))
+        self.assertNotContains(r, reverse("dozaj:personel"))  # Dozajmatik sekmeleri yok
+        r = self.client.get(reverse("dozaj:op_program", args=[self.bil.pk]))
+        self.assertContains(r, "Bilgisayar Teknolojisi")
+        self.assertNotContains(r, reverse("dozaj:branslar"))  # Dozajmatik yetkisi yok: branş bağlantısız
+        for url in (reverse("dozaj:tablo"), reverse("dozaj:programlar")):
+            self.assertEqual(self.client.get(url).status_code, 403, url)
+        r = self.client.post(reverse("dozaj:op_programlar"), {"islem": "kisimlar", f"k1-{self.bil.pk}": "4",
+                                                              f"k2-{self.bil.pk}": "1"})
+        self.assertRedirects(r, reverse("dozaj:op_programlar"))
+        self.bil.refresh_from_db()
+        self.assertEqual(self.bil.kisim1, 4)
+        # Dozajmatik'i gören, Öğretim Programları yetkisi olmayan kişi: kendi sekmesinden açar, menüdekinden açamaz
+        self.client.force_login(self.bakan)
+        self.assertEqual(self.client.get(reverse("dozaj:op_programlar")).status_code, 403)
+        r = self.client.get(reverse("dozaj:programlar"))
+        self.assertContains(r, "<h1>Dozajmatik</h1>", html=False)
+        self.assertContains(r, reverse("dozaj:program", args=[self.bil.pk]))
+
     def test_ogretim_elemani_ayari(self):
         bolum = Bolum.objects.create(ad="Bilgisayar Teknolojisi", kod="BİL")
         p = Personel.objects.create(ad_soyad="Deneme Kişi", personel_kodu="9", bolum=bolum)

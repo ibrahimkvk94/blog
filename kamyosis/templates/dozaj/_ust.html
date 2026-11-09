@@ -1,11 +1,19 @@
-{% comment %}Dozajmatik üst kısmı: başlık, plan yılı seçimi ve sekmeler. Değişkenler: yil, yillar, sekme, sekmeler{% endcomment %}
+{% comment %}Dozajmatik / Öğretim Programları üst kısmı: başlık, plan yılı seçimi ve sekmeler. Değişkenler: yil, yillar, sekme, sekmeler, ogretim{% endcomment %}
 <div class="sayfa-baslik">
   <div class="d-flex align-items-center gap-3">
+    {% if ogretim %}
+    <span class="birim-ikon buyuk"><i class="bi bi-journal-text"></i></span>
+    <div>
+      <h1>Öğretim Programları</h1>
+      <p class="text-secondary mb-0">{{ alt_baslik|default:"Programların yarıyıllara göre dersleri ve kısım sayıları." }}</p>
+    </div>
+    {% else %}
     <span class="birim-ikon buyuk"><i class="bi bi-calculator"></i></span>
     <div>
       <h1>Dozajmatik</h1>
       <p class="text-secondary mb-0">{{ alt_baslik|default:"Öğretim programları ve kısım sayılarından branş başına ders yükü ve öğretim elemanı ihtiyacı." }}</p>
     </div>
+    {% endif %}
   </div>
   <form method="get" class="dz-yil d-print-none">
     <label for="dz-yil" class="small text-secondary">Plan yılı</label>
@@ -15,8 +23,10 @@
     <noscript><button class="btn btn-sm btn-outline-primary">Göster</button></noscript>
   </form>
 </div>
+{% if sekmeler %}
 <ul class="nav nav-tabs ky-sekmeler mb-3 d-print-none">
   {% for kod, ad, ikon in sekmeler %}
   <li class="nav-item"><a class="nav-link{% if sekme == kod %} active{% endif %}" href="{% url 'dozaj:'|add:kod %}"><i class="bi bi-{{ ikon }} me-1"></i>{{ ad }}</a></li>
   {% endfor %}
 </ul>
+{% endif %}

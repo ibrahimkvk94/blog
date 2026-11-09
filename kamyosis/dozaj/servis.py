@@ -19,28 +19,39 @@ from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.http import Http404
 
-from core.yetki import DUZENLEME, birim_bul, etkin_yetki
+from core.yetki import DUZENLEME, GORUNTULEME, birim_bul, etkin_yetki
 
 from . import kurallar
 from .models import Brans, BransAyari, Ders, KisiAyari, KodBransi, Program, Yil
 
 BIRIM = "dozajmatik"
+PROGRAM_BIRIM = "ogretim-programlari"  # Eğitim Bilimleri › Öğretim Programları (program sayfalarının kendi menüsü)
 KADRO_SUTUNLARI = [KisiAyari.BB, KisiAyari.SB, KisiAyari.ASB, KisiAyari.SIVIL, KisiAyari.YEDEK]
 KADRO_KISA = {KisiAyari.BB: "Böl.Bşk", KisiAyari.SB: "Sb.", KisiAyari.ASB: "Asb.", KisiAyari.SIVIL: "Sivil",
               KisiAyari.YEDEK: "Yedek Subay", KisiAyari.KH: "Kh.", KisiAyari.DIS: "Okul dışı",
               KisiAyari.HARIC: "Dahil değil"}
 
 
-def duzenleyebilir(request):
+def _seviye(request, slug, gereken):
     u = request.user
     if not u.is_authenticated:
         return False
     if u.is_superuser:
         return True
     try:
-        return etkin_yetki(request, birim_bul(request, BIRIM))[0] >= DUZENLEME
+        return etkin_yetki(request, birim_bul(request, slug))[0] >= gereken
     except Http404:
         return False
+
+
+def duzenleyebilir(request):
+    """Sayfanın açıldığı birimde (Dozajmatik ya da Öğretim Programları) düzenleme yetkisi."""
+    birim = getattr(request, "birim", None)
+    return _seviye(request, birim.slug if birim else BIRIM, DUZENLEME)
+
+
+def gorebilir(request, slug):
+    return _seviye(request, slug, GORUNTULEME)
 
 
 def duzenleme_gerekli(request):
