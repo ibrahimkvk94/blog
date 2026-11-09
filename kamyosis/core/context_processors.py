@@ -18,4 +18,9 @@ def navigation(request):
         from isler.servis import sahibi_mi
 
         ctx["is_listesi_sahibi"] = sahibi_mi(request.user)
+        from bildirim.models import Bildirim
+
+        bildirimler = Bildirim.objects.filter(kullanici=request.user)
+        ctx["bildirim_okunmamis"] = bildirimler.filter(okundu__isnull=True).count()
+        ctx["bildirim_son"] = bildirimler.values_list("pk", flat=True).first() or 0
     return ctx

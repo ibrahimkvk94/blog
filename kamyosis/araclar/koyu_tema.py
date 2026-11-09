@@ -17,7 +17,7 @@ KAYNAK = KOK / "static/css/kamyosis.css"
 HEDEF = KOK / "static/css/kamyosis-koyu.css"
 
 # Bu seçicileri içeren kurallar atlanır (zaten koyu ya da kâğıt/baskı görünümü)
-ATLA = ("pn-ipucu", "menu-ara", "menu-yildiz", "menu-ipucu", "kenar", "marka", "giris", "org-kok", "avatar", "yk-profil", "yk-kagit", "yk-resmi", "yk-sayim", "yk-beyan",
+ATLA = ("pn-ipucu", "bildirim-ikon", "bildirim-rozet", "bildirim-nokta", "menu-ara", "menu-yildiz", "menu-ipucu", "kenar", "marka", "giris", "org-kok", "avatar", "yk-profil", "yk-kagit", "yk-resmi", "yk-sayim", "yk-beyan",
         "yk-isaretler", "tk-mudurluk", "tk-yardimci", "tk-kol-bas", "tk-sayi", "tk-hat", "yk-foto-bos", "nd-btn.aktif",
         "islem-cubugu .nd-", "btn-check:checked", "yk-hucre", "text-bg-primary", "btn-primary", "btn-outline-primary",
         "nav-pills", "form-check-input:checked", ":root", "@page")
@@ -84,6 +84,14 @@ EL_YAZMASI = '''/* KAMYOSİS koyu tema. Bu dosya araclar/koyu_tema.py ile üreti
 html[data-bs-theme="dark"].kenar-dar .kenar.gezinti { box-shadow: 8px 0 28px rgba(0, 0, 0, .6); }
 [data-bs-theme="dark"] .nav-pills .nav-link:not(.active) { color: #b5cfea; }
 [data-bs-theme="dark"] .nav-pills .nav-link:not(.active):hover { color: #fff; background: rgba(143, 180, 220, .08); }
+[data-bs-theme="dark"] .bildirim-ikon.mor { background: #2a2147; color: #c4b5fd; }
+[data-bs-theme="dark"] .bildirim-ikon.sari { background: #3a2c0c; color: #fcd34d; }
+[data-bs-theme="dark"] .bildirim-ikon.yesil { background: #0f2e1c; color: #86efac; }
+[data-bs-theme="dark"] .bildirim-ikon.mavi { background: #142a4a; color: #93c5fd; }
+[data-bs-theme="dark"] .bildirim-ikon.turuncu { background: #3a1f0c; color: #fdba74; }
+[data-bs-theme="dark"] .bildirim-ikon.gri { background: #223044; color: #cbd5e1; }
+[data-bs-theme="dark"] .bildirim-rozet { border-color: #1a2533; }
+[data-bs-theme="dark"] .bildirim-nokta { background: #8fb4dc; }
 
 /* ---- aşağısı otomatik üretilir ---- */
 [data-bs-theme="dark"] .pn { --pn-mevcut: #3a4a5f; --pn-iz: #1c2838; --pn-izgara: #223044; --pn-yazi: #e2e8f0; --pn-soluk: #94a3b8;

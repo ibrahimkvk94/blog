@@ -10,6 +10,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from bildirim import servis as bildirim
 from core.yetki import birim_bul, yol
 
 from . import servis
@@ -98,10 +99,12 @@ def islemler(request, pk=None):
             for h in hatalar:
                 form.add_error(None, h)
             if not hatalar and (not uyarilar or request.POST.get("onay") == "1"):
-                if v.pk is None:
+                yeni = v.pk is None
+                if yeni:
                     v.olusturan = request.user
                 v.guncelleyen = request.user
                 v.save()
+                bildirim.vekalet(v, request.user, "kaydedildi" if yeni else "degisti")
                 messages.success(request, f"Vekâlet kaydedildi: {v.veren.ad_soyad} → {v.vekil.ad_soyad} "
                                           f"({v.gorev}, {v.aralik_metni}).")
                 return redirect("vekalet:islemler")
@@ -145,11 +148,14 @@ def sonlandir(request, pk):
     if v.sonlandirma:
         v.sonlandirma, v.sonlandiran = None, None
         messages.info(request, f"Erken sonlandırma geri alındı: {v}.")
+        islem = "geri_alindi"
     else:
         v.sonlandirma, v.sonlandiran = timezone.now(), request.user
         messages.success(request, f"Vekâlet erken sonlandırıldı: {v}.")
+        islem = "sonlandirildi"
     v.guncelleyen = request.user
     v.save()
+    bildirim.vekalet(v, request.user, islem)
     return redirect("vekalet:islemler")
 
 

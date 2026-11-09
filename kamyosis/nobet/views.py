@@ -9,6 +9,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from bildirim import servis as bildirim
 from core.arama import ara
 from core.yetki import YONETIM, yetki_gerekli, yol
 from personel.models import Bolum, Personel, Secenek
@@ -106,6 +107,7 @@ def islem(request, yil, ay):
         elif secim == "kesinlestir":
             d.durum, d.kesinlestiren, d.kesin_zamani = NobetDonemi.KESIN, request.user, timezone.now()
             d.save(update_fields=["durum", "kesinlestiren", "kesin_zamani"])
+            bildirim.nobet(d, request.user)
             messages.success(request, f"{d} kesinleşti; puantaja işlendi.")
         elif secim == "taslaga_al":
             d.durum = NobetDonemi.TASLAK

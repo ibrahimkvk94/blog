@@ -60,6 +60,14 @@
 html[data-bs-theme="dark"].kenar-dar .kenar.gezinti { box-shadow: 8px 0 28px rgba(0, 0, 0, .6); }
 [data-bs-theme="dark"] .nav-pills .nav-link:not(.active) { color: #b5cfea; }
 [data-bs-theme="dark"] .nav-pills .nav-link:not(.active):hover { color: #fff; background: rgba(143, 180, 220, .08); }
+[data-bs-theme="dark"] .bildirim-ikon.mor { background: #2a2147; color: #c4b5fd; }
+[data-bs-theme="dark"] .bildirim-ikon.sari { background: #3a2c0c; color: #fcd34d; }
+[data-bs-theme="dark"] .bildirim-ikon.yesil { background: #0f2e1c; color: #86efac; }
+[data-bs-theme="dark"] .bildirim-ikon.mavi { background: #142a4a; color: #93c5fd; }
+[data-bs-theme="dark"] .bildirim-ikon.turuncu { background: #3a1f0c; color: #fdba74; }
+[data-bs-theme="dark"] .bildirim-ikon.gri { background: #223044; color: #cbd5e1; }
+[data-bs-theme="dark"] .bildirim-rozet { border-color: #1a2533; }
+[data-bs-theme="dark"] .bildirim-nokta { background: #8fb4dc; }
 
 /* ---- aşağısı otomatik üretilir ---- */
 [data-bs-theme="dark"] .pn { --pn-mevcut: #3a4a5f; --pn-iz: #1c2838; --pn-izgara: #223044; --pn-yazi: #e2e8f0; --pn-soluk: #94a3b8;
@@ -356,3 +364,20 @@ html[data-bs-theme="dark"].kenar-dar .kenar.gezinti { box-shadow: 8px 0 28px rgb
 [data-bs-theme="dark"] .durum-rozet.vk-d-baslayacak { background: #142233; color: #9cace2; }
 [data-bs-theme="dark"] .vk-not { background: #3b3417; color: #e7c2ac; }
 [data-bs-theme="dark"] .vk-not-vekil { background: #131a31; color: #9e9ae1; border-color: #252f55; }
+[data-bs-theme="dark"] .bildirim-baglanti { color: #b0cbe5; }
+[data-bs-theme="dark"] .bildirim-ayar-dugme { color: #bac4d1; }
+[data-bs-theme="dark"] .bildirim-ayar-dugme:hover { background: #1b2026; color: #cfd8e4; }
+[data-bs-theme="dark"] .bildirim-gun { color: #a0abbb; }
+[data-bs-theme="dark"] .bildirim-satir { border-top: 1px solid #2e373f; }
+[data-bs-theme="dark"] .bildirim-satir:hover { background: #181d23; }
+[data-bs-theme="dark"] .bildirim-satir.okunmamis { background: #161d26; }
+[data-bs-theme="dark"] .bildirim-baslik { color: #cfd8e4; }
+[data-bs-theme="dark"] .bildirim-metin { color: #bac4d1; }
+[data-bs-theme="dark"] .bildirim-bos { color: #a0abbb; }
+[data-bs-theme="dark"] .bildirim-alt { color: #a0abbb; }
+[data-bs-theme="dark"] .bildirim-ayar { border-top: 1px solid #2e373f; }
+[data-bs-theme="dark"] .bildirim-tost { background: #111922; }
+[data-bs-theme="dark"] .bildirim-tost-alt { color: #a0abbb; }
+[data-bs-theme="dark"] .bildirim-tost-alt a { color: #b0cbe5; }
+[data-bs-theme="dark"] .bildirim-tost-alt button { color: #a0abbb; }
+[data-bs-theme="dark"] .bildirim-tost-alt button:hover { color: #cfd8e4; }
