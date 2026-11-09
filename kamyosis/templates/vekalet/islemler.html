@@ -24,6 +24,7 @@
   <div class="yardim-satiri d-flex align-items-center gap-2">
     <i class="bi {% if nesne %}bi-pencil{% else %}bi-plus-circle{% endif %}"></i>
     <strong>{% if nesne %}Vekâleti düzenle{% else %}Yeni vekâlet{% endif %}</strong>
+    {% if not y.tum_okul %}<span class="small text-secondary ms-2">{{ y.kapsam_birim.ad }} için</span>{% endif %}
     {% if nesne %}<a href="{% url 'vekalet:islemler' %}" class="ms-auto small">Vazgeç, yeni kayıt</a>{% endif %}
   </div>
   <div class="p-3">

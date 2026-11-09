@@ -37,9 +37,11 @@ class VekaletFormu(forms.ModelForm):
                                             "list": "vkGorevler"}),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, veren_idler=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["veren"].queryset = servis.personel_listesi()
+        if veren_idler is not None:  # kendi birimi kapsamlı hesap: yalnız biriminin personeli vekâlet verir
+            self.fields["veren"].queryset = servis.personel_listesi().filter(pk__in=veren_idler)
         self.fields["vekil"].queryset = servis.personel_listesi()
         for ad, alan in self.fields.items():
             alan.widget.attrs.setdefault("class", "form-select" if ad in ("veren", "vekil", "neden") else "form-control")
@@ -68,10 +70,12 @@ def islemler(request, pk=None):
     if not y.duzenle:
         raise PermissionDenied
     nesne = get_object_or_404(Vekalet, pk=pk) if pk else None
+    if nesne is not None and not y.kapsar(nesne):
+        raise PermissionDenied
     uyarilar = []
-    gorevler = servis.gorev_onerileri()
+    gorevler = servis.gorev_onerileri(y)
     if request.method == "POST":
-        form = VekaletFormu(request.POST, instance=nesne)
+        form = VekaletFormu(request.POST, instance=nesne, veren_idler=y.veren_idler)
         if form.is_valid():
             v = form.save(commit=False)
             hatalar, uyarilar = servis.kontrol(v)
@@ -91,12 +95,16 @@ def islemler(request, pk=None):
             g = request.GET
             ilk = {"baslangic": g.get("bas") or timezone.localdate(), "bitis": g.get("bit") or None,
                    "neden": g.get("neden") if g.get("neden") in dict(Vekalet.NEDENLER) else Vekalet.RAPOR}
-            if g.get("veren", "").isdigit():
-                ilk["veren"] = int(g["veren"])
-                ilk["gorev"] = gorevler.get(int(g["veren"]), "")
-        form = VekaletFormu(instance=nesne, initial=ilk)
+            veren = int(g["veren"]) if g.get("veren", "").isdigit() else y.varsayilan_veren
+            if veren:
+                ilk["veren"] = veren
+                ilk["gorev"] = gorevler.get(veren, "")
+        form = VekaletFormu(instance=nesne, initial=ilk, veren_idler=y.veren_idler)
     durum = request.GET.get("durum", "")
-    kayitlar = list(Vekalet.objects.select_related("veren", "vekil", "olusturan")[:300])
+    kayitlar = Vekalet.objects.select_related("veren", "vekil", "olusturan")
+    if y.veren_idler is not None:
+        kayitlar = kayitlar.filter(veren_id__in=y.veren_idler)
+    kayitlar = list(kayitlar[:300])
     sayilar = {k: 0 for k in Vekalet.DURUM_ADI}
     for v in kayitlar:
         sayilar[v.durum] += 1
@@ -105,8 +113,8 @@ def islemler(request, pk=None):
     return render(request, "vekalet/islemler.html", _baglam(
         request, y, "islemler", form=form, nesne=nesne, uyarilar=uyarilar, kayitlar=kayitlar, durum=durum,
         sayilar=sayilar, toplam=sum(sayilar.values()), durumlar=Vekalet.DURUM_ADI, gorevler=gorevler,
-        izinler=servis.yaklasan_izinler(), gorev_listesi=sorted(set(gorevler.values())),
-        eksikler=servis.eksik_vekaletler() if nesne is None else []))
+        izinler=servis.yaklasan_izinler(), gorev_listesi=servis.gorev_listesi(),
+        eksikler=servis.eksik_vekaletler(y=y) if nesne is None else []))
 
 
 @require_POST
@@ -116,6 +124,8 @@ def sonlandir(request, pk):
     if not y.duzenle:
         raise PermissionDenied
     v = get_object_or_404(Vekalet, pk=pk)
+    if not y.kapsar(v):
+        raise PermissionDenied
     if v.sonlandirma:
         v.sonlandirma, v.sonlandiran = None, None
         messages.info(request, f"Erken sonlandırma geri alındı: {v}.")
@@ -134,6 +144,8 @@ def sil(request, pk):
     if not y.duzenle:
         raise PermissionDenied
     v = get_object_or_404(Vekalet, pk=pk)
+    if not y.kapsar(v):
+        raise PermissionDenied
     messages.success(request, f"Vekâlet kaydı silindi: {v}.")
     v.delete()
     return redirect("vekalet:islemler")
