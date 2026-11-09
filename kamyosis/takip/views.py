@@ -1,5 +1,6 @@
 from collections import OrderedDict
 from datetime import date, timedelta
+from dataclasses import replace
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -25,9 +26,9 @@ def _tarih(deger, varsayilan=None):
         return varsayilan or timezone.localdate()
 
 
-def _baglam(request, **ek):
-    request.birim = birim_bul(request, servis.BIRIM_DERS)
-    return {"yol": yol(request, request.birim), "y": servis.yetki(request), "breadcrumb_ek": True, **ek}
+def _baglam(request, birim=servis.BIRIM_TAKIP, y=None, **ek):
+    request.birim = birim_bul(request, birim)
+    return {"yol": yol(request, request.birim), "y": y or servis.yetki(request, birim), "breadcrumb_ek": True, **ek}
 
 
 def _geri(request, varsayilan):
@@ -61,10 +62,13 @@ def gunluk(request):
     sayilar = {d: sum(1 for s in satirlar if s.durum == d) for d in ("yapildi", "gelecek", "devir")}
     if durum:
         satirlar = [s for s in satirlar if s.durum == durum]
+    yd = servis.yetki(request, servis.BIRIM_DEVIR)
     for s in satirlar:
-        s.talep_edebilir = servis.talep_yetkisi_var(y, s)
+        s.talep_edebilir = servis.talep_yetkisi_var(yd, s)
+    # sayfadaki devir düğmeleri devir talepleri yetkisine bağlı
+    y = replace(y, bolum_adina=yd.bolum_adina)
     return render(request, "takip/gunluk.html", _baglam(
-        request, tarih=tarih, onceki=tarih - timedelta(days=1), sonraki=tarih + timedelta(days=1), bas=bas, bit=bit,
+        request, y=y, tarih=tarih, onceki=tarih - timedelta(days=1), sonraki=tarih + timedelta(days=1), bas=bas, bit=bit,
         bugun=timezone.localdate(), satirlar=satirlar, sayilar=sayilar, durum=durum,
         tatil=Tatil.objects.filter(tarih=tarih).first(),
         bolumler=Bolum.objects.filter(aktif=True) if y.kapsam_bolum is None else [], secili_bolum=bolum,
@@ -94,7 +98,7 @@ def derslerim(request):
 
 @login_required
 def devir_yeni(request):
-    y = servis.yetki(request)
+    y = servis.yetki(request, servis.BIRIM_DEVIR)
     if not y.bolum_adina:
         raise PermissionDenied
     anahtarlar = request.POST.getlist("d") or request.GET.getlist("d")
@@ -116,7 +120,8 @@ def devir_yeni(request):
             except TakipHatasi as e:
                 hata = str(e)
     return render(request, "takip/devir_yeni.html", _baglam(
-        request, satirlar=satirlar, hata=hata, geri=request.GET.get("geri", ""),
+        request, servis.BIRIM_DEVIR,
+        satirlar=satirlar, hata=hata, geri=request.GET.get("geri", ""),
         personeller=Personel.objects.filter(aktif=True, derse_girebilir=True).select_related("bolum").order_by("ad_soyad"),
         secili_personel=request.POST.get("personel", ""), gerekce=request.POST.get("gerekce", ""),
     ))
@@ -124,7 +129,7 @@ def devir_yeni(request):
 
 @login_required
 def devirler(request):
-    y = servis.yetki(request)
+    y = servis.yetki(request, servis.BIRIM_DEVIR)
     if not y.goruntule:
         raise PermissionDenied
     sekme = request.GET.get("durum", "bekleyen")
@@ -149,7 +154,8 @@ def devirler(request):
     }
     sekmeler = [("bekleyen", "Bekleyen")] + [(d, a) for d, a in DevirTalebi.DURUM_SECENEKLERI if d not in DevirTalebi.BEKLEYEN]
     return render(request, "takip/devirler.html", _baglam(
-        request, gruplar=[(blok, sorted(ts, key=lambda t: (t.kayit.tarih, t.kayit.hucre.saat))) for blok, ts in gruplar.items()],
+        request, servis.BIRIM_DEVIR,
+        gruplar=[(blok, sorted(ts, key=lambda t: (t.kayit.tarih, t.kayit.hucre.saat))) for blok, ts in gruplar.items()],
         sekme=sekme, sekmeler=[(k, a, sayilar.get(k, 0)) for k, a in sekmeler],
     ))
 
@@ -157,7 +163,7 @@ def devirler(request):
 @require_POST
 @login_required
 def devir_karar(request, blok):
-    y = servis.yetki(request)
+    y = servis.yetki(request, servis.BIRIM_DEVIR)
     try:
         talepler = servis.devir_karar(request.user, y, blok, request.POST.get("islem"), request.POST.get("not"))
         messages.success(request, f"{len(talepler)} derslik devir talebi: {talepler[0].get_durum_display().lower()}.")

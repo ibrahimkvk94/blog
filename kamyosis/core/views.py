@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -103,7 +104,17 @@ def _kapasite_kaydet(request):
 
 @login_required
 def organizasyon(request):
-    kokler = menu_agaci(request)
+    """Organizasyon şeması: "Organizasyon Şeması" biriminde görüntüleme yetkisi olanlar (yetki tablosundan açılır)."""
+    from .yetki import GORUNTULEME, etkin_yetki
+
+    try:
+        request.birim = birim_bul(request, "organizasyon-semasi")
+    except Http404:
+        request.birim = None
+    if not request.user.is_superuser and (request.birim is None or
+                                          etkin_yetki(request, request.birim)[0] < GORUNTULEME):
+        raise PermissionDenied
+    kokler = [k for k in menu_agaci(request) if k.slug != "organizasyon-semasi"]
     ozet = None
     if request.user.is_superuser:
         gorevler = Birim.objects.filter(aktif=True, tur=Birim.GOREV)
