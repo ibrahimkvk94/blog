@@ -1184,3 +1184,33 @@ a.pn-nokta:hover, a.pn-nokta:focus-visible { transform: scale(1.45); outline: no
 .yk-hazir-saat { border: 1px solid var(--km-kenarlik); background: #fff; border-radius: 999px; padding: .15rem .6rem; font-size: .8rem; font-variant-numeric: tabular-nums; }
 .yk-hazir-saat:hover { border-color: #2f5d8a; }
 .yk-hazir-saat.secili { background: #2f5d8a; border-color: #2f5d8a; color: #fff; }
+/* Mazeret toplu tablosu (templates/mazeret/tablo.html, static/js/mazeret_tablo.js) */
+.mz-durum { display: flex; flex-wrap: wrap; gap: .6rem; align-items: stretch; }
+.mz-durum-kutu { background: #fff; border: 1px solid var(--km-kenarlik); border-radius: 12px; padding: .55rem .9rem; min-width: 11rem; }
+.mz-durum-kutu b { display: block; font-size: 1.05rem; }
+.mz-durum-kutu span { font-size: .78rem; color: #64748b; }
+.mz-durum-kutu.eksik { border-color: #fca5a5; background: #fef2f2; }
+.mz-durum-kutu.eksik b { color: #b91c1c; }
+.mz-durum-kutu.tamam { border-color: #86efac; background: #f0fdf4; }
+.mz-durum-kutu.tamam b { color: #15803d; }
+.mz-teslim { display: flex; align-items: center; margin-left: auto; }
+.mz-tablo-kap { overflow: auto; max-height: calc(100vh - 230px); }
+.mz-tablo { border-collapse: separate; border-spacing: 0; font-size: .8rem; user-select: none; }
+.mz-tablo th, .mz-tablo td { padding: 2px; background: #fff; }
+.mz-tablo thead th { position: sticky; top: 0; z-index: 2; background: #f8fafc; text-align: center; font-weight: 600; color: #475569; }
+.mz-tablo thead tr:nth-child(2) th { top: 2rem; font-weight: 500; }
+.mz-tablo .mz-gun { border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+.mz-tablo .mz-gun .mz-baslik { font-size: .76rem; }
+.mz-tablo .mz-oturum .mz-baslik { font-size: .7rem; padding: .15rem .2rem; font-variant-numeric: tabular-nums; }
+.mz-tablo .mz-gun-bas { border-left: 2px solid #e2e8f0; }
+.mz-tablo .mz-kisi, .mz-tablo .mz-kisi-bas { position: sticky; left: 0; z-index: 1; text-align: left; min-width: 13rem; max-width: 16rem; border-right: 1px solid #e2e8f0; }
+.mz-tablo .mz-kisi-bas { z-index: 3; vertical-align: bottom; padding: .3rem .5rem; }
+.mz-tablo .mz-kisi-bas small { display: block; font-weight: 400; color: #94a3b8; }
+.mz-tablo .mz-kisi { display: flex; align-items: center; gap: .25rem; }
+.mz-tablo .mz-kisi-ad { text-align: left; font-weight: 600; font-size: .8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mz-tablo .mz-kisi-ad small { font-size: .68rem; }
+.mz-tablo tbody tr:hover th, .mz-tablo tbody tr:hover td { background: #f8fafc; }
+.mz-tablo .mz-hucre { width: 2.1rem; height: 1.9rem; border-radius: 6px; font-size: .9rem; position: relative; }
+.mz-hucre.mz-izin::after { content: ""; position: absolute; top: 2px; right: 2px; width: 6px; height: 6px; border-radius: 50%; background: #7c3aed; }
+.mz-ornek.mz-izin { position: relative; }
+.mz-ornek.mz-izin::after { content: ""; position: absolute; top: 1px; right: 1px; width: 5px; height: 5px; border-radius: 50%; background: #7c3aed; }

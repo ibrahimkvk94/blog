@@ -35,6 +35,7 @@
       <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" id="mzTemizle"><i class="bi bi-eraser"></i> Tümünü uygun yap</button>
     </div>
     <div class="yardim-satiri"><i class="bi bi-info-circle"></i> Hücreye tıklayınca seçili işaret konur (aynı işarete tekrar tıklamak kaldırır). {% if tur.kod == 'sinav' %}Tarihe ya da oturum saatine{% else %}Gün adına ya da saat başlığına{% endif %} tıklamak tüm satırı ya da sütunu işaretler. Boş hücre = uygun.</div>
+    <div class="alert alert-info rounded-0 border-0 border-bottom py-2 mb-0" id="mzIzinNotu" hidden><i class="bi bi-calendar-x me-2"></i><span></span></div>
     {% endif %}
     <div class="table-responsive">
       <table class="mz-izgara {% if degistirebilir %}mz-duzenle{% endif %}">
@@ -87,11 +88,20 @@
 </div>
 {% endif %}
 
+{{ izinler|json_script:"mzIzinJson" }}
 <script>
 (function () {
   const girdi = document.getElementById('mzHucreler');
   let durum = {};
   try { durum = JSON.parse(girdi.value || '{}'); } catch (e) { durum = {}; }
+  // personel yoklamasındaki izinli oturumlar: boşsa ✗ (kaydedince bildirime yazılır)
+  const izin = JSON.parse((document.getElementById('mzIzinJson') || {}).textContent || '{}');
+  if (document.querySelector('.mz-duzenle')) {
+    const eklenen = Object.keys(izin).filter(k => durum[k] !== 'no');
+    eklenen.forEach(k => { durum[k] = 'no'; });
+    const not = document.getElementById('mzIzinNotu');
+    if (eklenen.length && not) { not.hidden = false; not.querySelector('span').textContent = `Personel yoklamasındaki kayıt nedeniyle ${eklenen.length} oturuma ✗ kondu (${[...new Set(eklenen.map(k => izin[k]))].join(', ')}). Kaydedince bildirime yazılır.`; }
+  }
   const hucreler = Array.from(document.querySelectorAll('.mz-hucre'));
   const ISARET = { no: '✗', maybe: '?' };
   function ciz() {
@@ -99,7 +109,8 @@
     hucreler.forEach(h => {
       const d = durum[h.dataset.k] || '';
       h.textContent = ISARET[d] || '';
-      h.className = 'mz-hucre' + (d ? ' mz-' + d : '');
+      h.className = 'mz-hucre' + (d ? ' mz-' + d : '') + (izin[h.dataset.k] ? ' mz-izin' : '');
+      if (izin[h.dataset.k]) h.title = izin[h.dataset.k] + ' (personel yoklaması)';
       h.setAttribute('aria-pressed', d ? 'true' : 'false');
       if (d === 'no') y++; else if (d === 'maybe') k++;
     });

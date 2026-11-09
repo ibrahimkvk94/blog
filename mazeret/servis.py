@@ -232,12 +232,14 @@ def sinava_aktar(donem, bildirimler=None):
     n = len(saatler)
     blocks, soft = dict(period.proctor_blocks or {}), dict(period.proctor_soft or {})
     aktarilan, eslesmeyen = [], []
+    izinler = izin_isaretleri(donem, [b.personel_id for b in bildirimler])  # yoklamadaki izinler de kapatır
     for b in bildirimler:
         t = eslesme.get(b.personel_id)
         if t is None:
             eslesmeyen.append(b)
             continue
-        kapali, kosullu = _isaretler(b.hucreler, saatler)
+        hucreler = {**b.hucreler, **{k: YASAK for k in izinler.get(b.personel_id, {})}}
+        kapali, kosullu = _isaretler(hucreler, saatler)
         for hedef, gunler in ((blocks, kapali), (soft, kosullu)):
             liste = _oturum_listesi(gunler, n)
             if liste:
@@ -250,12 +252,17 @@ def sinava_aktar(donem, bildirimler=None):
         bildirimli = {b.personel_id for b in bildirimler}
         tum_gunler = [d.isoformat() for d in period.dates()]
         roller = dict(period.proctor_roles or {})
-        for p in Personel.objects.filter(pk__in=eslesme, aktif=True):
+        kisiler = list(Personel.objects.filter(pk__in=eslesme, aktif=True))
+        bildirimsiz_izin = izin_isaretleri(donem, [p.pk for p in kisiler if p.pk not in bildirimli])
+        for p in kisiler:
             t = eslesme[p.pk]
             roller[str(t.pk)] = p.sinav_rolleri
             if p.pk not in bildirimli and donem.bildirimsize_gorev_yok:
                 blocks[str(t.pk)] = tum_gunler
                 soft.pop(str(t.pk), None)
+            elif p.pk in bildirimsiz_izin:  # bildirimi yok ama izinli: izinli oturumlar kapalı
+                kapali, _ = _isaretler({k: YASAK for k in bildirimsiz_izin[p.pk]}, saatler)
+                blocks[str(t.pk)] = _oturum_listesi(kapali, n)
         period.proctor_roles = {k: v for k, v in roller.items() if v != DEFAULT_ROLES}
         period.duty_roles = True
         alanlar += ["proctor_roles", "duty_roles"]
@@ -282,6 +289,122 @@ def hedef_adi(tur, donem):
     return f"Program Hazırlama'da “{donem.okul}” programındaki müsaitlik" if donem.okul_id else None
 
 
+# ---------------------------------------------------------------- izinler (sınav): yoklamadaki kayıtlar oturumu kapatır
+
+SINAV_OTURUM_EN_COK = 90  # dakika: oturumun bitişi bilinmiyor; sonraki oturuma ya da en çok bu kadar sürdüğü varsayılır
+
+
+def oturum_araliklari(donem):
+    """Sınav dönemi: {"YYYY-AA-GG SS:DD": (başlangıç, bitiş)} (saat dilimi bilgili). Ders döneminde boş."""
+    import datetime
+
+    if getattr(donem, "sinav_donemi_id", None) is None:
+        return {}
+    tz = timezone.get_current_timezone()
+    oturumlar = []
+    for o in donem.oturumlar():
+        try:
+            oturumlar.append((o, datetime.datetime.strptime(o, "%H:%M").time()))
+        except ValueError:
+            continue
+    out = {}
+    for t in donem.tarihler():
+        for i, (o, bas) in enumerate(oturumlar):
+            b = timezone.make_aware(datetime.datetime.combine(t, bas), tz)
+            son = b + datetime.timedelta(minutes=SINAV_OTURUM_EN_COK)
+            if i + 1 < len(oturumlar):
+                sonraki = timezone.make_aware(datetime.datetime.combine(t, oturumlar[i + 1][1]), tz)
+                if b < sonraki < son:
+                    son = sonraki
+            out[f"{t.isoformat()} {o}"] = (b, son)
+    return out
+
+
+def izin_isaretleri(donem, personel_idleri):
+    """{personel_id: {hücre anahtarı: izin türü adı}} — sınav oturumuna değen yoklama kaydı (izin, rapor, görev …).
+    Bilgi amaçlı türler (garnizon terk gibi, kişi mevcut sayılır) hariç."""
+    from yoklama.servis import kayitlar
+
+    araliklar = oturum_araliklari(donem)
+    if not araliklar or not personel_idleri:
+        return {}
+    bas = min(a for a, _ in araliklar.values())
+    bit = max(b for _, b in araliklar.values())
+    out = defaultdict(dict)
+    for k in kayitlar(list(personel_idleri), bas, bit, yoklama=True):
+        for anahtar, (a, b) in araliklar.items():
+            if k.baslangic < b and a < k.bitis:
+                out[k.personel_id].setdefault(anahtar, k.tur.ad)
+    return dict(out)
+
+
+# ---------------------------------------------------------------- toplu tablo
+
+@transaction.atomic
+def toplu_kaydet(user, y, donem, veriler, surumler):
+    """Tablodan gelen {personel_id: hücreler}: değişen ya da bildirimi olmayan her satır kaydedilir (boş = mazereti yok).
+    surumler: {personel_id: formun açıldığı andaki sürüm}. Dönüş: (kaydedilen bildirimler, değişmeyen sayısı)."""
+    if not degistirebilir_mi(y, donem):
+        raise MazeretHatasi("Bu dönemde değişiklik yapma yetkiniz yok ya da dönem bildirime kapalı.")
+    kisiler = {p.pk: p for p in Personel.objects.filter(pk__in=[int(k) for k in veriler], aktif=True)}
+    mevcut = {b.personel_id: b for b in donem.bildirimler.filter(personel_id__in=kisiler)}
+    kaydedilen, degismeyen = [], 0
+    for pid_metin, hucreler in veriler.items():
+        p = kisiler.get(int(pid_metin))
+        if p is None or not y.kapsar(p):
+            raise MazeretHatasi("Tabloda kapsamınız dışında personel var; sayfayı yenileyin.")
+        temiz = hucreleri_temizle(donem, hucreler)
+        b = mevcut.get(p.pk)
+        if b is not None and b.hucreler == temiz:
+            degismeyen += 1
+            continue
+        kaydedilen.append(kaydet(user, y, donem, p, temiz, b.aciklama if b else "",
+                                 int(surumler.get(pid_metin, 0) or 0)))
+    return kaydedilen, degismeyen
+
+
+# ---------------------------------------------------------------- bölüm teslimi
+
+def bolum_durumlari(tur, donem, y, bolumler=None):
+    """Bölüm başına: {bolum, toplam, bildirilen, eksik, teslim, sonradan} — teşkilat dışı (bölümsüz) personel hariç."""
+    from .models import MazeretTeslimi
+
+    tum = list(personeller(y))
+    bildirimler = {b.personel_id: b for b in donem.bildirimler.all()}
+    teslimler = {t.bolum_id: t for t in MazeretTeslimi.objects.filter(tur=tur.kod, donem_id=donem.pk)
+                 .select_related("teslim_eden")}
+    satir = {}
+    for p in tum:
+        if p.bolum_id is None or (bolumler is not None and p.bolum_id not in bolumler):
+            continue
+        s = satir.setdefault(p.bolum_id, {"bolum": p.bolum, "toplam": 0, "bildirilen": 0, "sonradan": 0,
+                                          "teslim": teslimler.get(p.bolum_id)})
+        s["toplam"] += 1
+        b = bildirimler.get(p.pk)
+        if b is not None:
+            s["bildirilen"] += 1
+            if s["teslim"] is not None and b.guncelleme > s["teslim"].zaman:
+                s["sonradan"] += 1
+    for s in satir.values():
+        s["eksik"] = s["toplam"] - s["bildirilen"]
+    return sorted(satir.values(), key=lambda s: s["bolum"].ad)
+
+
+def teslim_et(user, y, tur, donem, bolum):
+    from .models import MazeretTeslimi
+
+    if not degistirebilir_mi(y, donem) or (y.kapsam_bolum is not None and y.kapsam_bolum.pk != bolum.pk):
+        raise MazeretHatasi("Bu bölüm adına teslim yetkiniz yok ya da dönem bildirime kapalı.")
+    durum = next((s for s in bolum_durumlari(tur, donem, y, {bolum.pk})), None)
+    if durum is None:
+        raise MazeretHatasi("Bu bölümde bildirim yapılacak personel yok.")
+    if durum["eksik"]:
+        raise MazeretHatasi(f"{durum['eksik']} personelin bildirimi eksik; önce tabloyu kaydedin.")
+    t, _ = MazeretTeslimi.objects.update_or_create(tur=tur.kod, donem_id=donem.pk, bolum=bolum,
+                                                    defaults={"teslim_eden": user})
+    return t
+
+
 # ---------------------------------------------------------------- ana sayfa
 
 def panel_gorevleri(request):
@@ -298,6 +421,9 @@ def panel_gorevleri(request):
                 continue
             eksik = personeller(y).exclude(**{f"{tur.iliski}__donem": donem}).count()
             if not eksik:
+                gorev = _teslim_gorevi(tur, donem, y, reverse)
+                if gorev:
+                    gorevler.append(gorev)
                 continue
             son = f" · son gün {timezone.localtime(donem.son_bildirim):%d.%m.%Y %H:%M}" if donem.son_bildirim else ""
             gorevler.append({
@@ -306,3 +432,21 @@ def panel_gorevleri(request):
                 "url": f"{reverse(tur.url('liste'))}?donem={donem.pk}&durum=yok",
             })
     return gorevler
+
+
+def _teslim_gorevi(tur, donem, y, reverse):
+    """Bildirimler tamamken: bölüm hesabına "teslim edin", tüm okulu yönetene "teslim etmeyen bölüm" görevi."""
+    url = f"{reverse(tur.url('liste'))}?donem={donem.pk}"
+    durumlar = bolum_durumlari(tur, donem, y)
+    if y.kapsam_bolum is not None:
+        s = next((d for d in durumlar if d["bolum"].pk == y.kapsam_bolum.pk), None)
+        if s and not s["eksik"] and s["teslim"] is None:
+            return {"renk": "eksik", "ikon": "send-check", "sayi": None, "ad": f"{tur.tekil} bildirimini teslim edin",
+                    "aciklama": f"{donem.ad} · bütün personel bildirildi", "url": url}
+        return None
+    if y.yonetim:
+        n = sum(1 for d in durumlar if d["teslim"] is None)
+        if n:
+            return {"renk": "bekliyor", "ikon": "send-exclamation", "sayi": n, "ad": f"{tur.tekil} teslim etmeyen bölüm",
+                    "aciklama": donem.ad, "url": url}
+    return None

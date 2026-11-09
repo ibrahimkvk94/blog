@@ -314,3 +314,15 @@
 [data-bs-theme="dark"] .yk-tur-dugme.secili .yk-nokta { background: #111922; }
 [data-bs-theme="dark"] .ts-dropdown .optgroup-header { color: #a0abbb; }
 [data-bs-theme="dark"] .yk-hazir-saat { background: #111922; }
+[data-bs-theme="dark"] .mz-durum-kutu { background: #111922; }
+[data-bs-theme="dark"] .mz-durum-kutu span { color: #a0abbb; }
+[data-bs-theme="dark"] .mz-durum-kutu.eksik { border-color: #5c2a2a; background: #291212; }
+[data-bs-theme="dark"] .mz-durum-kutu.eksik b { color: #e19999; }
+[data-bs-theme="dark"] .mz-durum-kutu.tamam { border-color: #346245; background: #14291a; }
+[data-bs-theme="dark"] .mz-durum-kutu.tamam b { color: #afe8c4; }
+[data-bs-theme="dark"] .mz-tablo th, [data-bs-theme="dark"] .mz-tablo td { background: #111922; }
+[data-bs-theme="dark"] .mz-tablo thead th { background: #171c21; color: #bac4d1; }
+[data-bs-theme="dark"] .mz-tablo .mz-gun { border-bottom: 1px solid #333a42; }
+[data-bs-theme="dark"] .mz-tablo .mz-gun-bas { border-left: 2px solid #333a42; }
+[data-bs-theme="dark"] .mz-tablo .mz-kisi, [data-bs-theme="dark"] .mz-tablo .mz-kisi-bas { border-right: 1px solid #333a42; }
+[data-bs-theme="dark"] .mz-tablo tbody tr:hover th, [data-bs-theme="dark"] .mz-tablo tbody tr:hover td { background: #171c21; }
