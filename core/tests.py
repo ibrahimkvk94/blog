@@ -101,6 +101,9 @@ class YetkiTestleri(TestCase):
     def test_hazir_olmayan_moduller_sadece_yoneticiye_gorunur(self):
         Yetki.objects.create(kullanici=self.yetkisiz, birim=Birim.objects.get(slug="idari-isler"), seviye=Yetki.YONETIM)
         self.client.force_login(self.yetkisiz)
+        self.assertEqual(self.client.get(reverse("core:organizasyon")).status_code, 403)  # şema ayrı yetki
+        Yetki.objects.create(kullanici=self.yetkisiz, birim=Birim.objects.get(slug="organizasyon-semasi"),
+                             seviye=Yetki.GORUNTULEME)
         r = self.client.get(reverse("core:organizasyon"))
         self.assertContains(r, "Personel Kartları")
         self.assertNotContains(r, "Nöbet Faaliyetleri")

@@ -1106,3 +1106,45 @@ a.pn-nokta:hover, a.pn-nokta:focus-visible { transform: scale(1.45); outline: no
   .dz-tablo { font-size: .7rem; } .dz-tablo th, .dz-tablo td { padding: .15rem .25rem; }
   .dz-tablo thead th { position: static; }
 }
+
+/* Müsait personel (yoklama/musait.py, templates/yoklama/musait.html) */
+.mp-form { padding: 1rem 1.1rem; }
+.mp-satir { display: flex; flex-wrap: wrap; gap: .75rem 1rem; align-items: end; }
+.mp-satir > label { display: grid; gap: .2rem; font-size: .78rem; color: #64748b; }
+.mp-satir > label input:not([type=checkbox]) { min-width: 9rem; }
+.mp-birim { flex: 1 1 16rem; }
+.mp-alt { margin-top: .85rem; align-items: center; }
+.mp-saatler { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin-top: .75rem; font-size: .8rem; color: #64748b; }
+.mp-cip { border: 1px solid #cbd5e1; background: #fff; border-radius: 999px; padding: .1rem .55rem; font-size: .78rem; color: #334155; }
+.mp-cip:hover { border-color: #2f5d8a; }
+.mp-cip.secili { background: #2f5d8a; border-color: #2f5d8a; color: #fff; }
+.mp-kategoriler { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem 1rem; border: 0; padding: 0; margin: 0; }
+.mp-kategoriler legend { float: left; width: auto; font-size: .78rem; color: #64748b; margin: 0 .25rem 0 0; }
+.mp-onay { display: inline-flex; align-items: center; gap: .35rem; font-size: .85rem; white-space: nowrap; }
+.mp-baslik { display: flex; justify-content: space-between; align-items: center; gap: .5rem 1rem; flex-wrap: wrap; margin-bottom: .6rem; }
+.mp-baslik h2 { font-size: 1.05rem; font-weight: 700; margin: 0; }
+.mp-sayilar { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .6rem; }
+.mp-sayi { background: #fff; border: 1px solid var(--km-kenarlik); border-radius: 12px; padding: .65rem .85rem; }
+.mp-sayi b { display: block; font-size: 1.4rem; line-height: 1.15; font-variant-numeric: tabular-nums; color: #0f172a; }
+.mp-sayi b small { font-size: .8rem; font-weight: 500; color: #64748b; }
+.mp-sayi span { font-size: .78rem; color: #64748b; display: block; }
+.mp-sayi small { font-size: .72rem; color: #94a3b8; }
+.mp-sayi.ana { border-color: #15803d; background: #f0fdf4; }
+.mp-sayi.ana b { color: #15803d; }
+.mp-kart { padding: 1rem 1.1rem; }
+.mp-kart h3 { font-size: .98rem; font-weight: 600; margin: 0 0 .6rem; }
+.mp-grup + .mp-grup { margin-top: .75rem; }
+.mp-grup-ad { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #475569; border-bottom: 1px solid #e2e8f0; padding-bottom: .2rem; margin-bottom: .2rem; display: flex; justify-content: space-between; }
+.mp-grup-ad span { color: #94a3b8; }
+.mp-tablo { width: 100%; font-size: .85rem; }
+.mp-tablo td { padding: .22rem .3rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.mp-no { width: 2rem; color: #94a3b8; font-variant-numeric: tabular-nums; text-align: right; }
+.mp-kat { font-size: .68rem; font-weight: 600; padding: .08rem .45rem; border-radius: 999px; background: #e2e8f0; color: #334155; white-space: nowrap; }
+.mp-kat.k-subay { background: #dbe7f5; color: #1f3a5f; } .mp-kat.k-astsubay { background: #d5eef2; color: #155e6b; }
+.mp-kat.k-akademik { background: #f6ecc8; color: #6b5310; } .mp-kat.k-memur { background: #ede4f7; color: #4c2a85; }
+.mp-mesgul { list-style: none; padding: 0; margin: 0; font-size: .85rem; max-height: 70vh; overflow: auto; }
+.mp-mesgul li { padding: .35rem 0; border-bottom: 1px solid #f1f5f9; }
+.mp-neden { font-size: .76rem; color: #64748b; display: flex; gap: .35rem; align-items: baseline; margin-left: .2rem; }
+.mp-neden.n-izin i { color: #b91c1c; } .mp-neden.n-ders i { color: #2f5d8a; } .mp-neden.n-sinav i { color: #b45309; }
+.mp-not { font-size: .78rem; color: #64748b; margin-top: .75rem; }
+@media print { .mp-mesgul { max-height: none; overflow: visible; } }

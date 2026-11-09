@@ -20,7 +20,9 @@ from program.models import ProgramHucresi, ProgramSurumu
 
 from .models import DersKaydi, DevirTalebi, Gunluk, Tatil
 
-BIRIM_DERS = "ders-planlari"
+BIRIM_DERS = "ders-planlari"  # haftalık program; programla ilgili ana sayfa görevleri
+BIRIM_TAKIP = "ders-takibi"  # günlük ders takibi ve yapılan ders raporu
+BIRIM_DEVIR = "devir-talepleri"  # devir talebi açma, onay, iade
 BIRIM_PLAN = "plan-program"
 
 
@@ -43,12 +45,14 @@ class TakipYetkisi:
         return self.kapsam_bolum is None or (bolum is not None and bolum.pk == self.kapsam_bolum.pk)
 
 
-def yetki(request):
-    if hasattr(request, "_takip_yetkisi"):
-        return request._takip_yetkisi
+def yetki(request, birim=BIRIM_TAKIP):
+    """Verilen birimdeki (ders takibi, devir talepleri ya da ders planları) yetkiye göre TakipYetkisi."""
+    onbellek = request.__dict__.setdefault("_takip_yetkileri", {})
+    if birim in onbellek:
+        return onbellek[birim]
     y = TakipYetkisi(personel=getattr(request.user, "personel", None))
     try:
-        ds, dk = etkin_yetki(request, birim_bul(request, BIRIM_DERS))
+        ds, dk = etkin_yetki(request, birim_bul(request, birim))
         ps, _ = etkin_yetki(request, birim_bul(request, BIRIM_PLAN))
     except Http404:
         ds = ps = 0
@@ -61,7 +65,7 @@ def yetki(request):
         y.kapsam_bolum = request.user.bolum
         if y.kapsam_bolum is None:  # bölümü atanmamış bölüm kullanıcısı hiçbir şeyi kapsamaz
             y.goruntule = y.bolum_adina = y.onay = False
-    request._takip_yetkisi = y
+    onbellek[birim] = y
     return y
 
 
@@ -328,36 +332,38 @@ def panel_gorevleri(request, ek=()):
 
     from program.models import ProgramOgretmeni
 
-    y = yetki(request)
+    y = yetki(request, BIRIM_TAKIP)
+    yd = yetki(request, BIRIM_DEVIR)
+    yp = yetki(request, BIRIM_DERS)
     gorevler = list(ek)  # diğer modüllerin görevleri (ör. ders mazereti); "Bekleyen işiniz yok" bunları da sayar
-    if not (y.goruntule or y.bolum_adina):
+    if not (y.goruntule or yd.goruntule or yp.onay):
         return gorevler
 
     bit = timezone.localdate() - timedelta(days=1)  # dünkü dahil geçmiş günler: hepsi yapılmış sayılır
     bas = bit - timedelta(days=PANEL_GUN_SAYISI - 1)
     aralik = urlencode({"bas": bas.isoformat(), "bit": bit.isoformat()})
-    satirlar = beklenen_dersler(bas, bit, bolum=y.kapsam_bolum)
+    satirlar = beklenen_dersler(bas, bit, bolum=y.kapsam_bolum) if y.goruntule else []
 
     def blok_sayisi(qs):
         return qs.values("blok").distinct().count()
 
-    if y.onay:
+    if yd.onay:
         n = blok_sayisi(DevirTalebi.objects.filter(durum=DevirTalebi.TALEP))
         if n:
             gorevler.append({"renk": "eksik", "ikon": "arrow-left-right", "sayi": n, "ad": "Onayınızı bekleyen devir",
                              "aciklama": "Ders devri talepleri", "url": reverse("takip:devirler")})
-    if y.kesin:
+    if yd.kesin:
         n = blok_sayisi(DevirTalebi.objects.filter(durum=DevirTalebi.ONAY))
         if n:
             gorevler.append({"renk": "eksik", "ikon": "arrow-left-right", "sayi": n, "ad": "Kesinleştirmenizi bekleyen devir",
                              "aciklama": "Onaylanmış, son kararı bekleyen talepler", "url": reverse("takip:devirler")})
-    if y.bolum_adina and not y.onay:
+    if yd.bolum_adina and not yd.onay:
         n = blok_sayisi(DevirTalebi.objects.filter(isteyen=request.user, durum__in=DevirTalebi.BEKLEYEN))
         if n:
             gorevler.append({"renk": "bekliyor", "ikon": "hourglass-split", "sayi": n, "ad": "Sonuç bekleyen devir talebiniz",
                              "aciklama": "Onay veya kesinleştirme bekleniyor", "url": reverse("takip:devirler")})
 
-    if y.onay:
+    if yp.onay:
         if ProgramSurumu.objects.gecerli() is None:
             gorevler.append({"renk": "eksik", "ikon": "calendar-x", "sayi": None, "ad": "Yayında ders programı yok",
                              "aciklama": "Programı yayınlayın; ders takibi ancak o zaman başlar", "url": reverse("program:surumler")})

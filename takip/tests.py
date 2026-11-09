@@ -43,8 +43,9 @@ class TakipTestleri(TestCase):
 
         def kullanici(ad, slug=None, seviye=None, kapsam=Yetki.TUM, **ek):
             u = User.objects.create_user(ad, password="x-Parola-123", **ek)
-            if slug:
-                Yetki.objects.create(kullanici=u, birim=Birim.objects.get(slug=slug), seviye=seviye, kapsam=kapsam)
+            # Ders Planları yetkisi: ders takibi ve devir talepleri artık ayrı satırlar; eski kullanıcılar üçünü de alır
+            for s in ([slug, "ders-takibi", "devir-talepleri"] if slug == "ders-planlari" else [slug] if slug else []):
+                Yetki.objects.create(kullanici=u, birim=Birim.objects.get(slug=s), seviye=seviye, kapsam=kapsam)
             return u
 
         cls.ogretmen = kullanici("ayse", personel=cls.ayse)
@@ -153,3 +154,27 @@ class TakipTestleri(TestCase):
         self.assertContains(self.client.get(reverse("core:panel")), "Sonuç bekleyen devir talebiniz")
         self.client.force_login(self.ders_yon)
         self.assertContains(self.client.get(reverse("core:panel")), "Onayınızı bekleyen devir")
+
+
+class AyriYetkiTestleri(TestCase):
+    """Ders takibi ve devir talepleri, Ders Planları'ndan ayrı yetki satırları (09.11.2026)."""
+
+    def test_yalniz_ders_planlari_haftalik_programi_acar(self):
+        u = User.objects.create_user("sadece_program", password="x-Parola-123")
+        Yetki.objects.create(kullanici=u, birim=Birim.objects.get(slug="ders-planlari"), seviye=Yetki.GORUNTULEME,
+                             kapsam=Yetki.TUM)
+        self.client.force_login(u)
+        r = self.client.get(reverse("core:panel"))
+        self.assertContains(r, reverse("program:tablo"))
+        self.assertNotContains(r, reverse("takip:gunluk"))
+        self.assertNotContains(r, reverse("takip:devirler"))
+        self.assertEqual(self.client.get(reverse("takip:gunluk")).status_code, 403)
+        self.assertEqual(self.client.get(reverse("takip:devirler")).status_code, 403)
+
+    def test_devir_yetkisi_takipten_bagimsiz(self):
+        u = User.objects.create_user("devirci", password="x-Parola-123")
+        Yetki.objects.create(kullanici=u, birim=Birim.objects.get(slug="devir-talepleri"), seviye=Yetki.GORUNTULEME,
+                             kapsam=Yetki.TUM)
+        self.client.force_login(u)
+        self.assertEqual(self.client.get(reverse("takip:devirler")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("takip:gunluk")).status_code, 403)

@@ -14,9 +14,9 @@ from .yetki import GORUNTULEME, birim_bul, etkin_yetki
 
 # (kod, adres adı, etiket, ikon, yetkinin bakıldığı birim)
 KISAYOLLAR = [
-    ("ders-takibi", "takip:gunluk", "Ders takibi", "check2-square", "ders-planlari"),
+    ("ders-takibi", "takip:gunluk", "Ders takibi", "check2-square", "ders-takibi"),
     ("haftalik-program", "program:tablo", "Haftalık program", "table", "ders-planlari"),
-    ("devir-talepleri", "takip:devirler", "Devir talepleri", "arrow-left-right", "ders-planlari"),
+    ("devir-talepleri", "takip:devirler", "Devir talepleri", "arrow-left-right", "devir-talepleri"),
     ("ders-mazeretleri", "mazeret:ders", "Ders mazeretleri", "calendar-x", "ders-mazeretleri"),
     ("sinav-mazeretleri", "mazeret:sinav", "Sınav mazeretleri", "calendar2-x", "sinav-mazeretleri"),
     ("sinav-planlari", "dersprogrami_kopru:sinavlar", "Sınav planları", "clipboard-check", "sinav-planlari"),
