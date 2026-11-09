@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Dozajmatik{% endblock %}
+{% block title %}{% if ogretim %}Öğretim Programları{% else %}Dozajmatik{% endif %}{% endblock %}
 {% block content %}
 <div class="sayfa-baslik">
   <div class="d-flex align-items-center gap-3">
-    <span class="birim-ikon buyuk"><i class="bi bi-calculator"></i></span>
-    <div><h1>Dozajmatik</h1><p class="text-secondary mb-0">Henüz plan yılı açılmadı.</p></div>
+    <span class="birim-ikon buyuk"><i class="bi bi-{% if ogretim %}journal-text{% else %}calculator{% endif %}"></i></span>
+    <div><h1>{% if ogretim %}Öğretim Programları{% else %}Dozajmatik{% endif %}</h1><p class="text-secondary mb-0">Henüz plan yılı açılmadı.</p></div>
   </div>
 </div>
 <div class="kart p-4" style="max-width: 32rem">
@@ -16,7 +16,7 @@
     <button class="btn btn-primary">Aç</button>
   </form>
   {% else %}
-  <p class="mb-0">Plan Program Kısmı bir plan yılı açtığında tablo burada görünecek.</p>
+  <p class="mb-0">Plan Program Kısmı bir plan yılı açtığında {% if ogretim %}programlar{% else %}tablo{% endif %} burada görünecek.</p>
   {% endif %}
 </div>
 {% endblock %}

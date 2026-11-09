@@ -4,6 +4,7 @@ branşlar (ders kodu → branş) ve öğretim elemanları (kişi → branş, kad
 Görüntüleme Dozajmatik biriminde Görüntüleme, değişiklik Düzenleme yetkisi ister (üst birimden de gelir)."""
 
 from collections import defaultdict
+from functools import wraps
 
 from django.contrib import messages
 from django.db import transaction
@@ -14,16 +15,45 @@ from core.yetki import yetki_gerekli, yol
 
 from . import excel, kurallar, servis
 from .models import Brans, BransAyari, Ders, KisiAyari, KodBransi, Program, Yil
-from .servis import BIRIM
+from .servis import BIRIM, PROGRAM_BIRIM
 
 SEKMELER = [("tablo", "Tablo", "table"), ("programlar", "Programlar", "journal-text"),
             ("branslar", "Branşlar", "diagram-3"), ("personel", "Öğretim elemanları", "people")]
 
 
 def _baglam(request, yil, sekme, **ctx):
-    ctx.update({"yil": yil, "yillar": Yil.objects.all(), "sekme": sekme, "sekmeler": SEKMELER,
+    ogretim = _ogretimde(request)
+    ctx.update({"yil": yil, "yillar": Yil.objects.all(), "sekme": sekme, "sekmeler": [] if ogretim else SEKMELER,
+                "ogretim": ogretim, "dozaj_gorur": servis.gorebilir(request, BIRIM), "u": URL_ADLARI[ogretim],
                 "duzenleyebilir": servis.duzenleyebilir(request), "yol": yol(request, request.birim)})
     return ctx
+
+
+# Program sayfaları iki yerden açılır: Dozajmatik'in Programlar sekmesi (Dozajmatik yetkisi) ve menüde
+# Eğitim Bilimleri › Öğretim Programları (kendi yetkisi). Görünüm aynı; yetki, başlık ve bağlantılar açıldığı yere göre.
+URL_ADLARI = {
+    False: {"programlar": "dozaj:programlar", "program": "dozaj:program", "excel": "dozaj:excel"},
+    True: {"programlar": "dozaj:op_programlar", "program": "dozaj:op_program", "excel": "dozaj:op_excel"},
+}
+
+
+def _ogretimde(request):
+    return request.birim.slug == PROGRAM_BIRIM
+
+
+def _u(request, ad):
+    return URL_ADLARI[_ogretimde(request)][ad]
+
+
+def _program_sayfasi(view):
+    dozajda = yetki_gerekli(BIRIM)(view)
+    ogretimde = yetki_gerekli(PROGRAM_BIRIM)(view)
+
+    @wraps(view)
+    def sarmal(request, *args, ogretim=False, **kwargs):
+        return (ogretimde if ogretim else dozajda)(request, *args, **kwargs)
+
+    return sarmal
 
 
 def _sayi(metin, en_cok=10000, bos=0):
@@ -46,8 +76,9 @@ def _yil_yok(request):
             y = Yil.objects.create(ad=ad, varsayilan=True)
             request.session["dozaj_yil"] = y.pk
             messages.success(request, f"{ad} plan yılı açıldı. Şimdi programları ekleyin.")
-            return redirect("dozaj:programlar")
+            return redirect(_u(request, "programlar"))
     return render(request, "dozaj/yil_yok.html", {"duzenleyebilir": servis.duzenleyebilir(request),
+                                                  "ogretim": _ogretimde(request),
                                                   "yol": yol(request, request.birim)})
 
 
@@ -113,7 +144,7 @@ def brans(request, pk):
 
 # ---------------------------------------------------------------- programlar
 
-@yetki_gerekli(BIRIM)
+@_program_sayfasi
 def programlar(request):
     yil = servis.yil_sec(request)
     if yil is None:
@@ -149,7 +180,7 @@ def programlar(request):
                 y = servis.yil_kopyala(yil, ad)
                 request.session["dozaj_yil"] = y.pk
                 messages.success(request, f"{ad} plan yılı {yil.ad} kopyalanarak açıldı.")
-        return _geri(request, "programlar")
+        return redirect(_u(request, "programlar"))
     satirlar = []
     for p in progs:
         ds = defaultdict(int)
@@ -179,7 +210,7 @@ def _ders_alanlari(post, onek):
     return alanlar
 
 
-@yetki_gerekli(BIRIM)
+@_program_sayfasi
 def program(request, pk):
     p = get_object_or_404(Program, pk=pk)
     yil = p.yil
@@ -215,7 +246,7 @@ def program(request, pk):
                         messages.success(request, f"{alanlar['kod']} eklendi.")
         except ValueError:
             messages.error(request, "Sayı kutularına yalnız tam sayı yazılabilir; kaydedilmedi.")
-        return _geri(request, "program", p.pk)
+        return redirect(_u(request, "program"), p.pk)
     kod_brans = {k.kod: k.brans for k in KodBransi.objects.filter(yil=yil).select_related("brans")}
     yariyillar = []
     for yy in range(1, 5):
@@ -230,7 +261,7 @@ def program(request, pk):
     return render(request, "dozaj/program.html", _baglam(request, yil, "programlar", p=p, yariyillar=yariyillar))
 
 
-@yetki_gerekli(BIRIM)
+@_program_sayfasi
 def excel_yukle(request):
     yil = servis.yil_sec(request)
     if yil is None:
@@ -262,18 +293,19 @@ def excel_yukle(request):
             n_kod = servis.kod_branslarini_tamamla(yil)
         request.session.pop("dozaj_excel", None)
         messages.success(request, f"{n_prog} programın dersleri yüklendi ({n_ders} ders). "
-                                  f"{n_kod} yeni ders koduna branş önerildi; Branşlar sekmesinden kontrol edin.")
-        return redirect("dozaj:programlar")
+                                  f"{n_kod} yeni ders koduna branş önerildi; Dozajmatik › Branşlar sekmesinden "
+                                  f"kontrol edin.")
+        return redirect(_u(request, "programlar"))
     if request.method == "POST" and request.FILES.get("dosya"):
         f = request.FILES["dosya"]
         if f.size > 10 * 1024 * 1024:
             messages.error(request, "Dosya 10 MB'tan büyük.")
-            return redirect("dozaj:programlar")
+            return redirect(_u(request, "programlar"))
         try:
             sayfalar = excel.oku(f)
         except excel.ExcelHatasi as e:
             messages.error(request, str(e))
-            return redirect("dozaj:programlar")
+            return redirect(_u(request, "programlar"))
         request.session["dozaj_excel"] = sayfalar
         onizleme = []
         for i, sf in enumerate(sayfalar):
@@ -285,7 +317,7 @@ def excel_yukle(request):
                              "mevcut": len(p.dersler.all()) if p else 0})
         return render(request, "dozaj/excel.html", _baglam(request, yil, "programlar", onizleme=onizleme,
                                                            progs=progs))
-    return redirect("dozaj:programlar")
+    return redirect(_u(request, "programlar"))
 
 
 # ---------------------------------------------------------------- branşlar

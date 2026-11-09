@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ p.ad }} · Dozajmatik{% endblock %}
+{% block title %}{{ p.ad }} · {% if ogretim %}Öğretim Programları{% else %}Dozajmatik{% endif %}{% endblock %}
 {% block content %}
 {% include "dozaj/_ust.html" with alt_baslik=p.ad|add:" öğretim programı" %}
 
@@ -9,7 +9,7 @@
     <div class="dz-baslik">
       <div>
         <h2>{{ p.kod }} · {% if duzenleyebilir %}<input name="program_ad" value="{{ p.ad }}" maxlength="100" class="dz-ad-kutu" aria-label="Program adı">{% else %}{{ p.ad }}{% endif %}</h2>
-        <p>1. sınıf <b>{{ p.kisim1 }}</b> kısım · 2. sınıf <b>{{ p.kisim2 }}</b> kısım (Programlar sekmesinden değişir)</p>
+        <p>1. sınıf <b>{{ p.kisim1 }}</b> kısım · 2. sınıf <b>{{ p.kisim2 }}</b> kısım ({% if ogretim %}Öğretim Programları listesinden{% else %}Programlar sekmesinden{% endif %} değişir)</p>
       </div>
       {% if duzenleyebilir %}<button class="btn btn-sm btn-primary">Değişiklikleri kaydet</button>{% endif %}
     </div>
@@ -38,7 +38,7 @@
             <td><input type="number" min="0" max="60" name="d{{ d.pk }}-l" value="{{ d.l }}" class="form-control form-control-sm dz-sayi" aria-label="Laboratuvar"></td>
             <td><input type="number" min="0" max="60" name="d{{ d.pk }}-kr" value="{{ d.kr }}" class="form-control form-control-sm dz-sayi" aria-label="Kredi"></td>
             <td><input type="number" min="0" max="60" name="d{{ d.pk }}-akts" value="{{ d.akts }}" class="form-control form-control-sm dz-sayi" aria-label="AKTS"></td>
-            <td class="sol">{% if d.brans %}<a href="{% url 'dozaj:brans' d.brans.pk %}">{{ d.brans.ad }}</a>{% else %}<a class="text-danger" href="{% url 'dozaj:branslar' %}#k-{{ d.kod }}">seçilmedi</a>{% endif %}</td>
+            <td class="sol">{% if not dozaj_gorur %}{{ d.brans.ad|default:"—" }}{% elif d.brans %}<a href="{% url 'dozaj:brans' d.brans.pk %}">{{ d.brans.ad }}</a>{% else %}<a class="text-danger" href="{% url 'dozaj:branslar' %}#k-{{ d.kod }}">seçilmedi</a>{% endif %}</td>
             <td><input type="checkbox" class="form-check-input" name="d{{ d.pk }}-ikinci" value="1"{% if d.ikinci_eleman %} checked{% endif %} aria-label="Uygulamaya 2. eleman girer"></td>
             <td class="kalin">{{ d.yuk }}</td>
             <td><input type="number" min="0" max="200" name="d{{ d.pk }}-guz" value="{{ d.guz_kisim|default_if_none:'' }}" placeholder="{{ d.guz_n }}" class="form-control form-control-sm dz-sayi" aria-label="Güz'de alan kısım"></td>

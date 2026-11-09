@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Programlar · Dozajmatik{% endblock %}
+{% block title %}{% if ogretim %}Öğretim Programları{% else %}Programlar · Dozajmatik{% endif %}{% endblock %}
 {% block content %}
 {% include "dozaj/_ust.html" %}
 
@@ -15,7 +15,7 @@
           <tbody>
           {% for x in satirlar %}
             <tr>
-              <td class="sol"><a href="{% url 'dozaj:program' x.p.pk %}"><b>{{ x.p.kod }}</b> {{ x.p.ad }}</a>{% if x.p.hazirlik %} <small class="text-secondary">hazırlık · toplama girmez</small>{% endif %}{% if not x.ders %} <small class="text-danger">ders yok</small>{% endif %}</td>
+              <td class="sol"><a href="{% url u.program x.p.pk %}"><b>{{ x.p.kod }}</b> {{ x.p.ad }}</a>{% if x.p.hazirlik %} <small class="text-secondary">hazırlık · toplama girmez</small>{% endif %}{% if not x.ders %} <small class="text-danger">ders yok</small>{% endif %}</td>
               <td>{% if duzenleyebilir %}<input type="number" min="0" max="200" name="k1-{{ x.p.pk }}" value="{{ x.p.kisim1 }}" class="form-control form-control-sm dz-sayi" aria-label="{{ x.p.ad }} 1. sınıf kısım sayısı">{% else %}{{ x.p.kisim1 }}{% endif %}</td>
               <td>{% if duzenleyebilir %}<input type="number" min="0" max="200" name="k2-{{ x.p.pk }}" value="{{ x.p.kisim2 }}" class="form-control form-control-sm dz-sayi" aria-label="{{ x.p.ad }} 2. sınıf kısım sayısı">{% else %}{{ x.p.kisim2 }}{% endif %}</td>
               <td>{{ x.ders }}</td>
@@ -33,7 +33,7 @@
   </div>
   {% if duzenleyebilir %}
   <div class="col-12 col-xl-4">
-    <form method="post" action="{% url 'dozaj:excel' %}" enctype="multipart/form-data" class="kart dz-kart mb-3">
+    <form method="post" action="{% url u.excel %}" enctype="multipart/form-data" class="kart dz-kart mb-3">
       {% csrf_token %}
       <h3><i class="bi bi-file-earmark-excel me-1"></i>Öğretim programlarını Excel'den yükle</h3>
       <p>Her programın ayrı sayfada olduğu "Öğretim Programları" dosyası (.xlsx). Önce önizleme gösterilir; onaylayınca seçilen programların dersleri dosyadakilerle değişir. Aynı koddaki derslerin "2. eleman" ve kısım dağılımı ayarları korunur.</p>
