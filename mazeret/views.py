@@ -11,6 +11,7 @@ from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
+from bildirim import servis as bildirim_servisi
 from core.yetki import birim_bul, yol
 from personel.models import Bolum
 
@@ -304,5 +305,6 @@ def teslim(request, donem_pk, tur):
     except MazeretHatasi as e:
         messages.error(request, str(e))
     else:
+        bildirim_servisi.mazeret_teslimi(tur, donem, bolum, request.user)
         messages.success(request, f"{bolum.ad}: {tur.tekil.lower()} bildirimi teslim edildi.")
     return _geri(request, _tablo_url(tur, donem, bolum))

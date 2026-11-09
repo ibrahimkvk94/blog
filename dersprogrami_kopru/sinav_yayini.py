@@ -12,6 +12,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from bildirim import servis as bildirim
 from core.yetki import DUZENLEME, yetki_gerekli
 from personel.models import Bolum
 
@@ -122,5 +123,6 @@ def yayin(request, pk):
             messages.error(request, "Program şu anda oluşturuluyor; bitince yayınlayın.")
             return redirect("dersprogrami_kopru:sinav_programi")
         SinavYayini.objects.update_or_create(donem=d, defaults={"yayinlayan": request.user, "zaman": timezone.now()})
+        bildirim.sinav_programi(d, request.user)
         messages.success(request, f"“{d.name}” yayınlandı: bölümler sınav programını ve görevlendirmeleri görebilir.")
     return redirect(request.POST.get("geri") or "dersprogrami_kopru:sinav_programi")

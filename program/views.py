@@ -7,6 +7,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from bildirim import servis as bildirim
 from core.arama import ara
 from core.yetki import YONETIM, yetki_gerekli, yol
 from personel.models import Personel
@@ -145,6 +146,7 @@ def surum(request, pk):
             s = form.save(commit=False)
             s.durum, s.yayinlayan, s.yayin_zamani = ProgramSurumu.YAYINDA, request.user, timezone.now()
             s.save()
+            bildirim.ders_programi(s, request.user)
             messages.success(request, f"“{s.ad}” {s.baslangic:%d.%m.%Y} tarihinden itibaren yayında.")
             return redirect("program:surum", pk=s.pk)
         if islem == "arsivle":
