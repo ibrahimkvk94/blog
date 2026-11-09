@@ -57,11 +57,11 @@ class YetkiTestleri(TestCase):
         r = self.client.get(reverse("core:panel"))
         self.assertContains(r, "Personel Kartları")
         self.assertNotContains(r, "Plan Program Kısmı")
-        # bölüm hesabında ağaç yok, yalnızca kısayol
+        # bölüm hesabı da yetkili olduğu dalları ağaçta görür (09.11.2026: kısayollar yıldızla seçilir)
         self.client.force_login(self.bolumcu)
         r = self.client.get(reverse("core:panel"))
-        self.assertNotContains(r, "Personel Kartları")
         self.assertContains(r, 'href="/personel/"')
+        self.assertNotContains(r, "Plan Program Kısmı")
 
     def test_yetkisiz_kullanici(self):
         self.client.force_login(self.yetkisiz)
@@ -183,7 +183,8 @@ class BolumYetkileriTestleri(TestCase):
 
 
 class BolumMenusuTestleri(TestCase):
-    """Bölüm hesabının menüsünde yalnızca kısayollar; hangisinin görüneceğini sistem yöneticisi seçer."""
+    """Bölüm hesabı yetkili olduğu birim ağacını görür; sistem yöneticisinin bölüme kapattığı sayfalar menüden
+    çıkar ve açılamaz. Kısayollar kullanıcının yıldızladıklarıdır."""
 
     @classmethod
     def setUpTestData(cls):
@@ -195,18 +196,15 @@ class BolumMenusuTestleri(TestCase):
         Yetki.objects.create(kullanici=cls.yon, birim=plan, seviye=Yetki.YONETIM, kapsam=Yetki.TUM)
         cls.su = User.objects.create_superuser("su", password="x-Parola-123")
 
-    def test_bolum_hesabi_yalniz_kisayollari_gorur(self):
+    def test_bolum_hesabi_agaci_gorur(self):
         self.client.force_login(self.ask1)
         r = self.client.get(reverse("core:panel"))
-        self.assertNotContains(r, "Organizasyon şeması")
-        self.assertNotContains(r, '<div class="menu-baslik">Birimler</div>', html=False)
-        self.assertContains(r, "Ders takibi")
-        self.assertContains(r, "Sınav planları")  # ağaç gizli olduğu için kısayol olarak
-        # yönetici hesabı (tüm bölümler) ağacı görmeye devam eder
+        self.assertNotContains(r, "Organizasyon şeması")  # "Tüm birimler" kartı yalnız tüm okulu görenlerde
+        self.assertContains(r, '<div class="menu-baslik">Birimler</div>', html=False)
+        self.assertContains(r, reverse("takip:gunluk"))
+        self.assertContains(r, "yıldıza tıklayarak buraya ekleyin")  # henüz kısayol yok
         self.client.force_login(self.yon)
-        r = self.client.get(reverse("core:panel"))
-        self.assertContains(r, "Organizasyon şeması")
-        self.assertNotContains(r, "Sınav planları</span>")
+        self.assertContains(self.client.get(reverse("core:panel")), "Organizasyon şeması")
 
     def test_yonetici_kisayol_secer(self):
         self.client.force_login(self.su)
@@ -218,9 +216,9 @@ class BolumMenusuTestleri(TestCase):
         self.client.post(url, {"k": [f"{self.ask.pk}:ders-takibi", f"{self.ask.pk}:personel"]})
         self.client.force_login(self.ask1)
         r = self.client.get(reverse("core:panel"))
-        self.assertContains(r, "Ders takibi")
-        self.assertNotContains(r, "Haftalık program")
-        self.assertNotContains(r, "Sınav planları")
+        self.assertContains(r, reverse("takip:gunluk"))
+        self.assertNotContains(r, f'href="{reverse("program:ana")}"')  # kapatılan sayfalar menüden çıkar
+        self.assertNotContains(r, f'href="{reverse("dersprogrami_kopru:sinavlar")}"')
         self.assertEqual(self.client.get(url).status_code, 403)
 
     def test_kapali_kisayolun_sayfasi_acilmaz(self):
@@ -495,3 +493,60 @@ class GostergePaneliTestleri(TestCase):
         self.assertEqual(KadroKapasitesi.objects.count(), 1)
         self.client.force_login(self.ask1)
         self.assertEqual(self.client.post(url, {"islem": "kapasite", "toplam": "9"}).status_code, 403)
+
+
+class YildizliKisayolTestleri(TestCase):
+    """Kullanıcı menüden yıldızladığı sayfaları kısayol olarak görür (09.11.2026)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.u = User.objects.create_user("izleyici", password="x-Parola-123")
+        Yetki.objects.create(kullanici=cls.u, birim=Birim.objects.get(slug="personel-bilgileri"),
+                             seviye=Yetki.GORUNTULEME, kapsam=Yetki.TUM)
+        cls.personel = Birim.objects.get(slug="personel-bilgileri")
+
+    def test_yildizla_ve_kaldir(self):
+        from .models import Kisayol
+
+        self.client.force_login(self.u)
+        r = self.client.get(reverse("core:panel"))
+        self.assertContains(r, f'data-birim="{self.personel.pk}"')  # ağaçta yıldız düğmesi
+        self.assertContains(r, "yıldıza tıklayarak buraya ekleyin")
+        url = reverse("core:kisayol_degistir", args=[self.personel.pk])
+        self.assertEqual(self.client.get(url).status_code, 405)
+        cevap = self.client.post(url).json()
+        self.assertTrue(cevap["yildizli"])
+        self.assertIn(self.personel.ad, cevap["html"])
+        self.assertTrue(Kisayol.objects.filter(kullanici=self.u, birim=self.personel).exists())
+        r = self.client.get(reverse("core:panel"))
+        self.assertContains(r, 'class="kart birim-kart"', count=2)  # Sık kullanılanlar: yıldızlı + Tüm birimler
+        self.assertFalse(self.client.post(url).json()["yildizli"])
+        self.assertFalse(Kisayol.objects.exists())
+
+    def test_yetkisiz_ya_da_baslik_birim_yildizlanamaz(self):
+        self.client.force_login(self.u)
+        plan = Birim.objects.get(slug="ders-takibi")
+        self.assertEqual(self.client.post(reverse("core:kisayol_degistir", args=[plan.pk])).status_code, 404)
+        grup = self.personel.ust  # alt birimi olan başlık
+        self.assertEqual(self.client.post(reverse("core:kisayol_degistir", args=[grup.pk])).status_code, 404)
+
+    def test_yetkisi_kalkan_kisayol_gorunmez(self):
+        from .models import Kisayol
+
+        Kisayol.objects.create(kullanici=self.u, birim=self.personel)
+        self.client.force_login(self.u)
+        self.assertContains(self.client.get(reverse("core:panel")), "bi-star-fill")
+        Yetki.objects.filter(kullanici=self.u).delete()
+        self.assertNotContains(self.client.get(reverse("core:panel")), "bi-star-fill")
+
+
+class HerkeseAcikSayfaTestleri(TestCase):
+    def test_salon_durumu_herkesin_menusunde_ve_yildizlanir(self):
+        u = User.objects.create_user("herkes", password="x-Parola-123")
+        salon = Birim.objects.get(slug="salon-durumu")
+        self.client.force_login(u)
+        r = self.client.get(reverse("core:panel"))
+        self.assertContains(r, f'href="{reverse("salon:yil")}"')  # menünün başında
+        self.assertNotContains(r, "Plan Program Kısmı")  # üst dallar açılmaz
+        self.assertContains(r, "birim yetkisi yok")
+        self.assertTrue(self.client.post(reverse("core:kisayol_degistir", args=[salon.pk])).json()["yildizli"])

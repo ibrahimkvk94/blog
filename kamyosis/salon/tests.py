@@ -75,7 +75,7 @@ class SalonTestleri(TestCase):
         self.assertEqual(self.client.get(reverse("salon:yeni")).status_code, 403)
         k = SalonKaydi.objects.get()
         self.assertEqual(self.client.post(reverse("salon:kayit", args=[k.pk]), {"islem": "sil"}).status_code, 403)
-        self.assertContains(self.client.get("/"), "Salon durumu")  # menüde kısayol
+        self.assertContains(self.client.get("/"), f'href="{reverse("salon:yil")}"')  # menüde, yetkisi olmasa da
 
     def test_yetkili_formdan_girer_ve_siler(self):
         self.client.force_login(self.yetkili)

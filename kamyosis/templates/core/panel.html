@@ -37,6 +37,10 @@
   <div class="col-6 col-md-4 col-xl-3">
     <a href="{{ k.url }}" class="kart birim-kart"><span class="birim-ikon"><i class="bi bi-{{ k.ikon }}"></i></span><div class="birim-ad">{{ k.ad }}</div></a>
   </div>
+  {% empty %}
+  <div class="col-12 col-md-8 col-xl-6">
+    <div class="kart p-3 h-100 d-flex align-items-center gap-3 text-secondary"><i class="bi bi-star fs-3"></i><span>Sık kullandığınız sayfaları buraya almak için soldaki menüde sayfa adının yanındaki <i class="bi bi-star"></i> yıldıza tıklayın.</span></div>
+  </div>
   {% endfor %}
   {% if not bolum_hesabi %}
   <div class="col-6 col-md-4 col-xl-3">

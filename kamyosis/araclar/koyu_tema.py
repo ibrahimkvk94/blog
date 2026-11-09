@@ -17,7 +17,7 @@ KAYNAK = KOK / "static/css/kamyosis.css"
 HEDEF = KOK / "static/css/kamyosis-koyu.css"
 
 # Bu seçicileri içeren kurallar atlanır (zaten koyu ya da kâğıt/baskı görünümü)
-ATLA = ("pn-ipucu", "menu-ara", "kenar", "marka", "giris", "org-kok", "avatar", "yk-profil", "yk-kagit", "yk-resmi", "yk-sayim", "yk-beyan",
+ATLA = ("pn-ipucu", "menu-ara", "menu-yildiz", "menu-ipucu", "kenar", "marka", "giris", "org-kok", "avatar", "yk-profil", "yk-kagit", "yk-resmi", "yk-sayim", "yk-beyan",
         "yk-isaretler", "tk-mudurluk", "tk-yardimci", "tk-kol-bas", "tk-sayi", "tk-hat", "yk-foto-bos", "nd-btn.aktif",
         "islem-cubugu .nd-", "btn-check:checked", "yk-hucre", "text-bg-primary", "btn-primary", "btn-outline-primary",
         "nav-pills", "form-check-input:checked", ":root", "@page")
@@ -69,6 +69,21 @@ EL_YAZMASI = '''/* KAMYOSİS koyu tema. Bu dosya araclar/koyu_tema.py ile üreti
 [data-bs-theme="dark"] .dp-cerceve { background: #0d141d; }
 [data-bs-theme="dark"] .tk-mudurluk { box-shadow: 0 0 0 1px #c9a227, 0 6px 18px rgba(0, 0, 0, .4); }
 [data-bs-theme="dark"] .bolum-baslik .bi, [data-bs-theme="dark"] .birim-ikon, [data-bs-theme="dark"] .org-dal-baslik .bi { color: #8fb4dc; }
+/* sol menü: koyu temada lacivert yerine zeminle uyumlu koyu gri-lacivert, altın vurgu kalır */
+[data-bs-theme="dark"] .kenar, [data-bs-theme="dark"] .kenar.offcanvas-lg,
+[data-bs-theme="dark"] .kenar.offcanvas-lg .kenar-ust { background-color: #0a1119 !important; }
+[data-bs-theme="dark"] .kenar { border-right: 1px solid #1b2634; color: #c9d4e2; }
+[data-bs-theme="dark"] .kenar-ust { border-bottom-color: #1b2634; }
+[data-bs-theme="dark"] .kenar .nav-link { color: #c9d4e2; }
+[data-bs-theme="dark"] .kenar .nav-link:hover { background: rgba(143, 180, 220, .08); color: #fff; }
+[data-bs-theme="dark"] .kenar .nav-link.active { background: #172231; color: #fff; }
+[data-bs-theme="dark"] .kenar-menu ul ul { border-left-color: #1b2634; }
+[data-bs-theme="dark"] .menu-baslik, [data-bs-theme="dark"] .menu-ipucu { color: #7d8ea3; }
+[data-bs-theme="dark"] .menu-ara input { background: #111a25; border-color: #1f2c3c; }
+[data-bs-theme="dark"] .menu-ara input:focus { background: #142030; }
+html[data-bs-theme="dark"].kenar-dar .kenar.gezinti { box-shadow: 8px 0 28px rgba(0, 0, 0, .6); }
+[data-bs-theme="dark"] .nav-pills .nav-link:not(.active) { color: #b5cfea; }
+[data-bs-theme="dark"] .nav-pills .nav-link:not(.active):hover { color: #fff; background: rgba(143, 180, 220, .08); }
 
 /* ---- aşağısı otomatik üretilir ---- */
 [data-bs-theme="dark"] .pn { --pn-mevcut: #3a4a5f; --pn-iz: #1c2838; --pn-izgara: #223044; --pn-yazi: #e2e8f0; --pn-soluk: #94a3b8;

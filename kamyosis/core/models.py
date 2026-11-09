@@ -92,6 +92,24 @@ class BolumMenusu(models.Model):
         return f"{self.bolum} menüsü"
 
 
+class Kisayol(models.Model):
+    """Kullanıcının menüden yıldızladığı sayfa (birim): menünün "Kısayollar" bölümünde ve ana sayfada görünür."""
+
+    kullanici = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="kisayollar")
+    birim = models.ForeignKey(Birim, on_delete=models.CASCADE, related_name="+")
+    sira = models.PositiveIntegerField(default=0)
+    olusturma = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["sira", "pk"]
+        verbose_name = "Kısayol"
+        verbose_name_plural = "Kısayollar"
+        constraints = [models.UniqueConstraint(fields=["kullanici", "birim"], name="kisayol_kullanici_birim_tekil")]
+
+    def __str__(self):
+        return f"{self.kullanici} ☆ {self.birim}"
+
+
 class KadroKapasitesi(models.Model):
     """Okulun kadro kapasitesi (norm kadro). İstatistikler · Personel sekmesindeki doluluk oranı = aktif personel / kapasite.
     Tek kayıt tutulur; türlere göre kapasite isteğe bağlıdır, toplam boşsa türlerin toplamı kullanılır."""

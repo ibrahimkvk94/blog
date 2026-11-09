@@ -14,6 +14,9 @@ from django.http import Http404
 from .models import Birim, Yetki
 
 GORUNTULEME, DUZENLEME, YONETIM = Yetki.GORUNTULEME, Yetki.DUZENLEME, Yetki.YONETIM
+# Sayfası herkese açık birimler: ağaçta göremeyenlerin menüsünün başında da durur ve yıldızlanabilir (yetki hesabını
+# değiştirmez; düzenleme yine yetki ister). Salon durumu: okulun salon takvimi herkese açık, kaydı Plan Program girer.
+HERKESE_ACIK = ("salon-durumu",)
 
 
 def agac(request):
