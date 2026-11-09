@@ -11,6 +11,7 @@
   const veren = form.querySelector('[name="veren"]'), gorev = form.querySelector('[name="gorev"]');
   const bas = form.querySelector('[name="baslangic"]'), bit = form.querySelector('[name="bitis"]');
   const neden = form.querySelector('[name="neden"]');
+  const donunceye = form.querySelector('[name="donunceye"]');
   const kutu = document.getElementById("vkIzinler");
   let oneri = gorev.value && gorevler[veren.value] === gorev.value ? gorev.value : "";
 
@@ -30,10 +31,20 @@
       b.className = "vk-izin-cip";
       b.textContent = `${k.ad} · ${k.metin}`;
       b.title = "Başlangıç, bitiş ve nedeni bu kayda göre doldur";
-      b.addEventListener("click", () => { bas.value = k.bas; bit.value = k.bit; nedenYaz(k.neden); });
+      b.addEventListener("click", () => {
+        bas.value = k.bas; bit.value = k.bit; nedenYaz(k.neden);
+        if (donunceye) { donunceye.checked = false; acikUc(); }
+      });
       kutu.appendChild(b);
     });
   }
+  // dönünceye kadar: bitiş tarihi kapanır
+  function acikUc() {
+    if (!donunceye) return;
+    bit.disabled = donunceye.checked;
+    if (donunceye.checked) bit.value = "";
+  }
+  if (donunceye) { donunceye.addEventListener("change", acikUc); acikUc(); }
   veren.addEventListener("change", () => guncelle(false));
   guncelle(true);
   // bitiş başlangıçtan önce olamaz

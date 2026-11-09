@@ -25,6 +25,8 @@ class VekaletFormu(forms.ModelForm):
     veren = PersonelSecimi(queryset=servis.personel_listesi(), label="Vekâlet veren (asıl)",
                            empty_label="Personel seçin…")
     vekil = PersonelSecimi(queryset=servis.personel_listesi(), label="Vekil", empty_label="Personel seçin…")
+    donunceye = forms.BooleanField(label="Dönünceye kadar", required=False,
+                                   help_text="Bitiş belli değilse: asıl görevine dönüp “döndü” denene dek sürer.")
 
     class Meta:
         model = Vekalet
@@ -44,7 +46,21 @@ class VekaletFormu(forms.ModelForm):
             self.fields["veren"].queryset = servis.personel_listesi().filter(pk__in=veren_idler)
         self.fields["vekil"].queryset = servis.personel_listesi()
         for ad, alan in self.fields.items():
+            if ad == "donunceye":
+                alan.widget.attrs.setdefault("class", "form-check-input")
+                continue
             alan.widget.attrs.setdefault("class", "form-select" if ad in ("veren", "vekil", "neden") else "form-control")
+        if self.instance.pk and self.instance.bitis is None:
+            self.initial["donunceye"] = True
+
+    def clean(self):
+        veri = super().clean()
+        if veri.get("donunceye"):
+            veri["bitis"] = None
+            self.instance.bitis = None
+        elif not veri.get("bitis") and "bitis" not in self.errors:
+            self.add_error("bitis", "Bitiş tarihini girin ya da “Dönünceye kadar”ı işaretleyin.")
+        return veri
 
 
 def _baglam(request, y, sekme, **ek):
