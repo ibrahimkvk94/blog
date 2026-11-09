@@ -39,6 +39,8 @@ W_ADJACENT = 4
 W_TEACHER_CLASH = 25
 W_UNROOMED = 100000
 W_ROOM = 30
+W_HALL = 400           # KAMYOSİS: bir oturumda bir salon açmak (ortak salon oturum başına bir kez) — açık ortak salon
+                       # (yemekhane) dolmadan yeni salon açılmasın
 W_SHORT = 100000
 W_OWN = 40
 W_MAX_LOAD = 30
@@ -563,7 +565,9 @@ def _greedy_rooms(p, timing):
             chosen, total = [], 0
             want = e.rooms_needed or 0
             # önce tek salonda sığdır, sığmazsa büyükten küçüğe doldur
-            single = sorted(((r, c) for r, c in free if c >= e.students), key=lambda rc: rc[1])
+            # KAMYOSİS: o oturumda açılmış ortak salon önce (dolsun), sonra en dar uyan salon
+            single = sorted(((r, c) for r, c in free if c >= e.students),
+                            key=lambda rc: (not (rc[0].shared and any(used.get((rc[0].id, t)) for t in slots)), rc[1]))
             if single and want <= 1:
                 chosen = [single[0]]
             else:
@@ -594,6 +598,7 @@ def _solve_rooms(p, timing, limit):
     y, ok, obj = {}, {}, []
     active = {}
     z, shared_use = {}, {}  # KAMYOSİS: ortak salonda sınavın oturanı; (salon, dilim) → oturanlar
+    shared_open = {}  # KAMYOSİS: (ortak salon, dilim) → o oturumda salonu kullanan sınavların y değişkenleri
     for eid, t0 in timing.items():
         e = by_id[eid]
         ok[eid] = m.NewBoolVar(f"ok{eid}")
@@ -611,8 +616,9 @@ def _solve_rooms(p, timing, limit):
                 obj.append(W_ROOM * y[eid, r.id] + z[eid, r.id])
                 for t in range(t0, t0 + e.duration):
                     shared_use.setdefault((r.id, t), []).append(z[eid, r.id])
+                    shared_open.setdefault((r.id, t), []).append(y[eid, r.id])
                 continue
-            obj.append((W_ROOM + r.capacity) * y[eid, r.id])
+            obj.append((W_ROOM + W_HALL + r.capacity) * y[eid, r.id])
             for t in range(t0, t0 + e.duration):
                 active.setdefault((r.id, t), []).append(y[eid, r.id])
         m.AddHint(ok[eid], int(eid in greedy))
@@ -631,6 +637,15 @@ def _solve_rooms(p, timing, limit):
             m.Add(sum(terms) <= 1)
     for (rid, _t), terms in shared_use.items():
         m.Add(sum(terms) <= caps[rid])
+    # KAMYOSİS: ortak salon oturum başına bir kez "açılır"; açık salonu doldurmak yeni salon açmaktan ucuz
+    greedy_open = {(rid, t) for eid, rids in greedy.items() for rid in rids
+                   for t in range(timing[eid], timing[eid] + by_id[eid].duration)}
+    for (rid, t), terms in shared_open.items():
+        u = m.NewBoolVar(f"u{rid}_{t}")
+        for v in terms:
+            m.Add(v <= u)
+        m.AddHint(u, int((rid, t) in greedy_open))
+        obj.append(W_HALL * u)
     m.Minimize(sum(obj))
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = max(1.0, limit)

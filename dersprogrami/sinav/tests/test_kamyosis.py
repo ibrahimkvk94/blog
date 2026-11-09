@@ -372,6 +372,18 @@ class OrtakSalonTests(TestCase):
         for _t, rows in r.placements.values():  # her sınavın öğrencisi tam oturdu
             self.assertEqual(sum(n for _rid, n, _g, _r in rows), 40)
 
+    def test_acik_ortak_salon_once_dolar(self):
+        """Üç yemekhane varken üç sınav (toplam 120 öğrenci) tek yemekhanede toplanır; diğerleri açılmaz."""
+        sinavlar = [exams_solver.PExam(i, f"S{i}", classes=(i,), students=40, fixed=0) for i in range(1, 4)]
+        p = exams_solver.Problem(
+            n_days=1, n_sessions=1, exams=sinavlar,
+            rooms=[exams_solver.PRoom(k, f"YMK{k}", 352, True) for k in (1, 2, 3)],
+            proctors=[], max_per_day=2, proctors_per_room=0, time_limit=10, workers=2)
+        r = exams_solver.solve(p)
+        self.assertEqual(r.status, "ok")
+        salonlar = {rid for _t, rows in r.placements.values() for rid, _n, _g, _r in rows}
+        self.assertEqual(len(salonlar), 1)
+
     def test_ortak_degilse_salon_basina_tek_sinav(self):
         r = exams_solver.solve(self._p(False))
         self.assertNotEqual(r.status, "ok")  # 3 sabit sınav, 2 salon: sığmaz

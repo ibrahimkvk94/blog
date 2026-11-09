@@ -645,6 +645,21 @@ def validate(period, only=None):
                 add("warn", f"{label}: aynı bölümün birden çok sınavı (mükerrer): {', '.join(dup)}.")
             if missing:
                 add("warn", f"{label}: sınavı olmayan bölüm (eksik): {', '.join(missing)}.")
+    if only is None and rows:  # KAMYOSİS: büyük salon ortak seçilmemişse oturum başına tek sınav alır, dolmaz
+        bos_kalan = defaultdict(int)
+        for pl in rows:
+            for r in pl.rooms.all():
+                cap = exam_capacity(r.classroom, period)
+                if r.classroom_id not in shared_ids and cap >= 100 and r.seats * 2 <= cap:
+                    bos_kalan[r.classroom] += 1
+        if bos_kalan:
+            add("warn", "Ortak salon olarak seçilmemiş büyük salonlar oturum başına tek sınav alıyor ve yarıdan az doluyor: "
+                        + ", ".join(f"{c} ({n} oturum)" for c, n in sorted(bos_kalan.items(), key=lambda x: str(x[0])))
+                        + ". Birden çok sınav birlikte otursun isteniyorsa dönem ayarlarında “Ortak salonlar”a ekleyip "
+                          "programı yeniden oluşturun.")
+        disarida = [str(r) for r in period.shared_rooms.all() if selected and r.pk not in selected]
+        if disarida:
+            add("warn", f"Ortak salon seçilmiş ama sınav salonları arasında değil, kullanılmıyor: {', '.join(disarida)}.")
     placed = {pl.exam_id for pl in rows}
     if only is None:
         for e in period.exams.filter(excluded=False).exclude(pk__in=placed).select_related("subject"):
