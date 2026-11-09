@@ -1,0 +1,15 @@
+<div class="sayfa-baslik">
+  <div class="d-flex align-items-center gap-3">
+    <span class="birim-ikon buyuk"><i class="bi bi-arrow-left-right"></i></span>
+    <div>
+      <h1>Vekâlet</h1>
+      <p class="text-secondary mb-0">Raporlu, izinli ya da görevli personelin görevini kime, hangi tarihe kadar bıraktığı.</p>
+    </div>
+  </div>
+</div>
+<ul class="nav nav-pills yk-sekmeler mb-3 d-print-none">
+  <li class="nav-item"><a class="nav-link {% if sekme == 'liste' %}active{% endif %}" href="{% url 'vekalet:liste' %}"><i class="bi bi-people me-1"></i>Vekâletler</a></li>
+  {% if y.duzenle %}
+  <li class="nav-item"><a class="nav-link {% if sekme == 'islemler' %}active{% endif %}" href="{% url 'vekalet:islemler' %}"><i class="bi bi-pencil-square me-1"></i>Vekâlet işlemleri</a></li>
+  {% endif %}
+</ul>

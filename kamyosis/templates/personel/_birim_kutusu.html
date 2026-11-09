@@ -1,6 +1,6 @@
-<a class="yk-birim-kutu pk-birim-kutu {% if not o.toplam %}bos{% elif o.eksik %}degisti{% else %}tamam{% endif %}" href="?birim={{ o.birim.pk }}{% if gorunum == 'tablo' %}&gorunum=tablo{% endif %}">
+{% load vekalet_etiketleri %}<a class="yk-birim-kutu pk-birim-kutu {% if not o.toplam %}bos{% elif o.eksik %}degisti{% else %}tamam{% endif %}" href="?birim={{ o.birim.pk }}{% if gorunum == 'tablo' %}&gorunum=tablo{% endif %}">
   <span class="ust"><span class="ad">{{ o.birim.ad }}</span><span class="pk-sayi">{% if o.toplam %}{{ o.toplam }}{% else %}{{ o.alt_toplam }}{% endif %}</span></span>
-  {% if o.sorumlu %}<span class="sayilar"><span><i class="bi bi-person-badge"></i>{{ o.sorumlu.ad_soyad }}</span></span>{% endif %}
+  {% if o.sorumlu %}<span class="sayilar"><span><i class="bi bi-person-badge"></i>{{ o.sorumlu.ad_soyad }}</span></span>{% vekil_notu o.sorumlu kisa=True %}{% endif %}
   {% if o.toplam %}
   <span class="sayilar">{% if o.fotosuz %}<span title="Fotoğrafsız"><i class="bi bi-camera"></i>{{ o.fotosuz }} fotoğrafsız</span>{% endif %}{% if o.eksik %}<span class="k" title="Kartı eksik">{{ o.eksik }} eksik kart</span>{% elif o.eksik is not None %}<span class="m">kartlar tam</span>{% endif %}</span>
   {% else %}<span class="durum">{{ o.alt_toplam }} kişi alt birimlerde</span>{% endif %}

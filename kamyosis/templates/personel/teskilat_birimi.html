@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load yoklama_etiketleri %}
+{% load vekalet_etiketleri %}
 {% block title %}{{ b.ad }} · Teşkilat{% endblock %}
 {% block breadcrumb_ek %}<li class="breadcrumb-item"><a href="{% url 'personel:teskilat' %}">Teşkilat şeması</a></li>{% for z in zincir %}<li class="breadcrumb-item"><a href="{% url 'personel:teskilat_birimi' z.pk %}">{{ z.ad }}</a></li>{% endfor %}<li class="breadcrumb-item active" aria-current="page">{{ b.ad }}</li>{% endblock %}
 {% block content %}
@@ -25,7 +26,7 @@
       <ul class="list-unstyled mb-0">
         {% for p in kisiler %}
         <li class="d-flex flex-wrap align-items-center gap-2 px-3 py-2 border-bottom">
-          <a class="yk-kisi me-auto" href="{% url 'personel:detay' p.pk %}">{% include "personel/_foto.html" with p=p %}<span class="min-w-0"><span class="ad d-block text-truncate">{{ p.ad_soyad }}{% if p.bolum and p.bolum.baskan_id == p.pk %} <span class="durum-rozet durum-kullanimda">Bölüm başkanı</span>{% endif %}{% if p.idari_kadro %} <span class="durum-rozet durum-sirada">İdari kadro</span>{% endif %}</span><span class="kunye d-block text-truncate">{{ p.kunye|default:"&nbsp;" }}{% if p.kadro_gorevi %} · {{ p.kadro_gorevi }}{% endif %}</span></span></a>
+          <a class="yk-kisi me-auto" href="{% url 'personel:detay' p.pk %}">{% include "personel/_foto.html" with p=p %}<span class="min-w-0"><span class="ad d-block text-truncate">{{ p.ad_soyad }}{% if p.bolum and p.bolum.baskan_id == p.pk %} <span class="durum-rozet durum-kullanimda">Bölüm başkanı</span>{% endif %}{% if p.idari_kadro %} <span class="durum-rozet durum-sirada">İdari kadro</span>{% endif %}</span><span class="kunye d-block text-truncate">{{ p.kunye|default:"&nbsp;" }}{% if p.kadro_gorevi %} · {{ p.kadro_gorevi }}{% endif %}</span>{% vekil_notu p %}</span></a>
           {% if yonetici %}
           <form method="post" class="d-flex flex-wrap align-items-center gap-2">
             {% csrf_token %}<input type="hidden" name="islem" value="gorev"><input type="hidden" name="pk" value="{{ p.pk }}">

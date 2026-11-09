@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Vekâlet işlemleri{% endblock %}
+{% block content %}
+{% include "vekalet/_sekmeler.html" %}
+
+{% if eksikler %}
+<div class="kart vk-eksik mb-3" id="vkEksik">
+  <div class="yardim-satiri"><i class="bi bi-person-exclamation"></i> <strong>Vekâleti girilmemiş yöneticiler</strong> · önümüzdeki 7 günde personel yoklamasında tam gün izinli / raporlu / görevli görünüyorlar</div>
+  <ul class="list-unstyled mb-0">
+    {% for e in eksikler %}
+    <li class="vk-eksik-satir">
+      <span><b>{{ e.personel.ad_soyad }}</b> <small class="text-secondary">{{ e.gorev|default:e.personel.kunye }}</small></span>
+      <span class="small"><span class="durum-rozet durum-sirada">{{ e.tur }}</span> {{ e.bas|date:"d.m" }}{% if e.bit != e.bas %} – {{ e.bit|date:"d.m.Y" }}{% else %}{{ e.bas|date:".Y" }}{% endif %}</span>
+      <a class="btn btn-sm btn-outline-primary ms-auto" href="?veren={{ e.personel.pk }}&bas={{ e.bas|date:'Y-m-d' }}&bit={{ e.bit|date:'Y-m-d' }}&neden={{ e.neden }}#vkForm"><i class="bi bi-plus-lg me-1"></i>Vekâlet gir</a>
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<form method="post" action="{% if nesne %}{% url 'vekalet:duzenle' nesne.pk %}{% else %}{% url 'vekalet:islemler' %}{% endif %}" class="kart vk-form mb-4" id="vkForm" novalidate>
+  {% csrf_token %}
+  <div class="yardim-satiri d-flex align-items-center gap-2">
+    <i class="bi {% if nesne %}bi-pencil{% else %}bi-plus-circle{% endif %}"></i>
+    <strong>{% if nesne %}Vekâleti düzenle{% else %}Yeni vekâlet{% endif %}</strong>
+    {% if nesne %}<a href="{% url 'vekalet:islemler' %}" class="ms-auto small">Vazgeç, yeni kayıt</a>{% endif %}
+  </div>
+  <div class="p-3">
+    {% if form.non_field_errors %}<div class="alert alert-danger py-2">{% for e in form.non_field_errors %}<div><i class="bi bi-x-octagon me-1"></i>{{ e }}</div>{% endfor %}</div>{% endif %}
+    {% if uyarilar %}
+    <div class="alert alert-warning py-2">
+      <div class="fw-semibold mb-1"><i class="bi bi-exclamation-triangle me-1"></i>Kaydetmeden önce kontrol edin:</div>
+      <ul class="mb-2 ps-3">{% for u in uyarilar %}<li>{{ u }}</li>{% endfor %}</ul>
+      <button class="btn btn-sm btn-warning" name="onay" value="1"><i class="bi bi-check2 me-1"></i>Yine de kaydet</button>
+    </div>
+    {% endif %}
+    <div class="row g-3">
+      <div class="col-12 col-lg-6">
+        <label class="form-label" for="{{ form.veren.id_for_label }}">{{ form.veren.label }}</label>
+        {{ form.veren }}
+        {% for e in form.veren.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+        <div class="vk-izinler" id="vkIzinler" hidden><span class="small text-secondary">Personel yoklamasında:</span></div>
+      </div>
+      <div class="col-12 col-lg-6">
+        <label class="form-label" for="{{ form.gorev.id_for_label }}">{{ form.gorev.label }}</label>
+        {{ form.gorev }}
+        <div class="form-text">Bölüm başkanı ya da kartında görev unvanı olan personel seçilince kendiliğinden yazılır.</div>
+        {% for e in form.gorev.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-12 col-lg-5">
+        <label class="form-label" for="{{ form.vekil.id_for_label }}">{{ form.vekil.label }}</label>
+        {{ form.vekil }}
+        {% for e in form.vekil.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-12 col-sm-4 col-lg-3">
+        <label class="form-label" for="{{ form.neden.id_for_label }}">{{ form.neden.label }}</label>
+        {{ form.neden }}
+      </div>
+      <div class="col-6 col-sm-4 col-lg-2">
+        <label class="form-label" for="{{ form.baslangic.id_for_label }}">{{ form.baslangic.label }}</label>
+        {{ form.baslangic }}
+        {% for e in form.baslangic.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-6 col-sm-4 col-lg-2">
+        <label class="form-label" for="{{ form.bitis.id_for_label }}">{{ form.bitis.label }}</label>
+        {{ form.bitis }}
+        {% for e in form.bitis.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+      </div>
+      <div class="col-12 col-lg-9">
+        <label class="form-label" for="{{ form.aciklama.id_for_label }}">{{ form.aciklama.label }}</label>
+        {{ form.aciklama }}
+      </div>
+      <div class="col-12 col-lg-3 d-flex align-items-end">
+        <button class="btn btn-primary w-100"><i class="bi bi-check2 me-1"></i>{% if nesne %}Değişikliği kaydet{% else %}Vekâleti kaydet{% endif %}</button>
+      </div>
+    </div>
+  </div>
+</form>
+<datalist id="vkGorevler">{% for g in gorev_listesi %}<option value="{{ g }}">{% endfor %}</datalist>
+
+<div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+  <a href="?" class="nd-sayac {% if not durum %}secili{% endif %}"><span class="nd-sayi">{{ toplam }}</span>Tümü</a>
+  {% for k, ad in durumlar.items %}
+  <a href="?durum={{ k }}" class="nd-sayac {% if durum == k %}secili{% endif %}"><span class="nd-sayi">{% for kk, n in sayilar.items %}{% if kk == k %}{{ n }}{% endif %}{% endfor %}</span>{{ ad }}</a>
+  {% endfor %}
+  <input type="search" class="form-control ms-auto vk-ara" placeholder="Kayıtlarda ara…" aria-label="Kayıtlarda ara" data-anlik-ara="#vkTablo">
+</div>
+<div class="kart">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0" id="vkTablo">
+      <thead><tr><th>Asıl → Vekil</th><th>Görev</th><th>Tarih</th><th class="d-none d-lg-table-cell">Neden</th><th>Durum</th><th class="text-end">İşlem</th></tr></thead>
+      <tbody>
+      {% for v in kayitlar %}
+        <tr{% if nesne and nesne.pk == v.pk %} class="table-active"{% endif %}>
+          <td><b>{{ v.veren.ad_soyad }}</b> <i class="bi bi-arrow-right text-secondary mx-1"></i> {{ v.vekil.ad_soyad }}
+            {% if v.aciklama %}<div class="small text-secondary text-truncate" style="max-width: 28rem">{{ v.aciklama }}</div>{% endif %}</td>
+          <td class="small">{{ v.gorev }}</td>
+          <td class="small text-nowrap">{{ v.aralik_metni }}<div class="text-secondary">{{ v.gun_sayisi }} gün</div></td>
+          <td class="small d-none d-lg-table-cell">{{ v.get_neden_display }}</td>
+          <td><span class="durum-rozet {% if v.durum == 'yururlukte' %}durum-kullanimda{% elif v.durum == 'baslayacak' %}vk-d-baslayacak{% elif v.durum == 'sonlandirildi' %}durum-sirada{% else %}durum-planlandi{% endif %}">{{ v.durum_adi }}</span></td>
+          <td class="text-end text-nowrap">
+            <a class="btn btn-sm btn-outline-secondary" href="{% url 'vekalet:duzenle' v.pk %}" title="Düzenle"><i class="bi bi-pencil"></i></a>
+            {% if v.durum == 'yururlukte' or v.durum == 'sonlandirildi' %}
+            <form method="post" action="{% url 'vekalet:sonlandir' v.pk %}" class="d-inline" onsubmit="return confirm('{% if v.sonlandirma %}Erken sonlandırma geri alınsın mı?{% else %}Vekâlet bugün itibarıyla sonlandırılsın mı? (Asıl görevine döndü){% endif %}')">
+              {% csrf_token %}<button class="btn btn-sm btn-outline-warning" title="{% if v.sonlandirma %}Sonlandırmayı geri al{% else %}Erken sonlandır{% endif %}"><i class="bi {% if v.sonlandirma %}bi-arrow-counterclockwise{% else %}bi-stop-circle{% endif %}"></i></button>
+            </form>
+            {% endif %}
+            <form method="post" action="{% url 'vekalet:sil' v.pk %}" class="d-inline" onsubmit="return confirm('Bu vekâlet kaydı silinsin mi? Geri alınamaz.')">
+              {% csrf_token %}<button class="btn btn-sm btn-outline-danger" title="Sil"><i class="bi bi-trash"></i></button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr data-anlik-haric><td colspan="6" class="text-center text-secondary py-5">Henüz vekâlet kaydı yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{{ gorevler|json_script:"vkGorevJson" }}
+{{ izinler|json_script:"vkIzinJson" }}
+<script src="{% static 'js/vekalet.js' %}?v=1" defer></script>
+{% endblock %}

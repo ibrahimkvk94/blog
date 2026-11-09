@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load yoklama_etiketleri %}
+{% load vekalet_etiketleri %}
 {% block title %}Personel kartları{% endblock %}
 {% block content %}
 <div class="sayfa-baslik">
@@ -75,7 +76,7 @@
     </nav>
     <div class="pk-ozet mb-3">
       <span><i class="bi bi-people-fill"></i>{{ toplam }} personel</span>
-      {% if sorumlu %}<a href="{% url 'personel:detay' sorumlu.pk %}"><i class="bi bi-person-badge"></i>{% if birim.bolum_id %}Bölüm başkanı{% else %}{{ sorumlu.gorev_unvani|default:"Sorumlu" }}{% endif %}: {{ sorumlu.tam_ad }}</a>{% endif %}
+      {% if sorumlu %}<a href="{% url 'personel:detay' sorumlu.pk %}"><i class="bi bi-person-badge"></i>{% if birim.bolum_id %}Bölüm başkanı{% else %}{{ sorumlu.gorev_unvani|default:"Sorumlu" }}{% endif %}: {{ sorumlu.tam_ad }}</a>{% vekil_notu sorumlu %}{% endif %}
       <span><i class="bi bi-camera"></i>{{ fotosuz }} fotoğrafsız</span>
       {% if eksik_sayi is not None %}<a href="?birim={{ birim.pk }}&eksik=1"><i class="bi bi-exclamation-circle"></i>{{ eksik_sayi }} kartı eksik</a>{% endif %}
     </div>

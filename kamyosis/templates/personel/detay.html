@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% load personel_etiketleri yoklama_etiketleri %}
+{% load vekalet_etiketleri %}
 {% block title %}{{ p.ad_soyad }} · Personel kartı{% endblock %}
 {% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">{{ p.ad_soyad }}</li>{% endblock %}
 {% block content %}
@@ -30,6 +31,7 @@
         {% if not p.aktif %}<span class="badge text-bg-secondary">Pasif</span>{% endif %}
       </div>
       <div class="kunye">{{ p.kunye|default:"" }}{% if p.kadro_gorevi %} · {{ p.kadro_gorevi }}{% endif %}</div>
+      <div class="vk-notlar">{% vekil_notu p %}</div>
       {% if teskilat_yeri %}<div class="small mt-1" style="color:#c9d4e2"><i class="bi bi-diagram-3 me-1"></i>{% for b in teskilat_yeri %}{% if not forloop.first %} › {% endif %}<a class="text-reset" href="{% url 'personel:teskilat_birimi' b.pk %}">{{ b.ad }}</a>{% endfor %}</div>{% endif %}
       <dl>
         <div><dt>Bölüm</dt><dd>{{ p.bolum|default:"–" }}</dd></div>

@@ -328,3 +328,15 @@
 [data-bs-theme="dark"] .mz-tablo .mz-aciklama-bas { border-left: 2px solid #333a42; }
 [data-bs-theme="dark"] .mz-tablo .mz-aciklama { border-left: 2px solid #333a42; }
 [data-bs-theme="dark"] .mz-tablo tbody tr:hover th, [data-bs-theme="dark"] .mz-tablo tbody tr:hover td { background: #171c21; }
+[data-bs-theme="dark"] .vk-baslik { color: #c2ccdb; }
+[data-bs-theme="dark"] .vk-kart { background: #111922; }
+[data-bs-theme="dark"] .vk-rozet { background: #163220; color: #b8ebcb; }
+[data-bs-theme="dark"] .vk-rozet.vk-son { background: #3b3417; color: #e7c2ac; }
+[data-bs-theme="dark"] .vk-rozet.vk-bekliyor { background: #142233; color: #9cace2; }
+[data-bs-theme="dark"] .vk-kisi small { color: #a0abbb; }
+[data-bs-theme="dark"] .vk-alt { color: #a0abbb; }
+[data-bs-theme="dark"] .vk-izin-cip { border: 1px solid #322859; background: #14102a; }
+[data-bs-theme="dark"] .vk-izin-cip:hover { background: #18132d; }
+[data-bs-theme="dark"] .durum-rozet.vk-d-baslayacak { background: #142233; color: #9cace2; }
+[data-bs-theme="dark"] .vk-not { background: #3b3417; color: #e7c2ac; }
+[data-bs-theme="dark"] .vk-not-vekil { background: #131a31; color: #9e9ae1; border-color: #252f55; }
