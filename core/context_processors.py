@@ -1,16 +1,20 @@
 from django.conf import settings
 
-from .kisayollar import bolum_hesabi_mi, kisayollar
+from .kisayollar import acik_sayfalar, bolum_hesabi_mi, kisayollar, menuden_ayikla, yildizli_idler
 from .yetki import menu_agaci
 
 
 def navigation(request):
     ctx = {"kurum_adi": settings.KURUM_ADI, "sistem_adi": settings.SISTEM_ADI}
     if request.user.is_authenticated and not request.path.startswith("/yonetim/"):
-        # bölüm hesabının menüsünde yalnızca kısayollar var: birim ağacı ve organizasyon şeması gizli
+        # herkes yetkili olduğu birim ağacını görür (bölüme kapatılan sayfalar hariç); kısayollar = yıldızlananlar
         ctx["bolum_hesabi"] = bolum_hesabi_mi(request.user)
-        ctx["menu"] = [] if ctx["bolum_hesabi"] else menu_agaci(request)
+        ctx["menu"] = menuden_ayikla(request.user, menu_agaci(request))
         ctx["kisayollar"] = kisayollar(request)
+        ctx["yildizli"] = set(yildizli_idler(request))
+        ctx["acik_sayfalar"] = acik_sayfalar(request)
+        for b in ctx["acik_sayfalar"]:
+            b.secili = getattr(getattr(request, "birim", None), "pk", None) == b.pk
         from isler.servis import sahibi_mi
 
         ctx["is_listesi_sahibi"] = sahibi_mi(request.user)

@@ -16,4 +16,5 @@ urlpatterns = [
     path("kullanicilar/gecmis/", kv.kullanici_gecmisi, name="kullanici_gecmisi"),
     path("kullanicilar/<int:pk>/", kv.kullanici, name="kullanici"),
     path("birim/<slug:slug>/", views.birim, name="birim"),
+    path("kisayol/<int:pk>/", views.kisayol_degistir, name="kisayol_degistir"),
 ]

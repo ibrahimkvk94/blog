@@ -1,16 +1,18 @@
-"""Menüdeki kısayollar.
+"""Menüdeki kısayollar ve bölümlere kapatılan sayfalar.
 
-Kısayol, kullanıcının ilgili birimde görüntüleme yetkisi varsa görünür. Bölüm hesaplarının menüsünde yalnızca
-kısayollar bulunur (birim ağacı ve organizasyon şeması gizlidir); hangi kısayolu göreceklerini sistem yöneticisi
-bölüm bölüm seçer ("Bölüm kısayolları", BolumMenusu). Kapatılan kısayolun sayfaları o bölüme kapanır
+Kısayollar (09.11.2026): kullanıcı menüde bir sayfanın yanındaki yıldıza tıklayarak onu kısayollarına ekler
+(Kisayol); menünün "Kısayollar" bölümünde ve ana sayfadaki "Sık kullanılanlar"da yalnız bunlar görünür. Yetkisi
+kalkan ya da bölümüne kapatılan sayfanın yıldızı gösterilmez.
+
+Bölüme kapatılan sayfalar: sistem yöneticisi bölüm bölüm bazı sayfaları kapatabilir ("Bölüm kısayolları",
+BolumMenusu; aşağıdaki KISAYOLLAR kodları). Kapatılan sayfa o bölümün menüsünde görünmez ve açılamaz
 (BolumKisayolMiddleware: menü, ana sayfa kartı ya da adres yazarak erişilemez).
 """
 
-from django.http import Http404
-from django.urls import reverse
+from django.urls import resolve
 
-from .models import BolumMenusu, Yetki
-from .yetki import GORUNTULEME, birim_bul, etkin_yetki
+from .models import BolumMenusu, Kisayol, Yetki
+from .yetki import HERKESE_ACIK, agac, gorunur_mu
 
 # (kod, adres adı, etiket, ikon, yetkinin bakıldığı birim)
 KISAYOLLAR = [
@@ -39,15 +41,12 @@ ADRESLER = {
     "personel-yoklamasi": [("yoklama", None)],
     "salon-durumu": [("salon", None)],
 }
-# Bölüm hesapları dışındaki kullanıcıların menüsünde de bulunan kısayollar (eski düzen)
-GENEL = {"ders-takibi", "haftalik-program", "devir-talepleri", "ders-mazeretleri", "sinav-mazeretleri", "personel",
-         "personel-yoklamasi", "salon-durumu"}
 
 
 def bolum_hesabi_mi(user):
     """Bölüm ya da birim hesabı: sistem yöneticisi değil, bir bölüme ya da teşkilat birimine (şube müdürlüğü, kısım)
-    bağlı ve "tüm bölümler" kapsamlı yetkisi yok. Menüsünde yalnız kısayollar bulunur. (Bölüm yetkileri sayfasındaki
-    bolum_yetkileri.bolum_hesaplari yalnız bölüme bağlı olanları alır.)"""
+    bağlı ve "tüm bölümler" kapsamlı yetkisi yok. Ana sayfasında "Tüm birimler" kartı yoktur. (Bölüm yetkileri
+    sayfasındaki bolum_yetkileri.bolum_hesaplari yalnız bölüme bağlı olanları alır.)"""
     if not user.is_authenticated or user.is_superuser or (user.bolum_id is None and user.teskilat_birimi_id is None):
         return False
     if not hasattr(user, "_tum_kapsam"):
@@ -81,22 +80,65 @@ def kapali_mi(user, eslesme):
     return kod is not None and kod in gizli_kodlar(user)
 
 
-def _gorur(request, slug):
-    if slug is None:  # herkese açık kısayol
-        return True
+def birim_kapali_mi(user, birim):
+    """Birimin sayfası bu bölüme kapatılmış mı (BolumMenusu)."""
+    gizli = gizli_kodlar(user)
+    if not gizli or not birim.modul_url:
+        return False
     try:
-        return etkin_yetki(request, birim_bul(request, slug))[0] >= GORUNTULEME
-    except Http404:
+        return adres_kodu(resolve(birim.get_absolute_url())) in gizli
+    except Exception:  # adres çözülemezse kapatma kuralı uygulanmaz
         return False
 
 
-def kisayollar(request):
-    """[{"url", "ad", "ikon", "ad_kodu", "kod"}] — kullanıcının menüsündeki kısayollar."""
-    bolum = bolum_hesabi_mi(request.user)
-    gizli = gizli_kodlar(request.user)
+def menuden_ayikla(user, dugumler):
+    """Bölüme kapatılmış sayfaları menü ağacından çıkarır (alt dalı boşalan başlık da gider)."""
+    if not gizli_kodlar(user):
+        return dugumler
     out = []
-    for kod, ad_kodu, etiket, ikon, slug in KISAYOLLAR:
-        if (not bolum and kod not in GENEL) or kod in gizli or not _gorur(request, slug):
+    for d in dugumler:
+        if d.menu_cocuklar:
+            d.menu_cocuklar = menuden_ayikla(user, d.menu_cocuklar)
+            if d.menu_cocuklar:
+                out.append(d)
+        elif not birim_kapali_mi(user, d):
+            out.append(d)
+    return out
+
+
+def yildizli_idler(request):
+    """Kullanıcının yıldızladığı birimlerin kimlikleri (istek başına bir kez okunur)."""
+    if not hasattr(request, "_yildizli"):
+        request._yildizli = (list(Kisayol.objects.filter(kullanici=request.user).values_list("birim_id", flat=True))
+                             if request.user.is_authenticated else [])
+    return request._yildizli
+
+
+def yildizlanabilir_mi(request, birim):
+    """Yıldız yalnız sayfası olan (alt birimi olmayan) ve kullanıcının açabildiği birimlere konur."""
+    if birim.cocuklar or birim_kapali_mi(request.user, birim):
+        return False
+    acik = birim.slug in HERKESE_ACIK and birim.durum == birim.KULLANIMDA and request.user.is_authenticated
+    return acik or gorunur_mu(request, birim)
+
+
+def acik_sayfalar(request):
+    """Herkese açık olup ağaçta görünmeyen sayfalar (menünün başında sabit durur)."""
+    by_id, _ = agac(request)
+    out = []
+    for b in by_id.values():
+        if b.slug in HERKESE_ACIK and not gorunur_mu(request, b) and yildizlanabilir_mi(request, b):
+            out.append(b)
+    return out
+
+
+def kisayollar(request):
+    """[{"url", "ad", "ikon", "birim"}] — kullanıcının yıldızladığı ve hâlâ açabildiği sayfalar (eklediği sırayla)."""
+    by_id, _ = agac(request)
+    out = []
+    for bid in yildizli_idler(request):
+        b = by_id.get(bid)
+        if b is None or not yildizlanabilir_mi(request, b):
             continue
-        out.append({"url": reverse(ad_kodu), "ad": etiket, "ikon": ikon, "ad_kodu": ad_kodu, "kod": kod})
+        out.append({"url": b.get_absolute_url(), "ad": b.ad, "ikon": b.ikon, "birim": b})
     return out

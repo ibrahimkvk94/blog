@@ -492,6 +492,22 @@ a.yk-kisi:hover .ad { color: #2f5d8a; text-decoration: underline; }
   html.kenar-dar .kenar.gezinti .nav-link span { display: block !important; }
   html.kenar-dar .kenar.gezinti .marka > span:not(.marka-ikon) { display: block !important; }
 }
+/* Menü yıldızları: sayfayı kısayollara ekle / çıkar (core.Kisayol) */
+.kenar-menu li.menu-oge { position: relative; }
+.kenar-menu li.menu-oge > .nav-link { padding-right: 2rem; }
+.menu-yildiz { position: absolute; right: .3rem; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 28px; height: 28px;
+  padding: 0; border: 0; border-radius: 6px; background: none; color: #a9b8cc; font-size: .85rem; opacity: 0; transition: opacity .12s; }
+.kenar-menu li.menu-oge:hover > .menu-yildiz, .menu-yildiz:focus-visible { opacity: 1; }
+.menu-yildiz:hover { color: var(--km-vurgu); background: rgba(255,255,255,.08); }
+.menu-yildiz.dolu { color: var(--km-vurgu); }
+#kisayolBolumu ~ ul .menu-yildiz.dolu { opacity: .6; }
+.menu-yildiz.bekliyor { pointer-events: none; opacity: .4 !important; }
+@media (hover: none) { .menu-yildiz { opacity: .55; } }
+.menu-ipucu { font-size: .75rem; color: #a9b8cc; padding: .1rem .75rem .3rem; margin: 0; line-height: 1.35; }
+@media (min-width: 992px) {
+  html.kenar-dar .kenar:not(.gezinti) .menu-yildiz, html.kenar-dar .kenar:not(.gezinti) .menu-ipucu { display: none; }
+  html.kenar-dar .kenar.gezinti li.menu-oge > .nav-link { padding-right: 2rem; }
+}
 /* tema düğmesi */
 .tema-dugme { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; padding: 0; flex-shrink: 0; }
 [data-bs-theme="dark"] .tema-ay, [data-bs-theme="light"] .tema-gunes { display: none; }

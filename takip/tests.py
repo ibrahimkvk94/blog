@@ -165,7 +165,8 @@ class AyriYetkiTestleri(TestCase):
                              kapsam=Yetki.TUM)
         self.client.force_login(u)
         r = self.client.get(reverse("core:panel"))
-        self.assertContains(r, reverse("program:tablo"))
+        self.assertContains(r, reverse("program:ana"))  # Ders Planları (haftalık program oradan açılır)
+        self.assertIn(self.client.get(reverse("program:tablo")).status_code, (200, 302))  # program yoksa Ders Planları'na
         self.assertNotContains(r, reverse("takip:gunluk"))
         self.assertNotContains(r, reverse("takip:devirler"))
         self.assertEqual(self.client.get(reverse("takip:gunluk")).status_code, 403)

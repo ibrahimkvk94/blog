@@ -129,7 +129,7 @@ class DersMazeretiTestleri(TestCase):
         self.client.force_login(self.bilci)
         r = self.client.get(reverse("core:panel"))
         self.assertContains(r, "Ders mazereti bildirilmemiş personel")
-        self.assertContains(r, "Ders mazeretleri")  # menü kısayolu
+        self.assertContains(r, reverse("mazeret:ders"))  # menüde
         servis.toplu_mazeretsiz(self.bilci, yetki(self.bilci), self.donem, [self.ayse, self.ali])
         self.assertNotContains(self.client.get(reverse("core:panel")), "Ders mazereti bildirilmemiş personel")
 
@@ -208,7 +208,7 @@ class SinavMazeretiTestleri(TestCase):
         self.client.force_login(self.bilci)
         r = self.client.get(reverse("core:panel"))
         self.assertContains(r, "Sınav mazereti bildirilmemiş personel")
-        self.assertContains(r, "Sınav mazeretleri")
+        self.assertContains(r, reverse("mazeret:sinav"))  # menüde
 
 
 class TopluTabloTestleri(SinavMazeretiTestleri):

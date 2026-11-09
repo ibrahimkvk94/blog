@@ -1,5 +1,5 @@
 {% for d in dugumler %}
-<li>
+<li{% if not d.menu_cocuklar %} class="menu-oge"{% endif %}>
   {% if d.menu_cocuklar %}
     <a class="nav-link {% if not d.acik %}collapsed{% endif %}" data-bs-toggle="collapse" href="#m-{{ d.slug }}" role="button" aria-expanded="{{ d.acik|yesno:'true,false' }}" aria-controls="m-{{ d.slug }}">
       <i class="bi bi-{{ d.ikon }}"></i><span>{{ d.ad }}</span><i class="bi bi-chevron-down ok"></i>
@@ -12,6 +12,7 @@
       <i class="bi bi-{{ d.ikon }}"></i><span>{{ d.ad }}</span>
       {% if d.durum != 'kullanimda' %}<span class="durum-nokta" title="{{ d.get_durum_display }}"></span>{% endif %}
     </a>
+    <button type="button" class="menu-yildiz{% if d.pk in yildizli %} dolu{% endif %}" data-birim="{{ d.pk }}" title="{% if d.pk in yildizli %}Kısayollardan çıkar{% else %}Kısayollara ekle{% endif %}" aria-label="{{ d.ad }}: {% if d.pk in yildizli %}kısayollardan çıkar{% else %}kısayollara ekle{% endif %}" aria-pressed="{% if d.pk in yildizli %}true{% else %}false{% endif %}"><i class="bi {% if d.pk in yildizli %}bi-star-fill{% else %}bi-star{% endif %}"></i></button>
   {% endif %}
 </li>
 {% endfor %}

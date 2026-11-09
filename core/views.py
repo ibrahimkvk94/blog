@@ -5,6 +5,7 @@ from django.http import Http404
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from personel.models import Bolum, Personel
 
@@ -212,3 +213,29 @@ def bolum_kisayollari(request):
                 for b, us in sorted(bolumler.items(), key=lambda kv: kv[0].ad)]
     return render(request, "core/bolum_kisayollari.html", {
         "kisayol_listesi": [{"kod": k[0], "ad": k[2], "ikon": k[3]} for k in KISAYOLLAR], "satirlar": satirlar})
+
+
+@require_POST
+@login_required
+def kisayol_degistir(request, pk):
+    """Menüdeki yıldız: sayfayı kullanıcının kısayollarına ekler ya da çıkarır. Dönüş: yeni durum ve menünün
+    Kısayollar bölümü (sayfa yenilenmeden güncellenir)."""
+    from django.db.models import Max
+    from django.http import JsonResponse
+    from django.template.loader import render_to_string
+
+    from .kisayollar import kisayollar, yildizlanabilir_mi
+    from .models import Kisayol
+    from .yetki import agac
+
+    by_id, _ = agac(request)
+    b = by_id.get(pk)
+    if b is None or not yildizlanabilir_mi(request, b):
+        raise Http404
+    silinen, _ = Kisayol.objects.filter(kullanici=request.user, birim_id=pk).delete()
+    if not silinen:
+        son = Kisayol.objects.filter(kullanici=request.user).aggregate(m=Max("sira"))["m"] or 0
+        Kisayol.objects.create(kullanici=request.user, birim_id=pk, sira=son + 1)
+    request.__dict__.pop("_yildizli", None)
+    html = render_to_string("partials/kisayol_listesi.html", {"kisayollar": kisayollar(request)}, request=request)
+    return JsonResponse({"yildizli": not silinen, "html": html})
