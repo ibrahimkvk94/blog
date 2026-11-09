@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load vekalet_etiketleri %}
 {% block title %}Teşkilat şeması · Personel kartları{% endblock %}
 {% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Teşkilat şeması</li>{% endblock %}
 {% block content %}
@@ -19,7 +20,7 @@
   <div class="tk-kok-satir">
     <a class="tk-kutu tk-mudurluk" href="{% url 'personel:teskilat_birimi' kok.pk %}">
       <span class="tk-ad">{{ kok.ad }}</span>
-      {% if kok.sorumlu %}<span class="tk-sorumlu">{{ kok.sorumlu.tam_ad }}</span>{% endif %}
+      {% if kok.sorumlu %}<span class="tk-sorumlu">{{ kok.sorumlu.tam_ad }}</span>{% vekil_notu kok.sorumlu %}{% endif %}
     </a>
   </div>
   {% if kok.yardimcilar %}
@@ -28,7 +29,7 @@
     {% for y in kok.yardimcilar %}
     <a class="tk-kutu tk-yardimci" href="{% url 'personel:teskilat_birimi' y.pk %}">
       <span class="tk-ad">{{ y.ad }}</span>
-      <span class="tk-sorumlu">{% if y.sorumlu %}{{ y.sorumlu.tam_ad }}{% else %}atanmadı{% endif %}</span>
+      <span class="tk-sorumlu">{% if y.sorumlu %}{{ y.sorumlu.tam_ad }}{% else %}atanmadı{% endif %}</span>{% vekil_notu y.sorumlu %}
     </a>
     {% endfor %}
   </div>
@@ -40,14 +41,14 @@
     <div class="tk-kol {% if kol.tur == 'baskanliklar' %}tk-kol-genis{% endif %}">
       <a class="tk-kutu tk-kol-bas" href="{% url 'personel:teskilat_birimi' kol.pk %}">
         <span class="tk-ad">{{ kol.ad }}</span>
-        {% if kol.sorumlu %}<span class="tk-sorumlu">{{ kol.sorumlu.tam_ad }}</span>{% endif %}
+        {% if kol.sorumlu %}<span class="tk-sorumlu">{{ kol.sorumlu.tam_ad }}</span>{% vekil_notu kol.sorumlu %}{% endif %}
       </a>
       {% if kol.tur == 'baskanliklar' %}
         <div class="tk-bolumler">
           {% for c in kol.cocuklar %}
           <a class="tk-bolum" href="{% url 'personel:teskilat_birimi' c.pk %}">
             <span class="tk-ad">{{ c.ad }}</span>
-            <span class="tk-alt"><i class="bi bi-person-badge me-1"></i>{% if c.sorumlu %}{{ c.sorumlu.ad_soyad }}{% else %}başkan seçilmedi{% endif %}</span>
+            <span class="tk-alt"><i class="bi bi-person-badge me-1"></i>{% if c.sorumlu %}{{ c.sorumlu.ad_soyad }}{% else %}başkan seçilmedi{% endif %}</span>{% vekil_notu c.sorumlu kisa=True %}
             <span class="tk-sayi">{{ c.sayi }}</span>
           </a>
           {% endfor %}
@@ -59,7 +60,7 @@
             <span class="tk-ad">{{ c.ad }}</span>
             <span class="tk-sayi">{{ c.sayi }}</span>
           </a>
-          {% if c.sorumlu %}<div class="tk-alt px-2"><i class="bi bi-person-badge me-1"></i>{{ c.sorumlu.tam_ad }}</div>{% endif %}
+          {% if c.sorumlu %}<div class="tk-alt px-2"><i class="bi bi-person-badge me-1"></i>{{ c.sorumlu.tam_ad }}</div><div class="px-2">{% vekil_notu c.sorumlu %}</div>{% endif %}
           {% if c.cocuklar %}
           <div class="tk-kisimlar">
             {% for k in c.cocuklar %}<a class="tk-kisim" href="{% url 'personel:teskilat_birimi' k.pk %}">{{ k.ad }}{% if k.sayi %} <span class="tk-sayi">{{ k.sayi }}</span>{% endif %}</a>{% endfor %}

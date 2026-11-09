@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Vekâletler{% endblock %}
+{% block content %}
+{% include "vekalet/_sekmeler.html" %}
+
+<div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+  <span class="nd-sayac"><i class="bi bi-check-circle-fill text-success"></i><span class="nd-sayi">{{ yururlukte|length }}</span> yürürlükte</span>
+  <span class="nd-sayac"><i class="bi bi-hourglass-split text-primary"></i><span class="nd-sayi">{{ baslayacak|length }}</span> başlayacak</span>
+  <input type="search" class="form-control ms-auto vk-ara" placeholder="Ad, görev ya da bölüm ara…" aria-label="Vekâletlerde ara" data-anlik-ara="#vkListe" data-anlik-oge=".vk-kart, tbody tr">
+</div>
+
+<div id="vkListe">
+<h2 class="vk-baslik"><i class="bi bi-check-circle"></i> Yürürlükte <small>{{ bugun|date:"d.m.Y" }} itibarıyla</small></h2>
+{% if yururlukte %}
+<div class="vk-izgara mb-4">{% for v in yururlukte %}{% include "vekalet/_kart.html" %}{% endfor %}</div>
+{% else %}
+<div class="kart p-4 text-center text-secondary mb-4"><i class="bi bi-person-check fs-3 d-block mb-1"></i>Bugün yürürlükte vekâlet yok; herkes kendi görevinin başında.</div>
+{% endif %}
+
+{% if baslayacak %}
+<h2 class="vk-baslik"><i class="bi bi-hourglass-split"></i> Başlayacak</h2>
+<div class="vk-izgara mb-4">{% for v in baslayacak %}{% include "vekalet/_kart.html" %}{% endfor %}</div>
+{% endif %}
+
+<h2 class="vk-baslik"><i class="bi bi-clock-history"></i> Sona erenler <small>{% if tumu %}tümü{% else %}son 60 gün{% endif %}</small>
+  <a class="ms-auto small" href="?{% if not tumu %}tumu=1{% endif %}">{% if tumu %}Son 60 günü göster{% else %}Tümünü göster{% endif %}</a></h2>
+<div class="kart">
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <thead><tr><th>Asıl</th><th></th><th>Vekil</th><th>Görev</th><th>Tarih</th><th class="d-none d-md-table-cell">Durum</th></tr></thead>
+      <tbody>
+      {% for v in gecmis %}
+        <tr>
+          <td>{{ v.veren.ad_soyad }}<div class="small text-secondary">{{ v.get_neden_display }}</div></td>
+          <td class="text-secondary"><i class="bi bi-arrow-right"></i></td>
+          <td>{{ v.vekil.ad_soyad }}</td>
+          <td class="small">{{ v.gorev }}</td>
+          <td class="small text-nowrap">{{ v.aralik_metni }}</td>
+          <td class="d-none d-md-table-cell"><span class="durum-rozet {% if v.durum == 'sonlandirildi' %}durum-sirada{% else %}durum-planlandi{% endif %}">{{ v.durum_adi }}</span></td>
+        </tr>
+      {% empty %}
+        <tr data-anlik-haric><td colspan="6" class="text-center text-secondary py-4">Kayıt yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+</div>
+{% endblock %}

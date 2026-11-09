@@ -74,6 +74,7 @@ INSTALLED_APPS = [
     "salon",
     "isler",
     "dozaj",
+    "vekalet",
     "timetable",  # Ders Programı modülü: Ders Planlama + ortak veri (bkz. docs/dersprogrami_modulu.md)
     "sinav",  # Ders Programı modülü: Sınav Planlama
     "dersprogrami_kopru",
