@@ -30,7 +30,10 @@
       const renk = (v) => { const o = secenek(v); return o ? o.dataset.renk : "#64748b"; };
       const kisa = (v) => { const o = secenek(v); return o ? o.dataset.kisa : ""; };
       new TomSelect(turSec, {
-        create: false, maxOptions: null, dropdownParent: "body", lockOptgroupOrder: true,
+        create: false, maxOptions: null, lockOptgroupOrder: true,
+        // açılır listenin üstünde arama kutusu; pencere (modal) içindeyse liste kutunun hemen altında, pencerenin içinde açılır
+        plugins: ["dropdown_input"], placeholder: "İzin türü ara…", highlight: false,
+        dropdownParent: turSec.closest(".modal") ? null : "body",
         searchField: [], sortField: [{ field: "$order" }],
         score: (arama) => {
           const a = sadeMetin(arama).split(/\s+/).filter(Boolean);
