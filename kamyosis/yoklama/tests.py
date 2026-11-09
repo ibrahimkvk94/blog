@@ -254,7 +254,8 @@ class YoklamaTestleri(SaatSabit, TestCase):
         from .models import OGLEDEN_ONCE, OGLEDEN_SONRA
 
         aktif = list(IzinTuru.objects.filter(aktif=True).values_list("ad", flat=True))
-        self.assertEqual(len(aktif), 41)  # İdari İşler'in listesi; öğleden önce / sonra varyantları tek türde
+        self.assertEqual(len(aktif), 42)  # İdari İşler'in 41 türü + Garnizon terk; öğleden önce / sonra tek türde
+        self.assertTrue(IzinTuru.objects.get(ad="Garnizon terk").mevcut_sayilir)
         self.assertNotIn("Gi (kaldırıldı)", aktif)
         self.assertTrue(IzinTuru.objects.get(ad="Hastane").yarim_gun)
         sut = IzinTuru.objects.get(ad="Süt İzni")
