@@ -176,3 +176,35 @@ class VekaletTestleri(TestCase):
         # ana sayfada yürürlükteki vekâlet
         self.client.force_login(self.bolumcu)
         self.assertContains(self.client.get(reverse("core:panel")), "Yürürlükte vekâlet")
+
+    def test_kendi_birimi_kapsami(self):
+        """Bölüm başkanı hesabı (kendi birimi): yalnız bölümünün personeli ve başkanı vekâlet verir; başkan başka
+        bölümün kadrosunda olsa da (iki bölümün başkanı) seçilebilir."""
+        elk = Bolum.objects.create(ad="Elektrik", kod="ELK")
+        elk.baskan = self.ayse  # Ayşe hem Bilgisayar hem Elektrik başkanı (kadrosu Bilgisayar'da)
+        elk.save()
+        elkci = Personel.objects.create(ad_soyad="Can DEMİR", bolum=elk)
+        hesap = User.objects.create_user("bb.elk", password="x-Parola-123", bolum=elk)
+        Yetki.objects.create(kullanici=hesap, birim=Birim.objects.get(slug="vekalet"), seviye=Yetki.DUZENLEME,
+                             kapsam=Yetki.BOLUM)
+        bugun = timezone.localdate()
+        baska = Vekalet.objects.create(veren=self.ali, vekil=self.veli, gorev="X", baslangic=bugun, bitis=bugun)
+        self.client.force_login(hesap)
+        r = self.client.get(reverse("vekalet:islemler"))
+        self.assertEqual(set(r.context["form"].fields["veren"].queryset), {self.ayse, elkci})
+        self.assertEqual(r.context["form"].initial["veren"], self.ayse.pk)  # hazır seçili: bölümün başkanı
+        self.assertEqual(r.context["form"].initial["gorev"], "Elektrik Bölüm Başkanı")
+        self.assertEqual(r.context["kayitlar"], [])  # başka bölümün kaydı görünmez
+        self.assertContains(r, "Elektrik için")
+        # kapsam dışı veren reddedilir; başka bölümün kaydına dokunamaz
+        self.client.post(reverse("vekalet:islemler"), self._veri(veren=self.ali.pk, vekil=self.veli.pk, gorev="Y"))
+        self.assertEqual(Vekalet.objects.count(), 1)
+        self.assertEqual(self.client.post(reverse("vekalet:sil", args=[baska.pk])).status_code, 403)
+        self.assertEqual(self.client.get(reverse("vekalet:duzenle", args=[baska.pk])).status_code, 403)
+        # kendi başkanı için girer; vekil herhangi biri olabilir
+        r = self.client.post(reverse("vekalet:islemler"), self._veri(gorev="Elektrik Bölüm Başkanı", vekil=self.veli.pk),
+                             follow=True)
+        self.assertContains(r, "Vekâlet kaydedildi")
+        # tüm okul kapsamlı İdari İşler hesabı her şeyi görür
+        self.client.force_login(self.idareci)
+        self.assertEqual(len(self.client.get(reverse("vekalet:islemler")).context["kayitlar"]), 2)

@@ -7,6 +7,7 @@ from django.db.models import Q
 from django.http import Http404
 from django.utils import timezone
 
+from core.models import Yetki
 from core.yetki import DUZENLEME, GORUNTULEME, birim_bul, etkin_yetki
 from personel.models import Bolum, Personel
 
@@ -24,26 +25,75 @@ GRUP_NEDEN = {"saglik": Vekalet.RAPOR, "izin": Vekalet.IZIN, "aile": Vekalet.IZI
 class Yetkisi:
     goruntule: bool = False
     duzenle: bool = False
+    kapsam_birim: object = None   # "kendi birimi" kapsamlı hesap (bölüm başkanı, şube müdürü, kısım amiri): birimi
+    veren_idler: frozenset = None  # bu hesabın vekâlet veren olarak seçebileceği personel (None = herkes)
+    bolum_gorevleri: dict = None   # {başkan: "<Bölüm> Bölüm Başkanı"} kapsamdaki bölümlerin başkanlığı
+    varsayilan_veren: int = None   # formda hazır seçili veren: birimin başkanı / sorumlusu
+
+    @property
+    def tum_okul(self):
+        return self.veren_idler is None
+
+    def kapsar(self, vekalet):
+        return self.veren_idler is None or vekalet.veren_id in self.veren_idler
 
 
 def yetki(request):
+    """Görüntüleme: bütün vekâletler. Düzenleme "tüm okul" kapsamında her vekâlet; "kendi birimi" kapsamında
+    yalnız hesabın birimindeki (şube için alt kısımlar dahil) personelin ve o birimdeki bölümlerin başkanlarının
+    verdiği vekâletler (başkan başka bölümün kadrosunda olsa da)."""
     try:
-        seviye, _ = etkin_yetki(request, birim_bul(request, BIRIM))
+        seviye, kapsam = etkin_yetki(request, birim_bul(request, BIRIM))
     except Http404:
-        seviye = 0
-    return Yetkisi(goruntule=seviye >= GORUNTULEME, duzenle=seviye >= DUZENLEME)
+        seviye, kapsam = 0, None
+    y = Yetkisi(goruntule=seviye >= GORUNTULEME, duzenle=seviye >= DUZENLEME)
+    if y.duzenle and kapsam == Yetki.BOLUM:
+        from yoklama.birim import Agac
+
+        agac, u = Agac(), request.user
+        b = agac.birimler.get(getattr(u, "teskilat_birimi_id", None)) or agac.bolumun(getattr(u, "bolum_id", None))
+        if b is None:  # birimi atanmamış kapsamlı hesap hiçbir şey giremez
+            y.duzenle = False
+            return y
+        idler = agac.alt_idler(b.pk)
+        veren = set(Personel.objects.filter(aktif=True).filter(agac.kosul(idler)).values_list("pk", flat=True))
+        y.bolum_gorevleri = {}
+        for bolum in Bolum.objects.filter(baskan__isnull=False, aktif=True):
+            bb = agac.bolumun(bolum.pk)
+            if bb is not None and bb.pk in idler:
+                veren.add(bolum.baskan_id)
+                y.bolum_gorevleri[bolum.baskan_id] = f"{bolum.ad} Bölüm Başkanı"
+        y.kapsam_birim, y.veren_idler = b, frozenset(veren)
+        if b.bolum_id and b.bolum.baskan_id:
+            y.varsayilan_veren = b.bolum.baskan_id
+        else:
+            from personel.kart import sorumlu_sec
+
+            s = sorumlu_sec(list(Personel.objects.filter(aktif=True, teskilat_birimi=b).exclude(gorev_unvani="")))
+            y.varsayilan_veren = s.pk if s else None
+    return y
 
 
 def personel_listesi():
     return Personel.objects.filter(aktif=True).select_related("unvan", "rutbe", "sinif", "bolum").order_by("ad_soyad")
 
 
-def gorev_onerileri():
-    """{personel_id: görev adı}: bölüm başkanı → "<Bölüm> Bölüm Başkanı", yoksa kartındaki görev unvanı."""
+def gorev_onerileri(y=None):
+    """{personel_id: görev adı}: bölüm başkanı → "<Bölüm> Bölüm Başkanı", yoksa kartındaki görev unvanı. Birden çok
+    bölümün başkanı olanda kendi birimi kapsamlı hesap için o birimin bölümü önerilir."""
     out = {p.pk: p.gorev_unvani for p in Personel.objects.filter(aktif=True).exclude(gorev_unvani="").only("gorev_unvani")}
-    for b in Bolum.objects.filter(baskan__isnull=False, aktif=True):
+    for b in Bolum.objects.filter(baskan__isnull=False, aktif=True).order_by("-ad"):
         out[b.baskan_id] = f"{b.ad} Bölüm Başkanı"
+    if y is not None and y.bolum_gorevleri:
+        out.update(y.bolum_gorevleri)
     return out
+
+
+def gorev_listesi():
+    """Görev kutusunun önerileri: bütün bölüm başkanlıkları ve kartlardaki görev unvanları."""
+    adlar = {f"{b.ad} Bölüm Başkanı" for b in Bolum.objects.filter(aktif=True)}
+    adlar |= set(Personel.objects.filter(aktif=True).exclude(gorev_unvani="").values_list("gorev_unvani", flat=True))
+    return sorted(adlar)
 
 
 def _gun_araligi(kayit):
@@ -144,19 +194,19 @@ def yoneticiler():
     return [p for p in kisiler if p.pk in baskanlar or gorev_derecesi(p) <= 2]
 
 
-def eksik_vekaletler(gun=7, bugun=None):
+def eksik_vekaletler(gun=7, bugun=None, y=None):
     """Önümüzdeki `gun` gün içinde yoklamada tam gün (en az 20 saat) izinli / raporlu / görevli görünen ve o tarihler
     için vekâleti girilmemiş yöneticiler: [{personel, gorev, tur, bas, bit, neden}] (başlangıca göre)."""
     from yoklama.servis import kayitlar
 
     bugun = bugun or timezone.localdate()
-    kisiler = {p.pk: p for p in yoneticiler()}
+    kisiler = {p.pk: p for p in yoneticiler() if y is None or y.veren_idler is None or p.pk in y.veren_idler}
     if not kisiler:
         return []
     tz = timezone.get_current_timezone()
     bas = timezone.make_aware(datetime.datetime.combine(bugun, datetime.time(0)), tz)
     bit = bas + datetime.timedelta(days=gun + 1)
-    gorevler = gorev_onerileri()
+    gorevler = gorev_onerileri(y)
     vekaletler = list(Vekalet.objects.filter(veren_id__in=kisiler, sonlandirma__isnull=True, bitis__gte=bugun))
     out, gorulen = [], set()
     for k in kayitlar(list(kisiler), bas, bit, yoklama=True):
@@ -183,7 +233,7 @@ def panel_gorevleri(request):
     y = yetki(request)
     gorevler = []
     if y.duzenle:
-        eksik = eksik_vekaletler()
+        eksik = eksik_vekaletler(y=y)
         if eksik:
             ilk = eksik[0]
             gorevler.append({
