@@ -325,4 +325,6 @@
 [data-bs-theme="dark"] .mz-tablo .mz-gun { border-bottom: 1px solid #333a42; }
 [data-bs-theme="dark"] .mz-tablo .mz-gun-bas { border-left: 2px solid #333a42; }
 [data-bs-theme="dark"] .mz-tablo .mz-kisi, [data-bs-theme="dark"] .mz-tablo .mz-kisi-bas { border-right: 1px solid #333a42; }
+[data-bs-theme="dark"] .mz-tablo .mz-aciklama-bas { border-left: 2px solid #333a42; }
+[data-bs-theme="dark"] .mz-tablo .mz-aciklama { border-left: 2px solid #333a42; }
 [data-bs-theme="dark"] .mz-tablo tbody tr:hover th, [data-bs-theme="dark"] .mz-tablo tbody tr:hover td { background: #171c21; }

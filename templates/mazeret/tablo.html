@@ -8,11 +8,30 @@
     <h1>{{ tur.baslik }} · toplu tablo</h1>
     <p class="text-secondary mb-0">{{ donem.ad }} · {% if donem.acik_mi %}<span class="durum-rozet durum-kullanimda">Bildirime açık</span>{% if donem.son_bildirim %} son gün {{ donem.son_bildirim|date:"d.m.Y H:i" }}{% endif %}{% else %}<span class="durum-rozet durum-planlandi">Bildirime kapalı</span>{% endif %}{% if bolum %} · {{ bolum.ad }}{% endif %}</p>
   </div>
-  <a class="btn btn-outline-secondary" href="{{ liste_url }}{% if bolum and not y.kapsam_bolum %}&bolum={{ bolum.pk }}{% endif %}"><i class="bi bi-list-ul me-1"></i>Kişi kişi liste</a>
+  <div class="d-flex gap-2 flex-wrap">
+    <a class="btn btn-outline-secondary" href="{{ liste_url }}{% if bolum and bolum.pk != 'yok' and not y.kapsam_bolum %}&bolum={{ bolum.pk }}{% endif %}"><i class="bi bi-list-ul me-1"></i>Kişi kişi liste</a>
+    {% if y.yonetim and not y.kapsam_bolum %}
+    {% if hedef %}
+    <form method="post" action="{% url u.aktar donem.pk %}" onsubmit="if (window.mzKirli && window.mzKirli()) { alert('Önce tablodaki değişiklikleri kaydedin.'); return false; } return confirm('Bu dönemin tüm bildirimleri aktarılacak: {{ hedef|escapejs }} (eşleşen öğretmenlerin mevcut işaretleri değişir{% if tur.kod == 'sinav' %}; görev rolleri de işlenir{% if donem.bildirimsize_gorev_yok %}, bildirimi olmayan personele görev verilmez{% endif %}{% endif %}). Devam edilsin mi?')">
+      {% csrf_token %}
+      <button class="btn btn-outline-primary"><i class="bi bi-box-arrow-right me-1"></i>{% if tur.kod == 'sinav' %}Sınav Planlama'ya aktar{% else %}Program Hazırlama'ya aktar{% endif %}</button>
+    </form>
+    {% endif %}
+    <a href="{% url admin_liste %}" class="btn btn-outline-secondary"><i class="bi bi-gear me-1"></i>Dönemler</a>
+    {% endif %}
+  </div>
 </div>
 
-{% if bolumler %}
+{% if bolumler or donemler|length > 1 %}
 <form method="get" class="row g-2 mb-3 align-items-center">
+  {% if donemler|length > 1 %}
+  <div class="col-12 col-md-3">
+    <select class="form-select" aria-label="Dönem" onchange="location.href = this.value">
+      {% for d in donemler %}<option value="{% url u.tablo d.pk %}{% if bolum and not y.kapsam_bolum %}?bolum={{ bolum.pk }}{% endif %}" {% if d == donem %}selected{% endif %}>{{ d.ad }}</option>{% endfor %}
+    </select>
+  </div>
+  {% endif %}
+  {% if bolumler %}
   <div class="col-12 col-md-4">
     <select class="form-select" name="bolum" onchange="this.form.submit()" aria-label="Bölüm">
       <option value="">Bölüm seçin…</option>
@@ -20,13 +39,19 @@
       <option value="yok" {% if bolum.pk == "yok" %}selected{% endif %}>Bölümü olmayanlar (idari birimler)</option>
     </select>
   </div>
+  {% endif %}
 </form>
 {% endif %}
 
 {% if tur.kod == 'sinav' and not donem.sinav_donemi %}
 <div class="alert alert-warning py-2"><i class="bi bi-exclamation-triangle me-2"></i>Bu dönem Sınav Planlama'daki bir sınav dönemine bağlı değil; tabloda sütun yok.</div>
 {% elif not bolum %}
+{% if teslimler %}
+{% include "mazeret/_teslim_pano.html" %}
+<p class="small text-secondary"><i class="bi bi-info-circle me-1"></i>Tabloyu açmak için bir bölüm seçin ya da yukarıdaki satırlardan birine tıklayın.</p>
+{% else %}
 <div class="kart p-5 text-center text-secondary"><i class="bi bi-table fs-2 d-block mb-2"></i>Tabloyu açmak için bir bölüm seçin.</div>
+{% endif %}
 {% elif not kisiler %}
 <div class="kart p-5 text-center text-secondary">Bu bölümde {% if tur.kod == 'sinav' %}sınav görevi alabilen{% else %}derse girebilen{% endif %} personel yok.</div>
 {% else %}
@@ -52,6 +77,7 @@
   <input type="hidden" name="bolum" value="{{ bolum.pk }}">
   <input type="hidden" name="veriler" id="mzVeriler">
   <input type="hidden" name="surumler" value="{{ surumler_json }}">
+  <input type="hidden" name="aciklamalar" id="mzAciklamalar">
   <div class="kart">
     {% if degistirebilir %}
     <div class="islem-cubugu d-flex flex-wrap align-items-center gap-2 p-2 border-bottom">
@@ -64,7 +90,7 @@
       <span class="small ms-2" id="mzDegisiklik" hidden><i class="bi bi-circle-fill text-warning"></i> Kaydedilmemiş değişiklik var</span>
       <button class="btn btn-sm btn-primary ms-auto"><i class="bi bi-check2 me-1"></i>Tabloyu kaydet</button>
     </div>
-    <div class="yardim-satiri"><i class="bi bi-info-circle"></i> Hücreye tıklayınca seçili işaret konur, sürükleyerek birden çok hücre boyanır. Gün, {% if tur.kod == 'sinav' %}oturum{% else %}saat{% endif %} başlığına ya da kişinin adına tıklamak bütün sütunu / satırı işaretler. <strong>Kaydedince tablodaki herkes bildirilmiş sayılır; işaretsiz kişi = mazereti yok.</strong></div>
+    <div class="yardim-satiri"><i class="bi bi-info-circle"></i> Hücreye tıklayınca seçili işaret konur, sürükleyerek birden çok hücre boyanır. Gün, {% if tur.kod == 'sinav' %}oturum{% else %}saat{% endif %} başlığına ya da kişinin adına tıklamak bütün sütunu / satırı işaretler. Kişiye özel not satırın sonundaki açıklama kutusuna yazılır. <strong>Kaydedince tablodaki herkes bildirilmiş sayılır; işaretsiz kişi = mazereti yok.</strong></div>
     <div class="alert alert-info rounded-0 border-0 border-bottom py-2 mb-0" id="mzIzinNotu" hidden><i class="bi bi-calendar-x me-2"></i><span></span></div>
     {% endif %}
     <div class="mz-tablo-kap">
@@ -73,6 +99,7 @@
           <tr>
             <th rowspan="2" class="mz-kisi-bas">Personel <small>{{ kisiler|length }} kişi</small></th>
             {% for etiket, anahtarlar in gruplar %}<th colspan="{{ anahtarlar|length }}" class="mz-gun"><button type="button" class="mz-baslik" data-gun="{{ forloop.counter0 }}" {% if not degistirebilir %}disabled{% endif %}>{{ etiket }}</button></th>{% endfor %}
+            <th rowspan="2" class="mz-aciklama-bas">Açıklama</th>
           </tr>
           <tr>
             {% for etiket, anahtarlar in gruplar %}{% with g=forloop.counter0 %}{% for s in sutunlar %}<th class="mz-oturum{% if forloop.first %} mz-gun-bas{% endif %}"><button type="button" class="mz-baslik" data-gun="{{ g }}" data-sira="{{ forloop.counter0 }}" {% if not degistirebilir %}disabled{% endif %}>{{ s }}</button></th>{% endfor %}{% endwith %}{% endfor %}
@@ -86,6 +113,7 @@
               {% if p.bildirim %}<i class="bi bi-check-circle-fill text-success" title="Bildirildi: {{ p.bildirim.guncelleme|date:'d.m.Y H:i' }}"></i>{% else %}<i class="bi bi-exclamation-circle-fill text-danger" title="Bildirim yok"></i>{% endif %}
             </th>
             {% for etiket, anahtarlar in gruplar %}{% with g=forloop.counter0 %}{% for k in anahtarlar %}<td class="{% if forloop.first %}mz-gun-bas{% endif %}"><button type="button" class="mz-hucre" data-k="{{ k }}" data-p="{{ p.pk }}" data-gun="{{ g }}" data-sira="{{ forloop.counter0 }}" {% if not degistirebilir %}disabled{% endif %}></button></td>{% endfor %}{% endwith %}{% endfor %}
+            <td class="mz-aciklama"><input type="text" class="form-control form-control-sm" data-p="{{ p.pk }}" value="{{ p.bildirim.aciklama|default:'' }}" maxlength="500" placeholder="Açıklama…" aria-label="{{ p.ad_soyad }}: açıklama" {% if not degistirebilir %}disabled{% endif %}></td>
           </tr>
           {% endfor %}
         </tbody>
@@ -101,6 +129,6 @@
 </form>
 {{ veriler|json_script:"mzVeriJson" }}
 {{ izinler_d|json_script:"mzIzinJson" }}
-<script src="{% static 'js/mazeret_tablo.js' %}?v=1" defer></script>
+<script src="{% static 'js/mazeret_tablo.js' %}?v=2" defer></script>
 {% endif %}
 {% endblock %}

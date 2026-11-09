@@ -149,7 +149,10 @@ def baskan_ata(p, baskan_mi):
     if p.bolum_id is None:
         return
     if baskan_mi:
-        Bolum.objects.filter(pk=p.bolum_id).update(baskan=p)
+        # yeni başkan sınav görevi almaz (09.11.2026); kartından yeniden açılabilir
+        if Bolum.objects.filter(pk=p.bolum_id).exclude(baskan=p).update(baskan=p):
+            type(p).objects.filter(pk=p.pk).update(sinav_gorevi_alabilir=False)
+            p.sinav_gorevi_alabilir = False
     else:
         Bolum.objects.filter(pk=p.bolum_id, baskan=p).update(baskan=None)
 

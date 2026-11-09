@@ -41,7 +41,12 @@ def _donem(request, tur):
 
 
 def _liste_url(tur, donem):
-    return f"{reverse(tur.url('liste'))}?donem={donem.pk}"
+    return f"{reverse(tur.url('liste'))}?donem={donem.pk}&liste=1"
+
+
+def _tablo_url(tur, donem, bolum=None):
+    url = reverse(tur.url("tablo"), args=[donem.pk])
+    return f"{url}?bolum={bolum.pk}" if bolum is not None else url
 
 
 @login_required
@@ -51,6 +56,13 @@ def liste(request, tur):
     if not y.goruntule:
         raise PermissionDenied
     donem, donemler = _donem(request, tur)
+    # Açılış ekranı toplu tablodur (09.11.2026); kişi kişi liste ?liste=1 ile (filtreli bağlantılar da listeyi açar).
+    if donem and not request.GET.get("liste") and not request.GET.get("durum"):
+        bolum = None
+        if y.kapsam_bolum is None:
+            pk = request.GET.get("bolum", "")
+            bolum = BOLUMSUZ if pk == "yok" else (Bolum.objects.filter(pk=pk).first() if pk.isdigit() else None)
+        return redirect(_tablo_url(tur, donem, bolum))
     bolum = None
     if y.kapsam_bolum is None and request.GET.get("bolum", "").isdigit():
         bolum = Bolum.objects.filter(pk=request.GET["bolum"]).first()
@@ -226,7 +238,8 @@ def tablo(request, donem_pk, tur):
         try:
             veriler = json.loads(request.POST.get("veriler") or "{}")
             surumler = json.loads(request.POST.get("surumler") or "{}")
-            kaydedilen, degismeyen = servis.toplu_kaydet(request.user, y, donem, veriler, surumler)
+            aciklamalar = json.loads(request.POST.get("aciklamalar") or "{}")
+            kaydedilen, degismeyen = servis.toplu_kaydet(request.user, y, donem, veriler, surumler, aciklamalar)
         except (ValueError, TypeError):
             messages.error(request, "Tablo okunamadı; sayfayı yenileyip tekrar deneyin.")
         except MazeretHatasi as e:
@@ -240,8 +253,9 @@ def tablo(request, donem_pk, tur):
                     adlar = ", ".join(b.personel.ad_soyad for b in eslesmeyen[:10]) + (" …" if len(eslesmeyen) > 10 else "")
                     messages.warning(request, f"{len(eslesmeyen)} personel {'Sınav Planlama' if tur.kod == 'sinav' else 'Program Hazırlama'}'daki "
                                               f"bir öğretmenle eşleşmedi, mazereti oraya yazılmadı: {adlar}")
-        return redirect(f"{reverse(tur.url('tablo'), args=[donem.pk])}?bolum={bolum.pk}")
+        return redirect(_tablo_url(tur, donem, bolum))
     sutunlar, satirlar_izgara = donem.izgara()
+    donemler = list(tur.donem_modeli.objects.all())
     gruplar = [(etiket, [k for k, _ in hucreler]) for etiket, hucreler in satirlar_izgara]
     kisiler, veriler, surumler, izinler, durum = [], {}, {}, {}, None
     if bolum is not None:
@@ -257,12 +271,22 @@ def tablo(request, donem_pk, tur):
             surumler[str(p.pk)] = b.surum if b else 0
         if bolum is not BOLUMSUZ:
             durum = next(iter(servis.bolum_durumlari(tur, donem, y, {bolum.pk})), None)
+    # bölüm seçilmemişse (tüm okulu görenler) bölümlerin teslim panosu
+    teslimler, bolumsuz_ozet = [], None
+    if bolum is None and y.kapsam_bolum is None:
+        teslimler = servis.bolum_durumlari(tur, donem, y)
+        bolumsuz = list(servis.personeller(y).filter(bolum__isnull=True).values_list("pk", flat=True))
+        bolumsuz_ozet = {"toplam": len(bolumsuz),
+                         "bildirilen": donem.bildirimler.filter(personel_id__in=bolumsuz).count()}
     return render(request, "mazeret/tablo.html", _baglam(
         request, tur, donem=donem, bolum=bolum, kisiler=kisiler, sutunlar=sutunlar, gruplar=gruplar,
         veriler=veriler, surumler_json=json.dumps(surumler),
         izinler_d={str(k): v for k, v in izinler.items()}, degistirebilir=degistirebilir,
         durum=durum, bolumler=Bolum.objects.filter(aktif=True) if y.kapsam_bolum is None else [],
-        liste_url=_liste_url(tur, donem),
+        liste_url=_liste_url(tur, donem), donemler=donemler,
+        teslimler=teslimler, bolumsuz_ozet=bolumsuz_ozet, teslim_eden=sum(1 for s in teslimler if s["teslim"]),
+        kalan_gun=(donem.son_bildirim.date() - timezone.localdate()).days if donem.son_bildirim else None,
+        hedef=servis.hedef_adi(tur, donem), admin_liste=f"admin:mazeret_{tur.model_adi}_changelist",
     ))
 
 
@@ -281,4 +305,4 @@ def teslim(request, donem_pk, tur):
         messages.error(request, str(e))
     else:
         messages.success(request, f"{bolum.ad}: {tur.tekil.lower()} bildirimi teslim edildi.")
-    return _geri(request, f"{reverse(tur.url('tablo'), args=[donem.pk])}?bolum={bolum.pk}")
+    return _geri(request, _tablo_url(tur, donem, bolum))

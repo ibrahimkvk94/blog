@@ -56,7 +56,7 @@ class DersMazeretiTestleri(TestCase):
         y = yetki(self.bilci)
         self.assertEqual(set(servis.personeller(y)), {self.ayse, self.ali})
         self.client.force_login(self.bilci)
-        r = self.client.get(reverse("mazeret:ders"))
+        r = self.client.get(reverse("mazeret:ders"), {"liste": 1})
         self.assertContains(r, "Ayşe YILMAZ")
         self.assertNotContains(r, "Veli ÇELİK")
         # adresi elle yazsa da başka bölümün personelini açamaz ve yazamaz
@@ -180,7 +180,7 @@ class SinavMazeretiTestleri(TestCase):
 
     def test_bolum_baska_bolumu_goremez(self):
         self.client.force_login(self.bilci)
-        r = self.client.get(reverse("mazeret:sinav"))
+        r = self.client.get(reverse("mazeret:sinav"), {"liste": 1})
         self.assertContains(r, "Ayşe YILMAZ")
         self.assertNotContains(r, "Veli ÇELİK")
         url = reverse("mazeret:sinav_bildirim", args=[self.donem.pk, self.veli.pk])
@@ -252,7 +252,7 @@ class TopluTabloTestleri(SinavMazeretiTestleri):
         # teslim
         self.client.post(reverse("mazeret:sinav_teslim", args=[self.donem.pk]))
         self.assertTrue(MazeretTeslimi.objects.filter(tur="sinav", donem_id=self.donem.pk, bolum=self.bil).exists())
-        r = self.client.get(reverse("mazeret:sinav"))
+        r = self.client.get(reverse("mazeret:sinav"), {"liste": 1})
         self.assertContains(r, "teslim ettiniz")
 
     def test_yoklamadaki_izin_oturumu_kapatir(self):
@@ -274,7 +274,7 @@ class TopluTabloTestleri(SinavMazeretiTestleri):
 
     def test_yonetici_panosu_ve_ana_sayfa(self):
         self.client.force_login(self.yonetici)
-        r = self.client.get(reverse("mazeret:sinav"))
+        r = self.client.get(reverse("mazeret:sinav"), {"liste": 1})
         self.assertContains(r, "bölüm teslim etti")
         self.assertContains(r, reverse("mazeret:sinav_tablo", args=[self.donem.pk]) + f"?bolum={self.bil.pk}")
         r = self.client.get(reverse("mazeret:sinav_tablo", args=[self.donem.pk]))
@@ -290,3 +290,45 @@ class TopluTabloTestleri(SinavMazeretiTestleri):
             servis.kaydet(self.bilci, y, self.donem, p, {}, okunan_surum=0)
         self.client.force_login(self.bilci)
         self.assertContains(self.client.get(reverse("core:panel")), "Sınav mazereti bildirimini teslim edin")
+
+    def test_acilis_toplu_tablo_ve_pano(self):
+        self.client.force_login(self.bilci)
+        r = self.client.get(reverse("mazeret:sinav"))
+        self.assertRedirects(r, reverse("mazeret:sinav_tablo", args=[self.donem.pk]))
+        # filtreli bağlantı (ana sayfadaki "bildirilmemiş personel") listeyi açar
+        self.assertEqual(self.client.get(reverse("mazeret:sinav"), {"durum": "yok"}).status_code, 200)
+        self.client.force_login(self.yonetici)
+        r = self.client.get(reverse("mazeret:sinav"), {"bolum": self.bil.pk})
+        self.assertRedirects(r, reverse("mazeret:sinav_tablo", args=[self.donem.pk]) + f"?bolum={self.bil.pk}")
+        r = self.client.get(reverse("mazeret:sinav_tablo", args=[self.donem.pk]))
+        self.assertContains(r, "bölüm teslim etti")  # bölüm seçilmemişken teslim panosu
+        self.assertContains(r, "Sınav Planlama'ya aktar")
+
+    def test_tablo_aciklama(self):
+        self.client.force_login(self.bilci)
+        url = reverse("mazeret:sinav_tablo", args=[self.donem.pk])
+        veriler = {str(self.ayse.pk): {}, str(self.ali.pk): {}}
+        self.client.post(url, {"veriler": json.dumps(veriler), "surumler": "{}",
+                               "aciklamalar": json.dumps({str(self.ayse.pk): "  Kurs: 2-3 Kasım  "})})
+        self.assertEqual(self.donem.bildirimler.get(personel=self.ayse).aciklama, "Kurs: 2-3 Kasım")
+        self.assertEqual(self.donem.bildirimler.get(personel=self.ali).aciklama, "")
+        # yalnız açıklaması değişen satır da kaydedilir; açıklaması gelmeyen satırınki korunur
+        surumler = {str(self.ayse.pk): 1, str(self.ali.pk): 1}
+        r = self.client.post(url, {"veriler": json.dumps(veriler), "surumler": json.dumps(surumler),
+                                   "aciklamalar": json.dumps({str(self.ali.pk): "Raporlu olabilir"})}, follow=True)
+        self.assertContains(r, "1 personelin bildirimi kaydedildi, 1 personelinki değişmedi")
+        self.assertEqual(self.donem.bildirimler.get(personel=self.ayse).aciklama, "Kurs: 2-3 Kasım")
+        self.assertEqual(self.donem.bildirimler.get(personel=self.ali).aciklama, "Raporlu olabilir")
+        self.assertContains(self.client.get(url), 'value="Raporlu olabilir"')
+
+    def test_bolum_baskani_sinav_listesinde_yok(self):
+        from personel.kart import baskan_ata
+
+        baskan_ata(self.ayse, True)
+        self.ayse.refresh_from_db()
+        self.assertFalse(self.ayse.sinav_gorevi_alabilir)  # yeni başkanın sınav görevi kapanır
+        self.ayse.sinav_gorevi_alabilir = True  # elle açılsa da mazeret listesine girmez
+        self.ayse.save()
+        y = servis.yetki(SahteIstek(self.bilci), servis.TURLER["sinav"])
+        self.assertEqual(set(servis.personeller(y)), {self.ali})
+        self.assertIn(self.ayse, set(servis.personeller(servis.yetki(SahteIstek(self.bilci), servis.TURLER["ders"]))))

@@ -1,7 +1,8 @@
 /* Mazeret toplu tablosu (templates/mazeret/tablo.html): satır = personel, sütun = gün × oturum.
    Hücreye tıklama seçili işareti koyar / kaldırır; basılı tutup sürüklemek aynı işlemi geçtiği hücrelere uygular.
    Gün, oturum ya da kişi başlığı bütün sütunu / satırı işaretler (hepsi zaten o işaretteyse kaldırır).
-   Personel yoklamasında izinli olunan oturumlar açılışta ✗ olarak gelir (kaydedilince bildirime yazılır). */
+   Personel yoklamasında izinli olunan oturumlar açılışta ✗ olarak gelir (kaydedilince bildirime yazılır).
+   Satır sonundaki açıklama kutusu kişinin bildirim açıklamasıdır. */
 (function () {
   "use strict";
   const form = document.getElementById("mzTabloForm");
@@ -9,6 +10,8 @@
   const veri = JSON.parse(document.getElementById("mzVeriJson").textContent || "{}");
   const izin = JSON.parse(document.getElementById("mzIzinJson").textContent || "{}");
   const girdi = document.getElementById("mzVeriler");
+  const aciklamaGirdi = document.getElementById("mzAciklamalar");
+  const aciklamalar = Array.from(form.querySelectorAll(".mz-aciklama input"));
   const degisiklik = document.getElementById("mzDegisiklik");
   const hucreler = Array.from(form.querySelectorAll(".mz-hucre"));
   const duzenle = !!form.querySelector(".mz-duzenle");
@@ -90,8 +93,12 @@
     topluUygula(liste);
   }));
 
+  // satır açıklamaları: değişen kutu kaydedilmemiş sayılır
+  aciklamalar.forEach((a) => a.addEventListener("input", () => { kirli = true; guncelle(); }));
+
   form.addEventListener("submit", () => {
     girdi.value = JSON.stringify(veri);
+    aciklamaGirdi.value = JSON.stringify(Object.fromEntries(aciklamalar.map((a) => [a.dataset.p, a.value])));
     kirli = false;
   });
   addEventListener("beforeunload", (e) => { if (kirli) { e.preventDefault(); e.returnValue = ""; } });
