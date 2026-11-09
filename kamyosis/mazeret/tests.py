@@ -209,3 +209,84 @@ class SinavMazeretiTestleri(TestCase):
         r = self.client.get(reverse("core:panel"))
         self.assertContains(r, "Sınav mazereti bildirilmemiş personel")
         self.assertContains(r, "Sınav mazeretleri")
+
+
+class TopluTabloTestleri(SinavMazeretiTestleri):
+    """Toplu tablo, yoklamadaki izinlerin ✗ olarak gelmesi ve bölüm teslimi (09.11.2026)."""
+
+    def _izin(self, personel, bas, bit):
+        from django.utils import timezone
+
+        from yoklama.models import IzinTuru, YoklamaKaydi
+
+        tur = IzinTuru.objects.get(ad="Yıllık İzin")
+        tz = timezone.get_current_timezone()
+        return YoklamaKaydi.objects.create(personel=personel, tur=tur, baslangic=timezone.make_aware(bas, tz),
+                                           bitis=timezone.make_aware(bit, tz))
+
+    def test_tablo_kaydet_ve_teslim(self):
+        from .models import MazeretTeslimi
+
+        self.client.force_login(self.bilci)
+        url = reverse("mazeret:sinav_tablo", args=[self.donem.pk])
+        r = self.client.get(url)
+        self.assertContains(r, "Ayşe YILMAZ")
+        self.assertNotContains(r, "Veli ÇELİK")  # başka bölüm
+        self.assertContains(r, 'class="mz-hucre"', count=12)  # 2 kişi × 3 gün × 2 oturum
+        # eksik varken teslim edilemez
+        r = self.client.post(reverse("mazeret:sinav_teslim", args=[self.donem.pk]), follow=True)
+        self.assertContains(r, "bildirimi eksik")
+        veriler = {str(self.ayse.pk): {"2026-11-02 09:30": "no"}, str(self.ali.pk): {}}
+        surumler = {str(self.ayse.pk): 0, str(self.ali.pk): 0}
+        r = self.client.post(url, {"veriler": json.dumps(veriler), "surumler": json.dumps(surumler)}, follow=True)
+        self.assertContains(r, "2 personelin bildirimi kaydedildi")
+        self.assertEqual(self.donem.bildirimler.get(personel=self.ali).hucreler, {})  # boş satır = mazereti yok
+        self.period.refresh_from_db()
+        self.assertEqual(self.period.proctor_blocks[str(self.t_ayse.pk)], ["2026-11-02#0"])
+        # değişmeyen satır yeniden yazılmaz; başka bölümün personeli reddedilir
+        surumler = {str(self.ayse.pk): 1, str(self.ali.pk): 1}
+        r = self.client.post(url, {"veriler": json.dumps(veriler), "surumler": json.dumps(surumler)}, follow=True)
+        self.assertContains(r, "0 personelin bildirimi kaydedildi, 2 personelinki değişmedi")
+        r = self.client.post(url, {"veriler": json.dumps({str(self.veli.pk): {}}), "surumler": "{}"}, follow=True)
+        self.assertContains(r, "kapsamınız dışında")
+        # teslim
+        self.client.post(reverse("mazeret:sinav_teslim", args=[self.donem.pk]))
+        self.assertTrue(MazeretTeslimi.objects.filter(tur="sinav", donem_id=self.donem.pk, bolum=self.bil).exists())
+        r = self.client.get(reverse("mazeret:sinav"))
+        self.assertContains(r, "teslim ettiniz")
+
+    def test_yoklamadaki_izin_oturumu_kapatir(self):
+        self._izin(self.ali, datetime.datetime(2026, 11, 3), datetime.datetime(2026, 11, 4))  # 3 Kasım tüm gün
+        self._izin(self.ayse, datetime.datetime(2026, 11, 4, 13, 0), datetime.datetime(2026, 11, 4, 17, 0))
+        izin = servis.izin_isaretleri(self.donem, [self.ali.pk, self.ayse.pk])
+        self.assertEqual(izin[self.ali.pk], {"2026-11-03 09:30": "Yıllık İzin", "2026-11-03 13:30": "Yıllık İzin"})
+        self.assertEqual(set(izin[self.ayse.pk]), {"2026-11-04 13:30"})
+        self.client.force_login(self.bilci)
+        r = self.client.get(reverse("mazeret:sinav_tablo", args=[self.donem.pk]))
+        self.assertEqual(r.context["izinler_d"][str(self.ali.pk)]["2026-11-03 09:30"], "Yıllık İzin")  # tabloda ✗ (JS)
+        # bildirimi olmasa da aktarımda izinli oturum kapalı
+        self.donem.bildirimsize_gorev_yok = False
+        self.donem.save()
+        servis.sinava_aktar(self.donem)
+        self.period.refresh_from_db()
+        self.assertEqual(self.period.proctor_blocks[str(self.t_ali.pk)], ["2026-11-03"])
+        self.assertEqual(self.period.proctor_blocks[str(self.t_ayse.pk)], ["2026-11-04#1"])
+
+    def test_yonetici_panosu_ve_ana_sayfa(self):
+        self.client.force_login(self.yonetici)
+        r = self.client.get(reverse("mazeret:sinav"))
+        self.assertContains(r, "bölüm teslim etti")
+        self.assertContains(r, reverse("mazeret:sinav_tablo", args=[self.donem.pk]) + f"?bolum={self.bil.pk}")
+        r = self.client.get(reverse("mazeret:sinav_tablo", args=[self.donem.pk]))
+        self.assertContains(r, "Tabloyu açmak için bir bölüm seçin")
+        Personel.objects.create(ad_soyad="İdari KİŞİ")  # bölümü yok: tabloyu Plan Program doldurur
+        r = self.client.get(reverse("mazeret:sinav_tablo", args=[self.donem.pk]), {"bolum": "yok"})
+        self.assertContains(r, "İdari KİŞİ")
+        self.assertNotContains(r, "Ayşe YILMAZ")
+        self.assertNotContains(r, "Bildirimi teslim et")
+        # bölüm hesabı: bildirim tamamsa ana sayfada "teslim edin"
+        y = servis.yetki(SahteIstek(self.bilci), servis.TURLER["sinav"])
+        for p in (self.ayse, self.ali):
+            servis.kaydet(self.bilci, y, self.donem, p, {}, okunan_surum=0)
+        self.client.force_login(self.bilci)
+        self.assertContains(self.client.get(reverse("core:panel")), "Sınav mazereti bildirimini teslim edin")

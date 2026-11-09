@@ -9,8 +9,12 @@
       {% if y.kapsam_bolum %} · {{ y.kapsam_bolum }}{% endif %}
     </p>
   </div>
+  {% if donem and y.kapsam_bolum %}
+  <a class="btn btn-primary" href="{% url u.tablo donem.pk %}"><i class="bi bi-table me-1"></i>Toplu tablo</a>
+  {% endif %}
   {% if y.yonetim and not y.kapsam_bolum %}
   <div class="d-flex gap-2 flex-wrap">
+    {% if donem %}<a class="btn btn-primary" href="{% url u.tablo donem.pk %}{% if secili_bolum %}?bolum={{ secili_bolum.pk }}{% endif %}"><i class="bi bi-table me-1"></i>Toplu tablo</a>{% endif %}
     {% if donem and hedef %}
     <form method="post" action="{% url u.aktar donem.pk %}" onsubmit="return confirm('Bu dönemin tüm bildirimleri aktarılacak: {{ hedef|escapejs }} (eşleşen öğretmenlerin mevcut işaretleri değişir{% if tur.kod == 'sinav' %}; görev rolleri de işlenir{% if donem.bildirimsize_gorev_yok %}, bildirimi olmayan personele görev verilmez{% endif %}{% endif %}). Devam edilsin mi?')">
       {% csrf_token %}
@@ -64,21 +68,41 @@
 </form>
 {% endif %}
 
-{% if bolum_ozeti %}
+{% if teslimler and not y.kapsam_bolum %}
 <div class="kart mb-3">
-  <div class="yardim-satiri"><i class="bi bi-bar-chart-line"></i> Bölümlere göre bildirim durumu</div>
+  <div class="yardim-satiri d-flex flex-wrap gap-2 align-items-center"><i class="bi bi-send-check"></i> Bölümlerin bildirim ve teslim durumu
+    <span class="ms-auto"><strong>{{ teslim_eden }}/{{ teslimler|length }}</strong> bölüm teslim etti{% if kalan_gun is not None %} · {% if kalan_gun > 0 %}son güne <strong>{{ kalan_gun }}</strong> gün{% elif kalan_gun == 0 %}<strong>son gün bugün</strong>{% else %}son gün geçti{% endif %}{% endif %}</span></div>
   <div class="mz-ozet p-3">
-    {% for o in bolum_ozeti %}
-    <a class="mz-ozet-satir" href="?donem={{ donem.pk }}&bolum={{ o.bolum.pk }}">
-      <span class="mz-ozet-ad">{{ o.bolum.kod|default:"Bölümsüz" }}</span>
+    {% for o in teslimler %}
+    <a class="mz-ozet-satir" href="{% url u.tablo donem.pk %}?bolum={{ o.bolum.pk }}" title="{{ o.bolum.ad }}: {{ o.bildirilen }}/{{ o.toplam }} bildirildi{% if o.teslim %} · teslim {{ o.teslim.zaman|date:'d.m.Y H:i' }}{% endif %}">
+      <span class="mz-ozet-ad">{{ o.bolum.kod|default:o.bolum.ad|truncatechars:6 }}</span>
       <span class="progress flex-grow-1" role="progressbar" aria-label="{{ o.bolum.ad }}" aria-valuenow="{{ o.bildirilen }}" aria-valuemin="0" aria-valuemax="{{ o.toplam }}">
-        <span class="progress-bar {% if o.bildirilen == o.toplam %}bg-success{% endif %}" style="width: {% widthratio o.bildirilen o.toplam 100 %}%"></span>
+        <span class="progress-bar {% if not o.eksik %}bg-success{% endif %}" style="width: {% widthratio o.bildirilen o.toplam 100 %}%"></span>
       </span>
       <span class="mz-ozet-sayi">{{ o.bildirilen }}/{{ o.toplam }}</span>
+      {% if o.teslim %}<i class="bi bi-send-check-fill text-success" title="Teslim edildi{% if o.sonradan %}; sonra {{ o.sonradan }} bildirim değişti{% endif %}"></i>{% else %}<i class="bi bi-send-x text-danger" title="Teslim edilmedi"></i>{% endif %}
     </a>
     {% endfor %}
+    {% if bolumsuz_ozet and bolumsuz_ozet.toplam %}
+    <a class="mz-ozet-satir" href="{% url u.tablo donem.pk %}?bolum=yok" title="Bölümü olmayan (idari birimlerdeki) personel: bildirimini Plan Program Kısmı yapar">
+      <span class="mz-ozet-ad">İdari</span>
+      <span class="progress flex-grow-1" role="progressbar" aria-label="Bölümü olmayanlar"><span class="progress-bar {% if bolumsuz_ozet.bildirilen == bolumsuz_ozet.toplam %}bg-success{% endif %}" style="width: {% widthratio bolumsuz_ozet.bildirilen bolumsuz_ozet.toplam 100 %}%"></span></span>
+      <span class="mz-ozet-sayi">{{ bolumsuz_ozet.bildirilen }}/{{ bolumsuz_ozet.toplam }}</span>
+      <i class="bi bi-building text-secondary" title="Teslimi yok"></i>
+    </a>
+    {% endif %}
   </div>
 </div>
+{% elif teslimler and y.kapsam_bolum %}
+{% with o=teslimler.0 %}
+<div class="alert {% if o.teslim %}alert-success{% elif o.eksik %}alert-warning{% else %}alert-info{% endif %} py-2 d-flex flex-wrap gap-2 align-items-center">
+  <i class="bi bi-send-check"></i>
+  {% if o.teslim %}Bildiriminizi {{ o.teslim.zaman|date:"d.m.Y H:i" }}'te teslim ettiniz{% if o.sonradan %}; sonra {{ o.sonradan }} bildirim değişti{% endif %}.
+  {% elif o.eksik %}{{ o.eksik }} personelin bildirimi eksik. Toplu tabloyu doldurup kaydedin, sonra teslim edin.
+  {% else %}Bütün personel bildirildi; toplu tablodan bildirimi teslim edin.{% endif %}
+  <a class="ms-auto btn btn-sm btn-outline-primary" href="{% url u.tablo donem.pk %}">Toplu tablo</a>
+</div>
+{% endwith %}
 {% endif %}
 
 <form method="post" action="{% url u.toplu donem.pk %}" onsubmit="return confirm('Seçilen ve henüz bildirimi olmayan personel için “mazereti yok” kaydedilecek. Devam edilsin mi?')">

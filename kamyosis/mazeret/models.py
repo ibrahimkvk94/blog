@@ -199,3 +199,22 @@ class SinavMazeretGecmisi(models.Model):
         verbose_name = "Bildirim geçmişi"
         verbose_name_plural = "Bildirim geçmişi"
         ordering = ["-zaman"]
+
+
+class MazeretTeslimi(models.Model):
+    """Bölümün bir mazeret dönemindeki bildirimini "tamamladık" diye teslim etmesi (ders ya da sınav). Teslimden sonra da
+    değişiklik yapılabilir (dönem açıksa); sonradan değişen bildirimler ekranda işaretlenir."""
+
+    tur = models.CharField("Tür", max_length=6, choices=[("ders", "Ders mazereti"), ("sinav", "Sınav mazereti")])
+    donem_id = models.PositiveIntegerField("Dönem")
+    bolum = models.ForeignKey("personel.Bolum", on_delete=models.CASCADE, related_name="mazeret_teslimleri")
+    teslim_eden = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+")
+    zaman = models.DateTimeField("Teslim zamanı", auto_now=True)
+
+    class Meta:
+        verbose_name = "Mazeret teslimi"
+        verbose_name_plural = "Mazeret teslimleri"
+        constraints = [models.UniqueConstraint(fields=["tur", "donem_id", "bolum"], name="mazeret_teslimi_tekil")]
+
+    def __str__(self):
+        return f"{self.bolum} · {self.get_tur_display()} · {self.zaman:%d.%m.%Y %H:%M}"
