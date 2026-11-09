@@ -1171,3 +1171,16 @@ a.pn-nokta:hover, a.pn-nokta:focus-visible { transform: scale(1.45); outline: no
   html.kenar-dar .kenar:not(.gezinti) .menu-ara > .bi { left: 50%; transform: translate(-50%, -50%); font-size: 1.1rem; }
   html.kenar-dar .kenar:not(.gezinti) .menu-ara kbd { display: none; }
 }
+/* İzin türü seçimi (templates/yoklama/_kayit_formu.html): sık kullanılanlar + gruplu açılır liste */
+.yk-sik { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: .5rem; }
+.yk-sik .yk-tur-dugme { padding: .25rem .65rem; font-size: .8rem; }
+.yk-tur-dugme.secili { background: var(--renk); border-color: var(--renk); color: #fff; }
+.yk-tur-dugme.secili .yk-nokta { background: #fff; }
+.yk-tur-secenek { display: flex; align-items: center; gap: .5rem; }
+.yk-tur-secenek .yk-nokta { width: .6rem; height: .6rem; border-radius: 50%; background: var(--renk); flex: 0 0 auto; }
+.yk-tur-secenek small { margin-left: auto; color: #94a3b8; font-size: .72rem; }
+.ts-dropdown .optgroup-header { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: #64748b; padding-top: .55rem; }
+.yk-hazir { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+.yk-hazir-saat { border: 1px solid var(--km-kenarlik); background: #fff; border-radius: 999px; padding: .15rem .6rem; font-size: .8rem; font-variant-numeric: tabular-nums; }
+.yk-hazir-saat:hover { border-color: #2f5d8a; }
+.yk-hazir-saat.secili { background: #2f5d8a; border-color: #2f5d8a; color: #fff; }

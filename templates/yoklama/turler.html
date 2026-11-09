@@ -13,11 +13,12 @@
     <div class="kart">
       <div class="table-responsive">
         <table class="table align-middle mb-0">
-          <thead><tr><th>Tür</th><th>Kısaltma</th><th class="text-end">Sıra</th><th class="text-end">Yıllık hak</th><th class="text-end">Rapor sırası</th><th class="text-end">Kullanım</th><th>Durum</th><th></th></tr></thead>
+          <thead><tr><th>Tür</th><th>Grup</th><th>Kısaltma</th><th class="text-end">Sıra</th><th class="text-end">Yıllık hak</th><th class="text-end">Rapor sırası</th><th class="text-end">Kullanım</th><th>Durum</th><th></th></tr></thead>
           <tbody>
           {% for t in turler %}
             <tr {% if duzenlenen == t %}class="table-active"{% endif %}>
               <td><span class="yk-cip" style="--renk: {{ t.renk }}"><span class="yk-nokta"></span>{{ t.ad }}</span>{% if t.aciklama %}<div class="small text-secondary mt-1">{{ t.aciklama }}</div>{% endif %}</td>
+              <td class="small text-secondary text-nowrap">{{ t.get_grup_display }}{% if t.yarim_gun %}<div title="Öğleden önce / sonra seçilebilir"><i class="bi bi-circle-half"></i> yarım gün</div>{% endif %}{% if t.hazir_saatler %}<div title="Hazır saatler"><i class="bi bi-clock"></i> {{ t.hazir_saatler }}</div>{% endif %}</td>
               <td><span class="yk-hucre d-inline-grid px-2 rounded" style="--renk: {{ t.renk }};height:1.6rem;min-width:2.2rem">{{ t.kisa }}</span></td>
               <td class="text-end">{{ t.sira }}</td>
               <td class="text-end text-nowrap">{% if t.yillik_hak is not None %}{{ t.yillik_hak }} gün{% else %}<span class="text-secondary">sınırsız</span>{% endif %}</td>
@@ -30,7 +31,7 @@
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="8" class="text-center text-secondary py-5">Henüz tür yok.</td></tr>
+            <tr><td colspan="9" class="text-center text-secondary py-5">Henüz tür yok.</td></tr>
           {% endfor %}
           </tbody>
         </table>
@@ -62,6 +63,10 @@
           <div class="col-6"><label class="form-label small text-secondary" for="{{ form.rapor_sirasi.id_for_label }}">{{ form.rapor_sirasi.label }}</label>{{ form.rapor_sirasi }}</div>
           <div class="col-12 form-text mt-0">{{ form.yillik_hak.help_text }} Rapor sırası: yoklama formunda 1. sıradaki türdekiler en başta, sonra 2., 3. …</div>
           <div class="col-12"><div class="form-check">{{ form.mevcut_sayilir }} <label class="form-check-label" for="{{ form.mevcut_sayilir.id_for_label }}">{{ form.mevcut_sayilir.label }}</label><div class="form-text mt-0">{{ form.mevcut_sayilir.help_text }}</div></div></div>
+          <div class="col-6"><label class="form-label small text-secondary" for="{{ form.grup.id_for_label }}">Grup</label>{{ form.grup }}</div>
+          <div class="col-6 d-flex align-items-end"><div class="form-check mb-2">{{ form.yarim_gun }} <label class="form-check-label" for="{{ form.yarim_gun.id_for_label }}">Yarım gün alınabilir</label></div></div>
+          <div class="col-12 form-text mt-0">Yarım gün: kayıtta "Öğleden önce" (08:00–12:30) ve "Öğleden sonra" (13:30–17:00) seçilir.</div>
+          <div class="col-12"><label class="form-label small text-secondary" for="{{ form.hazir_saatler.id_for_label }}">Hazır saatler</label>{{ form.hazir_saatler }}<div class="form-text mt-0">{{ form.hazir_saatler.help_text }}</div></div>
           <div class="col-12"><label class="form-label small text-secondary" for="{{ form.aciklama.id_for_label }}">Açıklama</label>{{ form.aciklama }}</div>
         </div>
         <div class="d-flex gap-2 mt-3">
