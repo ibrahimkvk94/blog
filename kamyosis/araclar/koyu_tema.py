@@ -17,7 +17,7 @@ KAYNAK = KOK / "static/css/kamyosis.css"
 HEDEF = KOK / "static/css/kamyosis-koyu.css"
 
 # Bu seçicileri içeren kurallar atlanır (zaten koyu ya da kâğıt/baskı görünümü)
-ATLA = ("pn-ipucu", "kenar", "marka", "giris", "org-kok", "avatar", "yk-profil", "yk-kagit", "yk-resmi", "yk-sayim", "yk-beyan",
+ATLA = ("pn-ipucu", "menu-ara", "kenar", "marka", "giris", "org-kok", "avatar", "yk-profil", "yk-kagit", "yk-resmi", "yk-sayim", "yk-beyan",
         "yk-isaretler", "tk-mudurluk", "tk-yardimci", "tk-kol-bas", "tk-sayi", "tk-hat", "yk-foto-bos", "nd-btn.aktif",
         "islem-cubugu .nd-", "btn-check:checked", "yk-hucre", "text-bg-primary", "btn-primary", "btn-outline-primary",
         "nav-pills", "form-check-input:checked", ":root", "@page")
