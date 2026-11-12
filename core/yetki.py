@@ -16,7 +16,8 @@ from .models import Birim, Yetki
 GORUNTULEME, DUZENLEME, YONETIM = Yetki.GORUNTULEME, Yetki.DUZENLEME, Yetki.YONETIM
 # Sayfası herkese açık birimler: ağaçta göremeyenlerin menüsünün başında da durur ve yıldızlanabilir (yetki hesabını
 # değiştirmez; düzenleme yine yetki ister). Salon durumu: okulun salon takvimi herkese açık, kaydı Plan Program girer.
-HERKESE_ACIK = ("salon-durumu",)
+# Sınav icrası: ilk sekmesi sınav takvimi (yayınlanan ara sınav / final planları) herkese açık, planı yetkililer yükler.
+HERKESE_ACIK = ("salon-durumu", "sinav-icrasi")
 
 
 def agac(request):

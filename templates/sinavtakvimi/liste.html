@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Sınav İcrası · Sınav takvimi{% endblock %}
+{% block content %}
+{% include "sinavtakvimi/_sekmeler.html" %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+  <p class="text-secondary mb-0">{% if duzenleyebilir %}Yüklenen sınav planları. Yalnız <strong>yayınlanan</strong> planı herkes görür; diğerleri önizlemedir.{% else %}Yayınlanan ara sınav ve final planları.{% endif %}</p>
+  {% if duzenleyebilir %}<a class="btn btn-primary" href="{% url 'sinavtakvimi:yukle' %}"><i class="bi bi-upload me-1"></i>Excel'den plan yükle</a>{% endif %}
+</div>
+<div class="kart">
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead><tr><th>Plan</th><th>Tarih</th><th class="text-end">Sınav</th>{% if duzenleyebilir %}<th>Durum</th>{% endif %}<th></th></tr></thead>
+      <tbody>
+      {% for s in satirlar %}
+        <tr>
+          <td><a class="fw-semibold" href="{% url 'sinavtakvimi:takvim' s.t.pk %}">{{ s.t.ad }}</a>{% if s.t.aciklama %}<div class="small text-secondary">{{ s.t.aciklama }}</div>{% endif %}</td>
+          <td class="text-nowrap">{% if s.ozet.ilk %}{{ s.ozet.ilk|date:"d.m.Y" }} – {{ s.ozet.son|date:"d.m.Y" }}{% endif %}</td>
+          <td class="text-end">{{ s.ozet.sinav }}</td>
+          {% if duzenleyebilir %}<td>{% if s.t.yayinda %}<span class="durum-rozet durum-kullanimda"><i class="bi bi-broadcast me-1"></i>Yayında</span>{% else %}<span class="durum-rozet durum-planlandi">Yayında değil</span>{% endif %}</td>{% endif %}
+          <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{% url 'sinavtakvimi:takvim' s.t.pk %}"><i class="bi bi-eye me-1"></i>Görüntüle</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5" class="text-center text-secondary py-5"><i class="bi bi-calendar2-week d-block fs-3 mb-2"></i>{% if duzenleyebilir %}Henüz plan yüklenmedi.{% else %}Henüz yayınlanan sınav planı yok.{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

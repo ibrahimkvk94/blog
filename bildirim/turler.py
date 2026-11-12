@@ -18,6 +18,7 @@ class Tur:
     renk: str          # bildirim-ikon renk sınıfı: mor, sari, yesil, mavi, turuncu, gri
     kimler: str        # ayarlar ekranındaki açıklama
     birimler: tuple = field(default=())  # (birim slug, en az seviye, yalnız tüm okul kapsamı)
+    herkes: bool = False  # giriş yapabilen her etkin hesap (herkese açık sayfalar)
 
 
 TURLER = {t.kod: t for t in [
@@ -36,6 +37,8 @@ TURLER = {t.kod: t for t in [
     Tur("sinav_programi", "Sınav programı yayınlandı", "calendar-check", "turuncu",
         "Sınav planlarını görebilen herkes",
         (("sinav-planlari", GORUNTULEME, False),)),
+    Tur("sinav_takvimi", "Sınav planı yayınlandı (herkese)", "calendar2-week", "turuncu",
+        "Herkes (Sınav İcrası › Sınav Takvimi herkese açık)", herkes=True),
     Tur("nobet", "Nöbet grupları kesinleşti", "shield-check", "gri",
         "Nöbet gruplarını görebilen herkes",
         (("nobet-gruplari", GORUNTULEME, False),)),
@@ -64,8 +67,14 @@ def yetkililer(slug, en_az=GORUNTULEME, tum_okul=False):
     return out
 
 
+def herkes():
+    return set(get_user_model().objects.filter(is_active=True).values_list("pk", flat=True))
+
+
 def alabilenler(tur):
     """Türün bildirimini alabilecek hesapların kimlikleri (kapsam ayrıntısı olay anında ayrıca süzülür)."""
+    if tur.herkes:
+        return herkes()
     idler = set()
     for slug, en_az, tum in tur.birimler:
         idler |= set(yetkililer(slug, en_az, tum))

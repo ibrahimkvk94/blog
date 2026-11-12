@@ -13,7 +13,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .models import Bildirim, BildirimTercihi, ZamanliIs
-from .turler import DUZENLEME, GORUNTULEME, TURLER, YONETIM, alabilenler, yetkililer
+from .turler import DUZENLEME, GORUNTULEME, TURLER, YONETIM, alabilenler, herkes, yetkililer
 
 log = logging.getLogger(__name__)
 
@@ -103,6 +103,20 @@ def sinav_programi(d, user):
     metin = f"“{d.name}” · takvim, sınıflar ve görevlendirmeler görülebilir"
     return gonder("sinav_programi", yetkililer("sinav-planlari", GORUNTULEME), "Sınav programı yayınlandı", metin,
                   reverse("dersprogrami_kopru:sinav_programi_donem", args=[d.pk]), haric=user)
+
+
+@_guvenli
+def sinav_takvimi(t, user):
+    from sinavtakvimi import servis as st
+
+    o = st.ozet(t)
+    aralik = ""
+    if o["ilk"]:
+        aralik = st.tarih_metni(o["ilk"], gun=False) if o["ilk"] == o["son"] else (
+            f"{o['ilk'].day} {st.AYLAR[o['ilk'].month - 1]} – {st.tarih_metni(o['son'], gun=False)}")
+    metin = f"“{t.ad}” · {aralik} · {o['sinav']} sınav" if aralik else f"“{t.ad}”"
+    return gonder("sinav_takvimi", herkes(), "Sınav planı yayınlandı", metin,
+                  reverse("sinavtakvimi:takvim", args=[t.pk]), haric=user)
 
 
 @_guvenli
