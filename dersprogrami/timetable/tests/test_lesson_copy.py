@@ -69,3 +69,19 @@ class LessonCopyTests(TestCase):
         self.assertEqual(Lesson.objects.filter(subject__short="MAT").count(), 3)
         response = self.client.post(url, {"ders": [self.mat.pk], "islem": "kopyala"}, follow=True)
         self.assertContains(response, "kısımları seçin")
+
+    def test_copy_from_single_lesson_screen(self):
+        self.client.force_login(User.objects.create_superuser("admin2", "b@x.tr", "pw"))
+        edit = reverse("timetable:lesson_edit", args=[self.school.pk, self.mat.pk])
+        page = self.client.get(edit)
+        self.assertContains(page, "Kısımlara kopyala")
+        self.assertContains(page, f'name="hedef" value="{self.a.pk}" disabled')  # dersin kendi kısmı seçilemez
+        self.assertContains(page, f'name="hedef" value="{self.b.pk}">')
+        response = self.client.post(reverse("timetable:lessons", args=[self.school.pk]),
+                                    {"ders": [self.mat.pk], "islem": "kopyala", "hedef": [self.b.pk], "atla": "1", "geri": edit})
+        self.assertRedirects(response, edit, fetch_redirect_response=False)
+        self.assertTrue(self.lessons_of(self.b).filter(subject__short="MAT").exists())
+        # dışarıya yönlendirme yok
+        response = self.client.post(reverse("timetable:lessons", args=[self.school.pk]),
+                                    {"ders": [self.mat.pk], "islem": "kopyala", "hedef": [self.c.pk], "geri": "//kotu.example"})
+        self.assertRedirects(response, reverse("timetable:lessons", args=[self.school.pk]), fetch_redirect_response=False)

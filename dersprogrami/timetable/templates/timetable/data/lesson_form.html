@@ -5,7 +5,7 @@
 {% block avatar %}{% if lesson %}<span class="rec-swatch" style="background:{{ lesson.subject.color }}"></span>{% else %}+{% endif %}{% endblock %}
 {% block record_kind %}Ders{% endblock %}
 {% block record_title %}{% if lesson %}{{ lesson.subject.name }}{% else %}Yeni ders{% endif %}{% endblock %}
-{% block bar_extra %}{% if lesson %}<button class="btn btn-ghost btn-danger" form="delete-form">Sil</button>{% endif %}{% endblock %}
+{% block bar_extra %}{% if lesson %}<button type="button" class="btn btn-ghost" data-copy-open title="Bu dersi başka kısımlara ayrı ders olarak kopyala">{% include "timetable/icon.html" with name="copy" %} Kısımlara kopyala</button> <button class="btn btn-ghost btn-danger" form="delete-form">Sil</button>{% endif %}{% endblock %}
 {% block editor_body %}
 {{ teacher_hints|json_script:"teacher-hints" }}
 <form method="post" class="data-form rec-form" id="lesson-form" novalidate>
@@ -53,6 +53,52 @@
   <div class="rec-panel" data-tab-panel="musaitlik">{% include "timetable/data/availability.html" %}</div>
 </form>
 {% if lesson %}
+  <dialog class="dialog lc-dialog" data-copy-dialog>
+    <form method="post" action="{% url 'timetable:lessons' school.pk %}" data-copy-form>
+      {% csrf_token %}
+      <input type="hidden" name="ders" value="{{ lesson.pk }}"><input type="hidden" name="islem" value="kopyala">
+      <input type="hidden" name="geri" value="{{ request.get_full_path }}">
+      <h3>{{ lesson.subject.name }} — başka kısımlara kopyala</h3>
+      <p class="subtle small" style="margin-top:0">Her seçilen kısma <b>ayrı bir ders</b> oluşur (ortak ders değil); her kısma farklı öğretmen atanabilir. Saat, kart uzunluğu, derslik ve dersin müsaitliği kopyalanır. Dersin <b>kaydedilmiş</b> hali kopyalanır.</p>
+      <div class="ls-targets-tools"><input class="input input-sm" type="search" placeholder="Kısım ara…" data-copy-search aria-label="Kısım ara">
+        <button type="button" class="btn btn-ghost btn-sm" data-copy-all>Görünenlerin tümü</button>
+        <button type="button" class="btn btn-ghost btn-sm" data-copy-none>Hiçbiri</button></div>
+      <div class="ls-targets-list lc-list">{% for c in copy_classes %}<label class="check small" data-name="{{ c.name|fold }} {{ c.short|fold }}"><input type="checkbox" name="hedef" value="{{ c.id }}"{% if c.id in own_classes %} disabled{% endif %}> <span>{{ c.name }}{% if c.id in own_classes %} <span class="subtle">(bu ders)</span>{% endif %}</span></label>{% endfor %}</div>
+      <div class="lc-options">
+        <select class="select select-sm" name="kopya_ogretmen" aria-label="Öğretmen"><option value="">Öğretmensiz (sonra atanır)</option><option value="ayni">Aynı öğretmenlerle</option></select>
+        <label class="check small"><input type="checkbox" name="atla" value="1" checked> <span>O kısımda aynı ders varsa atla</span></label>
+      </div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-ghost" data-copy-close>Vazgeç</button>
+        <button class="btn btn-primary" data-copy-submit disabled>Kopyala</button>
+      </div>
+    </form>
+  </dialog>
+  <script>
+  (function () {
+    const dlg = document.querySelector("[data-copy-dialog]");
+    const fold = (t) => (t || "").toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
+    const boxes = [...dlg.querySelectorAll("[name=hedef]:not(:disabled)")];
+    const submit = dlg.querySelector("[data-copy-submit]");
+    const count = () => {
+      const n = boxes.filter((b) => b.checked).length;
+      submit.disabled = !n;
+      submit.textContent = n ? n + " kısma kopyala" : "Kopyala";
+    };
+    // Düğme üst çubukta, bu betikten sonra çizilir: tıklama belge düzeyinde yakalanır.
+    document.addEventListener("click", (e) => {
+      if (e.target.closest("[data-copy-open]")) { dlg.showModal(); dlg.querySelector("[data-copy-search]").focus(); }
+    });
+    dlg.querySelector("[data-copy-close]").addEventListener("click", () => dlg.close());
+    dlg.querySelector("[data-copy-search]").addEventListener("input", (e) => {
+      const q = fold(e.target.value.trim());
+      dlg.querySelectorAll(".lc-list .check").forEach((l) => { l.hidden = q && !l.dataset.name.includes(q); });
+    });
+    dlg.querySelector("[data-copy-all]").addEventListener("click", () => { boxes.forEach((b) => { if (!b.closest("label").hidden) b.checked = true; }); count(); });
+    dlg.querySelector("[data-copy-none]").addEventListener("click", () => { boxes.forEach((b) => { b.checked = false; }); count(); });
+    boxes.forEach((b) => b.addEventListener("change", count));
+  })();
+  </script>
   <form method="post" action="{% url 'timetable:lesson_delete' school.pk lesson.pk %}" id="delete-form" hidden data-confirm="Ders silinsin mi? Programlardaki kartları da silinir.">
     {% csrf_token %}<input type="hidden" name="back" value="{{ back }}">
   </form>

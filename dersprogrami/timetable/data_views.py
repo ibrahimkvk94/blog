@@ -1179,6 +1179,9 @@ def lessons(request, pk):
     if request.method == "POST":
         message, level = _lesson_bulk(school, request.POST)
         getattr(messages, level)(request, message)
+        back = request.POST.get("geri") or ""
+        if back.startswith("/") and not back.startswith("//"):  # ders ekranından kopyalama: aynı ekrana dön
+            return redirect(back)
         return redirect(reverse("timetable:lessons", args=[school.pk]) + ("?" + request.POST.get("query", "") if request.POST.get("query") else ""))
     # İlişkiler ara tablolardan kimlik olarak okunur (binlerce dersin her biri için nesne kurmadan).
     qs = Lesson.objects.filter(school=school).select_related("subject").only(
@@ -1422,6 +1425,9 @@ def lesson_edit(request, pk, lesson_id=None):
             tabs=[{"key": "ders", "title": "Ders", "errors": any(form[f].errors for f in form.fields)},
                   {"key": "musaitlik", "title": "Müsaitlik", "errors": False}],
             navigator=_lesson_navigator(school, lesson, class_id, back=request.GET.get("back", "")),
+            copy_classes=[{"id": c.pk, "name": c.name, "short": c.short if c.short != c.name else ""}
+                          for c in _sorted(ENTITIES["siniflar"], school.classes.all())] if lesson else [],
+            own_classes={c.pk for c in lesson.classes.all()} if lesson else set(),
             form_id="lesson-form",
             record_sub=_lesson_sub(lesson) if lesson else "",
             list_url=request.GET.get("back") if request.GET.get("back", "").startswith("/") else reverse("timetable:lessons", args=[school.pk]),
