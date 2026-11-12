@@ -24,7 +24,7 @@ DURUM_FILTRELERI = [("yok", "Bildirim yok"), ("mazeretsiz", "Mazereti yok"), ("m
 def _baglam(request, tur, **ek):
     request.birim = birim_bul(request, tur.birim)
     return {"yol": yol(request, request.birim), "y": servis.yetki(request, tur), "tur": tur, "breadcrumb_ek": True,
-            "u": {ad: tur.url(ad) for ad in ("liste", "bildirim", "toplu", "aktar", "tablo", "teslim")}, **ek}  # ek ile ezilebilir
+            "u": {ad: tur.url(ad) for ad in ("liste", "bildirim", "toplu", "aktar", "tablo", "teslim", "sifirla")}, **ek}  # ek ile ezilebilir
 
 
 def _geri(request, varsayilan):
@@ -288,7 +288,43 @@ def tablo(request, donem_pk, tur):
         teslimler=teslimler, bolumsuz_ozet=bolumsuz_ozet, teslim_eden=sum(1 for s in teslimler if s["teslim"]),
         kalan_gun=(donem.son_bildirim.date() - timezone.localdate()).days if donem.son_bildirim else None,
         hedef=servis.hedef_adi(tur, donem), admin_liste=f"admin:mazeret_{tur.model_adi}_changelist",
+        sifirlanabilir=servis.sifirlanabilir_mi(y),
+        sifirlama_kisileri=kisiler if servis.sifirlanabilir_mi(y) else [],  # tek kişi: seçili bölümün personeli
     ))
+
+
+@require_POST
+@login_required
+def sifirla(request, donem_pk, tur):
+    """Yönetici: dönemin bildirimlerini tümüyle, bir bölüm ya da bir kişi için siler (önce veritabanı yedeği alınır)."""
+    from core.yedek import sifirlama_yedegi
+    from personel.models import Personel
+
+    tur = TURLER[tur]
+    y = servis.yetki(request, tur)
+    if not servis.sifirlanabilir_mi(y):
+        raise PermissionDenied("Mazeretleri yalnız yönetici sıfırlayabilir.")
+    donem = get_object_or_404(tur.donem_modeli, pk=donem_pk)
+    kapsam = request.POST.get("kapsam")
+    bolum = personel = None
+    if kapsam == "bolum":
+        bolum = get_object_or_404(Bolum, pk=request.POST.get("bolum") or 0)
+        etiket = f"{bolum.ad} bölümünün"
+    elif kapsam == "kisi":
+        personel = get_object_or_404(Personel, pk=request.POST.get("personel") or 0)
+        etiket = f"{personel.ad_soyad} için"
+    elif kapsam == "tumu":
+        etiket = "tüm"
+    else:
+        messages.error(request, "Neyin sıfırlanacağını seçin.")
+        return redirect(_tablo_url(tur, donem))
+    yedek = sifirlama_yedegi(f"{tur.kod}-mazeret-{donem.pk}")
+    silinen, teslim = servis.sifirla(tur, donem, bolum=bolum, personel=personel,
+                                      teslimleri_kaldir=bool(request.POST.get("teslim")))
+    messages.success(request, f"{donem.ad}: {etiket} {tur.baslik.lower()} sıfırlandı — {silinen} bildirim silindi"
+                     + (f", {teslim} bölüm teslimi geri alındı" if teslim else "") + "."
+                     + (f" Önceki hâlin yedeği: yedekler\sifirlama\{yedek.name}" if yedek else ""))
+    return redirect(_tablo_url(tur, donem, bolum))
 
 
 @require_POST

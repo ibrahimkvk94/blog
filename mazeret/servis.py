@@ -146,6 +146,40 @@ def kaydet(user, y, donem, personel, hucreler, aciklama="", okunan_surum=None):
     return b
 
 
+def sifirlanabilir_mi(y):
+    """Sıfırlama yalnız yöneticide: mazeret biriminde Yönetim yetkisi, tüm okul kapsamı."""
+    return y.yonetim and y.kapsam_bolum is None
+
+
+@transaction.atomic
+def sifirla(tur, donem, bolum=None, personel=None, teslimleri_kaldir=True):
+    """Dönemin bildirimlerini siler (tümü / bölüm / kişi); aktarılmış işaretleri de hedeften (Program Hazırlama ya da
+    Sınav Planlama) kaldırır. Dönüş: (silinen bildirim, geri alınan teslim)."""
+    from .models import MazeretTeslimi
+
+    qs = donem.bildirimler.select_related("personel")
+    if personel is not None:
+        qs = qs.filter(personel=personel)
+    elif bolum is not None:
+        qs = qs.filter(personel__bolum=bolum)
+    bildirimler = list(qs)
+    if bildirimler and hedef_adi(tur, donem):
+        for b in bildirimler:  # boş işaretle aktar: hedefteki eski işaretler silinir (yoklama izinleri kalır)
+            b.hucreler = {}
+        aktar(tur, donem, bildirimler)
+    silinen = len(bildirimler)
+    qs.model.objects.filter(pk__in=[b.pk for b in bildirimler]).delete()
+    teslim = 0
+    if teslimleri_kaldir:
+        t = MazeretTeslimi.objects.filter(tur=tur.kod, donem_id=donem.pk)
+        if personel is not None:
+            t = t.filter(bolum_id=personel.bolum_id) if personel.bolum_id else t.none()
+        elif bolum is not None:
+            t = t.filter(bolum=bolum)
+        teslim = t.delete()[0]
+    return silinen, teslim
+
+
 def toplu_mazeretsiz(user, y, donem, personel_listesi):
     """Henüz bildirimi olmayan personel için "mazereti yok" (boş şablon) kaydeder."""
     var = set(donem.bildirimler.values_list("personel_id", flat=True))

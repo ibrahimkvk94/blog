@@ -19,8 +19,65 @@
     {% endif %}
     <a href="{% url admin_liste %}" class="btn btn-outline-secondary"><i class="bi bi-gear me-1"></i>Dönemler</a>
     {% endif %}
+    {% if sifirlanabilir %}
+    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#sifirlaPenceresi"><i class="bi bi-eraser me-1"></i>Sıfırla</button>
+    {% endif %}
   </div>
 </div>
+
+{% if sifirlanabilir %}
+<div class="modal fade" id="sifirlaPenceresi" tabindex="-1" aria-labelledby="sifirlaBaslik" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="{% url u.sifirla donem.pk %}" id="sifirlaFormu">
+      {% csrf_token %}
+      <div class="modal-header">
+        <h2 class="modal-title fs-5" id="sifirlaBaslik"><i class="bi bi-eraser me-1 text-danger"></i>{{ tur.baslik }} · sıfırla</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-secondary">“{{ donem.ad }}” dönemindeki bildirimler silinir; kişiler “bildirim yok” durumuna döner. {% if hedef %}Aktarılmış işaretler {% if tur.kod == 'sinav' %}Sınav Planlama'dan{% else %}Program Hazırlama'dan{% endif %} da kaldırılır. {% endif %}İşlemden önce veritabanının yedeği alınır.</p>
+        <div class="form-check mb-2"><input class="form-check-input" type="radio" name="kapsam" value="bolum" id="kpsBolum" checked>
+          <label class="form-check-label" for="kpsBolum">Bir bölümün tüm bildirimleri</label></div>
+        <select class="form-select form-select-sm mb-3 ms-4 w-auto" name="bolum" aria-label="Bölüm" data-kapsam="bolum">
+          {% for b in bolumler %}<option value="{{ b.pk }}"{% if bolum and bolum.pk == b.pk %} selected{% endif %}>{{ b.ad }}</option>{% endfor %}
+        </select>
+        {% if sifirlama_kisileri %}
+        <div class="form-check mb-2"><input class="form-check-input" type="radio" name="kapsam" value="kisi" id="kpsKisi">
+          <label class="form-check-label" for="kpsKisi">Tek kişinin bildirimi ({{ bolum.ad }})</label></div>
+        <select class="form-select form-select-sm mb-3 ms-4 w-auto" name="personel" aria-label="Personel" data-kapsam="kisi" disabled>
+          {% for p in sifirlama_kisileri %}<option value="{{ p.pk }}">{{ p.ad_soyad }}</option>{% endfor %}
+        </select>
+        {% else %}<p class="small text-secondary ms-4">Tek kişiyi sıfırlamak için önce üstten bölümü seçin.</p>{% endif %}
+        <div class="form-check mb-3"><input class="form-check-input" type="radio" name="kapsam" value="tumu" id="kpsTumu">
+          <label class="form-check-label text-danger fw-semibold" for="kpsTumu">Dönemin tüm bildirimleri (bütün bölümler)</label></div>
+        <div class="form-check"><input class="form-check-input" type="checkbox" name="teslim" value="1" id="kpsTeslim" checked>
+          <label class="form-check-label small" for="kpsTeslim">Bölümlerin “teslim edildi” durumunu da geri al (bölüm yeniden teslim eder)</label></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Vazgeç</button>
+        <button class="btn btn-danger"><i class="bi bi-eraser me-1"></i>Sıfırla</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+(function () {
+  var f = document.getElementById("sifirlaFormu");
+  function esitle() {
+    var k = f.querySelector("[name=kapsam]:checked").value;
+    f.querySelectorAll("[data-kapsam]").forEach(function (s) { s.disabled = s.dataset.kapsam !== k; });
+  }
+  f.querySelectorAll("[name=kapsam]").forEach(function (r) { r.addEventListener("change", esitle); });
+  f.addEventListener("submit", function (e) {
+    var k = f.querySelector("[name=kapsam]:checked").value, ne;
+    if (k === "tumu") ne = "DÖNEMİN TÜM BİLDİRİMLERİ";
+    else { var s = f.querySelector("[data-kapsam=" + k + "]"); ne = s.options[s.selectedIndex].text + (k === "bolum" ? " bölümünün bildirimleri" : " kişisinin bildirimi"); }
+    if (!confirm(ne + " silinecek. Emin misiniz?")) e.preventDefault();
+  });
+  esitle();
+})();
+</script>
+{% endif %}
 
 {% if bolumler or donemler|length > 1 %}
 <form method="get" class="row g-2 mb-3 align-items-center">

@@ -57,6 +57,7 @@ class Malzeme(models.Model):
     secimler = models.CharField(max_length=100, blank=True)
     diger = models.CharField("Diğer", max_length=120, blank=True)
     yok = models.BooleanField("Malzeme yok", default=False)
+    sure = models.PositiveSmallIntegerField("Sınav süresi (dk)", null=True, blank=True)
     guncelleyen = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+")
     guncelleme = models.DateTimeField(auto_now=True)
 
@@ -67,3 +68,25 @@ class Malzeme(models.Model):
 
     def __str__(self):
         return f"{self.kod} {self.bolum}: {self.secimler or ('yok' if self.yok else '')} {self.diger}".strip()
+
+
+class Etut(models.Model):
+    """Sınavdan önceki gün etüde gelecek öğretim elemanı (ders × program başına bir; isteğe bağlı ikincisi)."""
+
+    takvim = models.ForeignKey(Takvim, on_delete=models.CASCADE, related_name="etutler")
+    kod = models.CharField("Ders kodu", max_length=20)
+    bolum = models.CharField("Sınavın yapılacağı program", max_length=20)
+    ogretmen1 = models.ForeignKey("personel.Personel", on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name="+", verbose_name="Öğretim elemanı")
+    ogretmen2 = models.ForeignKey("personel.Personel", on_delete=models.SET_NULL, null=True, blank=True,
+                                  related_name="+", verbose_name="2. öğretim elemanı")
+    guncelleyen = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+")
+    guncelleme = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Etüt görevlendirmesi"
+        verbose_name_plural = "Etüt görevlendirmeleri"
+        constraints = [models.UniqueConstraint(fields=["takvim", "kod", "bolum"], name="etut_tek")]
+
+    def __str__(self):
+        return f"{self.kod} {self.bolum}"

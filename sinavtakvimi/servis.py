@@ -9,7 +9,7 @@ from django.db import transaction
 from django.http import Http404
 from django.utils import timezone
 
-from core.yetki import DUZENLEME, birim_bul, etkin_yetki
+from core.yetki import DUZENLEME, YONETIM, birim_bul, etkin_yetki
 
 from .models import Satir
 
@@ -34,6 +34,19 @@ def duzenleyebilir(request):
         return True
     try:
         return etkin_yetki(request, birim_bul(request, BIRIM))[0] >= DUZENLEME
+    except Http404:
+        return False
+
+
+def yonetici_mi(request):
+    """Toplu sıfırlama gibi işlemler: Sınav İcrası'nda Yönetim yetkisi ya da süper kullanıcı."""
+    u = request.user
+    if not u.is_authenticated:
+        return False
+    if u.is_superuser:
+        return True
+    try:
+        return etkin_yetki(request, birim_bul(request, BIRIM))[0] >= YONETIM
     except Http404:
         return False
 
@@ -460,25 +473,59 @@ def malzeme_satirlari(takvim, yetki=None):
                     "ders_bolumu": db.kod if db and db.kod else o, "ders_bolumu_adi": db.ad if db else o,
                     "m": m, "secimler": m.secimler.split(",") if m and m.secimler else [],
                     "diger": m.diger if m else "", "yok": bool(m and m.yok), "metin": malzeme_metni(m),
-                    "girildi": bool(malzeme_metni(m)),
+                    "sure": m.sure if m else None, "oturum_dk": oturum_dk(s),
+                    "malzeme_var": bool(malzeme_metni(m)), "girildi": bool(malzeme_metni(m) and m.sure),
                     "girebilir": yetki.girebilir(s.bolum, o) if yetki else False})
     return out
 
 
 @transaction.atomic
-def malzeme_kaydet(takvim, kod, bolum, secimler, diger, yok, user):
+def sure_oku(deger):
+    """Sınav süresi (dk): boş → None; 5–300 arası tam sayı, değilse TakvimHatasi."""
+    if deger in (None, ""):
+        return None
+    try:
+        dk = int(str(deger).strip())
+    except ValueError:
+        raise TakvimHatasi("Süre dakika olarak tam sayı olmalı.") from None
+    if not 5 <= dk <= 300:
+        raise TakvimHatasi("Süre 5 ile 300 dakika arasında olmalı.")
+    return dk
+
+
+def oturum_dk(satir):
+    if not satir.bitis:
+        return None
+    return (satir.bitis.hour * 60 + satir.bitis.minute) - (satir.baslangic.hour * 60 + satir.baslangic.minute)
+
+
+def malzeme_kaydet(takvim, kod, bolum, secimler, diger, yok, user, sure=None):
     from .models import Malzeme
 
     secimler = [s for s, _a in MALZEMELER if s in set(secimler)]
     diger = " ".join((diger or "").split())[:120]
+    sure = sure_oku(sure)
     if secimler or diger:
         yok = False
-    if not (secimler or diger or yok):
+    if not (secimler or diger or yok or sure):
         Malzeme.objects.filter(takvim=takvim, kod=kod, bolum=bolum).delete()
         return None
     m, _ = Malzeme.objects.update_or_create(takvim=takvim, kod=kod, bolum=bolum, defaults={
-        "secimler": ",".join(secimler), "diger": diger, "yok": bool(yok), "guncelleyen": user})
+        "secimler": ",".join(secimler), "diger": diger, "yok": bool(yok), "sure": sure, "guncelleyen": user})
     return m
+
+
+def malzeme_sifirla(takvim, program="", ders_bolumu="", kod=""):
+    """Girilen malzeme ve süreleri siler: tümü ya da program / dersi veren bölüm / ders koduna göre. Silinen sayısı."""
+    qs = takvim.malzemeler.all()
+    if program:
+        qs = qs.filter(bolum=program)
+    if kod:
+        qs = qs.filter(kod=kod)
+    if ders_bolumu:
+        onekler = {o for o, b in ders_bolumleri().items() if b.kod == ders_bolumu} or {ders_bolumu}
+        qs = qs.filter(pk__in=[m.pk for m in qs if onek(m.kod) in onekler])
+    return qs.delete()[0]
 
 
 def malzeme_excel(takvim, satirlar):
@@ -495,10 +542,10 @@ def malzeme_excel(takvim, satirlar):
     orta = Alignment(horizontal="center", vertical="center", wrap_text=True)
     sol = Alignment(horizontal="left", vertical="center", wrap_text=True)
     basliklar = ["S.NO", "SINAV TARİHİ", "SINAV SAATİ", "SINIF", "DERS KODU", "DERS ADI", "SINAVIN YAPILACAĞI PROGRAM",
-                 "KULLANILACAK MALZEME"]
-    genislik = [7, 14, 13, 7, 12, 46, 38, 36]
+                 "KULLANILACAK MALZEME", "SINAV SÜRESİ (DK)"]
+    genislik = [7, 14, 13, 7, 12, 46, 38, 36, 12]
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(basliklar))
-    ws.cell(1, 1, f"{takvim.ad.upper()} — SINAVDA KULLANILACAK MALZEME LİSTESİ").font = Font(
+    ws.cell(1, 1, f"{takvim.ad.upper()} — SINAVDA KULLANILACAK MALZEME VE SINAV SÜRELERİ").font = Font(
         name="Times New Roman", size=13, bold=True)
     ws.cell(1, 1).alignment = orta
     ws.row_dimensions[1].height = 30
@@ -511,12 +558,12 @@ def malzeme_excel(takvim, satirlar):
         s = r["satir"]
         malzeme = "-" if r["yok"] and not r["secimler"] and not r["diger"] else r["metin"]
         degerler = [i - 2, f"{s.tarih:%d.%m.%Y}", saat_metni(s.baslangic, s.bitis).replace("–", "-"), r["sinif"],
-                    r["kod"], r["ders"], r["bolum_adi"].upper(), malzeme]
+                    r["kod"], r["ders"], r["bolum_adi"].upper(), malzeme, r["sure"]]
         for j, v in enumerate(degerler, start=1):
             c = ws.cell(i, j, v)
             c.font, c.border, c.alignment = yazi, cerceve, (sol if j in (6, 7) else orta)
     ws.freeze_panes = "A3"
-    ws.auto_filter.ref = f"A2:H{max(len(satirlar) + 2, 2)}"
+    ws.auto_filter.ref = f"A2:I{max(len(satirlar) + 2, 2)}"
     ws.page_setup.orientation = "landscape"
     ws.page_setup.fitToWidth, ws.page_setup.fitToHeight = 1, 0
     ws.sheet_properties.pageSetUpPr.fitToPage = True
