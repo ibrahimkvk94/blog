@@ -3,15 +3,15 @@
 {% block title %}Sınav İcrası · Malzeme ve süre{% endblock %}
 {% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Malzeme ve Süre</li>{% endblock %}
 {% block content %}
-<link rel="stylesheet" href="{% static 'css/sinav-takvimi.css' %}?v=4">
+<link rel="stylesheet" href="{% static 'css/sinav-takvimi.css' %}?v=5">
 {% include "sinavtakvimi/_sekmeler.html" %}
 {% if not t %}
 <div class="kart text-center text-secondary py-5"><i class="bi bi-calculator d-block fs-3 mb-2"></i>Henüz yayınlanan sınav planı yok. Plan yayınlanınca dersler burada listelenir.</div>
 {% else %}
-<div class="st-sayfa mz-sayfa" id="mzSayfa" data-benim="{{ benim }}" data-benim-program="{{ benim_program|yesno:'1,' }}"
+<div class="st-sayfa sx-sayfa" id="mzSayfa" data-benim="{{ benim }}" data-benim-program="{{ benim_program|yesno:'1,' }}"
      data-kaydet="{% url 'sinavtakvimi:malzeme_kaydet' t.pk %}" data-excel="{% url 'sinavtakvimi:malzeme_excel' t.pk %}">
   {% csrf_token %}
-  <div class="mz-ust">
+  <div class="sx-ust">
     <div>
       <div class="fw-semibold">{{ t.ad }}{% if not t.yayinda %} <span class="durum-rozet durum-planlandi ms-1">Yayında değil</span>{% endif %}</div>
       <div class="small text-secondary">
@@ -26,28 +26,28 @@
     {% endif %}
   </div>
 
-  <div class="mz-ilerleme" aria-label="Programlara göre girilen">
-    <div class="mz-ilerleme-bas"><span>Girilen</span><b id="mzToplam">{{ girilen }}/{{ satirlar|length }}</b></div>
+  <div class="sx-ilerleme" aria-label="Programlara göre girilen">
+    <div class="sx-ilerleme-bas"><span>Girilen</span><b id="mzToplam">{{ girilen }}/{{ satirlar|length }}</b></div>
     {% for p in ilerleme %}
-    <button type="button" class="mz-pk" data-program-sec="{{ p.kod }}" title="{{ p.ad }}">
-      <span class="mz-pk-kod">{{ p.kod }}</span>
-      <span class="mz-bar"><i style="width:{% widthratio p.girilen p.toplam 100 %}%"></i></span>
-      <span class="mz-pk-sayi" data-ilerleme="{{ p.kod }}" data-toplam="{{ p.toplam }}">{{ p.girilen }}/{{ p.toplam }}</span>
+    <button type="button" class="sx-pk" data-program-sec="{{ p.kod }}" title="{{ p.ad }}">
+      <span class="sx-pk-kod">{{ p.kod }}</span>
+      <span class="sx-bar"><i style="width:{% widthratio p.girilen p.toplam 100 %}%"></i></span>
+      <span class="sx-pk-sayi" data-ilerleme="{{ p.kod }}" data-toplam="{{ p.toplam }}">{{ p.girilen }}/{{ p.toplam }}</span>
     </button>
     {% endfor %}
   </div>
 
   <div class="st-arac d-print-none" id="mzArac">
     <div class="st-arac-satir">
-      <span class="mz-etiket">Sınavın yapılacağı program</span>
+      <span class="sx-etiket">Sınavın yapılacağı program</span>
       <div class="st-programlar" role="group" aria-label="Program">
         <button type="button" class="st-cip secili" data-program="">Tümü</button>
         {% for p in programlar %}<button type="button" class="st-cip" data-program="{{ p }}">{{ p }}</button>{% endfor %}
       </div>
     </div>
     <div class="st-arac-satir">
-      <label class="mz-etiket" for="mzDersBolum">Dersi veren bölüm</label>
-      <select class="form-select form-select-sm mz-secim" id="mzDersBolum" autocomplete="off">
+      <label class="sx-etiket" for="mzDersBolum">Dersi veren bölüm</label>
+      <select class="form-select form-select-sm sx-secim" id="mzDersBolum" autocomplete="off">
         <option value="">Tümü</option>
         {% for kod, ad in ders_bolumleri %}<option value="{{ kod }}">{{ ad }}</option>{% endfor %}
       </select>
@@ -62,7 +62,7 @@
         <button type="button" class="btn btn-outline-secondary" data-durum="1">Girilmiş</button>
       </div>
       {% if girebilen and not yetki.hepsi %}
-      <label class="form-check-label small mz-benim"><input class="form-check-input me-1" type="checkbox" id="mzBenim">Yalnız girebileceklerim</label>
+      <label class="form-check-label small sx-benim"><input class="form-check-input me-1" type="checkbox" id="mzBenim">Yalnız girebileceklerim</label>
       {% endif %}
       <div class="st-ara"><i class="bi bi-search"></i><input type="search" id="mzAra" autocomplete="off" placeholder="Ders adı ya da kodu ara" aria-label="Ders ara"></div>
       {% if yonetici %}<button type="button" class="btn btn-sm btn-outline-danger ms-auto" data-bs-toggle="modal" data-bs-target="#mzSifirla"><i class="bi bi-eraser me-1"></i>Sıfırla</button>{% endif %}
@@ -71,10 +71,10 @@
     <div class="st-sonuc" id="mzSonuc" aria-live="polite"></div>
   </div>
 
-  <div class="kart mz-tablo-kap">
+  <div class="kart sx-tablo-kap">
     <div class="table-responsive">
-      <table class="table align-middle mb-0 mz-tablo">
-        <thead><tr><th class="text-end">#</th><th>Sınav</th><th>Sınıf</th><th>Ders</th><th>Program</th><th class="mz-malzeme-bas">Kullanılacak malzeme</th><th class="mz-sure-bas">Süre (dk)</th></tr></thead>
+      <table class="table align-middle mb-0 sx-tablo">
+        <thead><tr><th class="text-end">#</th><th>Sınav</th><th>Sınıf</th><th>Ders</th><th>Program</th><th class="sx-malzeme-bas">Kullanılacak malzeme</th><th class="sx-sure-bas">Süre (dk)</th></tr></thead>
         <tbody>
         {% for r in satirlar %}
           <tr data-kod="{{ r.kod }}" data-program="{{ r.bolum }}" data-ders-bolum="{{ r.ders_bolumu }}" data-sinif="{{ r.sinif|default_if_none:'' }}"
@@ -82,28 +82,28 @@
             <td class="text-end text-secondary small">{{ r.no }}</td>
             <td class="text-nowrap small">{{ r.satir.tarih|date:"j M" }} <span class="text-secondary">{{ r.satir.tarih|date:"D" }}</span><div class="text-secondary">{{ r.satir.baslangic|time:"H.i" }}</div></td>
             <td><span class="st-sinif s{{ r.sinif }}">{{ r.sinif }}. sınıf</span></td>
-            <td class="mz-ders"><div class="fw-semibold">{{ r.ad }}</div><div class="small text-secondary"><span class="st-kod">{{ r.kod }}</span> · {{ r.ders_bolumu_adi }}</div></td>
-            <td><span class="mz-prog" title="{{ r.bolum_adi }}">{{ r.bolum }}</span><div class="small text-secondary d-none d-xl-block">{{ r.bolum_adi }}</div></td>
-            <td class="mz-malzeme">
+            <td class="sx-ders"><div class="fw-semibold">{{ r.ad }}</div><div class="small text-secondary"><span class="st-kod">{{ r.kod }}</span> · {{ r.ders_bolumu_adi }}</div></td>
+            <td><span class="sx-prog" title="{{ r.bolum_adi }}">{{ r.bolum }}</span><div class="small text-secondary d-none d-xl-block">{{ r.bolum_adi }}</div></td>
+            <td class="sx-malzeme">
               {% if r.girebilir %}
-              <div class="mz-giris">
-                {% for s, ad in malzeme_secenekleri %}<button type="button" class="mz-sec{% if s in r.secimler %} secili{% endif %}" data-s="{{ s }}" aria-pressed="{% if s in r.secimler %}true{% else %}false{% endif %}">{{ ad }}</button>{% endfor %}
-                <button type="button" class="mz-sec mz-yok{% if r.yok %} secili{% endif %}" data-s="yok" aria-pressed="{{ r.yok|yesno:'true,false' }}">Yok</button>
-                <input type="text" class="mz-diger" maxlength="120" value="{{ r.diger }}" placeholder="Diğer…" aria-label="Diğer malzeme">
-                <span class="mz-durum" aria-live="polite"></span>
+              <div class="sx-giris">
+                {% for s, ad in malzeme_secenekleri %}<button type="button" class="sx-sec{% if s in r.secimler %} secili{% endif %}" data-s="{{ s }}" aria-pressed="{% if s in r.secimler %}true{% else %}false{% endif %}">{{ ad }}</button>{% endfor %}
+                <button type="button" class="sx-sec sx-yok{% if r.yok %} secili{% endif %}" data-s="yok" aria-pressed="{{ r.yok|yesno:'true,false' }}">Yok</button>
+                <input type="text" class="sx-diger" maxlength="120" value="{{ r.diger }}" placeholder="Diğer…" aria-label="Diğer malzeme">
+                <span class="sx-durum" aria-live="polite"></span>
               </div>
-              <button type="button" class="mz-hepsi" hidden title="Bu dersin girebildiğiniz tüm programlarına aynı malzemeyi yaz"><i class="bi bi-copy me-1"></i>Bu dersin tüm programlarına uygula</button>
+              <button type="button" class="sx-hepsi" hidden title="Bu dersin girebildiğiniz tüm programlarına aynı malzemeyi yaz"><i class="bi bi-copy me-1"></i>Bu dersin tüm programlarına uygula</button>
               {% else %}
-              <span class="mz-metin">{% if r.metin %}{{ r.metin }}{% else %}<span class="mz-girilmedi">Girilmedi</span>{% endif %}</span>
+              <span class="sx-metin">{% if r.metin %}{{ r.metin }}{% else %}<span class="sx-girilmedi">Girilmedi</span>{% endif %}</span>
               {% endif %}
             </td>
-            <td class="mz-sure">
+            <td class="sx-sure">
               {% if r.girebilir %}
-              <input type="number" class="mz-sure-gir{% if r.sure and r.oturum_dk and r.sure > r.oturum_dk %} asim{% endif %}" min="5" max="300" step="5" inputmode="numeric"
+              <input type="number" class="sx-sure-gir{% if r.sure and r.oturum_dk and r.sure > r.oturum_dk %} asim{% endif %}" min="5" max="300" step="5" inputmode="numeric"
                      value="{{ r.sure|default_if_none:'' }}" data-oturum="{{ r.oturum_dk|default_if_none:'' }}" aria-label="Sınav süresi (dakika)"
-                     title="{% if r.oturum_dk %}Oturum {{ r.oturum_dk }} dk{% endif %}"><span class="mz-dk">dk</span>
-              {% elif r.sure %}{{ r.sure }} dk{% else %}<span class="mz-girilmedi">Girilmedi</span>{% endif %}
-              {% if r.oturum_dk %}<div class="mz-oturum">oturum {{ r.oturum_dk }} dk</div>{% endif %}
+                     title="{% if r.oturum_dk %}Oturum {{ r.oturum_dk }} dk{% endif %}"><span class="sx-dk">dk</span>
+              {% elif r.sure %}{{ r.sure }} dk{% else %}<span class="sx-girilmedi">Girilmedi</span>{% endif %}
+              {% if r.oturum_dk %}<div class="sx-oturum">oturum {{ r.oturum_dk }} dk</div>{% endif %}
             </td>
           </tr>
         {% endfor %}
@@ -166,6 +166,6 @@
 })();
 </script>
 {% endif %}
-<script src="{% static 'js/sinav-malzeme.js' %}?v=2"></script>
+<script src="{% static 'js/sinav-malzeme.js' %}?v=3"></script>
 {% endif %}
 {% endblock %}

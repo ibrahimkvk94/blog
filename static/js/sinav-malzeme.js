@@ -71,20 +71,20 @@
     sayfa.querySelectorAll("[data-ilerleme]").forEach(function (el) {
       var g = say[el.dataset.ilerleme] || 0, t = +el.dataset.toplam;
       el.textContent = g + "/" + t;
-      el.parentNode.querySelector(".mz-bar i").style.width = (t ? Math.round(100 * g / t) : 0) + "%";
+      el.parentNode.querySelector(".sx-bar i").style.width = (t ? Math.round(100 * g / t) : 0) + "%";
       el.parentNode.classList.toggle("tamam", g === t);
     });
     document.getElementById("mzToplam").textContent = toplam + "/" + satirlar.length;
   }
 
   function goster(tr, s) {
-    tr.querySelectorAll(".mz-sec").forEach(function (b) {
+    tr.querySelectorAll(".sx-sec").forEach(function (b) {
       var on = b.dataset.s === "yok" ? s.yok : s.secimler.indexOf(b.dataset.s) >= 0;
       b.classList.toggle("secili", on); b.setAttribute("aria-pressed", on ? "true" : "false");
     });
-    var d = tr.querySelector(".mz-diger");
+    var d = tr.querySelector(".sx-diger");
     if (d && document.activeElement !== d) d.value = s.diger;
-    var su = tr.querySelector(".mz-sure-gir");
+    var su = tr.querySelector(".sx-sure-gir");
     if (su && document.activeElement !== su) su.value = s.sure == null ? "" : s.sure;
     if (su) asim(su);
     tr.dataset.girildi = s.metin && s.sure ? "1" : "0";
@@ -92,9 +92,9 @@
 
   function oku(tr) {
     var secimler = [];
-    tr.querySelectorAll(".mz-sec.secili").forEach(function (b) { if (b.dataset.s !== "yok") secimler.push(b.dataset.s); });
-    return { kod: tr.dataset.kod, bolum: tr.dataset.program, secimler: secimler, diger: tr.querySelector(".mz-diger").value,
-             yok: !!tr.querySelector(".mz-yok.secili"), sure: tr.querySelector(".mz-sure-gir").value };
+    tr.querySelectorAll(".sx-sec.secili").forEach(function (b) { if (b.dataset.s !== "yok") secimler.push(b.dataset.s); });
+    return { kod: tr.dataset.kod, bolum: tr.dataset.program, secimler: secimler, diger: tr.querySelector(".sx-diger").value,
+             yok: !!tr.querySelector(".sx-yok.secili"), sure: tr.querySelector(".sx-sure-gir").value };
   }
 
   function asim(su) {  // süre oturumdan uzunsa uyar
@@ -104,9 +104,9 @@
   }
 
   function kaydet(tr, hepsi) {
-    var veri = oku(tr), d = tr.querySelector(".mz-durum");
+    var veri = oku(tr), d = tr.querySelector(".sx-durum");
     veri.hepsi = !!hepsi;
-    d.className = "mz-durum bekliyor"; d.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
+    d.className = "sx-durum bekliyor"; d.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
     fetch(sayfa.dataset.kaydet, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
       body: JSON.stringify(veri), credentials: "same-origin" })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.hata || "Kaydedilemedi"); return j; }); })
@@ -115,39 +115,39 @@
           satirlar.forEach(function (x) {
             if (x.dataset.kod === tr.dataset.kod && x.dataset.program === s.bolum) {
               goster(x, s);
-              var xd = x.querySelector(".mz-durum");
-              if (xd) { xd.className = "mz-durum tamam"; xd.innerHTML = '<i class="bi bi-check-lg"></i>'; xd.title = "Kaydedildi"; }
+              var xd = x.querySelector(".sx-durum");
+              if (xd) { xd.className = "sx-durum tamam"; xd.innerHTML = '<i class="bi bi-check-lg"></i>'; xd.title = "Kaydedildi"; }
             }
           });
         });
         ilerleme();
       })
-      .catch(function (e) { d.className = "mz-durum hata"; d.innerHTML = '<i class="bi bi-exclamation-circle"></i>'; d.title = e.message; });
+      .catch(function (e) { d.className = "sx-durum hata"; d.innerHTML = '<i class="bi bi-exclamation-circle"></i>'; d.title = e.message; });
   }
 
   satirlar.forEach(function (tr) {
     if (tr.dataset.girebilir !== "1") return;
-    var hepsiBtn = tr.querySelector(".mz-hepsi");
+    var hepsiBtn = tr.querySelector(".sx-hepsi");
     if (kodSayisi[tr.dataset.kod] > 1) hepsiBtn.hidden = false;
     hepsiBtn.addEventListener("click", function () { kaydet(tr, true); });
-    tr.querySelectorAll(".mz-sec").forEach(function (b) {
+    tr.querySelectorAll(".sx-sec").forEach(function (b) {
       b.addEventListener("click", function () {
         var on = !b.classList.contains("secili");
         if (b.dataset.s === "yok" && on) {  // "Yok" diğerlerini kaldırır
-          tr.querySelectorAll(".mz-sec").forEach(function (x) { x.classList.remove("secili"); });
-          tr.querySelector(".mz-diger").value = "";
-        } else if (on) tr.querySelector(".mz-yok").classList.remove("secili");
+          tr.querySelectorAll(".sx-sec").forEach(function (x) { x.classList.remove("secili"); });
+          tr.querySelector(".sx-diger").value = "";
+        } else if (on) tr.querySelector(".sx-yok").classList.remove("secili");
         b.classList.toggle("secili", on);
         kaydet(tr);
       });
     });
-    var diger = tr.querySelector(".mz-diger"), zaman = null;
+    var diger = tr.querySelector(".sx-diger"), zaman = null;
     diger.addEventListener("input", function () {
-      if (diger.value.trim()) tr.querySelector(".mz-yok").classList.remove("secili");
+      if (diger.value.trim()) tr.querySelector(".sx-yok").classList.remove("secili");
       clearTimeout(zaman); zaman = setTimeout(function () { kaydet(tr); }, 700);
     });
     diger.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); clearTimeout(zaman); kaydet(tr); } });
-    var su = tr.querySelector(".mz-sure-gir"), suZaman = null;
+    var su = tr.querySelector(".sx-sure-gir"), suZaman = null;
     su.addEventListener("input", function () {
       asim(su);
       clearTimeout(suZaman);
