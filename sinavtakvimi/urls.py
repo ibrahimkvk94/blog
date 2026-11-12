@@ -12,4 +12,8 @@ urlpatterns = [
     path("<int:pk>/duzenle/", views.duzenle, name="duzenle"),
     path("<int:pk>/yayin/", views.yayin, name="yayin"),
     path("<int:pk>/sil/", views.sil, name="sil"),
+    path("malzemeler/", views.malzemeler, name="malzemeler"),
+    path("<int:pk>/malzemeler/", views.malzemeler, name="malzemeler_takvim"),
+    path("<int:pk>/malzemeler/kaydet/", views.malzeme_kaydet, name="malzeme_kaydet"),
+    path("<int:pk>/malzemeler/excel/", views.malzeme_excel, name="malzeme_excel"),
 ]

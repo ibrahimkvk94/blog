@@ -105,3 +105,52 @@ class SinavTakvimiTestleri(TestCase):
         self.assertEqual(servis.tr_baslik("TAKTİK HAREKÂTIN UNSURLARI VE YÖNETİMİ 3"),
                          "Taktik Harekâtın Unsurları ve Yönetimi 3")
         self.assertEqual(servis.tr_baslik("ISITMA TESİSAT"), "Isıtma Tesisat")
+
+
+class MalzemeTestleri(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        from personel.models import Bolum
+
+        cls.bil, _ = Bolum.objects.get_or_create(kod="BİL", defaults={"ad": "Bilgisayar Teknolojisi"})
+        cls.ydl, _ = Bolum.objects.get_or_create(kod="YDL", defaults={"ad": "Yabancı Diller"})
+        cls.elk, _ = Bolum.objects.get_or_create(kod="ELK", defaults={"ad": "Elektrik"})
+        cls.bil_hesap = User.objects.create_user("bilhesap", password="x-Parola-123", bolum=cls.bil)
+        cls.ydl_hesap = User.objects.create_user("ydlhesap", password="x-Parola-123", bolum=cls.ydl)
+        cls.herkes = User.objects.create_user("herkes2", password="x-Parola-123")
+        cls.t = Takvim.objects.create(ad="Deneme planı", yayinda=True)
+        servis.satirlari_yaz(cls.t, [
+            {"tarih": D(2026, 11, 30), "baslangic": T(8, 45), "bitis": T(10), "sinif": 2, "ders": "İNGİLİZCE 3",
+             "kod": "YDL201", "bolum": b, "tur": "%100 MT"} for b in ("BİL", "ELK")] + [
+            {"tarih": D(2026, 11, 30), "baslangic": T(14, 15), "bitis": T(15, 30), "sinif": 2, "ders": "SUNUCU",
+             "kod": "BİL221", "bolum": "BİL", "tur": "%100 MT"}])
+
+    def _kaydet(self, **veri):
+        return self.client.post(reverse("sinavtakvimi:malzeme_kaydet", args=[self.t.pk]), data=veri,
+                                content_type="application/json")
+
+    def test_herkes_gorur_girebilen_bolumdur(self):
+        self.client.force_login(self.herkes)
+        r = self.client.get(reverse("sinavtakvimi:malzemeler"))
+        self.assertContains(r, "Sınav Malzemeleri")
+        self.assertContains(r, 'data-girebilir="0"', count=3)
+        self.assertEqual(self._kaydet(kod="BİL221", bolum="BİL", secimler=["hesap"]).status_code, 403)
+
+        self.client.force_login(self.bil_hesap)  # program BİL: YDL201/BİL ve BİL221; ELK satırı değil
+        r = self.client.get(reverse("sinavtakvimi:malzemeler"))
+        self.assertContains(r, 'data-girebilir="1"', count=2)
+        self.assertEqual(self._kaydet(kod="YDL201", bolum="ELK", secimler=["hesap"]).status_code, 403)
+        j = self._kaydet(kod="BİL221", bolum="BİL", secimler=["hesap", "cizim", "uydurma"]).json()
+        self.assertEqual(j["satirlar"][0]["metin"], "Hesap makinesi, Çizim araç gereçleri")
+
+    def test_dersi_veren_bolum_tum_programlara_uygular_ve_yok(self):
+        self.client.force_login(self.ydl_hesap)  # YDL201'i veren bölüm: her iki programı da girebilir
+        j = self._kaydet(kod="YDL201", bolum="BİL", yok=True, hepsi=True).json()
+        self.assertEqual({s["bolum"] for s in j["satirlar"]}, {"BİL", "ELK"})
+        self.assertEqual(j["satirlar"][0]["metin"], "Malzeme yok")
+        self.assertEqual(self.t.malzemeler.count(), 2)
+        self._kaydet(kod="YDL201", bolum="ELK")  # hepsi boş → girilmemişe döner
+        self.assertEqual(self.t.malzemeler.count(), 1)
+        self.client.force_login(self.herkes)
+        r = self.client.get(reverse("sinavtakvimi:malzeme_excel", args=[self.t.pk]) + "?program=BİL")
+        self.assertTrue(r.content.startswith(b"PK"))
