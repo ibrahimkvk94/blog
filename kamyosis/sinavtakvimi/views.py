@@ -23,7 +23,8 @@ from .servis import TakvimHatasi
 EN_BUYUK_DOSYA = 5 * 1024 * 1024
 # Sınav İcrası sayfasının sekmeleri (kod, ad, ikon, adres adı); yeni sekmeler buraya eklenir.
 SEKMELER = [("takvim", "Sınav Takvimi", "calendar2-week", "sinavtakvimi:liste"),
-            ("malzeme", "Sınav Malzemeleri", "calculator", "sinavtakvimi:malzemeler")]
+            ("malzeme", "Malzeme ve Süre", "calculator", "sinavtakvimi:malzemeler"),
+            ("etut", "Etüt Görevlendirmeleri", "person-video3", "sinavtakvimi:etutler")]
 
 
 def _baglam(request, **ctx):
@@ -190,7 +191,9 @@ def malzemeler(request, pk=None):
         request, sekme="malzeme", t=t, takvimler=takvimler, satirlar=satirlar, programlar=programlar,
         ders_bolumleri=ders_bolumleri, ilerleme=ilerleme, malzeme_secenekleri=servis.MALZEMELER, benim=benim,
         benim_program=benim in programlar, girebilen=sum(r["girebilir"] for r in satirlar),
-        girilen=sum(r["girildi"] for r in satirlar), yetki=yetki, breadcrumb_ek=True))
+        girilen=sum(r["girildi"] for r in satirlar), yetki=yetki, breadcrumb_ek=True,
+        yonetici=servis.yonetici_mi(request),
+        dersler=sorted({(r["kod"], r["ad"]) for r in satirlar}, key=lambda x: servis.tr_anahtar(x[0]))))
 
 
 @require_POST
@@ -212,13 +215,44 @@ def malzeme_kaydet(request, pk):
     if not hedefler:
         return JsonResponse({"hata": "Bu satırı yalnız ilgili bölüm ya da Sınav İcrası yetkilisi girebilir."}, status=403)
     sonuc = []
+    try:
+        servis.sure_oku(veri.get("sure"))
+    except TakvimHatasi as e:
+        return JsonResponse({"hata": str(e)}, status=400)
     for r in hedefler:
         m = servis.malzeme_kaydet(t, r["kod"], r["bolum"], veri.get("secimler") or [], veri.get("diger"),
-                                  bool(veri.get("yok")), request.user)
+                                  bool(veri.get("yok")), request.user, sure=veri.get("sure"))
         sonuc.append({"bolum": r["bolum"], "metin": servis.malzeme_metni(m),
                       "secimler": m.secimler.split(",") if m and m.secimler else [], "diger": m.diger if m else "",
-                      "yok": bool(m and m.yok)})
+                      "yok": bool(m and m.yok), "sure": m.sure if m else None})
     return JsonResponse({"tamam": True, "satirlar": sonuc})
+
+
+@require_POST
+def malzeme_sifirla(request, pk):
+    """Yönetici: girilen malzeme ve süreleri siler (tümü, program, dersi veren bölüm ya da ders); önce yedek alınır."""
+    from core.yedek import sifirlama_yedegi
+
+    if not servis.yonetici_mi(request):
+        raise PermissionDenied("Yalnız Sınav İcrası yöneticisi sıfırlayabilir.")
+    t = get_object_or_404(Takvim, pk=pk)
+    kapsam = request.POST.get("kapsam")
+    secim = {"program": "", "ders_bolumu": "", "kod": ""}
+    if kapsam in secim:
+        secim[kapsam] = (request.POST.get(kapsam) or "").strip()
+        if not secim[kapsam]:
+            messages.error(request, "Sıfırlanacak seçimi yapın.")
+            return redirect("sinavtakvimi:malzemeler_takvim", t.pk)
+    elif kapsam != "tumu":
+        messages.error(request, "Neyin sıfırlanacağını seçin.")
+        return redirect("sinavtakvimi:malzemeler_takvim", t.pk)
+    yedek = sifirlama_yedegi(f"malzeme-{t.pk}")
+    n = servis.malzeme_sifirla(t, **secim)
+    ne = {"program": f"{secim['program']} programının", "ders_bolumu": f"{secim['ders_bolumu']} bölümünün verdiği derslerin",
+          "kod": f"{secim['kod']} dersinin"}.get(kapsam, "Tüm")
+    messages.success(request, f"{ne} malzeme ve süre girişleri sıfırlandı: {n} satır silindi."
+                     + (f" Önceki hâlin yedeği: yedekler\\sifirlama\\{yedek.name}" if yedek else ""))
+    return redirect("sinavtakvimi:malzemeler_takvim", t.pk)
 
 
 def malzeme_excel(request, pk):
@@ -230,4 +264,79 @@ def malzeme_excel(request, pk):
     cevap = HttpResponse(servis.malzeme_excel(t, satirlar),
                          content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     cevap["Content-Disposition"] = f'attachment; filename="sinav-malzemeleri-{t.pk}.xlsx"'
+    return cevap
+
+
+# ---------------------------------------------------------------- etüt görevlendirmeleri
+
+def _gorunen_takvim(request, pk):
+    duz = servis.duzenleyebilir(request)
+    qs = Takvim.objects.all() if duz else Takvim.objects.filter(yayinda=True)
+    takvimler = list(qs.order_by("-yayinda", "-olusturma"))
+    if pk is not None:
+        return _takvim(request, pk), takvimler
+    return (takvimler[0] if takvimler else None), takvimler
+
+
+def etutler(request, pk=None):
+    from . import etut
+
+    t, takvimler = _gorunen_takvim(request, pk)
+    if t is None:
+        return render(request, "sinavtakvimi/etutler.html", _baglam(request, sekme="etut", t=None))
+    yetki = servis.MalzemeYetkisi(request)
+    satirlar = etut.satirlar(t, yetki)
+    programlar = sorted({r["bolum"] for r in satirlar if r["bolum"]}, key=servis.tr_anahtar)
+    ders_bolumleri = sorted({(r["ders_bolumu"], r["ders_bolumu_adi"]) for r in satirlar},
+                            key=lambda x: servis.tr_anahtar(x[1]))
+    girebilen = sum(r["girebilir"] for r in satirlar)
+    adaylar = [etut.kisi_sozlugu(p) for p in etut.adaylar()] if girebilen else []
+    benim = yetki.bolum.kod if yetki.bolum is not None and yetki.bolum.kod else ""
+    return render(request, "sinavtakvimi/etutler.html", _baglam(
+        request, sekme="etut", t=t, takvimler=takvimler, satirlar=satirlar, gunler=etut.gunler(satirlar),
+        programlar=programlar, ders_bolumleri=ders_bolumleri, adaylar=adaylar, benim=benim,
+        benim_program=benim in programlar, girebilen=girebilen, girilen=sum(r["girildi"] for r in satirlar),
+        yetki=yetki, breadcrumb_ek=True))
+
+
+@require_POST
+def etut_kaydet(request, pk):
+    from . import etut
+
+    t = _takvim(request, pk)
+    try:
+        veri = json.loads(request.body or "{}")
+    except ValueError:
+        return JsonResponse({"hata": "Geçersiz istek."}, status=400)
+    kod, bolum = str(veri.get("kod") or ""), str(veri.get("bolum") or "")
+    yetki = servis.MalzemeYetkisi(request)
+    satirlar = {(r["kod"], r["bolum"]): r for r in etut.satirlar(t, yetki)}
+    if (kod, bolum) not in satirlar:
+        return JsonResponse({"hata": "Bu ders planda yok."}, status=404)
+    hedefler = [r for (k, _b), r in satirlar.items() if k == kod] if veri.get("hepsi") else [satirlar[(kod, bolum)]]
+    hedefler = [r for r in hedefler if r["girebilir"]]
+    if not hedefler:
+        return JsonResponse({"hata": "Bu satırı yalnız ilgili bölüm ya da Sınav İcrası yetkilisi girebilir."}, status=403)
+    sonuc = []
+    try:
+        for r in hedefler:
+            e = etut.kaydet(t, r["kod"], r["bolum"], veri.get("ogretmen1"), veri.get("ogretmen2"), request.user)
+            sonuc.append({"bolum": r["bolum"], "o1": etut.kisi_sozlugu(e.ogretmen1 if e else None),
+                          "o2": etut.kisi_sozlugu(e.ogretmen2 if e else None)})
+    except TakvimHatasi as e:
+        return JsonResponse({"hata": str(e)}, status=400)
+    return JsonResponse({"tamam": True, "satirlar": sonuc})
+
+
+def etut_excel(request, pk):
+    from . import etut
+
+    t = _takvim(request, pk)
+    satirlar = etut.satirlar(t)
+    program = request.GET.get("program")
+    if program:
+        satirlar = [r for r in satirlar if r["bolum"] == program]
+    cevap = HttpResponse(etut.excel(t, satirlar),
+                         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    cevap["Content-Disposition"] = f'attachment; filename="etut-gorevlendirmeleri-{t.pk}.xlsx"'
     return cevap

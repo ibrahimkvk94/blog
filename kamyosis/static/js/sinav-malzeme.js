@@ -84,14 +84,23 @@
     });
     var d = tr.querySelector(".mz-diger");
     if (d && document.activeElement !== d) d.value = s.diger;
-    tr.dataset.girildi = s.metin ? "1" : "0";
+    var su = tr.querySelector(".mz-sure-gir");
+    if (su && document.activeElement !== su) su.value = s.sure == null ? "" : s.sure;
+    if (su) asim(su);
+    tr.dataset.girildi = s.metin && s.sure ? "1" : "0";
   }
 
   function oku(tr) {
     var secimler = [];
     tr.querySelectorAll(".mz-sec.secili").forEach(function (b) { if (b.dataset.s !== "yok") secimler.push(b.dataset.s); });
     return { kod: tr.dataset.kod, bolum: tr.dataset.program, secimler: secimler, diger: tr.querySelector(".mz-diger").value,
-             yok: !!tr.querySelector(".mz-yok.secili") };
+             yok: !!tr.querySelector(".mz-yok.secili"), sure: tr.querySelector(".mz-sure-gir").value };
+  }
+
+  function asim(su) {  // süre oturumdan uzunsa uyar
+    var v = +su.value, o = +su.dataset.oturum;
+    su.classList.toggle("asim", !!(v && o && v > o));
+    su.title = v && o && v > o ? "Süre oturumdan (" + o + " dk) uzun" : (o ? "Oturum " + o + " dk" : "");
   }
 
   function kaydet(tr, hepsi) {
@@ -138,13 +147,23 @@
       clearTimeout(zaman); zaman = setTimeout(function () { kaydet(tr); }, 700);
     });
     diger.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); clearTimeout(zaman); kaydet(tr); } });
+    var su = tr.querySelector(".mz-sure-gir"), suZaman = null;
+    su.addEventListener("input", function () {
+      asim(su);
+      clearTimeout(suZaman);
+      var v = su.value.trim();
+      if (v && (!/^\d+$/.test(v) || +v < 5 || +v > 300)) return;  // geçersizken kaydetme
+      suZaman = setTimeout(function () { kaydet(tr); }, 700);
+    });
+    su.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); clearTimeout(suZaman); kaydet(tr); } });
   });
 
   cipler.forEach(function (c) { c.addEventListener("click", function () { durum.p = durum.p === c.dataset.program ? "" : c.dataset.program; kaydetSecim(); uygula(); }); });
   sayfa.querySelectorAll("[data-program-sec]").forEach(function (c) {
     c.addEventListener("click", function () { durum.p = durum.p === c.dataset.programSec ? "" : c.dataset.programSec; kaydetSecim(); uygula(); });
   });
-  dersSec.addEventListener("change", function () { durum.d = dersSec.value; kaydetSecim(); uygula(); });
+  ["change", "input"].forEach(function (ol) { dersSec.addEventListener(ol, function () { if (durum.d !== dersSec.value) { durum.d = dersSec.value; kaydetSecim(); uygula(); } }); });
+  window.addEventListener("pageshow", function () { uygula(); });  // tarayıcı geri gelince kutular süzgeçle aynı kalsın
   sayfa.querySelectorAll("[data-sinif-sec]").forEach(function (b) { b.addEventListener("click", function () { durum.s = b.dataset.sinifSec; kaydetSecim(); uygula(); }); });
   sayfa.querySelectorAll("[data-durum]").forEach(function (b) { b.addEventListener("click", function () { durum.g = b.dataset.durum; kaydetSecim(); uygula(); }); });
   if (benimKutu) benimKutu.addEventListener("change", function () { durum.benim = benimKutu.checked; kaydetSecim(); uygula(); });

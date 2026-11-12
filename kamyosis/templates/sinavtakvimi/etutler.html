@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Sınav İcrası · Etüt görevlendirmeleri{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Etüt Görevlendirmeleri</li>{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/sinav-takvimi.css' %}?v=4">
+{% include "sinavtakvimi/_sekmeler.html" %}
+{% if not t %}
+<div class="kart text-center text-secondary py-5"><i class="bi bi-person-video3 d-block fs-3 mb-2"></i>Henüz yayınlanan sınav planı yok. Plan yayınlanınca etüt günleri burada listelenir.</div>
+{% else %}
+<div class="st-sayfa mz-sayfa" id="etSayfa" data-benim="{{ benim }}" data-benim-program="{{ benim_program|yesno:'1,' }}"
+     data-kaydet="{% url 'sinavtakvimi:etut_kaydet' t.pk %}" data-excel="{% url 'sinavtakvimi:etut_excel' t.pk %}">
+  {% csrf_token %}
+  <div class="mz-ust">
+    <div>
+      <div class="fw-semibold">{{ t.ad }}{% if not t.yayinda %} <span class="durum-rozet durum-planlandi ms-1">Yayında değil</span>{% endif %}</div>
+      <div class="small text-secondary">
+        Etüt, sınavdan <b>bir önceki gün</b> yapılır. Her derse bir öğretim elemanı yazılır; gerekirse “2. öğretim elemanı” işaretlenip ikincisi eklenir. Değişiklik anında kaydedilir.
+        {% if yetki.hepsi %}Siz tüm satırları girebilirsiniz.{% elif girebilen %}Sizin girebileceğiniz <b>{{ girebilen }}</b> satır var.{% else %}Bu listede girebileceğiniz satır yok; yalnız görüntüleyebilirsiniz.{% endif %}
+      </div>
+    </div>
+    {% if takvimler|length > 1 %}
+    <form method="get" class="ms-auto"><select class="form-select form-select-sm" onchange="location.href=this.value">
+      {% for x in takvimler %}<option value="{% url 'sinavtakvimi:etutler_takvim' x.pk %}"{% if x.pk == t.pk %} selected{% endif %}>{{ x.ad }}{% if not x.yayinda %} (yayında değil){% endif %}</option>{% endfor %}
+    </select></form>
+    {% endif %}
+  </div>
+
+  <div class="mz-ilerleme" aria-label="Etüt günleri">
+    <div class="mz-ilerleme-bas"><span>Yazılan</span><b id="etToplam">{{ girilen }}/{{ satirlar|length }}</b></div>
+    {% for g in gunler %}
+    <button type="button" class="mz-pk et-gun" data-gun-sec="{{ g.tarih|date:'Y-m-d' }}" title="{{ g.sinav_gunu|date:'j F' }} sınavlarının etüdü">
+      <span class="mz-pk-kod">{{ g.tarih|date:"j M" }} <span class="et-gun-adi">{{ g.ad }}</span></span>
+      <span class="mz-bar"><i style="width:{% widthratio g.girilen g.toplam 100 %}%"></i></span>
+      <span class="mz-pk-sayi" data-ilerleme="{{ g.tarih|date:'Y-m-d' }}" data-toplam="{{ g.toplam }}">{{ g.girilen }}/{{ g.toplam }}</span>
+    </button>
+    {% endfor %}
+  </div>
+
+  <div class="st-arac d-print-none">
+    <div class="st-arac-satir">
+      <span class="mz-etiket">Sınavın yapılacağı program</span>
+      <div class="st-programlar" role="group" aria-label="Program">
+        <button type="button" class="st-cip secili" data-program="">Tümü</button>
+        {% for p in programlar %}<button type="button" class="st-cip" data-program="{{ p }}">{{ p }}</button>{% endfor %}
+      </div>
+    </div>
+    <div class="st-arac-satir">
+      <label class="mz-etiket" for="etDersBolum">Dersi veren bölüm</label>
+      <select class="form-select form-select-sm mz-secim" id="etDersBolum" autocomplete="off">
+        <option value="">Tümü</option>
+        {% for kod, ad in ders_bolumleri %}<option value="{{ kod }}">{{ ad }}</option>{% endfor %}
+      </select>
+      <div class="btn-group btn-group-sm" role="group" aria-label="Sınıf">
+        <button type="button" class="btn btn-outline-secondary active" data-sinif-sec="">Her iki sınıf</button>
+        <button type="button" class="btn btn-outline-secondary" data-sinif-sec="1">1. sınıf</button>
+        <button type="button" class="btn btn-outline-secondary" data-sinif-sec="2">2. sınıf</button>
+      </div>
+      <div class="btn-group btn-group-sm" role="group" aria-label="Durum">
+        <button type="button" class="btn btn-outline-secondary active" data-durum="">Tümü</button>
+        <button type="button" class="btn btn-outline-secondary" data-durum="0">Yazılmamış</button>
+        <button type="button" class="btn btn-outline-secondary" data-durum="1">Yazılmış</button>
+      </div>
+      {% if girebilen and not yetki.hepsi %}
+      <label class="form-check-label small mz-benim"><input class="form-check-input me-1" type="checkbox" id="etBenim">Yalnız girebileceklerim</label>
+      {% endif %}
+      <div class="st-ara"><i class="bi bi-search"></i><input type="search" id="etAra" autocomplete="off" placeholder="Ders, kod ya da öğretim elemanı ara" aria-label="Ara"></div>
+      <a class="btn btn-sm btn-outline-secondary ms-auto" id="etExcel" href="{% url 'sinavtakvimi:etut_excel' t.pk %}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+    </div>
+    <div class="st-sonuc" id="etSonuc" aria-live="polite"></div>
+  </div>
+
+  <div class="kart mz-tablo-kap">
+    <div class="table-responsive">
+      <table class="table align-middle mb-0 mz-tablo">
+        <thead><tr><th class="text-end">#</th><th>Etüt günü</th><th>Sınıf</th><th>Ders</th><th>Program</th><th class="et-bas">Etüt öğretim elemanı</th></tr></thead>
+        <tbody>
+        {% for r in satirlar %}
+          <tr data-kod="{{ r.kod }}" data-program="{{ r.bolum }}" data-ders-bolum="{{ r.ders_bolumu }}" data-sinif="{{ r.sinif|default_if_none:'' }}"
+              data-gun="{{ r.etut_gunu|date:'Y-m-d' }}" data-girildi="{{ r.girildi|yesno:'1,0' }}" data-girebilir="{{ r.girebilir|yesno:'1,0' }}"
+              data-ara="{{ r.ad|lower }} {{ r.kod|lower }}" data-kisiler="{% if r.o1 %}{{ r.o1|lower }}{% endif %} {% if r.o2 %}{{ r.o2|lower }}{% endif %}">
+            <td class="text-end text-secondary small">{{ r.no }}</td>
+            <td class="text-nowrap small"><b>{{ r.etut_gunu|date:"j M" }}</b> <span class="text-secondary">{{ r.etut_gunu|date:"D" }}</span>
+              <div class="text-secondary">sınav {{ r.satir.tarih|date:"j M" }} {{ r.satir.baslangic|time:"H.i" }}</div></td>
+            <td><span class="st-sinif s{{ r.sinif }}">{{ r.sinif }}. sınıf</span></td>
+            <td class="mz-ders"><div class="fw-semibold">{{ r.ad }}</div><div class="small text-secondary"><span class="st-kod">{{ r.kod }}</span> · {{ r.ders_bolumu_adi }}</div></td>
+            <td><span class="mz-prog" title="{{ r.bolum_adi }}">{{ r.bolum }}</span><div class="small text-secondary d-none d-xl-block">{{ r.bolum_adi }}</div></td>
+            <td class="et-hucre">
+              {% if r.girebilir %}
+              <div class="et-giris">
+                <div class="et-secici" data-alan="1">
+                  <input type="text" class="et-kisi" autocomplete="off" value="{{ r.o1|default_if_none:'' }}" data-id="{{ r.o1.pk|default_if_none:'' }}" placeholder="Öğretim elemanı ara…" aria-label="Etüt öğretim elemanı">
+                  <button type="button" class="et-temizle" title="Kaldır" aria-label="Kaldır"{% if not r.o1 %} hidden{% endif %}>×</button>
+                </div>
+                <label class="et-ikinci-etiket"><input type="checkbox" class="form-check-input et-ikinci"{% if r.o2 %} checked{% endif %}{% if not r.o1 %} disabled{% endif %}> 2. öğretim elemanı</label>
+                <div class="et-secici" data-alan="2"{% if not r.o2 %} hidden{% endif %}>
+                  <input type="text" class="et-kisi" autocomplete="off" value="{{ r.o2|default_if_none:'' }}" data-id="{{ r.o2.pk|default_if_none:'' }}" placeholder="2. öğretim elemanı ara…" aria-label="2. öğretim elemanı">
+                  <button type="button" class="et-temizle" title="Kaldır" aria-label="Kaldır"{% if not r.o2 %} hidden{% endif %}>×</button>
+                </div>
+                <span class="mz-durum" aria-live="polite"></span>
+              </div>
+              <button type="button" class="mz-hepsi" hidden title="Bu dersin girebildiğiniz tüm programlarına aynı kişileri yaz"><i class="bi bi-copy me-1"></i>Bu dersin tüm programlarına kopyala</button>
+              {% else %}
+              <span class="mz-metin">{% if r.o1 %}{{ r.o1 }}{% if r.o2 %}<br>{{ r.o2 }}{% endif %}{% else %}<span class="mz-girilmedi">Yazılmadı</span>{% endif %}</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="st-bos" id="etBos" hidden><i class="bi bi-search"></i>Seçime uyan satır yok.</div>
+  <ul class="et-liste" id="etListe" role="listbox" hidden></ul>
+</div>
+{{ adaylar|json_script:"etAdaylar" }}
+<script src="{% static 'js/sinav-etut.js' %}?v=1"></script>
+{% endif %}
+{% endblock %}

@@ -132,7 +132,7 @@ class MalzemeTestleri(TestCase):
     def test_herkes_gorur_girebilen_bolumdur(self):
         self.client.force_login(self.herkes)
         r = self.client.get(reverse("sinavtakvimi:malzemeler"))
-        self.assertContains(r, "Sınav Malzemeleri")
+        self.assertContains(r, "Malzeme ve Süre")
         self.assertContains(r, 'data-girebilir="0"', count=3)
         self.assertEqual(self._kaydet(kod="BİL221", bolum="BİL", secimler=["hesap"]).status_code, 403)
 
@@ -153,4 +153,75 @@ class MalzemeTestleri(TestCase):
         self.assertEqual(self.t.malzemeler.count(), 1)
         self.client.force_login(self.herkes)
         r = self.client.get(reverse("sinavtakvimi:malzeme_excel", args=[self.t.pk]) + "?program=BİL")
+        self.assertTrue(r.content.startswith(b"PK"))
+
+
+class SureTestleri(MalzemeTestleri):
+    def test_sure_girilir_ve_iki_alan_dolunca_tamam(self):
+        self.client.force_login(self.bil_hesap)
+        self.assertEqual(self._kaydet(kod="BİL221", bolum="BİL", sure=400).status_code, 400)
+        j = self._kaydet(kod="BİL221", bolum="BİL", sure="60").json()
+        self.assertEqual(j["satirlar"][0]["sure"], 60)
+        satir = next(r for r in servis.malzeme_satirlari(self.t) if r["kod"] == "BİL221")
+        self.assertFalse(satir["girildi"])  # malzeme yok
+        self.assertEqual(satir["oturum_dk"], 75)
+        self._kaydet(kod="BİL221", bolum="BİL", sure="60", secimler=["hesap"])
+        satir = next(r for r in servis.malzeme_satirlari(self.t) if r["kod"] == "BİL221")
+        self.assertTrue(satir["girildi"])
+        r = self.client.get(reverse("sinavtakvimi:malzemeler"))
+        self.assertContains(r, 'value="60"')
+
+
+class MalzemeSifirlamaTestleri(MalzemeTestleri):
+    def test_yonetici_kapsamli_sifirlar(self):
+        self.client.force_login(self.ydl_hesap)
+        self._kaydet(kod="YDL201", bolum="BİL", yok=True, hepsi=True, sure=60)
+        self.client.force_login(self.bil_hesap)
+        self._kaydet(kod="BİL221", bolum="BİL", secimler=["hesap"], sure=60)
+        url = reverse("sinavtakvimi:malzeme_sifirla", args=[self.t.pk])
+        self.assertEqual(self.client.post(url, {"kapsam": "tumu"}).status_code, 403)  # bölüm hesabı yönetici değil
+        self.assertNotContains(self.client.get(reverse("sinavtakvimi:malzemeler")), 'id="mzSifirla"')
+        yon = User.objects.create_user("styon", password="x-Parola-123")
+        Yetki.objects.create(kullanici=yon, birim=Birim.objects.get(slug="sinav-icrasi"), seviye=Yetki.YONETIM,
+                             kapsam=Yetki.TUM)
+        self.client.force_login(yon)
+        self.assertContains(self.client.get(reverse("sinavtakvimi:malzemeler")), 'id="mzSifirla"')
+        self.client.post(url, {"kapsam": "program", "program": "ELK"})
+        self.assertEqual(self.t.malzemeler.count(), 2)
+        self.client.post(url, {"kapsam": "ders_bolumu", "ders_bolumu": "BİL"})
+        self.assertEqual(list(self.t.malzemeler.values_list("kod", flat=True)), ["YDL201"])
+        self.client.post(url, {"kapsam": "kod", "kod": "YDL201"})
+        self.assertEqual(self.t.malzemeler.count(), 0)
+        self._kaydet(kod="BİL221", bolum="BİL", sure=50)
+        self.client.post(url, {"kapsam": "tumu"})
+        self.assertEqual(self.t.malzemeler.count(), 0)
+
+
+class EtutTestleri(MalzemeTestleri):
+    def _etut(self, **veri):
+        return self.client.post(reverse("sinavtakvimi:etut_kaydet", args=[self.t.pk]), data=veri,
+                                content_type="application/json")
+
+    def test_etut_gunu_secim_kopyalama_ve_yetki(self):
+        from personel.models import Personel
+
+        a = Personel.objects.create(ad_soyad="Ali KAYA", bolum=self.ydl)
+        b = Personel.objects.create(ad_soyad="Deneme KİRAZ", bolum=self.bil)
+        pasif = Personel.objects.create(ad_soyad="Eski HOCA", bolum=self.bil, derse_girebilir=False)
+        self.client.force_login(self.herkes)
+        r = self.client.get(reverse("sinavtakvimi:etutler"))
+        self.assertContains(r, "Etüt Görevlendirmeleri")
+        self.assertContains(r, 'data-gun="2026-11-29"', count=3)  # 30 Kasım sınavı → 29 Kasım Pazar etüdü
+        self.assertEqual(self._etut(kod="BİL221", bolum="BİL", ogretmen1=a.pk).status_code, 403)
+
+        self.client.force_login(self.ydl_hesap)
+        self.assertEqual(self._etut(kod="YDL201", bolum="BİL", ogretmen1=pasif.pk).status_code, 400)
+        j = self._etut(kod="YDL201", bolum="BİL", ogretmen1=a.pk, ogretmen2=b.pk, hepsi=True).json()
+        self.assertEqual({s["bolum"] for s in j["satirlar"]}, {"BİL", "ELK"})  # aynı derse kopyalandı
+        self.assertEqual(j["satirlar"][0]["o2"]["id"], b.pk)
+        j = self._etut(kod="YDL201", bolum="ELK", ogretmen1=None, ogretmen2=b.pk).json()  # yalnız ikinci → birinci
+        self.assertEqual((j["satirlar"][0]["o1"]["id"], j["satirlar"][0]["o2"]), (b.pk, None))
+        self._etut(kod="YDL201", bolum="ELK")
+        self.assertEqual(self.t.etutler.count(), 1)
+        r = self.client.get(reverse("sinavtakvimi:etut_excel", args=[self.t.pk]))
         self.assertTrue(r.content.startswith(b"PK"))

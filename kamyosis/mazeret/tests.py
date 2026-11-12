@@ -332,3 +332,43 @@ class TopluTabloTestleri(SinavMazeretiTestleri):
         y = servis.yetki(SahteIstek(self.bilci), servis.TURLER["sinav"])
         self.assertEqual(set(servis.personeller(y)), {self.ali})
         self.assertIn(self.ayse, set(servis.personeller(servis.yetki(SahteIstek(self.bilci), servis.TURLER["ders"]))))
+
+
+class SifirlamaTestleri(SinavMazeretiTestleri):
+    def _isaretle(self):
+        url = lambda p: reverse("mazeret:sinav_bildirim", args=[self.donem.pk, p.pk])
+        self.client.force_login(self.yonetici)
+        for p in (self.ayse, self.ali, self.veli):
+            self.client.post(url(p), {"hucreler": json.dumps({"2026-11-02 09:30": "no"}), "surum": "0"})
+        from .models import MazeretTeslimi
+        MazeretTeslimi.objects.create(tur="sinav", donem_id=self.donem.pk, bolum=self.bil)
+        MazeretTeslimi.objects.create(tur="sinav", donem_id=self.donem.pk, bolum=self.elk)
+
+    def test_yalniz_yonetici_sifirlar(self):
+        self._isaretle()
+        self.client.force_login(self.bilci)  # bölüm hesabı (Düzenleme, bölüm kapsamı)
+        r = self.client.post(reverse("mazeret:sinav_sifirla", args=[self.donem.pk]), {"kapsam": "tumu"})
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(self.donem.bildirimler.count(), 3)
+        self.assertNotContains(self.client.get(reverse("mazeret:sinav_tablo", args=[self.donem.pk])), "sifirlaPenceresi")
+
+    def test_bolum_kisi_ve_tumu(self):
+        from .models import MazeretTeslimi
+
+        self._isaretle()
+        url = reverse("mazeret:sinav_sifirla", args=[self.donem.pk])
+        self.assertContains(self.client.get(reverse("mazeret:sinav_tablo", args=[self.donem.pk]) + f"?bolum={self.bil.pk}"),
+                            "sifirlaPenceresi")
+        self.client.post(url, {"kapsam": "kisi", "personel": self.ayse.pk})  # teslim kutusu boş: teslim kalır
+        self.assertEqual(self.donem.bildirimler.count(), 2)
+        self.period.refresh_from_db()
+        self.assertNotIn(str(self.t_ayse.pk), self.period.proctor_blocks)  # aktarılan işaret de kalktı
+        self.assertIn(str(self.t_ali.pk), self.period.proctor_blocks)
+        self.assertEqual(MazeretTeslimi.objects.count(), 2)
+        self.client.post(url, {"kapsam": "bolum", "bolum": self.bil.pk, "teslim": "1"})
+        self.assertEqual(list(self.donem.bildirimler.values_list("personel__ad_soyad", flat=True)), ["Veli ÇELİK"])
+        self.assertEqual(list(MazeretTeslimi.objects.values_list("bolum__kod", flat=True)), ["ELK"])
+        r = self.client.post(url, {"kapsam": "tumu", "teslim": "1"}, follow=True)
+        self.assertContains(r, "1 bildirim silindi")
+        self.assertEqual(self.donem.bildirimler.count(), 0)
+        self.assertEqual(MazeretTeslimi.objects.count(), 0)
