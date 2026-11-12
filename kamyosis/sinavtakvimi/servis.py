@@ -389,3 +389,138 @@ def excel_yaz(takvim):
     out = io.BytesIO()
     wb.save(out)
     return out.getvalue()
+
+
+# ---------------------------------------------------------------- sınav malzemeleri (Sınav İcrası 2. sekme)
+
+MALZEMELER = [("hesap", "Hesap makinesi"), ("cizim", "Çizim araç gereçleri"), ("cetvel", "Cetvel")]
+MALZEME_ADI = dict(MALZEMELER)
+
+
+def onek(kod):
+    """Ders kodunun harf kısmı: “BİL205” → “BİL”."""
+    m = re.match(r"\D+", (kod or "").strip())
+    return m.group().strip().upper() if m else ""
+
+
+def ders_bolumleri():
+    """Ders kodu öneki → Bölüm (kısa kod ve “ek ders kodu önekleri”)."""
+    from personel.models import Bolum
+
+    out = {}
+    for b in Bolum.objects.filter(aktif=True):
+        for o in b.onekler:
+            out.setdefault(o.upper(), b)
+    return out
+
+
+def malzeme_metni(m):
+    if m is None:
+        return ""
+    parcalar = [MALZEME_ADI[s] for s in m.secimler.split(",") if s in MALZEME_ADI]
+    if m.diger:
+        parcalar.append(m.diger)
+    if parcalar:
+        return ", ".join(parcalar)
+    return "Malzeme yok" if m.yok else ""
+
+
+class MalzemeYetkisi:
+    """Herkes görür. Girebilenler: Sınav İcrası'nda Düzenleme+ (hepsi) ya da bölüm hesabı — sınavın yapılacağı program
+    kendi bölümüyse ya da dersi kendi bölümü veriyorsa (ders kodu öneki)."""
+
+    def __init__(self, request):
+        self.hepsi = duzenleyebilir(request)
+        b = getattr(request.user, "bolum", None)
+        self.bolum = b
+        self.onekler = {o.upper() for o in b.onekler} if b is not None else set()
+
+    def girebilir(self, program, ders_oneki):
+        return self.hepsi or bool(self.onekler & {program.upper(), ders_oneki})
+
+
+def malzeme_satirlari(takvim, yetki=None):
+    """Planın her ders × program satırı (bir kez), kaydedilmiş malzemesiyle."""
+    from personel.models import Bolum
+
+    kayitlar = {(m.kod, m.bolum): m for m in takvim.malzemeler.all()}
+    bolumler = ders_bolumleri()
+    adlar = dict(Bolum.objects.exclude(kod=None).values_list("kod", "ad"))
+    out, gorulen = [], set()
+    for s in takvim.satirlar.all():
+        anahtar = (s.kod, s.bolum)
+        if anahtar in gorulen or not s.kod:
+            continue
+        gorulen.add(anahtar)
+        m = kayitlar.get(anahtar)
+        o = onek(s.kod)
+        db = bolumler.get(o)
+        out.append({"no": len(out) + 1, "satir": s, "kod": s.kod, "ders": s.ders, "ad": tr_baslik(s.ders),
+                    "bolum": s.bolum, "bolum_adi": adlar.get(s.bolum, s.bolum), "sinif": s.sinif,
+                    "ders_bolumu": db.kod if db and db.kod else o, "ders_bolumu_adi": db.ad if db else o,
+                    "m": m, "secimler": m.secimler.split(",") if m and m.secimler else [],
+                    "diger": m.diger if m else "", "yok": bool(m and m.yok), "metin": malzeme_metni(m),
+                    "girildi": bool(malzeme_metni(m)),
+                    "girebilir": yetki.girebilir(s.bolum, o) if yetki else False})
+    return out
+
+
+@transaction.atomic
+def malzeme_kaydet(takvim, kod, bolum, secimler, diger, yok, user):
+    from .models import Malzeme
+
+    secimler = [s for s, _a in MALZEMELER if s in set(secimler)]
+    diger = " ".join((diger or "").split())[:120]
+    if secimler or diger:
+        yok = False
+    if not (secimler or diger or yok):
+        Malzeme.objects.filter(takvim=takvim, kod=kod, bolum=bolum).delete()
+        return None
+    m, _ = Malzeme.objects.update_or_create(takvim=takvim, kod=kod, bolum=bolum, defaults={
+        "secimler": ",".join(secimler), "diger": diger, "yok": bool(yok), "guncelleyen": user})
+    return m
+
+
+def malzeme_excel(takvim, satirlar):
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.utils import get_column_letter
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Malzemeler"
+    yazi, kalin = Font(name="Times New Roman", size=12), Font(name="Times New Roman", size=12, bold=True)
+    ince = Side(style="thin", color="000000")
+    cerceve = Border(left=ince, right=ince, top=ince, bottom=ince)
+    orta = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    sol = Alignment(horizontal="left", vertical="center", wrap_text=True)
+    basliklar = ["S.NO", "SINAV TARİHİ", "SINAV SAATİ", "SINIF", "DERS KODU", "DERS ADI", "SINAVIN YAPILACAĞI PROGRAM",
+                 "KULLANILACAK MALZEME"]
+    genislik = [7, 14, 13, 7, 12, 46, 38, 36]
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(basliklar))
+    ws.cell(1, 1, f"{takvim.ad.upper()} — SINAVDA KULLANILACAK MALZEME LİSTESİ").font = Font(
+        name="Times New Roman", size=13, bold=True)
+    ws.cell(1, 1).alignment = orta
+    ws.row_dimensions[1].height = 30
+    gri = PatternFill("solid", fgColor="D9D9D9")
+    for j, b in enumerate(basliklar, start=1):
+        c = ws.cell(2, j, b)
+        c.font, c.alignment, c.border, c.fill = kalin, orta, cerceve, gri
+        ws.column_dimensions[get_column_letter(j)].width = genislik[j - 1]
+    for i, r in enumerate(satirlar, start=3):
+        s = r["satir"]
+        malzeme = "-" if r["yok"] and not r["secimler"] and not r["diger"] else r["metin"]
+        degerler = [i - 2, f"{s.tarih:%d.%m.%Y}", saat_metni(s.baslangic, s.bitis).replace("–", "-"), r["sinif"],
+                    r["kod"], r["ders"], r["bolum_adi"].upper(), malzeme]
+        for j, v in enumerate(degerler, start=1):
+            c = ws.cell(i, j, v)
+            c.font, c.border, c.alignment = yazi, cerceve, (sol if j in (6, 7) else orta)
+    ws.freeze_panes = "A3"
+    ws.auto_filter.ref = f"A2:H{max(len(satirlar) + 2, 2)}"
+    ws.page_setup.orientation = "landscape"
+    ws.page_setup.fitToWidth, ws.page_setup.fitToHeight = 1, 0
+    ws.sheet_properties.pageSetUpPr.fitToPage = True
+    ws.print_title_rows = "1:2"
+    out = io.BytesIO()
+    wb.save(out)
+    return out.getvalue()

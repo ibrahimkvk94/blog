@@ -45,3 +45,25 @@ class Satir(models.Model):
 
     def __str__(self):
         return f"{self.tarih:%d.%m.%Y} {self.baslangic:%H.%M} {self.kod} {self.bolum}"
+
+
+class Malzeme(models.Model):
+    """Sınavda kullanılacak malzeme: planın bir ders × program satırı için (satırlar plan yenilense de kod ve programa
+    bağlı kalır). Seçilenler virgüllü kod listesi (servis.MALZEMELER); "yok" açıkça malzeme kullanılmayacağını söyler."""
+
+    takvim = models.ForeignKey(Takvim, on_delete=models.CASCADE, related_name="malzemeler")
+    kod = models.CharField("Ders kodu", max_length=20)
+    bolum = models.CharField("Sınavın yapılacağı program", max_length=20)
+    secimler = models.CharField(max_length=100, blank=True)
+    diger = models.CharField("Diğer", max_length=120, blank=True)
+    yok = models.BooleanField("Malzeme yok", default=False)
+    guncelleyen = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="+")
+    guncelleme = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Sınav malzemesi"
+        verbose_name_plural = "Sınav malzemeleri"
+        constraints = [models.UniqueConstraint(fields=["takvim", "kod", "bolum"], name="malzeme_tek")]
+
+    def __str__(self):
+        return f"{self.kod} {self.bolum}: {self.secimler or ('yok' if self.yok else '')} {self.diger}".strip()

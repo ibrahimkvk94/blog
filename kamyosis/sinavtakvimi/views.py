@@ -6,7 +6,9 @@ silme Sınav İcrası biriminde Düzenleme yetkisi ister; yayında olmayan planl
 
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
-from django.http import Http404, HttpResponse
+import json
+
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -20,7 +22,8 @@ from .servis import TakvimHatasi
 
 EN_BUYUK_DOSYA = 5 * 1024 * 1024
 # Sınav İcrası sayfasının sekmeleri (kod, ad, ikon, adres adı); yeni sekmeler buraya eklenir.
-SEKMELER = [("takvim", "Sınav Takvimi", "calendar2-week", "sinavtakvimi:liste")]
+SEKMELER = [("takvim", "Sınav Takvimi", "calendar2-week", "sinavtakvimi:liste"),
+            ("malzeme", "Sınav Malzemeleri", "calculator", "sinavtakvimi:malzemeler")]
 
 
 def _baglam(request, **ctx):
@@ -157,3 +160,74 @@ def sil(request, pk):
     t.delete()
     messages.success(request, f"“{ad}” silindi.")
     return redirect("sinavtakvimi:liste")
+
+
+# ---------------------------------------------------------------- sınav malzemeleri
+
+def malzemeler(request, pk=None):
+    """Yayındaki planın ders × program satırları ve sınavda kullanılacak malzeme. Herkes görür; bölümler kendi
+    satırlarını (programı ya da dersi kendi bölümünün olan) girer, Sınav İcrası yetkilileri hepsini."""
+    duz = servis.duzenleyebilir(request)
+    qs = Takvim.objects.all() if duz else Takvim.objects.filter(yayinda=True)
+    takvimler = list(qs.order_by("-yayinda", "-olusturma"))
+    if pk is not None:
+        t = _takvim(request, pk)
+    elif takvimler:
+        t = takvimler[0]
+    else:
+        return render(request, "sinavtakvimi/malzemeler.html", _baglam(request, sekme="malzeme", t=None))
+    yetki = servis.MalzemeYetkisi(request)
+    satirlar = servis.malzeme_satirlari(t, yetki)
+    programlar = sorted({r["bolum"] for r in satirlar if r["bolum"]}, key=servis.tr_anahtar)
+    ders_bolumleri = sorted({(r["ders_bolumu"], r["ders_bolumu_adi"]) for r in satirlar}, key=lambda x: servis.tr_anahtar(x[1]))
+    adlar = {r["bolum"]: r["bolum_adi"] for r in satirlar}
+    ilerleme = []
+    for p in programlar:
+        rs = [r for r in satirlar if r["bolum"] == p]
+        ilerleme.append({"kod": p, "ad": adlar.get(p, p), "toplam": len(rs), "girilen": sum(r["girildi"] for r in rs)})
+    benim = yetki.bolum.kod if yetki.bolum is not None and yetki.bolum.kod else ""
+    return render(request, "sinavtakvimi/malzemeler.html", _baglam(
+        request, sekme="malzeme", t=t, takvimler=takvimler, satirlar=satirlar, programlar=programlar,
+        ders_bolumleri=ders_bolumleri, ilerleme=ilerleme, malzeme_secenekleri=servis.MALZEMELER, benim=benim,
+        benim_program=benim in programlar, girebilen=sum(r["girebilir"] for r in satirlar),
+        girilen=sum(r["girildi"] for r in satirlar), yetki=yetki, breadcrumb_ek=True))
+
+
+@require_POST
+def malzeme_kaydet(request, pk):
+    t = _takvim(request, pk)
+    try:
+        veri = json.loads(request.body or "{}")
+    except ValueError:
+        return JsonResponse({"hata": "Geçersiz istek."}, status=400)
+    kod, bolum = str(veri.get("kod") or ""), str(veri.get("bolum") or "")
+    yetki = servis.MalzemeYetkisi(request)
+    satirlar = {(r["kod"], r["bolum"]): r for r in servis.malzeme_satirlari(t, yetki)}
+    hedefler = [satirlar.get((kod, bolum))]
+    if hedefler[0] is None:
+        return JsonResponse({"hata": "Bu ders planda yok."}, status=404)
+    if veri.get("hepsi"):  # aynı dersin (kodun) girebildiği tüm programları
+        hedefler = [r for (k, _b), r in satirlar.items() if k == kod]
+    hedefler = [r for r in hedefler if r["girebilir"]]
+    if not hedefler:
+        return JsonResponse({"hata": "Bu satırı yalnız ilgili bölüm ya da Sınav İcrası yetkilisi girebilir."}, status=403)
+    sonuc = []
+    for r in hedefler:
+        m = servis.malzeme_kaydet(t, r["kod"], r["bolum"], veri.get("secimler") or [], veri.get("diger"),
+                                  bool(veri.get("yok")), request.user)
+        sonuc.append({"bolum": r["bolum"], "metin": servis.malzeme_metni(m),
+                      "secimler": m.secimler.split(",") if m and m.secimler else [], "diger": m.diger if m else "",
+                      "yok": bool(m and m.yok)})
+    return JsonResponse({"tamam": True, "satirlar": sonuc})
+
+
+def malzeme_excel(request, pk):
+    t = _takvim(request, pk)
+    satirlar = servis.malzeme_satirlari(t)
+    program = request.GET.get("program")
+    if program:
+        satirlar = [r for r in satirlar if r["bolum"] == program]
+    cevap = HttpResponse(servis.malzeme_excel(t, satirlar),
+                         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    cevap["Content-Disposition"] = f'attachment; filename="sinav-malzemeleri-{t.pk}.xlsx"'
+    return cevap
