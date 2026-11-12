@@ -50,7 +50,7 @@
     });
     document.getElementById("etBos").hidden = n > 0;
     var parca = [];
-    if (durum.gun) { var gc = sayfa.querySelector('[data-gun-sec="' + durum.gun + '"] .mz-pk-kod'); parca.push("Etüt <b>" + (gc ? gc.textContent : durum.gun) + "</b>"); }
+    if (durum.gun) { var gc = sayfa.querySelector('[data-gun-sec="' + durum.gun + '"] .sx-pk-kod'); parca.push("Etüt <b>" + (gc ? gc.textContent : durum.gun) + "</b>"); }
     if (durum.p) parca.push("Program <b>" + durum.p + "</b>");
     if (durum.d) parca.push("Dersi veren <b>" + dersSec.options[dersSec.selectedIndex].text + "</b>");
     if (durum.s) parca.push("<b>" + durum.s + ". sınıf</b>");
@@ -72,7 +72,7 @@
     sayfa.querySelectorAll("[data-ilerleme]").forEach(function (el) {
       var g = say[el.dataset.ilerleme] || 0, t = +el.dataset.toplam;
       el.textContent = g + "/" + t;
-      el.parentNode.querySelector(".mz-bar i").style.width = (t ? Math.round(100 * g / t) : 0) + "%";
+      el.parentNode.querySelector(".sx-bar i").style.width = (t ? Math.round(100 * g / t) : 0) + "%";
       el.parentNode.classList.toggle("tamam", g === t);
     });
     document.getElementById("etToplam").textContent = toplam + "/" + satirlar.length;
@@ -98,11 +98,11 @@
     tr.dataset.kisiler = kucuk((s.o1 ? s.o1.ad : "") + " " + (s.o2 ? s.o2.ad : ""));
   }
   function kaydet(tr, hepsi) {
-    var d = tr.querySelector(".mz-durum");
+    var d = tr.querySelector(".sx-durum");
     var veri = { kod: tr.dataset.kod, bolum: tr.dataset.program, hepsi: !!hepsi,
                  ogretmen1: secici(tr, 1).querySelector(".et-kisi").dataset.id || null,
                  ogretmen2: tr.querySelector(".et-ikinci").checked ? (secici(tr, 2).querySelector(".et-kisi").dataset.id || null) : null };
-    d.className = "mz-durum bekliyor"; d.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
+    d.className = "sx-durum bekliyor"; d.innerHTML = '<i class="bi bi-arrow-repeat"></i>';
     fetch(sayfa.dataset.kaydet, { method: "POST", headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
       body: JSON.stringify(veri), credentials: "same-origin" })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.hata || "Kaydedilemedi"); return j; }); })
@@ -111,14 +111,14 @@
           satirlar.forEach(function (x) {
             if (x.dataset.kod === tr.dataset.kod && x.dataset.program === s.bolum && x.dataset.girebilir === "1") {
               goster(x, s);
-              var xd = x.querySelector(".mz-durum");
-              xd.className = "mz-durum tamam"; xd.innerHTML = '<i class="bi bi-check-lg"></i>'; xd.title = "Kaydedildi";
+              var xd = x.querySelector(".sx-durum");
+              xd.className = "sx-durum tamam"; xd.innerHTML = '<i class="bi bi-check-lg"></i>'; xd.title = "Kaydedildi";
             }
           });
         });
         ilerleme();
       })
-      .catch(function (e) { d.className = "mz-durum hata"; d.innerHTML = '<i class="bi bi-exclamation-circle"></i>'; d.title = e.message; });
+      .catch(function (e) { d.className = "sx-durum hata"; d.innerHTML = '<i class="bi bi-exclamation-circle"></i>'; d.title = e.message; });
   }
 
   // ---- aranabilir seçici (tek ortak liste)
@@ -187,7 +187,7 @@
       if (ikinci.checked) secici(tr, 2).querySelector(".et-kisi").focus();
       else if (secici(tr, 2).querySelector(".et-kisi").dataset.id) { yaz(tr, 2, null); kaydet(tr); }
     });
-    var hepsiBtn = tr.querySelector(".mz-hepsi");
+    var hepsiBtn = tr.querySelector(".sx-hepsi");
     if (kodSayisi[tr.dataset.kod] > 1) hepsiBtn.hidden = false;
     hepsiBtn.addEventListener("click", function () { kaydet(tr, true); });
   });
