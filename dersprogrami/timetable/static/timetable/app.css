@@ -848,6 +848,19 @@ a.q-card { color: inherit; } a.q-card:hover { border-color: var(--primary); }
 .ls-bulk .ls-pick { height: 30px; min-width: 200px; max-width: 280px; }
 .ls-bulk .ls-num { width: 80px; height: 30px; }
 .ls-bulk [hidden] { display: none; }
+.ls-copy { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; border: 0; margin: 0; padding: 0; min-width: 0; }
+.ls-copy > .check { color: #e6e9f0; }
+.ls-targets-list .check { color: var(--text); }
+.ls-targets { position: relative; }
+.ls-targets > summary { list-style: none; cursor: pointer; }
+.ls-targets > summary::-webkit-details-marker { display: none; }
+.ls-targets-panel { position: absolute; bottom: calc(100% + 10px); left: 0; width: min(420px, calc(100vw - 40px)); max-height: 60vh; display: flex;
+  flex-direction: column; gap: 8px; padding: 10px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-lg); }
+.ls-targets-tools { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.ls-targets-tools .input { flex: 1; min-width: 140px; }
+.ls-targets-tools .btn-ghost { color: var(--text-2); }
+.ls-targets-list { overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 2px 10px; }
+.ls-targets-list .check[hidden] { display: none; }
 @media (max-width: 900px) { .ls-head { grid-template-columns: 18px 1fr auto; } .ls-load, .ls-meta { display: none; } }
 .editor.single { grid-template-columns: minmax(0, 1fr); max-width: 1100px; }
 .period-table .input { height: 34px; }

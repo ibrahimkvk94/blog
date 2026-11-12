@@ -1280,7 +1280,81 @@ def _lesson_bulk(school, post):
             for lesson in lessons:
                 lesson.delete()
             return f"{n} ders silindi (programlardaki kartlarıyla).", "success"
+        if action == "kopyala":
+            targets = list(SchoolClass.objects.filter(school=school, pk__in=[int(x) for x in post.getlist("hedef") if x.isdigit()]))
+            if not targets:
+                return "Dersin kopyalanacağı kısımları seçin.", "error"
+            return copy_lessons(school, lessons, targets, keep_teachers=post.get("kopya_ogretmen") == "ayni",
+                                skip_existing=post.get("atla") == "1")
     return "Bilinmeyen işlem.", "error"
+
+
+LESSON_COPY_FIELDS = ("subject_id", "periods_per_week", "card_length", "split", "rooms_needed", "max_per_day", "weeks_mask",
+                      "terms_mask", "elective", "capacity")
+
+
+def copy_lessons(school, lessons, targets, keep_teachers=False, skip_existing=True):
+    """Dersleri başka kısımlara AYRI ders olarak kopyalar (ortak ders oluşmaz; her kısma ayrı öğretmen atanabilir).
+
+    Kopyalanan: ders adı, haftalık saat, kart uzunluğu ve dağılımı, derslik(ler), günde en fazla, haftalar/dönemler,
+    seçmeli ayarları ve dersin kendi müsaitliği. Öğretmen yalnız keep_teachers ile kopyalanır. Gruplu derste gruplar
+    hedef kısmın aynı adlı bölünme/grubuna eşlenir; eşleşmezse ders atlanır (bütün sınıfa dönüşmesin). skip_existing:
+    hedef kısımda aynı ders adı (ve aynı gruplar) varsa atlanır. Kart ilişkileri ders adına bağlı olduğundan kopyalara
+    kendiliğinden uygulanır. Dönüş: (ileti, messages düzeyi)."""
+    lessons = (Lesson.objects.filter(pk__in=[l.pk for l in lessons])
+               .prefetch_related("classes", "groups__division", "teachers", "classrooms", "availabilities"))
+    target_ids = [c.pk for c in targets]
+    groups_of = defaultdict(dict)  # kısım -> {(bölünme adı, grup adı): grup}
+    for g in Group.objects.filter(division__school_class_id__in=target_ids).select_related("division"):
+        groups_of[g.division.school_class_id][(g.division.name.strip().casefold(), g.name.strip().casefold())] = g
+    existing = defaultdict(set)  # kısım -> {(ders adı, grup kimlikleri)}
+    if skip_existing:
+        for lesson in Lesson.objects.filter(school=school, classes__in=target_ids).prefetch_related("classes", "groups").distinct():
+            key_groups = frozenset(g.pk for g in lesson.groups.all())
+            for c in lesson.classes.all():
+                existing[c.pk].add((lesson.subject_id, key_groups))
+    made, same, no_group = 0, 0, []
+    for lesson in lessons:
+        own = {c.pk for c in lesson.classes.all()}
+        source_groups = list(lesson.groups.all())
+        for target in targets:
+            if target.pk in own:
+                continue
+            mapped = []
+            for g in source_groups:
+                match = groups_of[target.pk].get((g.division.name.strip().casefold(), g.name.strip().casefold()))
+                if match is None:
+                    break
+                mapped.append(match)
+            if len(mapped) != len(source_groups):
+                no_group.append(f"{lesson.subject.short or lesson.subject.name} → {target.short or target.name}")
+                continue
+            key = (lesson.subject_id, frozenset(g.pk for g in mapped))
+            if skip_existing and key in existing[target.pk]:
+                same += 1
+                continue
+            copy = Lesson.objects.create(school=school, **{f: getattr(lesson, f) for f in LESSON_COPY_FIELDS})
+            copy.classes.set([target])
+            copy.groups.set(mapped)
+            copy.classrooms.set(lesson.classrooms.all())
+            if keep_teachers:
+                copy.teachers.set(lesson.teachers.all())
+            Availability.objects.bulk_create(
+                Availability(school=school, lesson=copy, day=a.day, period=a.period, state=a.state) for a in lesson.availabilities.all())
+            existing[target.pk].add(key)
+            made += 1
+    from .problem_cache import invalidate
+
+    invalidate()
+    parts = [f"{made} yeni ders oluşturuldu ({len(lessons)} ders × {len(targets)} kısım, her kısma ayrı ders)"]
+    if same:
+        parts.append(f"{same} tanesi o kısımda zaten olduğu için atlandı")
+    if no_group:
+        parts.append(f"{len(no_group)} tanesi hedef kısımda aynı adlı grup olmadığı için atlandı ({', '.join(no_group[:4])}"
+                     f"{' …' if len(no_group) > 4 else ''})")
+    if made and not keep_teachers:
+        parts.append("öğretmenlerini “Öğretmen atama” ekranından ya da buradaki toplu öğretmen işleminden atayabilirsiniz")
+    return "; ".join(parts) + ".", "success" if made else "warning"
 
 
 def _teacher_hints(school):

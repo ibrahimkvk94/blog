@@ -28,12 +28,28 @@
   <select class="select select-sm" name="islem" data-ls-action aria-label="Toplu işlem">
     <option value="ogretmen">Öğretmen</option><option value="derslik">Derslik</option>
     <option value="saat">Haftalık saat</option><option value="uzunluk">Kart uzunluğu</option><option value="gunde">Günde en fazla kart</option>
+    <option value="kopyala">Başka kısımlara kopyala</option>
     <option value="sil">Sil</option>
   </select>
   <select class="select select-sm" name="mod" data-for="ogretmen derslik" aria-label="Nasıl">{% for k, v in modes.items %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
   <select class="select select-sm ls-pick" name="deger" data-for="ogretmen" aria-label="Öğretmen seç"><option value="">— öğretmensiz</option>{% for t in teachers %}<option value="{{ t.pk }}">{{ t.first_name }} {{ t.last_name }}</option>{% endfor %}</select>
   <select class="select select-sm ls-pick" name="deger" data-for="derslik" aria-label="Derslik seç" disabled><option value="">— derslik seçilmesin (sınıf dersliği)</option>{% for r in rooms %}<option value="{{ r.pk }}">{{ r }}</option>{% endfor %}</select>
   <input class="input input-sm ls-num" type="number" name="sayi" min="1" max="40" data-for="saat uzunluk gunde" placeholder="sayı" aria-label="Sayı">
+  <fieldset class="ls-copy" data-for="kopyala" hidden disabled>
+    <details class="ls-targets" data-ls-targets>
+      <summary class="btn btn-sm">Hedef kısımlar <b data-ls-target-count>(0)</b></summary>
+      <div class="ls-targets-panel">
+        <div class="ls-targets-tools"><input class="input input-sm" type="search" placeholder="Kısım ara…" data-ls-target-search aria-label="Kısım ara">
+          <button type="button" class="btn btn-ghost btn-sm" data-ls-target-all>Görünenlerin tümü</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-ls-target-none>Hiçbiri</button></div>
+        <div class="ls-targets-list">{% for c in classes %}<label class="check small" data-name="{{ c.name|fold }} {{ c.short|fold }}"><input type="checkbox" name="hedef" value="{{ c.id }}"> <span>{{ c.name }}</span></label>{% endfor %}</div>
+      </div>
+    </details>
+    <select class="select select-sm" name="kopya_ogretmen" aria-label="Öğretmen">
+      <option value="">Öğretmensiz (sonra atanır)</option><option value="ayni">Aynı öğretmenlerle</option>
+    </select>
+    <label class="check small"><input type="checkbox" name="atla" value="1" checked> <span>O kısımda aynı ders varsa atla</span></label>
+  </fieldset>
   <button class="btn btn-primary btn-sm" data-ls-apply>Uygula</button>
 </form>
 {% endblock %}
@@ -160,10 +176,24 @@
     });
   }
   action.addEventListener("change", syncBulk);
+  // kopyalama: hedef kısım seçimi
+  const fold = (t) => (t || "").toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
+  const targetBoxes = [...bulk.querySelectorAll("[name=hedef]")];
+  const targetCount = () => { bulk.querySelector("[data-ls-target-count]").textContent = "(" + targetBoxes.filter((b) => b.checked).length + ")"; };
+  bulk.querySelector("[data-ls-target-search]").addEventListener("input", (e) => {
+    const q = fold(e.target.value.trim());
+    targetBoxes.forEach((b) => { b.closest("label").hidden = q && !b.closest("label").dataset.name.includes(q); });
+  });
+  bulk.querySelector("[data-ls-target-all]").addEventListener("click", () => { targetBoxes.forEach((b) => { if (!b.closest("label").hidden) b.checked = true; }); targetCount(); });
+  bulk.querySelector("[data-ls-target-none]").addEventListener("click", () => { targetBoxes.forEach((b) => { b.checked = false; }); targetCount(); });
+  targetBoxes.forEach((b) => b.addEventListener("change", targetCount));
   bulk.querySelector("[data-ls-clear]").addEventListener("click", () => { selected.clear(); render(); syncBulk(); });
   bulk.addEventListener("submit", (e) => {
     const label = action.options[action.selectedIndex].text.toLocaleLowerCase("tr");
+    const targets = bulk.querySelectorAll("[name=hedef]:checked").length;
+    if (action.value === "kopyala" && !targets) { e.preventDefault(); alert("Önce dersin kopyalanacağı kısımları seçin."); return; }
     const msg = action.value === "sil" ? selected.size + " ders silinsin mi? Programlardaki kartları da silinir."
+      : action.value === "kopyala" ? selected.size + " ders, seçilen " + targets + " kısmın her birine ayrı ders olarak kopyalansın mı?"
       : selected.size + " dersin " + label + " değiştirilsin mi?";
     if (!confirm(msg)) e.preventDefault();
   });
