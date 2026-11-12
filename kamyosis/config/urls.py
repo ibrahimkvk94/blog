@@ -23,6 +23,7 @@ urlpatterns = [
     path("salon-durumu/", include("salon.urls")),
     path("dozajmatik/", include("dozaj.urls")),
     path("vekalet/", include("vekalet.urls")),
+    path("sinav-icrasi/", include("sinavtakvimi.urls")),
     path("bildirim/", include("bildirim.urls")),
     path("is-listesi/", include("isler.urls")),
     path("ders-programi/sinav-planlama/", include("sinav.urls")),  # timetable'dan önce
