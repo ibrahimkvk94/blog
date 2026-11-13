@@ -529,45 +529,100 @@ def malzeme_sifirla(takvim, program="", ders_bolumu="", kod=""):
 
 
 def malzeme_excel(takvim, satirlar):
+    """Okulun “Sınavda kullanılacak malzeme listesi” biçimi."""
+    yil, metin = plan_basligi(takvim)
+    return resmi_liste_excel(
+        f"{yil} EĞİTİM VE ÖĞRETİM YILI\n{metin}NDA KULLANILACAK MALZEME LİSTESİ",
+        ["S.NO", "SINIF", "DERS KODU", "DERS ADI", "SINAVIN YAPILACAĞI PROGRAM", "SINAV SÜRESİ (DK)",
+         "KULLANILACAK MALZEME"],
+        [[i, r["sinif"], r["kod"], buyuk_tr(r["ders"]), buyuk_tr(r["bolum_adi"]), r["sure"], malzeme_resmi(r)]
+         for i, r in enumerate(satirlar, start=1)],
+        [9, 10, 14, 46, 42, 17, 42], ortalar=(1, 2, 3, 6, 7))
+
+
+# ---------------------------------------------------------------- okulun resmî liste biçimi (malzeme, etüt)
+
+def buyuk_tr(metin):
+    """Türkçe büyük harf: “Bilgisayar” → “BİLGİSAYAR”, “Yapı” → “YAPI”."""
+    return str(metin or "").replace("i", "İ").replace("ı", "I").upper()
+
+
+def plan_basligi(takvim):
+    """Plan adından (“2026-2027 1. Yarıyıl Ara Sınav Planı”) eğitim yılı ve “1'İNCİ YARIYIL (GÜZ DÖNEMİ) ARA SINAVI”."""
+    ad = buyuk_tr(takvim.ad)
+    m = re.search(r"\d{4}-\d{4}", ad)
+    yil = m.group() if m else ""
+    yariyil = "2'NCİ YARIYIL (BAHAR DÖNEMİ)" if ("2. YARIYIL" in ad or "BAHAR" in ad) else "1'İNCİ YARIYIL (GÜZ DÖNEMİ)"
+    if "BÜTÜNLEME" in ad:
+        sinav = "BÜTÜNLEME SINAVI"
+    elif re.search(r"\bARA\b|VİZE", ad):
+        sinav = "ARA SINAVI"
+    else:
+        sinav = "YARIYIL SONU SINAVI"
+    return yil, f"{yariyil} {sinav}"
+
+
+def malzeme_resmi(r):
+    """Okulun listesindeki gibi: “*Hesap Makinesi ve Çizim Araç Gereçleri”; malzeme yoksa “-”, girilmemişse boş."""
+    adlar = {"hesap": "Hesap Makinesi", "cizim": "Çizim Araç Gereçleri", "cetvel": "Cetvel"}
+    parcalar = [adlar[s] for s, _a in MALZEMELER if s in r["secimler"]]
+    if r["diger"]:
+        parcalar.append(r["diger"])
+    if not parcalar:
+        return "-" if r["yok"] else ""
+    metin = parcalar[0] if len(parcalar) == 1 else ", ".join(parcalar[:-1]) + " ve " + parcalar[-1]
+    return "*" + metin
+
+
+def tarih_resmi(t):
+    return f"{t.day:02d} {AYLAR[t.month - 1]} {t.year}\n{GUNLER[t.weekday()]}"
+
+
+def resmi_liste_excel(baslik, basliklar, satirlar, genislikler, ortalar=(), birlesik=()):
+    """1. satırda iki satırlık başlık, 2. satırda süzgeçli sütun başlıkları; Times New Roman 12, çerçeveli, yatay sayfa.
+    ortalar: ortalanacak sütunlar (1'den); birlesik: aynı değerli ardışık hücreleri birleştirilecek sütunlar."""
     from openpyxl import Workbook
-    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.styles import Alignment, Border, Font, Side
     from openpyxl.utils import get_column_letter
 
     wb = Workbook()
     ws = wb.active
-    ws.title = "Malzemeler"
+    ws.title = "Liste"
+    n = len(basliklar)
     yazi, kalin = Font(name="Times New Roman", size=12), Font(name="Times New Roman", size=12, bold=True)
-    ince = Side(style="thin", color="000000")
+    ince, kalin_cizgi = Side(style="thin", color="000000"), Side(style="medium", color="000000")
     cerceve = Border(left=ince, right=ince, top=ince, bottom=ince)
     orta = Alignment(horizontal="center", vertical="center", wrap_text=True)
     sol = Alignment(horizontal="left", vertical="center", wrap_text=True)
-    basliklar = ["S.NO", "SINAV TARİHİ", "SINAV SAATİ", "SINIF", "DERS KODU", "DERS ADI", "SINAVIN YAPILACAĞI PROGRAM",
-                 "KULLANILACAK MALZEME", "SINAV SÜRESİ (DK)"]
-    genislik = [7, 14, 13, 7, 12, 46, 38, 36, 12]
-    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(basliklar))
-    ws.cell(1, 1, f"{takvim.ad.upper()} — SINAVDA KULLANILACAK MALZEME VE SINAV SÜRELERİ").font = Font(
-        name="Times New Roman", size=13, bold=True)
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=n)
+    ws.cell(1, 1, baslik).font = kalin
     ws.cell(1, 1).alignment = orta
-    ws.row_dimensions[1].height = 30
-    gri = PatternFill("solid", fgColor="D9D9D9")
+    ws.row_dimensions[1].height = 48
+    ws.row_dimensions[2].height = 36
     for j, b in enumerate(basliklar, start=1):
         c = ws.cell(2, j, b)
-        c.font, c.alignment, c.border, c.fill = kalin, orta, cerceve, gri
-        ws.column_dimensions[get_column_letter(j)].width = genislik[j - 1]
-    for i, r in enumerate(satirlar, start=3):
-        s = r["satir"]
-        malzeme = "-" if r["yok"] and not r["secimler"] and not r["diger"] else r["metin"]
-        degerler = [i - 2, f"{s.tarih:%d.%m.%Y}", saat_metni(s.baslangic, s.bitis).replace("–", "-"), r["sinif"],
-                    r["kod"], r["ders"], r["bolum_adi"].upper(), malzeme, r["sure"]]
-        for j, v in enumerate(degerler, start=1):
+        c.font, c.alignment = kalin, orta
+        c.border = Border(left=ince, right=ince, top=kalin_cizgi, bottom=kalin_cizgi)
+        ws.column_dimensions[get_column_letter(j)].width = genislikler[j - 1]
+    for i, satir in enumerate(satirlar, start=3):
+        for j, v in enumerate(satir, start=1):
             c = ws.cell(i, j, v)
-            c.font, c.border, c.alignment = yazi, cerceve, (sol if j in (6, 7) else orta)
+            c.font, c.border, c.alignment = yazi, cerceve, (orta if j in ortalar else sol)
+    son = max(len(satirlar) + 2, 2)
+    for j in birlesik:
+        ilk = 3
+        for i in range(4, son + 2):
+            if i > son or ws.cell(i, j).value != ws.cell(ilk, j).value:
+                if i - 1 > ilk:
+                    ws.merge_cells(start_row=ilk, start_column=j, end_row=i - 1, end_column=j)
+                ilk = i
+    ws.auto_filter.ref = f"A2:{get_column_letter(n)}{son}"
     ws.freeze_panes = "A3"
-    ws.auto_filter.ref = f"A2:I{max(len(satirlar) + 2, 2)}"
     ws.page_setup.orientation = "landscape"
     ws.page_setup.fitToWidth, ws.page_setup.fitToHeight = 1, 0
     ws.sheet_properties.pageSetUpPr.fitToPage = True
     ws.print_title_rows = "1:2"
+    ws.print_options.horizontalCentered = True
     out = io.BytesIO()
     wb.save(out)
     return out.getvalue()

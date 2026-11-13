@@ -4,7 +4,6 @@ görür; bölüm hesabı kendi programının ya da verdiği dersin satırını, 
 kesinleştirme ve puantaj yoktur."""
 
 import datetime
-import io
 
 from django.db import transaction
 
@@ -91,44 +90,15 @@ def kaydet(takvim, kod, bolum, ogretmen1, ogretmen2, user):
 
 
 def excel(takvim, satir_listesi):
-    from openpyxl import Workbook
-    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
-    from openpyxl.utils import get_column_letter
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Etüt"
-    yazi, kalin = Font(name="Times New Roman", size=12), Font(name="Times New Roman", size=12, bold=True)
-    ince = Side(style="thin", color="000000")
-    cerceve = Border(left=ince, right=ince, top=ince, bottom=ince)
-    orta = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    sol = Alignment(horizontal="left", vertical="center", wrap_text=True)
-    basliklar = ["S.NO", "ETÜT GÜNÜ", "SINAV TARİHİ", "SINIF", "DERS KODU", "DERS ADI", "SINAVIN YAPILACAĞI PROGRAM",
-                 "ETÜT ÖĞRETİM ELEMANI", "2. ÖĞRETİM ELEMANI"]
-    genislik = [7, 20, 14, 7, 12, 44, 34, 36, 36]
-    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(basliklar))
-    ws.cell(1, 1, f"{takvim.ad.upper()} — ETÜT GÖREVLENDİRMELERİ").font = Font(name="Times New Roman", size=13, bold=True)
-    ws.cell(1, 1).alignment = orta
-    ws.row_dimensions[1].height = 30
-    gri = PatternFill("solid", fgColor="D9D9D9")
-    for j, b in enumerate(basliklar, start=1):
-        c = ws.cell(2, j, b)
-        c.font, c.alignment, c.border, c.fill = kalin, orta, cerceve, gri
-        ws.column_dimensions[get_column_letter(j)].width = genislik[j - 1]
-    for i, r in enumerate(satir_listesi, start=3):
-        g = r["etut_gunu"]
-        degerler = [i - 2, f"{g:%d.%m.%Y} {servis.GUNLER[g.weekday()]}", f"{r['satir'].tarih:%d.%m.%Y}", r["sinif"],
-                    r["kod"], r["ders"], r["bolum_adi"].upper(), str(r["o1"]) if r["o1"] else "",
-                    str(r["o2"]) if r["o2"] else ""]
-        for j, v in enumerate(degerler, start=1):
-            c = ws.cell(i, j, v)
-            c.font, c.border, c.alignment = yazi, cerceve, (sol if j in (6, 7, 8, 9) else orta)
-    ws.freeze_panes = "A3"
-    ws.auto_filter.ref = f"A2:I{max(len(satir_listesi) + 2, 2)}"
-    ws.page_setup.orientation = "landscape"
-    ws.page_setup.fitToWidth, ws.page_setup.fitToHeight = 1, 0
-    ws.sheet_properties.pageSetUpPr.fitToPage = True
-    ws.print_title_rows = "1:2"
-    out = io.BytesIO()
-    wb.save(out)
-    return out.getvalue()
+    """Okulun “Akşam etütlerinde görevli personel listesi” biçimi; sınav ve etüt tarihleri gün gün birleşik."""
+    yil, metin = servis.plan_basligi(takvim)
+    satirlar = []
+    for i, r in enumerate(satir_listesi, start=1):
+        kisiler = "\n".join(str(o) for o in (r["o1"], r["o2"]) if o)
+        satirlar.append([i, r["sinif"], r["kod"], servis.buyuk_tr(r["ders"]), servis.buyuk_tr(r["bolum_adi"]), kisiler,
+                         servis.tarih_resmi(r["satir"].tarih), servis.tarih_resmi(r["etut_gunu"])])
+    return servis.resmi_liste_excel(
+        f"{yil} EĞİTİM VE ÖĞRETİM YILI\n{metin} AKŞAM ETÜTLERİNDE GÖREVLİ PERSONEL LİSTESİ",
+        ["S.NO", "SINIF", "DERS KODU", "DERS ADI", "SINAVIN YAPILACAĞI PROGRAM",
+         "GÖREVLENDİRİLEN PERSONEL\n(RÜTBE/ÜNVAN-ADI-SOYADI)", "SINAV TARİHİ", "ETÜT TARİHİ"],
+        satirlar, [9, 10, 14, 44, 40, 42, 20, 20], ortalar=(1, 2, 3, 7, 8), birlesik=(7, 8))
