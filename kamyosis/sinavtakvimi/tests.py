@@ -225,3 +225,34 @@ class EtutTestleri(MalzemeTestleri):
         self.assertEqual(self.t.etutler.count(), 1)
         r = self.client.get(reverse("sinavtakvimi:etut_excel", args=[self.t.pk]))
         self.assertTrue(r.content.startswith(b"PK"))
+
+
+class ResmiExcelTestleri(MalzemeTestleri):
+    def test_okulun_liste_bicimi(self):
+        from openpyxl import load_workbook
+
+        from personel.models import Personel
+
+        self.t.ad = "2026-2027 1. Yarıyıl Ara Sınav Planı"
+        self.t.save()
+        self.client.force_login(self.ydl_hesap)
+        self._kaydet(kod="YDL201", bolum="BİL", secimler=["hesap", "cizim"], sure=60)
+        self._kaydet(kod="YDL201", bolum="ELK", yok=True, sure=45)
+        p = Personel.objects.create(ad_soyad="Ali KAYA", bolum=self.ydl)
+        self.client.post(reverse("sinavtakvimi:etut_kaydet", args=[self.t.pk]),
+                         data={"kod": "YDL201", "bolum": "BİL", "ogretmen1": p.pk}, content_type="application/json")
+        ws = load_workbook(io.BytesIO(self.client.get(reverse("sinavtakvimi:malzeme_excel", args=[self.t.pk])).content)).active
+        self.assertEqual(ws["A1"].value, "2026-2027 EĞİTİM VE ÖĞRETİM YILI\n1'İNCİ YARIYIL (GÜZ DÖNEMİ) ARA SINAVINDA "
+                                         "KULLANILACAK MALZEME LİSTESİ")
+        self.assertEqual([c.value for c in ws[2]], ["S.NO", "SINIF", "DERS KODU", "DERS ADI", "SINAVIN YAPILACAĞI PROGRAM",
+                                                    "SINAV SÜRESİ (DK)", "KULLANILACAK MALZEME"])
+        self.assertEqual([c.value for c in ws[3]], [1, 2, "YDL201", "İNGİLİZCE 3", "BİLGİSAYAR TEKNOLOJİSİ", 60,
+                                                    "*Hesap Makinesi ve Çizim Araç Gereçleri"])
+        self.assertEqual((ws["F4"].value, ws["G4"].value), (45, "-"))
+        self.assertEqual(ws["A1"].font.name, "Times New Roman")
+        ws = load_workbook(io.BytesIO(self.client.get(reverse("sinavtakvimi:etut_excel", args=[self.t.pk])).content)).active
+        self.assertIn("ARA SINAVI AKŞAM ETÜTLERİNDE GÖREVLİ PERSONEL LİSTESİ", ws["A1"].value)
+        self.assertEqual(ws["H2"].value, "ETÜT TARİHİ")
+        self.assertEqual(ws["F3"].value, "Ali KAYA")
+        self.assertEqual((ws["G3"].value, ws["H3"].value), ("30 Kasım 2026\nPazartesi", "29 Kasım 2026\nPazar"))
+        self.assertIn("G3:G5", [str(r) for r in ws.merged_cells.ranges])  # aynı gün birleşik
