@@ -1,0 +1,23 @@
+{% comment %}Zil panelinin içeriği (fetch ile yüklenir).{% endcomment %}
+<div class="bildirim-ust">
+  <span class="bildirim-ust-ad">Bildirimler</span>
+  {% if okunmamis %}<button type="button" class="bildirim-baglanti" data-bildirim-tumu>Tümünü okundu say</button>{% endif %}
+  <button type="button" class="bildirim-ayar-dugme" data-bildirim-ayarlar title="Bildirim ayarları" aria-label="Bildirim ayarları"><i class="bi bi-gear"></i></button>
+</div>
+<div class="bildirim-govde">
+  {% for b in kayitlar %}
+    {% ifchanged b.gun %}<div class="bildirim-gun">{{ b.gun }}</div>{% endifchanged %}
+    <a class="bildirim-satir{% if not b.okundu %} okunmamis{% endif %}" href="{{ b.d.url }}">
+      <span class="bildirim-ikon {{ b.d.renk }}"><i class="bi bi-{{ b.d.ikon }}"></i></span>
+      <span class="bildirim-yazi">
+        <span class="bildirim-baslik">{{ b.baslik }}</span>
+        {% if b.metin %}<span class="bildirim-metin">{{ b.metin }}</span>{% endif %}
+        <span class="bildirim-zaman">{{ b.d.zaman }}</span>
+      </span>
+      {% if not b.okundu %}<span class="bildirim-nokta" aria-label="Okunmadı"></span>{% endif %}
+    </a>
+  {% empty %}
+    <div class="bildirim-bos"><i class="bi bi-bell-slash"></i><div>Son 30 günde bildirim yok.</div></div>
+  {% endfor %}
+</div>
+<div class="bildirim-alt">Son 30 gün gösterilir</div>

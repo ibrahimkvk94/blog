@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}{% if k %}{{ k.baslik }}{% else %}Yeni salon kaydı{% endif %} · Salon durumu{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">{% if k %}Kayıt{% else %}Yeni kayıt{% endif %}</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>{% if k %}{{ k.baslik }}{% else %}Yeni salon kaydı{% endif %}</h1>
+    <p class="text-secondary mb-0">{% if k %}{{ k.salon.ad }} · {{ k.tarih|date:"d.m.Y l" }} · {{ k.saat_metni }} · giren {{ k.olusturan|default:"–" }} ({{ k.olusturma|date:"d.m.Y H:i" }}){% if k.seri %} · haftalık seri{% endif %}{% else %}Girilen saatlerde salon “dolu” görünür; diğer saatler müsait kalır.{% endif %}</p>
+  </div>
+  <a class="btn btn-outline-secondary" href="{% if geri %}{{ geri }}{% elif k %}{% url 'salon:gun' k.tarih|date:'Y-m-d' %}{% else %}{% url 'salon:yil' %}{% endif %}"><i class="bi bi-arrow-left me-1"></i>Takvime dön</a>
+</div>
+
+{% if not duzenleyebilir %}
+<div class="kart p-4" style="max-width:720px">
+  <dl class="bilgi-listesi mb-0">
+    <dt>Salon</dt><dd>{{ k.salon.ad }}</dd>
+    <dt>Zaman</dt><dd>{{ k.tarih|date:"d.m.Y l" }} · {{ k.saat_metni }}</dd>
+    {% if k.aciklama %}<dt>Açıklama</dt><dd>{{ k.aciklama }}</dd>{% endif %}
+  </dl>
+</div>
+{% else %}
+<form method="post" class="kart p-4" style="max-width:820px">
+  {% csrf_token %}
+  {% if geri %}<input type="hidden" name="geri" value="{{ geri }}">{% endif %}
+  <div class="mb-3">
+    <span class="form-label small text-secondary d-block">Salon{% if not k %} (birden çok seçilebilir){% endif %}</span>
+    <div class="sl-salon-sec">
+      {% for s in salonlar %}
+        <input type="{% if k %}radio{% else %}checkbox{% endif %}" class="btn-check" name="salon" id="salon-{{ s.pk }}" value="{{ s.pk }}" {% if s.pk in secilen %}checked{% endif %}>
+        <label class="sl-salon-dugme" for="salon-{{ s.pk }}" style="--renk: {{ s.renk }}"><span class="sl-nokta"></span>{{ s.ad }}{% if s.kapasite %} <small>{{ s.kapasite }} kişi</small>{% endif %}</label>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-md-8">
+      <label class="form-label small text-secondary" for="baslik">Başlık</label>
+      <input class="form-control" id="baslik" name="baslik" maxlength="120" required value="{{ v.baslik }}" placeholder="ör. Kısmın dersi, Mezuniyet provası, Konferans" list="baslikOnerileri">
+      <datalist id="baslikOnerileri"><option value="Ders"><option value="Kısmın dersi"><option value="Sınav"><option value="Konferans"><option value="Toplantı"><option value="Tören / prova"><option value="Bakım / temizlik"></datalist>
+    </div>
+    <div class="col-12 col-md-4">
+      <label class="form-label small text-secondary" for="tarih">Tarih</label>
+      <input type="date" class="form-control" id="tarih" name="tarih" required value="{{ v.tarih|date:'Y-m-d' }}">
+    </div>
+  </div>
+  <div class="d-flex flex-wrap align-items-end gap-3 mb-3">
+    <div class="form-check form-switch mb-2">
+      <input class="form-check-input" type="checkbox" role="switch" id="tumGun" name="tum_gun" value="1" {% if v.tum_gun %}checked{% endif %}>
+      <label class="form-check-label" for="tumGun">Tüm gün</label>
+    </div>
+    <div data-saat><label class="form-label small text-secondary" for="bas">Başlangıç</label><input type="time" class="form-control" id="bas" name="bas" step="300" value="{{ v.bas|time:'H:i' }}"></div>
+    <div data-saat><label class="form-label small text-secondary" for="bit">Bitiş</label><input type="time" class="form-control" id="bit" name="bit" step="300" value="{{ v.bit|time:'H:i' }}"></div>
+    <div class="d-flex flex-wrap gap-1 mb-1" data-saat>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-aralik="08:30-12:00">Öğleden önce</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-aralik="13:00-17:00">Öğleden sonra</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" data-aralik="08:30-17:00">Mesai</button>
+    </div>
+  </div>
+  <div class="mb-3">
+    <label class="form-label small text-secondary" for="aciklama">Açıklama (isteğe bağlı)</label>
+    <input class="form-control" id="aciklama" name="aciklama" maxlength="300" value="{{ v.aciklama }}" placeholder="ör. 12EEM kısmı, sorumlu, iletişim">
+  </div>
+  {% if not k %}
+  <div class="mb-3 sl-tekrar">
+    <div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" role="switch" id="tekrar" name="tekrar" value="hafta" {% if tekrar %}checked{% endif %}>
+      <label class="form-check-label" for="tekrar">Her hafta tekrarla</label>
+    </div>
+    <div class="mt-2" data-tekrar>
+      <label class="form-label small text-secondary" for="tekrarBitis">Son tarih (dahil)</label>
+      <input type="date" class="form-control" id="tekrarBitis" name="tekrar_bitis" style="max-width:220px" value="{{ tekrar_bitis|date:'Y-m-d' }}">
+      <div class="form-text">Aynı gün ve saatlerde her hafta kayıt girilir; biri bile doluysa hiçbiri girilmez.</div>
+    </div>
+  </div>
+  {% endif %}
+  <div class="d-flex flex-wrap gap-2 justify-content-between mt-4">
+    <div class="d-flex gap-2">
+      {% if k %}
+        <button class="btn btn-outline-danger" name="islem" value="sil" formnovalidate onclick="return confirm('Bu kayıt silinsin mi?')"><i class="bi bi-trash me-1"></i>Sil</button>
+        {% if k.seri and seri_sayisi > 1 %}<button class="btn btn-outline-danger" name="islem" value="seri_sil" formnovalidate onclick="return confirm('Bu ve sonraki {{ seri_sayisi }} haftalık kayıt silinsin mi?')"><i class="bi bi-trash3 me-1"></i>Bu ve sonraki haftaları sil ({{ seri_sayisi }})</button>{% endif %}
+      {% endif %}
+    </div>
+    <button class="btn btn-primary" name="islem" value="kaydet"><i class="bi bi-check2 me-1"></i>{% if k %}Değişikliği kaydet{% else %}Kaydet{% endif %}</button>
+  </div>
+</form>
+<script>
+(function () {
+  var tum = document.getElementById("tumGun"), tek = document.getElementById("tekrar");
+  function guncelle() {
+    document.querySelectorAll("[data-saat]").forEach(function (el) { el.hidden = tum.checked; });
+    document.querySelectorAll("[data-tekrar]").forEach(function (el) { el.hidden = !(tek && tek.checked); });
+  }
+  tum.addEventListener("change", guncelle);
+  if (tek) tek.addEventListener("change", guncelle);
+  document.querySelectorAll("[data-aralik]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var p = b.dataset.aralik.split("-");
+      document.getElementById("bas").value = p[0]; document.getElementById("bit").value = p[1];
+    });
+  });
+  guncelle();
+})();
+</script>
+{% endif %}
+{% endblock %}

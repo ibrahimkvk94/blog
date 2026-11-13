@@ -1,0 +1,8 @@
+<div class="menu-baslik">Kısayollar</div>
+{% if kisayollar %}
+<ul>
+  {% for k in kisayollar %}<li class="menu-oge"><a class="nav-link {% if request.birim and request.birim.pk == k.birim.pk %}active{% endif %}" href="{{ k.url }}"><i class="bi bi-{{ k.ikon }}"></i><span>{{ k.ad }}</span></a><button type="button" class="menu-yildiz dolu" data-birim="{{ k.birim.pk }}" title="Kısayollardan çıkar" aria-label="{{ k.ad }}: kısayollardan çıkar" aria-pressed="true"><i class="bi bi-star-fill"></i></button></li>{% endfor %}
+</ul>
+{% else %}
+<p class="menu-ipucu">Menüde bir sayfanın yanındaki <i class="bi bi-star"></i> yıldıza tıklayarak buraya ekleyin.</p>
+{% endif %}

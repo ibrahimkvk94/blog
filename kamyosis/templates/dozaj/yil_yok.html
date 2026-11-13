@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}{% if ogretim %}Öğretim Programları{% else %}Dozajmatik{% endif %}{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div class="d-flex align-items-center gap-3">
+    <span class="birim-ikon buyuk"><i class="bi bi-{% if ogretim %}journal-text{% else %}calculator{% endif %}"></i></span>
+    <div><h1>{% if ogretim %}Öğretim Programları{% else %}Dozajmatik{% endif %}</h1><p class="text-secondary mb-0">Henüz plan yılı açılmadı.</p></div>
+  </div>
+</div>
+<div class="kart p-4" style="max-width: 32rem">
+  {% if duzenleyebilir %}
+  <form method="post" class="d-flex gap-2 align-items-end">
+    {% csrf_token %}
+    <div class="flex-grow-1"><label class="form-label" for="dz-ad">Eğitim-öğretim yılı</label>
+      <input id="dz-ad" name="ad" class="form-control" placeholder="2026-2027" required maxlength="20"></div>
+    <button class="btn btn-primary">Aç</button>
+  </form>
+  {% else %}
+  <p class="mb-0">Plan Program Kısmı bir plan yılı açtığında {% if ogretim %}programlar{% else %}tablo{% endif %} burada görünecek.</p>
+  {% endif %}
+</div>
+{% endblock %}

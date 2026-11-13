@@ -1,0 +1,68 @@
+{% extends "timetable/base.html" %}
+{% block title %}Basılı çıktı{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:institution_detail' school.institution_id %}">{{ school.institution }}</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
+{% block heading %}<h1>Basılı çıktı</h1>{% endblock %}
+{% block actions %}
+  {% if sample %}<a class="btn" href="{% url 'timetable:print' sample.pk %}?tur=sinif" target="_blank">{% include "timetable/icon.html" with name="printer" %} Örnek çıktıyı aç</a>{% endif %}
+{% endblock %}
+{% block content %}
+<style>{% include "timetable/print_brand_css.html" %}</style>
+<p class="page-lead">Program, nöbet çizelgesi ve değişiklik listelerinin çıktılarında kullanılacak başlık, logo, dönem bilgisi, imza alanları ve sayfa altı yazısı.</p>
+<div class="print-layout">
+  <form method="post" enctype="multipart/form-data" class="panel">{% csrf_token %}
+    <div class="panel-head"><h2>Başlık</h2></div>
+    <div class="panel-body">
+      <div class="form-row">
+        <span class="label">Logo</span>
+        <div class="logo-row">
+          <div class="logo-box">{% if data.logo %}<img src="{{ data.logo }}" alt="Logo">{% else %}<span class="subtle small">Logo yok</span>{% endif %}</div>
+          <div>
+            <input type="file" name="logo" accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif" id="logo-input">
+            <p class="subtle small" style="margin:4px 0 0">PNG, JPG ya da SVG; en fazla 300 KB.</p>
+            {% if data.logo %}<label class="check small"><input type="checkbox" name="logo_clear" value="1"> <span>Logoyu kaldır</span></label>{% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="label" for="p-title">Kurum başlığı <span class="subtle">(her satır ayrı yazılır)</span></label>
+        <textarea class="input" id="p-title" name="title" rows="3" placeholder="T.C.&#10;ÖRNEK ÜNİVERSİTESİ&#10;Meslek Yüksekokulu">{{ data.title }}</textarea>
+      </div>
+      <div class="form-row">
+        <label class="label" for="p-term">Dönem</label>
+        <input class="input" id="p-term" name="term" value="{{ data.term }}" placeholder="2026-2027 Eğitim-Öğretim Yılı Güz Yarıyılı">
+      </div>
+    </div>
+    <div class="panel-head"><h2>İmza alanları</h2></div>
+    <div class="panel-body">
+      <p class="subtle small" style="margin-top:0">Boş bırakılan alan basılmaz. Ör. "Müdür Yardımcısı – Ad Soyad", "Müdür – Ad Soyad".</p>
+      {% for r in rows %}
+        <div class="dialog-row">
+          <div><label class="label" for="role-{{ forloop.counter0 }}">Unvan</label><input class="input" id="role-{{ forloop.counter0 }}" name="role-{{ forloop.counter0 }}" value="{{ r.role }}"></div>
+          <div><label class="label" for="name-{{ forloop.counter0 }}">Ad soyad</label><input class="input" id="name-{{ forloop.counter0 }}" name="name-{{ forloop.counter0 }}" value="{{ r.name }}"></div>
+        </div>
+      {% endfor %}
+      <label class="check small"><input type="checkbox" name="sign_pages" value="1"{% if data.sign_pages %} checked{% endif %}> <span>Her program sayfasına imza alanı ekle</span></label>
+    </div>
+    <div class="panel-head"><h2>Sayfa altı</h2></div>
+    <div class="panel-body">
+      <div class="form-row">
+        <label class="label" for="p-footer">Sayfa altı yazısı</label>
+        <input class="input" id="p-footer" name="footer" value="{{ data.footer }}" placeholder="Bu program yönetim kurulu kararıyla yürürlüğe girmiştir.">
+      </div>
+      <label class="check small"><input type="checkbox" name="show_date" value="1"{% if data.show_date %} checked{% endif %}> <span>Basım tarihini yaz</span></label>
+    </div>
+    <div class="form-actions"><div><button class="btn btn-primary">{% include "timetable/icon.html" with name="check" %} Kaydet</button></div></div>
+  </form>
+
+  <aside class="panel print-preview-panel">
+    <div class="panel-head"><h2>Önizleme</h2></div>
+    <div class="panel-body">
+      <div class="paper">
+        {% include "timetable/print_brand.html" with brand=data page_title="1SVN" page_info="Sınıf öğretmeni: Ad Soyad" %}
+        <div class="paper-grid">{% for i in "123456789012345" %}<span></span>{% endfor %}</div>
+        {% include "timetable/print_sign.html" with brand=data %}
+      </div>
+    </div>
+  </aside>
+</div>
+{% endblock %}

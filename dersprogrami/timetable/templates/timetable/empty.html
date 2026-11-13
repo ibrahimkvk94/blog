@@ -1,0 +1,10 @@
+{# Boş durum: simge, başlık, açıklama ve en fazla iki eylem. Parametreler: icon, title, text, url, action, url2, action2 #}
+<div class="empty-state">
+  <span class="empty-icon">{% include "timetable/icon.html" with name=icon|default:"inbox" %}</span>
+  <h3>{{ title }}</h3>
+  {% if text %}<p>{{ text }}</p>{% endif %}
+  {% if url or url2 %}<div class="empty-actions">
+    {% if url %}<a class="btn btn-primary btn-sm" href="{{ url }}">{% include "timetable/icon.html" with name="plus" %} {{ action }}</a>{% endif %}
+    {% if url2 %}<a class="btn btn-sm" href="{{ url2 }}">{{ action2 }}</a>{% endif %}
+  </div>{% endif %}
+</div>

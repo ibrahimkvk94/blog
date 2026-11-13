@@ -1,0 +1,34 @@
+{# Son başarılı üretimden bu yana: girdi farkları ve veri işlemleri. ch = report.changes #}
+{% if ch %}
+<div class="since">
+  <h3>Son başarılı üretimden bu yana neler değişti? <a class="btn btn-sm" href="{% url 'timetable:backup_compare' timetable.school_id %}">Eski bir yedekle karşılaştır</a></h3>
+  <p class="subtle small" style="margin-top:0">Karşılaştırılan: <a href="{% url 'timetable:timetable_detail' ch.previous.id %}"><b>{{ ch.previous.name }}</b></a> · {{ ch.previous.finished_at }}{% if ch.previous.objective is not None %} · ceza {{ ch.previous.objective }}{% endif %}</p>
+  {% include "timetable/recheck.html" with rc=ch.recheck name=ch.previous.name %}
+  {% if ch.diff %}
+    {% for g in ch.diff %}
+      <details class="since-group"{% if g.kind == "rules" or g.kind == "available" or g.kind == "pools" or g.kind == "teachers" %} open{% endif %}>
+        <summary><b>{{ g.title }}</b> <span class="pill warn">{{ g.total }} değişiklik</span></summary>
+        <ul>
+          {% for name, value in g.added %}<li class="add"><b>+ {{ name }}</b> <span class="subtle">{{ value }}</span></li>{% endfor %}
+          {% for name, value in g.removed %}<li class="del"><b>− {{ name }}</b> <span class="subtle">{{ value }}</span></li>{% endfor %}
+          {% for name, before, after in g.changed %}<li><b>{{ name }}</b>: <span class="subtle">{{ before }}</span> → <b>{{ after }}</b></li>{% endfor %}
+          {% if g.total > 12 %}<li class="subtle small">… toplam {{ g.total }} değişiklik</li>{% endif %}
+        </ul>
+      </details>
+    {% empty %}
+      <p class="muted">Çözücünün gördüğü veri aynı. Fark süreden ya da şanstan kaynaklanıyor olabilir: süreyi artırın ya da son başarılı programı başlangıç sürümü seçerek üretin.</p>
+    {% endfor %}
+  {% elif ch.diff is None %}
+    <p class="subtle small">O üretimin girdi özeti yok (bu özellikten önce üretilmiş); aşağıdaki işlem geçmişine bakın.</p>
+  {% endif %}
+  {% if ch.operations %}
+    <details class="since-group" open><summary><b>O zamandan beri yapılan veri işlemleri</b> <span class="pill">{{ ch.operation_count }}</span></summary>
+      <table class="table since-ops"><tbody>
+        {% for o in ch.operations %}<tr><td class="nowrap subtle small">{{ o.at }}</td><td class="small">{{ o.user }}</td><td><b>{{ o.action }}</b>{% if o.detail %}<div class="subtle small">{{ o.detail }}</div>{% endif %}</td></tr>{% endfor %}
+      </tbody></table>
+    </details>
+  {% elif ch.diff is None %}
+    <p class="subtle small">İşlem günlüğünde o zamandan beri veri değiştiren işlem görünmüyor.</p>
+  {% endif %}
+</div>
+{% endif %}

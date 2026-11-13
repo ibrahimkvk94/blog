@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Ders Planları{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div class="d-flex align-items-center gap-3">
+    <span class="birim-ikon buyuk"><i class="bi bi-journal-text"></i></span>
+    <div>
+      <h1>Ders Planları</h1>
+      <p class="text-secondary mb-0">Haftalık ders programı ve ders planlama</p>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-12 col-lg-6">
+    <div class="kart p-4 h-100">
+      <div class="small text-secondary text-uppercase fw-semibold mb-2">Bugün geçerli program</div>
+      {% if gecerli %}
+        <h2 class="h5 mb-1">{{ gecerli.ad }}</h2>
+        <p class="text-secondary mb-3">
+          {{ gecerli.baslangic|date:"d.m.Y" }} – {% if gecerli.bitis %}{{ gecerli.bitis|date:"d.m.Y" }}{% else %}yeni sürüme kadar{% endif %}
+        </p>
+        <a href="{% url 'program:tablo' %}" class="btn btn-primary"><i class="bi bi-table me-1"></i>Programı görüntüle</a>
+      {% elif surumler %}
+        <p class="mb-3">Bugün için yayında bir program yok. Yüklenen son sürümü taslak olarak görüntüleyebilirsiniz.</p>
+        <a href="{% url 'program:tablo' %}" class="btn btn-outline-primary"><i class="bi bi-table me-1"></i>Son sürümü görüntüle</a>
+      {% else %}
+        <p class="mb-0 text-secondary">Henüz program yüklenmedi.{% if yonetici %} Sağdaki <strong>Program sürümleri</strong> bölümünden aSc XML dosyasını yükleyin.{% endif %}</p>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-12 col-lg-6">
+    <div class="row g-3">
+      <div class="col-12 col-sm-6">
+        <a href="{% url 'program:tablo' %}" class="kart birim-kart">
+          <span class="birim-ikon"><i class="bi bi-grid-3x3"></i></span>
+          <div><div class="birim-ad">Haftalık program</div><div class="birim-alt">Kısım, öğretmen, derslik</div></div>
+        </a>
+      </div>
+      <div class="col-12 col-sm-6">
+        <a href="{% url 'takip:gunluk' %}" class="kart birim-kart">
+          <span class="birim-ikon"><i class="bi bi-check2-square"></i></span>
+          <div><div class="birim-ad">Ders takibi</div><div class="birim-alt">Günlük dersler, devir</div></div>
+        </a>
+      </div>
+      <div class="col-12 col-sm-6">
+        <a href="{% url 'takip:devirler' %}" class="kart birim-kart">
+          <span class="birim-ikon"><i class="bi bi-arrow-left-right"></i></span>
+          <div><div class="birim-ad">Devir talepleri</div>{% if devir_bekleyen %}<span class="durum-rozet durum-sirada">{{ devir_bekleyen }} bekliyor</span>{% else %}<div class="birim-alt">Talep, onay, kesinleştirme</div>{% endif %}</div>
+        </a>
+      </div>
+      <div class="col-12 col-sm-6">
+        <a href="{% url 'takip:rapor' %}" class="kart birim-kart">
+          <span class="birim-ikon"><i class="bi bi-bar-chart-line"></i></span>
+          <div><div class="birim-ad">Yapılan ders raporu</div><div class="birim-alt">Öğretim elemanı başına ders sayıları</div></div>
+        </a>
+      </div>
+      {% if yonetici %}
+      <div class="col-12 col-sm-6">
+        <a href="{% url 'program:surumler' %}" class="kart birim-kart">
+          <span class="birim-ikon"><i class="bi bi-cloud-arrow-up"></i></span>
+          <div><div class="birim-ad">Program sürümleri</div><div class="birim-alt">aSc XML yükle, yayınla</div></div>
+        </a>
+      </div>
+      <div class="col-12 col-sm-6">
+        <a href="{% url 'program:ogretmenler' %}" class="kart birim-kart">
+          <span class="birim-ikon"><i class="bi bi-person-check"></i></span>
+          <div>
+            <div class="birim-ad">Öğretmen eşleştirme</div>
+            {% if bekleyen %}<span class="durum-rozet durum-sirada">{{ bekleyen }} bekliyor</span>{% else %}<div class="birim-alt">Tümü eşleşmiş</div>{% endif %}
+          </div>
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<h2 class="bolum-baslik"><i class="bi bi-hourglass-split"></i>Sıradaki özellikler</h2>
+<div class="kart p-4">
+  <ul class="mb-0 text-secondary">
+    <li>Ders yükü dağıtımı ve öğretim elemanı ders yükü özeti</li>
+    <li>Ek ders hesaplama ve raporları</li>
+    <li>Haftalık ders saati mazeretleri ve branş atamaları</li>
+  </ul>
+</div>
+{% endblock %}

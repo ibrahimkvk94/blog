@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Hesap değişiklik geçmişi{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item"><a href="{% url 'core:kullanicilar' %}">Kullanıcılar ve yetkiler</a></li><li class="breadcrumb-item active" aria-current="page">Değişiklik geçmişi</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Kullanıcılar ve yetkiler</h1>
+    <p class="text-secondary mb-0">Hesaplarda kim, ne zaman, neyi değiştirdi (son 300 kayıt; Yönetim Paneli'ndeki değişiklikler de burada).</p>
+  </div>
+</div>
+{% include "core/_kullanici_sekmeler.html" %}
+<div class="kart">
+  {% include "core/_kullanici_gecmis_liste.html" with kayitlar=gecmis %}
+</div>
+{% endblock %}

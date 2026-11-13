@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Müsait personel{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div class="d-flex align-items-center gap-3">
+    <span class="birim-ikon buyuk"><i class="bi bi-person-check"></i></span>
+    <div>
+      <h1>Müsait personel</h1>
+      <p class="text-secondary mb-0">Seçilen gün ve saatlerde okulda olan, izinli olmayan, dersi ve sınav görevi bulunmayan personel.</p>
+    </div>
+  </div>
+</div>
+
+<form method="get" class="kart mp-form mb-3 d-print-none">
+  <div class="mp-satir">
+    <label>Gün<input type="date" name="tarih" value="{{ tarih|date:'Y-m-d' }}" class="form-control" required></label>
+    <label>Başlangıç<input type="time" name="bas" id="mp-bas" value="{{ bas|time:'H:i' }}" class="form-control" required></label>
+    <label>Bitiş<input type="time" name="bit" id="mp-bit" value="{{ bit|time:'H:i' }}" class="form-control" required></label>
+    <label class="mp-birim">Birim
+      <select name="birim" class="form-select">
+        <option value="">{% if tum_okul %}Bütün okul{% else %}Bütün birimim{% endif %}</option>
+        {% for b, d in birimler %}<option value="{{ b.pk }}"{% if secili_birim.pk == b.pk %} selected{% endif %}>{% for _ in ""|center:d %}&nbsp;&nbsp;{% endfor %}{{ b.ad }}</option>{% endfor %}
+        {% if tum_okul %}<option value="yok"{% if secili_birim and not secili_birim.pk %} selected{% endif %}>Teşkilatta yeri olmayanlar</option>{% endif %}
+      </select>
+    </label>
+  </div>
+  {% if ders_saatleri %}
+  <div class="mp-saatler" aria-label="Ders saatlerinden seç">
+    <span>Ders saatleri:</span>
+    {% for s in ders_saatleri %}<button type="button" class="mp-cip" data-bas="{{ s.baslangic|time:'H:i' }}" data-bit="{{ s.bitis|time:'H:i' }}" title="{{ s.baslangic|time:'H:i' }}–{{ s.bitis|time:'H:i' }}">{{ s.no }}.</button>{% endfor %}
+    <small class="text-secondary">Bir saate tıklayın; ikinci tıklama aralığı uzatır.</small>
+  </div>
+  {% endif %}
+  <div class="mp-satir mp-alt">
+    <fieldset class="mp-kategoriler">
+      <legend>Kimler</legend>
+      {% for kod, ad in kategoriler %}
+      <label class="mp-onay"><input type="checkbox" class="form-check-input" name="k" value="{{ kod }}"{% if kod in secili_k %} checked{% endif %}> {{ ad }}</label>
+      {% endfor %}
+      <small class="text-secondary">Hiçbiri seçilmezse hepsi.</small>
+    </fieldset>
+    <label class="mp-onay"><input type="hidden" name="sinav" value="0"><input type="checkbox" class="form-check-input" name="sinav" value="1"{% if sinav %} checked{% endif %}> Sınav görevlerini de say</label>
+    <button class="btn btn-primary ms-auto"><i class="bi bi-search me-1"></i>Müsait personeli bul</button>
+  </div>
+  {% if hata %}<div class="alert alert-warning mt-3 mb-0">{{ hata }}</div>{% endif %}
+</form>
+
+{% if sorgu %}
+<div class="mp-baslik">
+  <h2>{{ tarih|date:"d F Y l" }} · {{ bas|time:"H:i" }}–{{ bit|time:"H:i" }}</h2>
+  <div class="d-flex gap-2 d-print-none">
+    <a class="btn btn-sm btn-outline-success" href="?{{ request.GET.urlencode }}&excel=1"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+    <button class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer me-1"></i>Yazdır</button>
+  </div>
+</div>
+<div class="mp-sayilar mb-3">
+  <div class="mp-sayi ana"><b>{{ ozet.musait }}</b><span>müsait</span><small>{{ ozet.toplam }} kişiden</small></div>
+  <div class="mp-sayi"><b>{{ ozet.izin }}</b><span>izinli / raporlu / görevde</span></div>
+  <div class="mp-sayi"><b>{{ ozet.ders }}</b><span>dersi var</span></div>
+  {% if sinav %}<div class="mp-sayi"><b>{{ ozet.sinav }}</b><span>sınav görevi var</span></div>{% endif %}
+  {% for k in ozet.kategoriler %}<div class="mp-sayi kat"><b>{{ k.musait }} <small>/ {{ k.toplam }}</small></b><span>{{ k.ad|lower }}</span></div>{% endfor %}
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-xl-7">
+    <div class="kart mp-kart">
+      <h3>Müsait olanlar <span class="text-secondary fw-normal">({{ ozet.musait }})</span></h3>
+      {% for b, kisiler in musait_gruplar %}
+      <div class="mp-grup">
+        <div class="mp-grup-ad">{{ b.ad }} <span>{{ kisiler|length }}</span></div>
+        <table class="mp-tablo">
+          {% for k in kisiler %}{% with p=k.personel %}
+          <tr><td class="mp-no">{{ forloop.counter }}</td><td><a href="{% url 'yoklama:kart' p.pk %}">{{ p.ad_soyad }}</a></td><td class="text-secondary">{{ p.rutbe|default:p.unvan|default:"" }}{% if p.sinif %} · {{ p.sinif }}{% endif %}</td><td><span class="mp-kat k-{{ k.kategori }}">{{ k.kategori_adi }}</span></td></tr>
+          {% endwith %}{% endfor %}
+        </table>
+      </div>
+      {% empty %}
+      <p class="text-secondary mb-0">Bu aralıkta müsait kimse yok.</p>
+      {% endfor %}
+    </div>
+  </div>
+  <div class="col-12 col-xl-5">
+    <div class="kart mp-kart">
+      <h3>Müsait olmayanlar <span class="text-secondary fw-normal">({{ mesguller|length }})</span></h3>
+      <ul class="mp-mesgul">
+        {% for k in mesguller %}
+        <li>
+          <a href="{% url 'yoklama:kart' k.personel.pk %}">{{ k.personel.ad_soyad }}</a> <small class="text-secondary">{{ k.birim.ad }}</small>
+          {% for tur, ne in k.nedenler %}<div class="mp-neden n-{{ tur }}"><i class="bi bi-{% if tur == 'izin' %}calendar-x{% elif tur == 'ders' %}easel{% else %}clipboard-check{% endif %}"></i>{{ ne }}</div>{% endfor %}
+        </li>
+        {% empty %}<li class="text-secondary">Herkes müsait.</li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+<p class="mp-not">Dersler yayındaki ders programından (kesinleşmiş devirler devralana yazılır), izinler personel yoklamasından gelir; bilgi amaçlı kayıtlar (ör. garnizon terk) kişiyi meşgul saymaz.{% if sinav %} Sınav oturumlarının en çok {{ 90 }} dakika sürdüğü varsayılır.{% endif %}</p>
+{% endif %}
+
+<script>
+(function () {
+  var bas = document.getElementById("mp-bas"), bit = document.getElementById("mp-bit"), ilk = null;
+  document.querySelectorAll(".mp-cip").forEach(function (b) {
+    b.addEventListener("click", function () {
+      if (ilk && b.dataset.bas >= ilk.dataset.bas) { bit.value = b.dataset.bit; ilk = null; }
+      else { bas.value = b.dataset.bas; bit.value = b.dataset.bit; ilk = b; }
+      document.querySelectorAll(".mp-cip").forEach(function (x) {
+        x.classList.toggle("secili", x.dataset.bas >= bas.value && x.dataset.bit <= bit.value);
+      });
+    });
+  });
+})();
+</script>
+{% endblock %}

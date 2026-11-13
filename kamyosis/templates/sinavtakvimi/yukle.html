@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Sınav planı yükle{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Excel'den yükle</li>{% endblock %}
+{% block content %}
+{% include "sinavtakvimi/_sekmeler.html" %}
+<div class="mb-3">
+  <div>
+    <h2 class="h5 fw-bold">{% if hedef %}Planı Excel'den yenile{% else %}Excel'den sınav planı yükle{% endif %}</h2>
+    <p class="text-secondary mb-0">{% if hedef %}“{{ hedef.ad }}” planının satırları yüklenen dosyayla <strong>değiştirilir</strong>{% if hedef.yayinda %}; plan yayında olduğu için herkes hemen yeni hâlini görür{% endif %}.{% else %}Yüklenen plan önce yalnız size görünür; kontrol edip “Yayınla”ya basınca herkes görür.{% endif %}</p>
+  </div>
+</div>
+<div class="row g-3">
+  <div class="col-lg-6">
+    <form method="post" enctype="multipart/form-data" class="kart p-3">{% csrf_token %}
+      {% if hedef %}<input type="hidden" name="takvim" value="{{ hedef.pk }}">{% endif %}
+      <div class="mb-3"><label class="form-label">Excel dosyası (.xlsx / .xlsm)</label>
+        <input class="form-control" type="file" name="dosya" accept=".xlsx,.xlsm" required></div>
+      <div class="mb-3"><label class="form-label">Ad <span class="text-secondary small">(boş bırakılırsa {% if hedef %}aynı kalır{% else %}dosyanın başlığından alınır{% endif %})</span></label>
+        <input class="form-control" name="ad" maxlength="200" placeholder="ör. 2026-2027 1. Yarıyıl Ara Sınav Planı"></div>
+      <button class="btn btn-primary"><i class="bi bi-upload me-1"></i>Yükle ve önizle</button>
+      <a class="btn btn-link" href="{% if hedef %}{% url 'sinavtakvimi:takvim' hedef.pk %}{% else %}{% url 'sinavtakvimi:liste' %}{% endif %}">Vazgeç</a>
+    </form>
+  </div>
+  <div class="col-lg-6">
+    <div class="kart p-3 small">
+      <div class="fw-semibold mb-2"><i class="bi bi-info-circle me-1"></i>Dosya düzeni</div>
+      <p class="mb-2">Okulun plan Excel'i olduğu gibi yüklenebilir. Başlık satırında şu sütunlar aranır (sıra önemli değil):</p>
+      <p class="mb-2"><code>SINAV TARİHİ</code> · <code>SINAV SAATİ</code> · <code>SINIF</code> · <code>DERS ADI</code> · <code>… KODLARI</code> · <code>BÖLÜM / PROGRAM</code> · <code>SINAV TÜRÜ</code></p>
+      <ul class="mb-0 ps-3">
+        <li>Birleştirilmiş tarih ve saat hücreleri aşağıdaki satırlara uygulanır.</li>
+        <li>Tarih “30 Kasım 2026 Pazartesi” ya da Excel tarihi; saat “08.45-10.00” biçiminde olabilir.</li>
+        <li>Başlığın üstündeki satırlar planın adı olarak alınır.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

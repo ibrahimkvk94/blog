@@ -1,0 +1,10 @@
+{% for t in tabs %}{% if t.sections is not None %}
+<div class="rec-panel" data-tab-panel="{{ t.key }}">
+  {% for sec in t.sections %}
+    <section class="fsec">
+      <div class="fsec-head"><h3>{{ sec.title|default:"Bilgiler" }}</h3>{% if sec.help %}<p>{{ sec.help }}</p>{% endif %}</div>
+      <div class="fsec-body form-grid">{% for field in sec.fields %}{% include "timetable/data/field.html" %}{% endfor %}</div>
+    </section>
+  {% endfor %}
+</div>
+{% endif %}{% endfor %}

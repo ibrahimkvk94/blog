@@ -1,0 +1,537 @@
+{% load static %}<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Öğrenci Bilgi Formu · {{ kurum_adi|default:"KAMYOSİS" }}</title>
+<link rel="icon" type="image/png" href="{% static 'img/favicon.png' %}">
+<style>
+  :root { --lacivert:#14284b; --lacivert2:#1f3a68; --altin:#c9a227; --zemin:#f4f5f8; --hata:#b3261e; --tamam:#1e7d3a; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif; background:var(--zemin); color:#1b1b1f; }
+  header { background:var(--lacivert); color:#fff; padding:14px 16px; border-bottom:4px solid var(--altin); }
+  header h1 { margin:0; font-size:1.15rem; }
+  header p { margin:4px 0 0; font-size:.82rem; opacity:.85; }
+  main { max-width:640px; margin:0 auto; padding:12px 12px 40px; }
+  .kutu { background:#fff; border-radius:10px; padding:12px 14px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .kutu h2 { font-size:1rem; margin:0 0 4px; color:var(--lacivert2); }
+  label { display:block; font-size:.85rem; font-weight:600; margin:12px 0 4px; }
+  label .ist { font-weight:400; color:#777; font-size:.78rem; }
+  input, textarea { width:100%; font-size:16px; padding:10px; border:1px solid #c5c8d0; border-radius:8px; background:#fff; font-family:inherit; color:inherit; }
+  textarea { min-height:84px; resize:vertical; }
+  input:focus, textarea:focus { outline:2px solid var(--altin); border-color:var(--altin); }
+  .gecersiz { border-color:var(--hata) !important; background:#fff5f5; }
+  .hatamsj { color:var(--hata); font-size:.78rem; margin-top:3px; }
+  .iki { display:grid; grid-template-columns:1fr 1fr; gap:0 10px; }
+  @media (max-width:420px) { .iki { grid-template-columns:1fr; } }
+
+  /* sekmeler */
+  .sekmeler { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:12px; }
+  .sekme { background:#fff; border:1px solid #d5d8e0; border-radius:9px; padding:8px 4px 7px; font-size:.74rem; font-weight:600;
+           color:#555; text-align:center; cursor:pointer; line-height:1.2; font-family:inherit; }
+  .sekme .no { display:inline-flex; width:22px; height:22px; border-radius:50%; align-items:center; justify-content:center;
+               background:#e6e8ee; color:#333; font-size:.78rem; margin-bottom:4px; }
+  .sekme.etkin { border-color:var(--lacivert); color:var(--lacivert); box-shadow:inset 0 -3px 0 var(--altin); }
+  .sekme.etkin .no { background:var(--lacivert); color:#fff; }
+  .sekme.tamam .no { background:var(--tamam); color:#fff; }
+  .sekme.hatali { border-color:var(--hata); color:var(--hata); }
+  .sekme.hatali .no { background:var(--hata); color:#fff; }
+  .bolum { display:none; }
+  .bolum.etkin { display:block; }
+
+  button { font-size:1rem; padding:13px 16px; border-radius:9px; border:0; cursor:pointer; font-weight:600; font-family:inherit; }
+  .ana { background:var(--lacivert); color:#fff; border-bottom:3px solid var(--altin); }
+  .ikincil { background:#e6e8ee; color:#1b1b1f; }
+  .sil { background:#fff; color:var(--hata); border:1px solid var(--hata); }
+  .gezinti { display:flex; gap:8px; margin-top:4px; }
+  .gezinti button { flex:1; }
+  .gezinti .bos { flex:1; }
+  .bilgi { font-size:.8rem; color:#555; line-height:1.45; }
+  .altlik { text-align:center; margin-top:14px; }
+  .altlik button { padding:9px 14px; font-size:.85rem; }
+
+  #kodEkrani { display:none; text-align:center; }
+  #kodEkrani .kodalan { background:#fff; padding:10px; border-radius:10px; }
+  #kodEkrani svg { width:100%; max-width:520px; height:auto; display:block; margin:0 auto; }
+  #kodEkrani .ad { font-size:1.2rem; font-weight:700; margin:10px 0 2px; color:var(--lacivert); }
+  .dugmeler { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:12px; }
+  .dugmeler button { flex:1 1 140px; }
+  .ozet { text-align:left; font-size:.85rem; margin-top:14px; }
+  .ozet h3 { font-size:.85rem; color:var(--lacivert2); margin:12px 0 4px; }
+  .ozet table { width:100%; border-collapse:collapse; }
+  .ozet td { padding:4px 6px; border-bottom:1px solid #eee; vertical-align:top; }
+  .ozet td:first-child { color:#666; width:42%; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Öğrenci Bilgi Formu</h1>
+  <p>{{ kurum_adi|default:"" }} — bilgilerinizi doldurun, kare kodu kayıt masasında okutun.</p>
+</header>
+
+<main>
+<div id="formEkrani">
+  <div class="kutu bilgi">
+    🔒 Yazdığınız bilgiler <b>internete gönderilmez</b>; kare kod yalnızca bu telefonda oluşturulur.
+    Bilgiler sayfayı kapatsanız da bu telefonda saklanır; kayıttan sonra <b>“Bilgilerimi sil”</b> ile silebilirsiniz.
+  </div>
+
+  <nav class="sekmeler" role="tablist" aria-label="Form bölümleri">
+    <button type="button" class="sekme" data-bolum="0" role="tab"><span class="no">1</span><br>Kişisel bilgiler</button>
+    <button type="button" class="sekme" data-bolum="1" role="tab"><span class="no">2</span><br>Aile bilgileri</button>
+    <button type="button" class="sekme" data-bolum="2" role="tab"><span class="no">3</span><br>İletişim</button>
+    <button type="button" class="sekme" data-bolum="3" role="tab"><span class="no">4</span><br>ÖSYM ve lise</button>
+  </nav>
+
+  <form id="form" novalidate autocomplete="off">
+    <section class="bolum kutu" data-bolum="0" role="tabpanel">
+      <h2>Kişisel bilgiler</h2>
+      <label for="tc">T.C. Kimlik No</label>
+      <input id="tc" inputmode="numeric" maxlength="11" required><div class="hatamsj"></div>
+      <div class="iki">
+        <div><label for="ad">Ad</label><input id="ad" maxlength="40" required autocapitalize="words"><div class="hatamsj"></div></div>
+        <div><label for="soyad">Soyad</label><input id="soyad" maxlength="40" required autocapitalize="characters"><div class="hatamsj"></div></div>
+      </div>
+      <div class="iki">
+        <div><label for="dogum_tarihi">Doğum Tarihi</label><input id="dogum_tarihi" type="date" required min="1950-01-01"><div class="hatamsj"></div></div>
+        <div><label for="dogum_yeri">Doğum Yeri</label><input id="dogum_yeri" maxlength="40" required autocapitalize="words"><div class="hatamsj"></div></div>
+      </div>
+    </section>
+
+    <section class="bolum kutu" data-bolum="1" role="tabpanel">
+      <h2>Aile bilgileri</h2>
+      <p class="bilgi">Bilmediğiniz ya da olmayan bilgileri boş bırakabilirsiniz.</p>
+      <label for="anne_adi">Anne Adı</label>
+      <input id="anne_adi" maxlength="40" autocapitalize="words"><div class="hatamsj"></div>
+      <label for="anne_meslek">Anne Meslek Bilgileri</label>
+      <input id="anne_meslek" maxlength="80"><div class="hatamsj"></div>
+      <label for="anne_tel">Anne Telefon</label>
+      <input id="anne_tel" type="tel" inputmode="tel" maxlength="16" placeholder="05XX XXX XX XX"><div class="hatamsj"></div>
+      <label for="baba_adi">Baba Adı</label>
+      <input id="baba_adi" maxlength="40" autocapitalize="words"><div class="hatamsj"></div>
+      <label for="baba_meslek">Baba Meslek Bilgileri</label>
+      <input id="baba_meslek" maxlength="80"><div class="hatamsj"></div>
+      <label for="baba_tel">Baba Telefon</label>
+      <input id="baba_tel" type="tel" inputmode="tel" maxlength="16" placeholder="05XX XXX XX XX"><div class="hatamsj"></div>
+    </section>
+
+    <section class="bolum kutu" data-bolum="2" role="tabpanel">
+      <h2>İletişim</h2>
+      <label for="telefon">Telefon Numarası</label>
+      <input id="telefon" type="tel" inputmode="tel" maxlength="16" required placeholder="05XX XXX XX XX"><div class="hatamsj"></div>
+      <label for="adres">Ev Adresi</label>
+      <textarea id="adres" maxlength="250" required placeholder="Mahalle, cadde/sokak, no, ilçe / il"></textarea><div class="hatamsj"></div>
+    </section>
+
+    <section class="bolum kutu" data-bolum="3" role="tabpanel">
+      <h2>ÖSYM ve lise</h2>
+      <label for="osym_puan">ÖSYM Puanı</label>
+      <input id="osym_puan" inputmode="decimal" maxlength="10" required placeholder="Örn. 312,45678"><div class="hatamsj"></div>
+      <label for="lise_adi">Lise Adı</label>
+      <input id="lise_adi" maxlength="80" required><div class="hatamsj"></div>
+      <label for="lise_programi">Lise Programı</label>
+      <input id="lise_programi" maxlength="60" required placeholder="Örn. Sayısal, Elektrik-Elektronik"><div class="hatamsj"></div>
+    </section>
+
+    <div class="gezinti">
+      <button type="button" class="ikincil" id="geriDugme">‹ Geri</button>
+      <button type="button" class="ana" id="ileriDugme">İleri ›</button>
+      <button type="submit" class="ana" id="olusturDugme">Kare Kodu Oluştur</button>
+    </div>
+    <div class="altlik"><button type="button" class="sil" id="silDugme">Bilgilerimi sil</button></div>
+  </form>
+</div>
+
+<div id="kodEkrani" class="kutu">
+  <div class="kodalan" id="kodAlan"></div>
+  <div class="ad" id="kodAd"></div>
+  <div class="bilgi">Ekran parlaklığını artırın ve telefonu okuyucuya düz tutun.</div>
+  <div class="dugmeler">
+    <button type="button" class="ikincil" id="duzenleDugme">Bilgileri düzenle</button>
+    <button type="button" class="sil" id="silDugme2">Bilgilerimi sil</button>
+  </div>
+  <div class="ozet" id="ozet"></div>
+</div>
+</main>
+
+{% verbatim %}
+<script>
+"use strict";
+/* ---------------------------------------------------------------------------
+   Kare kod içeriği (sürüm 1) — okuyucu Excel'in makrosu (ogrenci/okuyucu/vba/KareKodOku.bas) aynı kuralı kullanır.
+   Yalnızca rakamlardan oluşur; böylece USB okuyucunun klavye düzeni (Türkçe Q/F, US) Türkçe harfleri bozmaz.
+     BASLIK "5201" + alanlar + 4 haneli denetim toplamı
+     her karakter  -> TABLO'daki sırası, 2 hane (00-97)
+     alan ayırıcı  -> 98
+     tablo dışı    -> 99 + Unicode kod noktası (7 hane)
+     denetim       -> h = (h*31 + rakam + 1) mod 9973, önceki tüm rakamlar üzerinde
+   Alan sırası Kitap2.xlsx sütun sırasıdır (Sıra No hariç); sekmelerdeki sıradan bağımsızdır.
+--------------------------------------------------------------------------- */
+const BASLIK = "5201";
+const TABLO = " ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789ÇĞİÖŞÜçğıöşü.,-/:()'\"+@#&_;!?\nâÂîû*";
+const ALANLAR = [
+  ["tc","T.C. Kimlik No"], ["ad","Ad"], ["soyad","Soyad"], ["dogum_tarihi","Doğum Tarihi"], ["dogum_yeri","Doğum Yeri"],
+  ["anne_adi","Anne Adı"], ["anne_meslek","Anne Meslek Bilgileri"], ["baba_adi","Baba Adı"], ["baba_meslek","Baba Meslek Bilgileri"],
+  ["telefon","Telefon Numarası"], ["anne_tel","Anne Telefon"], ["baba_tel","Baba Telefon"], ["adres","Ev Adresi"],
+  ["osym_puan","ÖSYM Puanı"], ["lise_adi","Lise Adı"], ["lise_programi","Lise Programı"]
+];
+
+function iki(n){ return (n < 10 ? "0" : "") + n; }
+function denetim(rakamlar){
+  let h = 0;
+  for (let i = 0; i < rakamlar.length; i++) h = (h * 31 + (rakamlar.charCodeAt(i) - 48) + 1) % 9973;
+  return String(h).padStart(4, "0");
+}
+function kodla(degerler){
+  let s = BASLIK;
+  degerler.forEach((deger, i) => {
+    if (i > 0) s += "98";
+    const metin = String(deger).normalize("NFC").replace(/\r\n?/g, "\n").replace(/\t/g, " ");
+    for (const ch of metin) {
+      const k = TABLO.indexOf(ch);
+      s += k >= 0 ? iki(k) : "99" + String(ch.codePointAt(0)).padStart(7, "0");
+    }
+  });
+  return s + denetim(s);
+}
+function coz(s){   // denetim için (Excel tarafındaki çözücünün eşi)
+  s = s.replace(/\D/g, "");
+  if (s.slice(0, 4) !== BASLIK) throw new Error("başlık");
+  if (denetim(s.slice(0, -4)) !== s.slice(-4)) throw new Error("denetim");
+  const alanlar = [""]; let i = 4; const son = s.length - 4;
+  while (i < son) {
+    const k = +s.substr(i, 2); i += 2;
+    if (k === 98) alanlar.push("");
+    else if (k === 99) { alanlar[alanlar.length - 1] += String.fromCodePoint(+s.substr(i, 7)); i += 7; }
+    else alanlar[alanlar.length - 1] += TABLO[k];
+  }
+  return alanlar;
+}
+
+/* ---------------------------------------------------------------------------
+   QR kod üretici — sayısal kip, hata düzeltme M, sürüm 1-40, en iyi maske (ISO/IEC 18004).
+--------------------------------------------------------------------------- */
+const QR = (() => {
+  const ECC_M = [-1,10,16,26,18,24,16,18,22,22,26,30,22,22,24,24,28,28,26,26,26,26,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28,28];
+  const BLK_M = [-1,1,1,1,2,2,4,4,4,5,5,5,8,9,9,10,10,11,13,14,16,17,17,18,20,21,23,25,26,28,29,31,33,35,37,38,40,43,45,47,49];
+  const EXP = new Array(512), LOG = new Array(256);
+  { let x = 1; for (let i = 0; i < 255; i++) { EXP[i] = x; LOG[x] = i; x <<= 1; if (x & 0x100) x ^= 0x11D; } for (let i = 255; i < 512; i++) EXP[i] = EXP[i - 255]; }
+  const mul = (a, b) => (a === 0 || b === 0) ? 0 : EXP[LOG[a] + LOG[b]];
+
+  function hamModul(v){ let r = (16 * v + 128) * v + 64; if (v >= 2) { const n = Math.floor(v / 7) + 2; r -= (25 * n - 10) * n - 55; if (v >= 7) r -= 36; } return r; }
+  const veriKelime = v => Math.floor(hamModul(v) / 8) - ECC_M[v] * BLK_M[v];
+  const sayacBit = v => v < 10 ? 10 : v < 27 ? 12 : 14;
+  const sayisalBit = n => Math.floor(n / 3) * 10 + [0, 4, 7][n % 3];
+
+  function bolen(der){
+    const r = new Array(der).fill(0); r[der - 1] = 1; let kok = 1;
+    for (let i = 0; i < der; i++) {
+      for (let j = 0; j < r.length; j++) { r[j] = mul(r[j], kok); if (j + 1 < r.length) r[j] ^= r[j + 1]; }
+      kok = mul(kok, 2);
+    }
+    return r;
+  }
+  function kalan(veri, b){
+    const r = new Array(b.length).fill(0);
+    for (const x of veri) { const f = x ^ r.shift(); r.push(0); for (let i = 0; i < b.length; i++) r[i] ^= mul(b[i], f); }
+    return r;
+  }
+
+  function uret(rakamlar, zorSurum, zorMaske){
+    const n = rakamlar.length;
+    let v = zorSurum || 1;
+    if (!zorSurum) while (v <= 40 && 4 + sayacBit(v) + sayisalBit(n) > veriKelime(v) * 8) v++;
+    if (v > 40) throw new Error("Veri kare koda sığmıyor");
+    const bitler = [];
+    const ekle = (deger, uz) => { for (let i = uz - 1; i >= 0; i--) bitler.push((deger >>> i) & 1); };
+    ekle(1, 4); ekle(n, sayacBit(v));
+    for (let i = 0; i < n; i += 3) { const p = rakamlar.substr(i, 3); ekle(+p, p.length * 3 + 1); }
+    const kap = veriKelime(v) * 8;
+    if (bitler.length > kap) throw new Error("Veri bu sürüme sığmıyor");
+    ekle(0, Math.min(4, kap - bitler.length));
+    ekle(0, (8 - bitler.length % 8) % 8);
+    const veri = [];
+    for (let i = 0; i < bitler.length; i += 8) { let b = 0; for (let j = 0; j < 8; j++) b = (b << 1) | bitler[i + j]; veri.push(b); }
+    for (let p = 0xEC; veri.length < veriKelime(v); p ^= 0xEC ^ 0x11) veri.push(p);
+
+    const nb = BLK_M[v], el = ECC_M[v], ham = Math.floor(hamModul(v) / 8);
+    const kisa = nb - ham % nb, kisaUz = Math.floor(ham / nb), b = bolen(el), bloklar = [];
+    for (let i = 0, k = 0; i < nb; i++) {
+      const uz = kisaUz - el + (i < kisa ? 0 : 1);
+      const d = veri.slice(k, k + uz); k += uz;
+      const e = kalan(d, b); if (i < kisa) d.push(0);
+      bloklar.push(d.concat(e));
+    }
+    const kelimeler = [];
+    for (let i = 0; i < bloklar[0].length; i++)
+      for (let j = 0; j < bloklar.length; j++)
+        if (i !== kisaUz - el || j >= kisa) kelimeler.push(bloklar[j][i]);
+
+    const S = v * 4 + 17;
+    const M = Array.from({length: S}, () => new Array(S).fill(false));
+    const F = Array.from({length: S}, () => new Array(S).fill(false));
+    const fn = (x, y, d) => { M[y][x] = d; F[y][x] = true; };
+    for (let i = 0; i < S; i++) { fn(6, i, i % 2 === 0); fn(i, 6, i % 2 === 0); }
+    const bulucu = (cx, cy) => {
+      for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) {
+        const x = cx + dx, y = cy + dy, u = Math.max(Math.abs(dx), Math.abs(dy));
+        if (x >= 0 && x < S && y >= 0 && y < S) fn(x, y, u !== 2 && u !== 4);
+      }
+    };
+    bulucu(3, 3); bulucu(S - 4, 3); bulucu(3, S - 4);
+    if (v > 1) {
+      const na = Math.floor(v / 7) + 2;
+      const adim = Math.floor((v * 8 + na * 3 + 5) / (na * 4 - 4)) * 2;
+      const kon = [6]; for (let p = S - 7; kon.length < na; p -= adim) kon.splice(1, 0, p);
+      for (let i = 0; i < na; i++) for (let j = 0; j < na; j++) {
+        if ((i === 0 && j === 0) || (i === 0 && j === na - 1) || (i === na - 1 && j === 0)) continue;
+        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++)
+          fn(kon[i] + dx, kon[j] + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+      }
+    }
+    const bit = (x, i) => ((x >>> i) & 1) !== 0;
+    const bicim = mask => {
+      const d = (0 << 3) | mask;       // M seviyesi = 00
+      let r = d; for (let i = 0; i < 10; i++) r = (r << 1) ^ ((r >>> 9) * 0x537);
+      const bb = ((d << 10) | r) ^ 0x5412;
+      for (let i = 0; i <= 5; i++) fn(8, i, bit(bb, i));
+      fn(8, 7, bit(bb, 6)); fn(8, 8, bit(bb, 7)); fn(7, 8, bit(bb, 8));
+      for (let i = 9; i < 15; i++) fn(14 - i, 8, bit(bb, i));
+      for (let i = 0; i < 8; i++) fn(S - 1 - i, 8, bit(bb, i));
+      for (let i = 8; i < 15; i++) fn(8, S - 15 + i, bit(bb, i));
+      fn(8, S - 8, true);
+    };
+    bicim(0);
+    if (v >= 7) {
+      let r = v; for (let i = 0; i < 12; i++) r = (r << 1) ^ ((r >>> 11) * 0x1F25);
+      const bb = (v << 12) | r;
+      for (let i = 0; i < 18; i++) { const a = S - 11 + i % 3, c = Math.floor(i / 3); fn(a, c, bit(bb, i)); fn(c, a, bit(bb, i)); }
+    }
+    let i = 0;
+    for (let sag = S - 1; sag >= 1; sag -= 2) {
+      if (sag === 6) sag = 5;
+      for (let dik = 0; dik < S; dik++) for (let j = 0; j < 2; j++) {
+        const x = sag - j, yukari = ((sag + 1) & 2) === 0, y = yukari ? S - 1 - dik : dik;
+        if (!F[y][x] && i < kelimeler.length * 8) { M[y][x] = bit(kelimeler[i >>> 3], 7 - (i & 7)); i++; }
+      }
+    }
+    const maskeUygula = m => {
+      for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+        if (F[y][x]) continue;
+        let t;
+        switch (m) {
+          case 0: t = (x + y) % 2 === 0; break;
+          case 1: t = y % 2 === 0; break;
+          case 2: t = x % 3 === 0; break;
+          case 3: t = (x + y) % 3 === 0; break;
+          case 4: t = (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0; break;
+          case 5: t = x * y % 2 + x * y % 3 === 0; break;
+          case 6: t = (x * y % 2 + x * y % 3) % 2 === 0; break;
+          case 7: t = ((x + y) % 2 + x * y % 3) % 2 === 0; break;
+        }
+        if (t) M[y][x] = !M[y][x];
+      }
+    };
+    const ceza = () => {
+      let p = 0, koyu = 0;
+      const P1 = [1,0,1,1,1,0,1,0,0,0,0], P2 = [0,0,0,0,1,0,1,1,1,0,1];
+      for (let yon = 0; yon < 2; yon++) for (let a = 0; a < S; a++) {
+        const hat = []; for (let c = 0; c < S; c++) hat.push(yon ? M[c][a] : M[a][c]);
+        let seri = 1;
+        for (let c = 1; c < S; c++) {
+          if (hat[c] === hat[c - 1]) { seri++; if (seri === 5) p += 3; else if (seri > 5) p++; } else seri = 1;
+        }
+        for (let c = 0; c + 11 <= S; c++) {
+          let e1 = true, e2 = true;
+          for (let k = 0; k < 11; k++) { const h = hat[c + k] ? 1 : 0; if (h !== P1[k]) e1 = false; if (h !== P2[k]) e2 = false; }
+          if (e1) p += 40; if (e2) p += 40;
+        }
+      }
+      for (let y = 0; y < S - 1; y++) for (let x = 0; x < S - 1; x++) {
+        const c = M[y][x]; if (c === M[y][x + 1] && c === M[y + 1][x] && c === M[y + 1][x + 1]) p += 3;
+      }
+      for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) if (M[y][x]) koyu++;
+      const top = S * S, k = Math.ceil(Math.abs(koyu * 20 - top * 10) / top) - 1;
+      return p + k * 10;
+    };
+    let maske = zorMaske;
+    if (maske === undefined) {
+      let enIyi = Infinity;
+      for (let m = 0; m < 8; m++) {
+        maskeUygula(m); bicim(m); const c = ceza();
+        if (c < enIyi) { enIyi = c; maske = m; }
+        maskeUygula(m);
+      }
+    }
+    maskeUygula(maske); bicim(maske);
+    return { surum: v, maske, boyut: S, moduller: M };
+  }
+
+  function svg(qr, kenar = 4){
+    const t = qr.boyut + kenar * 2; let yol = "";
+    for (let y = 0; y < qr.boyut; y++) for (let x = 0; x < qr.boyut; x++)
+      if (qr.moduller[y][x]) yol += `M${x + kenar},${y + kenar}h1v1h-1z`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${t} ${t}" shape-rendering="crispEdges" role="img" aria-label="Kare kod">` +
+           `<rect width="${t}" height="${t}" fill="#fff"/><path d="${yol}" fill="#000"/></svg>`;
+  }
+  return { uret, svg };
+})();
+
+/* ---------------------------------------------------------------------------
+   Form ve sekmeler
+--------------------------------------------------------------------------- */
+const DEPO = "ogrenci_bilgi_formu_v1";
+const $ = id => document.getElementById(id);
+const BOLUMLER = [...document.querySelectorAll("section.bolum")];
+const SEKMELER = [...document.querySelectorAll(".sekme")];
+const trBuyuk = s => s.toLocaleUpperCase("tr-TR");
+const sadeBosluk = s => s.replace(/[ \t]+/g, " ").replace(/ *\n */g, "\n").trim();
+const bolumNo = id => +$(id).closest("section.bolum").dataset.bolum;
+let etkinBolum = 0;
+const gorulen = new Set();   // kullanıcının açıp ayrıldığı bölümler ("tamam" işareti yalnız bunlara)
+
+function tcGecerli(tc){
+  if (!/^[1-9]\d{10}$/.test(tc)) return false;
+  const d = [...tc].map(Number);
+  const tek = d[0] + d[2] + d[4] + d[6] + d[8], cift = d[1] + d[3] + d[5] + d[7];
+  if ((((tek * 7 - cift) % 10) + 10) % 10 !== d[9]) return false;
+  return d.slice(0, 10).reduce((a, b) => a + b, 0) % 10 === d[10];
+}
+function telefonDuzelt(s){
+  let d = s.replace(/\D/g, "");
+  if (d.startsWith("90") && d.length === 12) d = d.slice(2);
+  if (d.length === 10 && d[0] === "5") d = "0" + d;
+  return d;
+}
+
+function degerleriTopla(){
+  const hatalar = {}, deger = {};
+  for (const [id] of ALANLAR) deger[id] = sadeBosluk($(id).value);
+  if (!tcGecerli(deger.tc)) hatalar.tc = "Geçerli bir T.C. kimlik numarası yazın (11 hane).";
+  if (deger.dogum_tarihi) {
+    const [y, a, g] = deger.dogum_tarihi.split("-");
+    deger.dogum_tarihi = `${g}.${a}.${y}`;
+  }
+  for (const id of ["telefon", "anne_tel", "baba_tel"]) {
+    if (!deger[id]) continue;
+    deger[id] = telefonDuzelt(deger[id]);
+    if (!/^0\d{10}$/.test(deger[id])) hatalar[id] = "Telefonu 05XX XXX XX XX biçiminde yazın.";
+  }
+  if (deger.osym_puan) {
+    deger.osym_puan = deger.osym_puan.replace(/\s/g, "").replace(",", ".");
+    if (!/^\d{1,3}(\.\d{1,5})?$/.test(deger.osym_puan) || Number(deger.osym_puan) > 600)
+      hatalar.osym_puan = "Puanı sayı olarak yazın (örn. 312,45678).";
+  }
+  for (const [id] of ALANLAR) if ($(id).required && !deger[id] && !hatalar[id]) hatalar[id] = "Bu alan zorunlu.";
+  return { deger, hatalar };
+}
+function hatalariGoster(hatalar, yalnizBolum){
+  let ilk = null;
+  for (const [id] of ALANLAR) {
+    if (yalnizBolum !== undefined && bolumNo(id) !== yalnizBolum) continue;
+    const el = $(id), m = el.nextElementSibling, h = hatalar[id];
+    el.classList.toggle("gecersiz", !!h);
+    if (m && m.classList.contains("hatamsj")) m.textContent = h || "";
+    if (h && !ilk) ilk = el;
+  }
+  return ilk;
+}
+function bolumHatalari(hatalar, no){ return ALANLAR.some(([id]) => hatalar[id] && bolumNo(id) === no); }
+function sekmeDurumlari(hatalar, tumu){
+  SEKMELER.forEach((s, i) => {
+    s.classList.toggle("etkin", i === etkinBolum);
+    const dolu = ALANLAR.filter(([id]) => bolumNo(id) === i && $(id).required).every(([id]) => $(id).value.trim());
+    s.classList.toggle("hatali", !!(hatalar && bolumHatalari(hatalar, i) && (tumu || i < etkinBolum)));
+    s.classList.toggle("tamam", (gorulen.has(i) || i < etkinBolum) && dolu && !(hatalar && bolumHatalari(hatalar, i)) && i !== etkinBolum);
+    s.setAttribute("aria-selected", i === etkinBolum ? "true" : "false");
+  });
+}
+function bolumAc(no, odak){
+  gorulen.add(etkinBolum);
+  etkinBolum = Math.max(0, Math.min(BOLUMLER.length - 1, no));
+  BOLUMLER.forEach((b, i) => b.classList.toggle("etkin", i === etkinBolum));
+  $("geriDugme").style.visibility = etkinBolum === 0 ? "hidden" : "visible";
+  $("ileriDugme").style.display = etkinBolum === BOLUMLER.length - 1 ? "none" : "";
+  $("olusturDugme").style.display = etkinBolum === BOLUMLER.length - 1 ? "" : "none";
+  sekmeDurumlari(null);
+  window.scrollTo(0, 0);
+  if (odak) odak.focus();
+  kaydet("form");
+}
+function ileri(){
+  const { hatalar } = degerleriTopla();
+  const ilk = hatalariGoster(hatalar, etkinBolum);
+  if (ilk) { ilk.focus(); sekmeDurumlari(hatalar); return; }
+  bolumAc(etkinBolum + 1);
+}
+
+function kaydet(ekran){
+  const v = {}; for (const [id] of ALANLAR) v[id] = $(id).value;
+  v._ekran = ekran || "form"; v._bolum = etkinBolum;
+  try { localStorage.setItem(DEPO, JSON.stringify(v)); } catch (e) {}
+}
+function yukle(){
+  try {
+    const v = JSON.parse(localStorage.getItem(DEPO) || "null"); if (!v) return null;
+    for (const [id] of ALANLAR) if (typeof v[id] === "string") $(id).value = v[id];
+    return v;
+  } catch (e) { return null; }
+}
+const kacis = s => s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+function kodGoster(){
+  const { deger, hatalar } = degerleriTopla();
+  hatalariGoster(hatalar);
+  if (Object.keys(hatalar).length) {
+    const no = ALANLAR.map(([id]) => id).filter(id => hatalar[id]).map(bolumNo)[0];
+    bolumAc(no);
+    sekmeDurumlari(hatalar, true);
+    const ilk = hatalariGoster(hatalar, no); if (ilk) ilk.focus();
+    return false;
+  }
+  const qr = QR.uret(kodla(ALANLAR.map(([id]) => deger[id])));
+  $("kodAlan").innerHTML = QR.svg(qr);
+  $("kodAd").textContent = `${deger.ad} ${trBuyuk(deger.soyad)}`;
+  $("ozet").innerHTML = SEKMELER.map((s, i) =>
+    `<h3>${kacis(s.textContent.replace(/^\d+/, "").trim())}</h3><table>` +
+    ALANLAR.filter(([id]) => bolumNo(id) === i).map(([id, ad]) =>
+      `<tr><td>${ad}</td><td>${kacis(deger[id] || "–").replace(/\n/g, "<br>")}</td></tr>`).join("") + "</table>").join("");
+  $("formEkrani").style.display = "none"; $("kodEkrani").style.display = "block";
+  window.scrollTo(0, 0);
+  kaydet("kod");
+  return true;
+}
+function sil(){
+  if (!confirm("Bu telefondaki form bilgileri silinsin mi?")) return;
+  try { localStorage.removeItem(DEPO); } catch (e) {}
+  $("form").reset(); $("kodAlan").innerHTML = ""; $("ozet").innerHTML = "";
+  hatalariGoster({});
+  $("kodEkrani").style.display = "none"; $("formEkrani").style.display = "block";
+  bolumAc(0);
+}
+
+$("form").addEventListener("submit", e => { e.preventDefault(); kodGoster(); });
+$("form").addEventListener("input", e => {
+  e.target.classList.remove("gecersiz");
+  const m = e.target.nextElementSibling; if (m && m.classList.contains("hatamsj")) m.textContent = "";
+  kaydet("form");
+});
+$("form").addEventListener("keydown", e => {   // Enter: sonraki bölüme geç (adres kutusunda satır başı kalır)
+  if (e.key === "Enter" && e.target.tagName === "INPUT" && etkinBolum < BOLUMLER.length - 1) { e.preventDefault(); ileri(); }
+});
+$("tc").addEventListener("input", e => { e.target.value = e.target.value.replace(/\D/g, ""); });
+$("ileriDugme").addEventListener("click", ileri);
+$("geriDugme").addEventListener("click", () => bolumAc(etkinBolum - 1));
+SEKMELER.forEach((s, i) => s.addEventListener("click", () => bolumAc(i)));
+$("duzenleDugme").addEventListener("click", () => { $("kodEkrani").style.display = "none"; $("formEkrani").style.display = "block"; bolumAc(etkinBolum); });
+$("silDugme").addEventListener("click", sil);
+$("silDugme2").addEventListener("click", sil);
+
+const onceki = yukle();
+bolumAc(onceki && Number.isInteger(onceki._bolum) ? onceki._bolum : 0);
+if (onceki && onceki._ekran === "kod") kodGoster();
+</script>
+{% endverbatim %}
+</body>
+</html>

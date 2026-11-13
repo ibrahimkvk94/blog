@@ -1,0 +1,59 @@
+{% extends "timetable/base.html" %}
+{% block title %}Sistem güncelleme{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:central' %}">Merkez paneli</a>{% endblock %}
+{% block heading %}<h1>Sistem güncelleme</h1>{% if current %}<span class="pill">Sürüm {{ current.hash }}</span>{% endif %}{% endblock %}
+{% block actions %}{% if git_ok %}<a class="btn" href="?denetle=1">{% include "timetable/icon.html" with name="search" %} Güncellemeleri denetle</a>{% endif %}{% endblock %}
+{% block content %}
+<p class="page-lead">Yeni sürümü buradan indirip programı yeniden başlatabilirsiniz; pencereyi kapatıp açmak gerekmez. Güncellemeden önce otomatik yedek alınır. Yeniden başlatma yaklaşık yarım dakika sürer; bu sırada bağlı kullanıcıların sayfaları kısa süre yanıt vermez.</p>
+
+{% if last %}
+  <section class="panel" style="margin-bottom:18px">
+    <div class="panel-head"><h2>Son güncelleme</h2><span class="subtle small">{{ last.at }}{% if last.from %} · {{ last.from }} → {{ last.to }}{% endif %}</span></div>
+    <div class="panel-body">
+      <ul class="upd-steps">{% for s in last.steps %}<li class="{% if s.ok %}ok{% else %}bad{% endif %}">{% if s.ok %}✓{% else %}✕{% endif %} {{ s.title }}{% if s.output %}<pre>{{ s.output }}</pre>{% endif %}</li>{% endfor %}</ul>
+      {% if last.changes %}<details><summary>Bu güncellemeyle gelenler ({{ last.changes|length }})</summary>
+        <ul class="upd-commits">{% for c in last.changes %}<li><b>{{ c.subject }}</b> <span class="subtle small">{{ c.date }}</span></li>{% endfor %}</ul></details>{% endif %}
+    </div>
+  </section>
+{% endif %}
+
+{% if not git_ok %}
+  <div class="alert alert-warning">Bu kurulum git ile indirilmemiş (ör. kapalı ağ paketi). Güncelleme için yeni paketi indirip <code>guncelle.bat</code> ile kurun (bkz. KURULUM.md).</div>
+{% else %}
+  {% if not supervised %}
+    <div class="alert alert-warning">Program eski başlatma dosyasıyla açılmış; bu yüzden sayfadan yeniden başlatılamıyor. Pencereyi bir kez kapatıp <b>calistir.bat</b> ya da <b>paylas.bat</b> ile yeniden açın; sonraki güncellemeleri buradan yapabilirsiniz.</div>
+  {% endif %}
+  {% if changes %}
+    <div class="alert alert-warning">Projede elle değiştirilmiş dosyalar var: {{ changes|join:", " }}. Güncelleme bunları ezmemek için duracak.</div>
+  {% endif %}
+  {% if running %}
+    <div class="alert alert-info">Şu an {{ running }} üretim / iyileştirme çalışıyor. Yeniden başlatma onları keser; bitmesini beklemeniz önerilir.</div>
+  {% endif %}
+
+  <section class="panel">
+    <div class="panel-head"><h2>Kullanılan sürüm</h2>{% if current %}<span class="subtle small">{{ current.date }}</span>{% endif %}</div>
+    <div class="panel-body">
+      {% if current %}<p style="margin-top:0"><b>{{ current.subject }}</b></p>{% endif %}
+      {% if check %}
+        {% if not check.ok %}
+          <div class="alert alert-error">{{ check.error }}</div>
+        {% elif not check.incoming %}
+          <div class="alert alert-success">En son sürümü kullanıyorsunuz.</div>
+        {% else %}
+          <div class="alert alert-info"><b>{{ check.behind }} yeni değişiklik</b> var{% if check.rewritten %} (sunucudaki geçmiş yeniden düzenlenmiş; eski hal “onceki-surum” dalında saklanır){% endif %}.</div>
+          <ul class="upd-commits">{% for c in check.incoming %}<li><b>{{ c.subject }}</b> <span class="subtle small">{{ c.date }}</span></li>{% endfor %}</ul>
+        {% endif %}
+      {% else %}
+        <p class="subtle">Yeni sürüm olup olmadığını görmek için <a href="?denetle=1">Güncellemeleri denetle</a>.</p>
+      {% endif %}
+      {% if supervised %}
+        <form method="post" class="upd-actions">{% csrf_token %}
+          {% if running %}<label class="check small"><input type="checkbox" name="zorla" value="1"> <span>Çalışan işler kesilse de devam et</span></label>{% endif %}
+          <button class="btn btn-primary" name="action" value="guncelle"{% if check.ok and not check.incoming %} disabled{% endif %}>{% include "timetable/icon.html" with name="download" %} Yedek al, güncelle ve yeniden başlat</button>
+          <button class="btn" name="action" value="yeniden_baslat" onclick="return confirm('Program yeniden başlatılsın mı? Bağlı kullanıcıların sayfaları kısa süre yanıt vermez.')">Yalnızca yeniden başlat</button>
+        </form>
+      {% endif %}
+    </div>
+  </section>
+{% endif %}
+{% endblock %}

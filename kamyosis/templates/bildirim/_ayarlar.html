@@ -1,0 +1,24 @@
+{% comment %}Zil panelinde bildirim ayarları: tür başına Açık / Sessiz / Kapalı.{% endcomment %}
+<div class="bildirim-ust">
+  <button type="button" class="bildirim-ayar-dugme" data-bildirim-geri title="Bildirimlere dön" aria-label="Bildirimlere dön"><i class="bi bi-arrow-left"></i></button>
+  <span class="bildirim-ust-ad">Bildirim ayarları</span>
+</div>
+<div class="bildirim-govde">
+  {% for s in satirlar %}
+    <div class="bildirim-ayar">
+      <span class="bildirim-ikon {{ s.tur.renk }}"><i class="bi bi-{{ s.tur.ikon }}"></i></span>
+      <span class="bildirim-yazi">
+        <span class="bildirim-baslik">{{ s.tur.ad }}</span>
+        <span class="bildirim-zaman">{{ s.tur.kimler }}</span>
+      </span>
+      <span class="btn-group btn-group-sm bildirim-mod" role="group" aria-label="{{ s.tur.ad }}">
+        {% for kod, ad in modlar %}
+          <button type="button" class="btn btn-outline-secondary{% if s.mod == kod %} active{% endif %}" data-bildirim-tercih="{{ s.tur.kod }}" data-mod="{{ kod }}" aria-pressed="{% if s.mod == kod %}true{% else %}false{% endif %}">{{ ad }}</button>
+        {% endfor %}
+      </span>
+    </div>
+  {% empty %}
+    <div class="bildirim-bos"><div>Hesabınızın alabileceği bildirim türü yok.</div></div>
+  {% endfor %}
+</div>
+<div class="bildirim-alt">Açık: pencere ve zil · Sessiz: yalnız zil · Kapalı: hiç gelmez</div>

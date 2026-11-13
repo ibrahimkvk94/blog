@@ -1,0 +1,4 @@
+<ul class="nav nav-pills yk-sekmeler mb-3">
+  <li class="nav-item"><a class="nav-link {% if sekme == 'liste' %}active{% endif %}" href="{% url 'ogrenci:liste' %}"><i class="bi bi-people me-1"></i>Öğrenci listesi</a></li>
+  <li class="nav-item"><a class="nav-link {% if sekme == 'karekod' %}active{% endif %}" href="{% url 'ogrenci:karekod' %}"><i class="bi bi-qr-code me-1"></i>Kare kodlu bilgi formu</a></li>
+</ul>

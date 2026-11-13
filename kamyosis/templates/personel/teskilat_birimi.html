@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% load yoklama_etiketleri %}
+{% load vekalet_etiketleri %}
+{% block title %}{{ b.ad }} · Teşkilat{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item"><a href="{% url 'personel:teskilat' %}">Teşkilat şeması</a></li>{% for z in zincir %}<li class="breadcrumb-item"><a href="{% url 'personel:teskilat_birimi' z.pk %}">{{ z.ad }}</a></li>{% endfor %}<li class="breadcrumb-item active" aria-current="page">{{ b.ad }}</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>{{ b.ad }}</h1>
+    <p class="text-secondary mb-0">{{ b.get_tur_display }}{% if b.bolum %} · {{ b.bolum.ad }} bölümü{% if b.bolum.baskan %} · başkan {{ b.bolum.baskan.tam_ad }}{% endif %}{% endif %} · {{ kisiler|length }} personel</p>
+  </div>
+  <a class="btn btn-outline-secondary" href="{% url 'personel:teskilat' %}"><i class="bi bi-diagram-3 me-1"></i>Şemaya dön</a>
+</div>
+{% include "personel/_sekmeler.html" %}
+
+<div class="row g-3">
+  <div class="col-12 col-xl-8">
+    {% if altlar %}
+    <div class="kart p-3 mb-3">
+      <h2 class="h6 fw-bold mb-2">Alt birimler</h2>
+      <div class="d-flex flex-wrap gap-2">{% for a in altlar %}<a class="tk-kisim" href="{% url 'personel:teskilat_birimi' a.pk %}">{{ a.ad }}</a>{% endfor %}</div>
+    </div>
+    {% endif %}
+    <div class="kart">
+      <div class="yardim-satiri"><i class="bi bi-people"></i> Personel</div>
+      <ul class="list-unstyled mb-0">
+        {% for p in kisiler %}
+        <li class="d-flex flex-wrap align-items-center gap-2 px-3 py-2 border-bottom">
+          <a class="yk-kisi me-auto" href="{% url 'personel:detay' p.pk %}">{% include "personel/_foto.html" with p=p %}<span class="min-w-0"><span class="ad d-block text-truncate">{{ p.ad_soyad }}{% if p.bolum and p.bolum.baskan_id == p.pk %} <span class="durum-rozet durum-kullanimda">Bölüm başkanı</span>{% endif %}{% if p.idari_kadro %} <span class="durum-rozet durum-sirada">İdari kadro</span>{% endif %}</span><span class="kunye d-block text-truncate">{{ p.kunye|default:"&nbsp;" }}{% if p.kadro_gorevi %} · {{ p.kadro_gorevi }}{% endif %}</span>{% vekil_notu p %}</span></a>
+          {% if yonetici %}
+          <form method="post" class="d-flex flex-wrap align-items-center gap-2">
+            {% csrf_token %}<input type="hidden" name="islem" value="gorev"><input type="hidden" name="pk" value="{{ p.pk }}">
+            <input class="form-control form-control-sm" name="gorev_unvani" value="{{ p.gorev_unvani }}" placeholder="Görev unvanı" maxlength="80" style="width:170px" aria-label="{{ p.ad_soyad }} görev unvanı">
+            <div class="form-check form-check-inline m-0"><input class="form-check-input" type="checkbox" name="idari_kadro" value="1" id="ik{{ p.pk }}" {% if p.idari_kadro %}checked{% endif %}><label class="form-check-label small" for="ik{{ p.pk }}">İdari kadro</label></div>
+            <button class="btn btn-sm btn-outline-primary" title="Kaydet"><i class="bi bi-check2"></i></button>
+          </form>
+          {% if p.teskilat_birimi_id == b.pk %}<form method="post" onsubmit="return confirm('{{ p.ad_soyad|escapejs }} bu birimden çıkarılsın mı?')">{% csrf_token %}<input type="hidden" name="islem" value="cikar"><input type="hidden" name="pk" value="{{ p.pk }}"><button class="btn btn-sm btn-outline-danger" title="Birimden çıkar"><i class="bi bi-x-lg"></i></button></form>{% endif %}
+          {% endif %}
+        </li>
+        {% empty %}
+        <li class="px-3 py-4 text-secondary text-center">Bu birimde personel yok.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+  {% if yonetici %}
+  <div class="col-12 col-xl-4">
+    <div class="kart p-3 mb-3">
+      <h2 class="h6 fw-bold mb-2"><i class="bi bi-person-plus me-1"></i>Personel ata</h2>
+      <form method="post">
+        {% csrf_token %}<input type="hidden" name="islem" value="ata">
+        <input type="search" class="form-control form-control-sm mb-2" placeholder="Ara…" data-yk-ara="#tkAdaylar" aria-label="Personel ara">
+        <div id="tkAdaylar" class="border rounded mb-2" style="max-height:260px;overflow:auto">
+          {% for a in adaylar %}<label class="d-flex gap-2 align-items-center px-2 py-1 border-bottom small" data-ara="{{ a.ad_soyad }} {{ a.bolum.kod|default:'' }} {{ a.rutbe|default:'' }}"><input class="form-check-input m-0" type="checkbox" name="personel" value="{{ a.pk }}"><span>{{ a.ad_soyad }} <span class="text-secondary">{{ a.rutbe|default:"" }} {{ a.bolum.kod|default:"" }}{% if a.teskilat_birimi_id %} · şu an başka birimde{% endif %}</span></span></label>{% endfor %}
+        </div>
+        <input class="form-control form-control-sm mb-2" name="gorev_unvani" placeholder="Görev unvanı (isteğe bağlı), ör. Kısım Amiri" maxlength="80">
+        <button class="btn btn-primary btn-sm w-100"><i class="bi bi-check2 me-1"></i>Seçilenleri bu birime ata</button>
+      </form>
+    </div>
+    <div class="kart p-3 mb-3">
+      <h2 class="h6 fw-bold mb-2"><i class="bi bi-node-plus me-1"></i>Alt birim ekle</h2>
+      <form method="post" class="d-flex flex-wrap gap-2">
+        {% csrf_token %}<input type="hidden" name="islem" value="alt_birim">
+        <input class="form-control form-control-sm" name="ad" placeholder="ör. Personel Kısmı" maxlength="120" required style="flex:1 1 160px">
+        <select class="form-select form-select-sm w-auto" name="tur" aria-label="Tür">{% for t, ad in turler %}<option value="{{ t }}" {% if t == 'kisim' %}selected{% endif %}>{{ ad }}</option>{% endfor %}</select>
+        <button class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-lg"></i></button>
+      </form>
+    </div>
+    <div class="kart p-3">
+      <h2 class="h6 fw-bold mb-2"><i class="bi bi-pencil me-1"></i>Birimi düzenle</h2>
+      <form method="post">
+        {% csrf_token %}<input type="hidden" name="islem" value="duzenle">
+        <div class="row g-2">
+          {% for f in form %}{% if f.name != 'aktif' %}<div class="{% if f.name == 'sira' %}col-4{% else %}col-12{% endif %}"><label class="form-label small text-secondary" for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}</div>{% endif %}{% endfor %}
+          <div class="col-8 d-flex align-items-end"><div class="form-check mb-2">{{ form.aktif }} <label class="form-check-label" for="{{ form.aktif.id_for_label }}">Aktif</label></div></div>
+        </div>
+        <div class="d-flex justify-content-between mt-3">
+          <button class="btn btn-sm btn-primary"><i class="bi bi-check2 me-1"></i>Kaydet</button>
+        </div>
+      </form>
+      <form method="post" class="mt-2" onsubmit="return confirm('“{{ b.ad|escapejs }}” silinsin mi?')">{% csrf_token %}<input type="hidden" name="islem" value="sil"><button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1"></i>Birimi sil</button></form>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% load static %}<script src="{% static 'js/yoklama.js' %}?v=3" defer></script>
+{% endblock %}

@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}Kimlik kartı okuma{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Kimlik kartı okuma</h1>
+    <p class="text-secondary mb-0">T.C. kimlik kartının ön ve arka yüzünü telefonla çekin; bilgiler bu sunucuda okunur, fotoğraf saklanmaz ve internete gönderilmez. Liste Excel'e alınır, “Tür” sütununda Personel / Öğrenci seçilip geri yüklenir ve aktarılır.</p>
+  </div>
+</div>
+
+{% if not motor_hazir %}
+<div class="alert alert-danger"><i class="bi bi-exclamation-octagon me-1"></i>{{ motor_aciklama }}
+  {% if yonetici %}<div class="small mt-1">Kurulum: UB Mannheim Tesseract Windows kurulumu (github.com/UB-Mannheim/tesseract/wiki), “Additional language data” altında <b>Turkish</b> işaretlenerek, varsayılan klasöre. Kurulumdan sonra sayfayı yenileyin.</div>{% endif %}
+</div>
+{% elif "Türkçe" in motor_aciklama %}
+<div class="alert alert-warning py-2"><i class="bi bi-exclamation-triangle me-1"></i>{{ motor_aciklama }}</div>
+{% endif %}
+
+<div class="row g-3 mb-3">
+  <div class="col-12 col-lg-7" id="oku">
+    <div class="kart p-3 h-100" data-kimlik-okuma data-kare-url="{% url 'kimlik:kare' %}" data-oku-url="{% url 'kimlik:oku' %}">
+      {% csrf_token %}
+      <h2 class="h6 fw-bold mb-3"><i class="bi bi-camera me-1"></i>Kart oku</h2>
+      <div class="mb-2">
+        <label class="form-label small text-secondary" for="tur">Tür (isteğe bağlı, Excel'de de seçilebilir)</label>
+        <select class="form-select" id="tur" name="tur" data-arama="yok">
+          <option value="">— sonra seçilecek —</option>
+          {% for d, a in turler %}<option value="{{ d }}">{{ a }}</option>{% endfor %}
+        </select>
+      </div>
+      <button type="button" class="btn btn-primary btn-lg w-100" data-kamera-ac {% if not motor_hazir %}disabled{% endif %}><i class="bi bi-camera-video me-1"></i>Kamerayla oku</button>
+      <div class="small text-secondary mt-1" data-kamera-yok hidden>Canlı kamera yalnız güvenli (https) adreste çalışır; telefondan internet adresiyle girin ya da aşağıdan fotoğraf yükleyin.</div>
+      <div data-kamera-panel hidden>
+        <div class="d-flex gap-2 mb-2">
+          <span class="badge rounded-pill text-bg-primary" data-adim="on">1 · Ön yüz</span>
+          <span class="badge rounded-pill text-bg-light border" data-adim="arka">2 · Arka yüz</span>
+        </div>
+        <div class="kk-kamera">
+          <video playsinline muted autoplay></video>
+          <div class="kk-cerceve" data-cerceve></div>
+        </div>
+        <div class="d-flex flex-wrap gap-2 mt-2">
+          <button type="button" class="btn btn-outline-primary" data-elle><i class="bi bi-camera me-1"></i>Şimdi çek</button>
+          <button type="button" class="btn btn-outline-secondary" data-arkasiz hidden>Arka yüzsüz bitir</button>
+          <button type="button" class="btn btn-outline-danger ms-auto" data-kapat><i class="bi bi-x-lg me-1"></i>Kapat</button>
+        </div>
+      </div>
+      <div class="small mt-2" data-durum aria-live="polite"></div>
+      <button type="button" class="btn btn-warning mt-2" data-yeniden hidden><i class="bi bi-arrow-repeat me-1"></i>Yeniden gönder</button>
+      <details class="mt-3">
+        <summary class="small text-secondary">Kamera yerine fotoğraf yükle</summary>
+        <form method="post" action="{% url 'kimlik:oku' %}" enctype="multipart/form-data" data-okuma class="mt-2">
+          {% csrf_token %}
+          <div class="row g-2">
+            <div class="col-12 col-sm-6">
+              <label class="form-label small text-secondary" for="on">Ön yüz (fotoğraflı)</label>
+              <input class="form-control" type="file" id="on" name="on" accept="image/*">
+            </div>
+            <div class="col-12 col-sm-6">
+              <label class="form-label small text-secondary" for="arka">Arka yüz (alttaki 3 satırlık kod)</label>
+              <input class="form-control" type="file" id="arka" name="arka" accept="image/*">
+            </div>
+            <div class="col-12"><button class="btn btn-outline-primary w-100" {% if not motor_hazir %}disabled{% endif %}><i class="bi bi-upload me-1"></i>Yükle ve oku</button></div>
+          </div>
+          <div class="form-text">Fotoğraf göndermeden önce telefonda küçültülür. Kartı yakından çekin; kart karenin çoğunu kaplasın.</div>
+        </form>
+      </details>
+      <div class="form-text mt-2">İpucu: kartı düz bir zemine koyun, parlama olmasın. Arka yüzdeki kod satırları T.C. no, seri no ve tarihleri kontrol haneleriyle doğrular; ad ve soyadı Türkçe harfleriyle ön yüzden okunur.</div>
+    </div>
+  </div>
+  <div class="col-12 col-lg-5">
+    <div class="kart p-3 h-100">
+      <h2 class="h6 fw-bold mb-3"><i class="bi bi-file-earmark-spreadsheet me-1"></i>Excel</h2>
+      <div class="d-flex flex-wrap gap-2 mb-3">
+        <a class="btn btn-outline-success" href="{% url 'kimlik:excel' %}"><i class="bi bi-download me-1"></i>Excel'e al ({{ bekleyen_sayisi }})</a>
+        <a class="btn btn-success {% if not hazir_sayisi %}disabled{% endif %}" href="{% url 'kimlik:aktar' %}"><i class="bi bi-box-arrow-in-right me-1"></i>Aktarıma geç ({{ hazir_sayisi }})</a>
+      </div>
+      <form method="post" action="{% url 'kimlik:excel_yukle' %}" enctype="multipart/form-data" class="d-flex gap-2">
+        {% csrf_token %}
+        <input class="form-control" type="file" name="dosya" accept=".xlsx" required>
+        <button class="btn btn-outline-primary text-nowrap"><i class="bi bi-upload me-1"></i>Yükle</button>
+      </form>
+      <div class="form-text">Excel'de “Tür” sütunundan Personel ya da Öğrenci seçip dosyayı geri yükleyin. Düzelttiğiniz bilgiler de listeye işlenir; “Kayıt no” boş satırlar yeni satır olarak eklenir.</div>
+      <div class="small text-secondary mt-2">
+        Aktarım yetkisi: personel kartları {% if personel_yetkisi %}<span class="text-success">var</span>{% else %}<span class="text-danger">yok</span>{% endif %},
+        öğrenci kaydı {% if ogrenci_yetkisi %}<span class="text-success">var</span>{% else %}<span class="text-danger">yok</span>{% endif %}.
+      </div>
+    </div>
+  </div>
+</div>
+
+<ul class="nav nav-pills yk-sekmeler mb-3">
+  <li class="nav-item"><a class="nav-link {% if goster == 'bekleyen' %}active{% endif %}" href="{% url 'kimlik:liste' %}">Bekleyen ({{ bekleyen_sayisi }})</a></li>
+  <li class="nav-item"><a class="nav-link {% if goster == 'aktarilan' %}active{% endif %}" href="?goster=aktarilan">Aktarılan ({{ aktarilan_sayisi }})</a></li>
+</ul>
+
+{% if goster == 'bekleyen' %}
+<form method="post" action="{% url 'kimlik:toplu' %}">
+  {% csrf_token %}
+  <div class="kart">
+    <div class="d-flex flex-wrap gap-2 p-2 border-bottom">
+      <button class="btn btn-sm btn-outline-primary" name="islem" value="personel"><i class="bi bi-person-badge me-1"></i>Personel yap</button>
+      <button class="btn btn-sm btn-outline-primary" name="islem" value="ogrenci"><i class="bi bi-mortarboard me-1"></i>Öğrenci yap</button>
+      <button class="btn btn-sm btn-success" name="islem" value="aktar"><i class="bi bi-box-arrow-in-right me-1"></i>Seçilenleri aktar</button>
+      <button class="btn btn-sm btn-outline-danger ms-auto" name="islem" value="sil" onclick="return confirm('Seçilen satırlar silinsin mi?')"><i class="bi bi-trash me-1"></i>Sil</button>
+    </div>
+    <div class="table-responsive">
+      <table class="table align-middle mb-0">
+        <thead><tr>
+          <th style="width:2rem"><input class="form-check-input" type="checkbox" data-hepsi></th>
+          <th>Tür</th><th>Ad soyad</th><th>T.C. kimlik no</th><th>Doğum</th><th>Seri no</th><th>Son geçerlilik</th><th>Kontrol</th><th></th>
+        </tr></thead>
+        <tbody>
+        {% for k in kayitlar %}
+          <tr>
+            <td><input class="form-check-input" type="checkbox" name="k" value="{{ k.pk }}"></td>
+            <td>{% if k.tur == 'personel' %}<span class="durum-rozet durum-kullanimda">Personel</span>{% elif k.tur == 'ogrenci' %}<span class="durum-rozet durum-sirada">Öğrenci</span>{% else %}<span class="text-secondary small">—</span>{% endif %}</td>
+            <td class="fw-semibold">{{ k.ad_soyad|default:"(adı okunamadı)" }}</td>
+            <td class="font-monospace {% if not k.tc_dogru %}text-danger{% endif %}">{{ k.tc|default:"—" }}</td>
+            <td class="text-nowrap">{{ k.dogum_tarihi|date:"d.m.Y"|default:"—" }}</td>
+            <td class="font-monospace">{{ k.seri_no|default:"—" }}</td>
+            <td class="text-nowrap">{{ k.son_gecerlilik|date:"d.m.Y"|default:"—" }}</td>
+            <td>{% if k.uyari_listesi %}<span class="text-warning-emphasis small" title="{{ k.uyari_listesi|join:' · ' }}"><i class="bi bi-exclamation-triangle-fill text-warning"></i> {{ k.uyari_listesi|length }} uyarı</span>{% else %}<span class="text-success small"><i class="bi bi-check-circle-fill"></i> tamam</span>{% endif %}</td>
+            <td class="text-end"><a class="btn btn-sm btn-outline-secondary" href="{% url 'kimlik:duzenle' k.pk %}" title="Kontrol et / düzelt"><i class="bi bi-pencil"></i></a></td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="9" class="text-center text-secondary py-5">Liste boş. Yukarıdan bir kart okuyun ya da Excel yükleyin.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</form>
+{% else %}
+<div class="kart">
+  <div class="d-flex p-2 border-bottom">
+    <span class="small text-secondary align-self-center ms-1">Aktarılan satırlar kişisel veri içerir; işiniz bitince listeden silin.</span>
+    {% if kayitlar %}<form method="post" action="{% url 'kimlik:aktarilanlari_sil' %}" class="ms-auto" onsubmit="return confirm('Aktarılmış tüm satırlar listeden silinsin mi? Personel ve öğrenci kayıtları yerinde kalır.')">{% csrf_token %}<button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1"></i>Aktarılanları listeden sil</button></form>{% endif %}
+  </div>
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <thead><tr><th>Ad soyad</th><th>T.C. kimlik no</th><th>Aktarım</th><th>Tarih</th></tr></thead>
+      <tbody>
+      {% for k in kayitlar %}
+        <tr><td class="fw-semibold">{{ k.ad_soyad }}</td><td class="font-monospace">{{ k.tc }}</td><td>{{ k.aktarim_notu }}</td><td class="text-nowrap small">{{ k.aktarim|date:"d.m.Y H:i" }}</td></tr>
+      {% empty %}
+        <tr><td colspan="4" class="text-center text-secondary py-5">Aktarılmış satır yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<script>
+document.querySelector('[data-hepsi]')?.addEventListener('change', e => {
+  document.querySelectorAll('input[name="k"]').forEach(c => { c.checked = e.target.checked; });
+});
+</script>
+<style>
+.kk-kamera { position: relative; overflow: hidden; border-radius: 12px; background: #0f172a; }
+.kk-kamera video { display: block; width: 100%; height: auto; }
+.kk-cerceve { position: absolute; border: 3px solid rgba(255,255,255,.95); border-radius: 14px; box-shadow: 0 0 0 9999px rgba(15,23,42,.45); transition: border-color .2s; pointer-events: none; }
+.kk-cerceve.tamam { border-color: #22c55e; }
+</style>
+{% load static %}<script src="{% static 'js/kimlik_kamera.js' %}?v=2" defer></script>
+{% endblock %}

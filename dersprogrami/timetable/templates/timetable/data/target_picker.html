@@ -1,0 +1,16 @@
+{# Kayıt seçici: arama, hızlı küme (ör. tüm SVN kısımları), tümü/hiçbiri; seçilenler "copy_to" olarak gönderilir. #}
+<div class="target-picker" data-target-picker>
+  <div class="tp-tools">
+    <input type="search" class="input input-sm" data-tp-search placeholder="Ara…" aria-label="Listede ara">
+    {% if picker.groups %}<select class="select input-sm" data-tp-group aria-label="Kümeyi seç"><option value="">Küme seç…</option>{% for g in picker.groups %}<option value="{{ g }}">Tüm {{ g }}</option>{% endfor %}</select>{% endif %}
+    <button type="button" class="btn btn-sm btn-ghost" data-tp-all>Görünenlerin hepsi</button>
+    <button type="button" class="btn btn-sm btn-ghost" data-tp-none>Hiçbiri</button>
+    <span class="pill" data-tp-count>0 seçili</span>
+  </div>
+  <div class="tp-list">
+    {% for i in picker.items %}<label class="tp-item" data-group="{{ i.group }}"><input type="checkbox" name="copy_to" value="{{ i.id }}"> <span>{{ i.name }}</span></label>{% empty %}<span class="subtle small">Başka kayıt yok.</span>{% endfor %}
+  </div>
+  <div class="tp-modes">
+    {% for key, label in modes.items %}<label class="check small"><input type="radio" name="copy_mode" value="{{ key }}"{% if key == default_mode %} checked{% endif %}> <span>{{ label }}</span></label>{% endfor %}
+  </div>
+</div>

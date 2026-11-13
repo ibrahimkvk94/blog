@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Öğretmen eşleştirme{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Öğretmen eşleştirme</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Öğretmen eşleştirme</h1>
+    <p class="text-secondary mb-0">aSc'deki öğretmenleri KAMYOSİS personeliyle eşleştirin. Eşleşmeyenler yeni personel olarak eklenebilir.</p>
+  </div>
+  {% if durum == 'bekliyor' and onerisiz %}
+  <form method="post" action="{% url 'program:ogretmen_toplu' %}" onsubmit="return confirm('Benzer personel önerisi olmayan {{ onerisiz }} öğretmen yeni personel olarak eklenecek. Bölümleri verdikleri derslerden tahmin edilir. Devam edilsin mi?')">
+    {% csrf_token %}
+    <button class="btn btn-primary"><i class="bi bi-people-fill me-1"></i>Önerisiz {{ onerisiz }} kişiyi toplu ekle</button>
+  </form>
+  {% endif %}
+</div>
+
+<ul class="nav nav-pills mb-3 flex-nowrap overflow-auto">
+  {% for kod, ad, sayi in sekmeler %}
+  <li class="nav-item"><a class="nav-link text-nowrap {% if durum == kod %}active{% endif %}" href="?durum={{ kod }}">{{ ad }} <span class="badge {% if durum == kod %}text-bg-light{% else %}text-bg-secondary{% endif %}">{{ sayi }}</span></a></li>
+  {% endfor %}
+</ul>
+
+<form method="get" class="mb-3" role="search">
+  <input type="hidden" name="durum" value="{{ durum }}">
+  <div class="input-group">
+    <span class="input-group-text"><i class="bi bi-search"></i></span>
+    <input type="search" class="form-control" name="q" value="{{ q }}" placeholder="Ad ara (yazdıkça süzülür)" data-anlik-ara="#ogretmenTablosu">
+  </div>
+</form>
+
+<div class="kart">
+  <div class="table-responsive">
+    <table class="table align-middle mb-0" id="ogretmenTablosu">
+      <thead><tr><th>aSc'deki öğretmen</th><th class="d-none d-md-table-cell">Tahmini bölüm</th><th>Durum / öneri</th><th class="text-end">İşlem</th></tr></thead>
+      <tbody>
+      {% for o in liste %}
+        <tr>
+          <td>
+            <div class="fw-semibold">{{ o.ad }}</div>
+            <div class="small text-secondary">{{ o.ders_sayisi }} haftalık ders{% if o.kisa_ad and o.kisa_ad != o.ad %} · {{ o.kisa_ad }}{% endif %}</div>
+          </td>
+          <td class="d-none d-md-table-cell">{{ o.tahmini_bolum|default:"–" }}</td>
+          <td>
+            {% if o.personel %}
+              <a href="{% url 'personel:detay' o.personel.pk %}" class="text-decoration-none"><i class="bi bi-link-45deg"></i> {{ o.personel.ad_soyad }}</a>
+              <div class="small text-secondary">{{ o.get_durum_display }}</div>
+            {% elif o.oneri %}
+              <span class="durum-rozet durum-sirada">Öneri: %{{ o.benzerlik }}</span>
+              <div class="small">{{ o.oneri.ad_soyad }} <span class="text-secondary">({{ o.oneri.bolum|default:"bölümsüz" }})</span></div>
+            {% else %}
+              <span class="small text-secondary">{{ o.get_durum_display }}</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            {% if o.durum == 'bekliyor' %}
+            <div class="d-flex flex-wrap justify-content-end gap-1">
+              {% if o.oneri %}
+              <form method="post" action="{% url 'program:ogretmen_islem' o.pk %}">{% csrf_token %}
+                <input type="hidden" name="islem" value="eslestir"><input type="hidden" name="personel" value="{{ o.oneri.pk }}">
+                <input type="hidden" name="geri" value="{{ request.get_full_path }}">
+                <button class="btn btn-sm btn-success" title="Öneriyi kabul et"><i class="bi bi-check-lg"></i> Eşleştir</button>
+              </form>
+              {% endif %}
+              <form method="post" action="{% url 'program:ogretmen_islem' o.pk %}" class="d-flex gap-1">{% csrf_token %}
+                <input type="hidden" name="islem" value="eslestir"><input type="hidden" name="geri" value="{{ request.get_full_path }}">
+                <select name="personel" class="form-select form-select-sm" style="max-width:190px" required aria-label="Personel seç">
+                  <option value="">Personel seç…</option>
+                  {% for p in bos_personel %}<option value="{{ p.pk }}">{{ p.ad_soyad }}</option>{% endfor %}
+                </select>
+                <button class="btn btn-sm btn-outline-success" title="Seçilen personelle eşleştir"><i class="bi bi-link"></i></button>
+              </form>
+              <form method="post" action="{% url 'program:ogretmen_islem' o.pk %}">{% csrf_token %}
+                <input type="hidden" name="islem" value="yeni"><input type="hidden" name="geri" value="{{ request.get_full_path }}">
+                <button class="btn btn-sm btn-outline-primary" title="Yeni personel olarak ekle"><i class="bi bi-person-plus"></i> Yeni</button>
+              </form>
+              <form method="post" action="{% url 'program:ogretmen_islem' o.pk %}">{% csrf_token %}
+                <input type="hidden" name="islem" value="yoksay"><input type="hidden" name="geri" value="{{ request.get_full_path }}">
+                <button class="btn btn-sm btn-outline-secondary" title="Yok say (ör. boş/atanmamış kayıt)"><i class="bi bi-eye-slash"></i></button>
+              </form>
+            </div>
+            {% else %}
+            <form method="post" action="{% url 'program:ogretmen_islem' o.pk %}">{% csrf_token %}
+              <input type="hidden" name="islem" value="geri_al"><input type="hidden" name="geri" value="{{ request.get_full_path }}">
+              <button class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-counterclockwise"></i> Geri al</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4" class="text-center text-secondary py-5">Bu durumda kayıt yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

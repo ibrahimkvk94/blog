@@ -1,0 +1,175 @@
+{% extends "timetable/data/editor_base.html" %}
+{% load assets %}
+{% block title %}{% if obj %}{{ obj }}{% else %}Yeni kart ilişkisi{% endif %}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{{ list_url }}">{{ entity.title }}</a>{% endblock %}
+{% block heading %}<h1>{{ entity.title }}</h1>{% endblock %}
+{% block nav_title %}{{ entity.title }}{% endblock %}
+{% block avatar %}<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18" r="2.2"/><circle cx="12" cy="10" r="1.6"/><path d="M7 7l3.6 2.2M17 7l-3.6 2.2M12 11.6V15.8"/></svg>{% endblock %}
+{% block record_kind %}Kart ilişkisi{% endblock %}
+{% block record_title %}{% if obj %}{{ obj }}{% else %}Yeni kart ilişkisi{% endif %}{% endblock %}
+{% block bar_extra %}{% if obj %}<button class="btn btn-ghost btn-danger" form="delete-form">Sil</button>{% endif %}{% endblock %}
+{% block editor_body %}
+<form method="post" class="data-form rec-form rel-editor" id="entity-form" novalidate data-rel-editor>
+  {% csrf_token %}
+  {% include "timetable/data/record_state.html" %}
+  <div class="alert alert-error" data-non-field{% if not form.non_field_errors %} hidden{% endif %}>{{ form.non_field_errors|join:" " }}</div>
+  {{ picker|json_script:"rel-data" }}
+  {{ form.map_meta|json_script:"time-map-meta" }}
+  <div class="rec-panel" data-tab-panel="{{ tabs.0.key }}">
+
+    <div class="rel-summary" data-rel-summary></div>
+
+    {# 1. Kural #}
+    <section class="rel-sec">
+      <div class="rel-icon rel-icon-rule"><svg viewBox="0 0 40 40"><rect x="4" y="22" width="9" height="9" rx="1.5"/><rect x="14" y="22" width="9" height="9" rx="1.5"/><rect x="4" y="12" width="9" height="9" rx="1.5"/><rect x="24" y="22" width="9" height="9" rx="1.5" opacity=".55"/><rect x="22" y="5" width="8" height="8" rx="1.5" transform="rotate(18 26 9)" opacity=".75"/><rect x="31" y="11" width="6" height="6" rx="1" opacity=".55"/></svg></div>
+      <div class="rel-body">
+        <div class="form-row">
+          <label class="label" for="id_condition">Kart ilişki türü <span class="req">*</span></label>
+          <div class="rel-condition">
+            <input type="search" class="input input-sm" placeholder="Ara: sözcük ya da aSc numarası (ör. #60, art arda)" data-rel-condition-search>
+            {{ form.condition }}
+          </div>
+          <div class="condition-help" data-rel-help></div>
+          {% for e in form.condition.errors %}<div class="error">{{ e }}</div>{% endfor %}
+        </div>
+        <div class="rel-inline">
+          <div class="form-row" data-rel-show="n">
+            <label class="label" for="id_param">N</label>{{ form.param }}
+            {% for e in form.param.errors %}<div class="error">{{ e }}</div>{% endfor %}
+          </div>
+          <div class="form-row" data-rel-show="soft">
+            <label class="label" for="id_param_max">İstisna üst sınırı <span class="subtle">(isteğe bağlı)</span></label>{{ form.param_max }}
+            <div class="help">Doluysa N tercih edilir, bu değer hiç aşılmaz.</div>
+            {% for e in form.param_max.errors %}<div class="error">{{ e }}</div>{% endfor %}
+          </div>
+          <div class="form-row">
+            <span class="label">Kartlar</span>
+            <div class="seg" role="radiogroup">
+              {% for value, label in form.fields.card_length.choices %}
+                <label class="seg-opt"><input type="radio" name="card_length" value="{{ value }}"{% if form.card_length.value|stringformat:'s' == value|stringformat:'s' %} checked{% endif %}><span>{% if not value %}Tüm kartlar{% elif value == 1 %}Tekil{% elif value == 2 %}2'li blok{% else %}3'lü blok{% endif %}</span></label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {# 2. Uygula #}
+    <section class="rel-sec" data-rel-show="apply">
+      <div class="rel-icon rel-icon-apply"><svg viewBox="0 0 40 40"><circle cx="7" cy="20" r="4"/><circle cx="31" cy="7" r="3.5"/><circle cx="31" cy="16" r="3.5"/><circle cx="31" cy="25" r="3.5"/><circle cx="31" cy="34" r="3.5"/><path d="M11 20h6M17 7v27M17 7h10M17 16h10M17 25h10M17 34h10" fill="none" stroke-width="2"/></svg></div>
+      <div class="rel-body">
+        <div class="form-row">
+          <span class="label">Uygula</span>
+          <div class="rel-apply">
+            {% for value, label in form.fields.apply_to.choices %}
+              <label class="rel-choice"><input type="radio" name="apply_to" value="{{ value }}"{% if form.apply_to.value == value %} checked{% endif %}>
+                <span><b>{{ label }}</b><small>{% if value == "all" %}Seçilen kartların hepsi tek küme{% elif value == "each_class" %}Kural her sınıfın kartlarına ayrı ayrı{% elif value == "each_teacher" %}Kural her öğretmenin kartlarına ayrı ayrı{% elif value == "each_subject_class" %}Her sınıftaki her ders adı ayrı küme{% elif value == "each_teacher_class" %}Her öğretmen–sınıf çifti ayrı küme{% elif value == "each_group" %}Her öğrenci grubu ayrı küme{% else %}Her sınıf seviyesi ayrı küme{% endif %}</small></span></label>
+            {% endfor %}
+          </div>
+          {% for e in form.apply_to.errors %}<div class="error">{{ e }}</div>{% endfor %}
+        </div>
+      </div>
+    </section>
+
+    {# 3. Filtre #}
+    <section class="rel-sec">
+      <div class="rel-icon rel-icon-filter"><svg viewBox="0 0 40 40"><circle cx="15" cy="20" r="10" opacity=".55"/><circle cx="25" cy="20" r="10" opacity=".55"/></svg></div>
+      <div class="rel-body">
+        <span class="label">Hangi kartlar?</span>
+        <p class="subtle small" style="margin:0 0 8px" data-rel-filter-help>Seçilen ders kendi ders adını temsil eder: sınıf ya da öğretmen seçmezseniz kural o dersin okutulduğu bütün kısımlara uygulanır; seçerseniz yalnızca onlarla sınırlanır.</p>
+        <div class="rel-filters">
+          <div class="form-row rel-filter" data-rel-filter="lessons"><input type="hidden" name="lessons" disabled data-anchor><input type="hidden" name="subjects" disabled data-anchor>
+            <button type="button" class="btn btn-sm" data-rel-open="lessons"><span data-rel-side-a>Değiştir: Dersler</span></button><div class="rel-chips" data-rel-chips="lessons"></div>
+            <div data-rel-values="subjects">{% for v in picker.selected.subjects %}<input type="hidden" name="subjects" value="{{ v }}">{% endfor %}</div>
+            <div data-rel-values="lessons">{% for v in picker.selected.lessons %}<input type="hidden" name="lessons" value="{{ v }}">{% endfor %}</div>
+            {% for e in form.lessons.errors %}<div class="error">{{ e }}</div>{% endfor %}{% for e in form.subjects.errors %}<div class="error">{{ e }}</div>{% endfor %}
+          </div>
+          <div class="form-row rel-filter" data-rel-filter="lessons_b" data-rel-show="two"><input type="hidden" name="lessons_b" disabled data-anchor><input type="hidden" name="subjects_b" disabled data-anchor>
+            <button type="button" class="btn btn-sm" data-rel-open="lessons_b">Değiştir: Dersler B</button><div class="rel-chips" data-rel-chips="lessons_b"></div>
+            <div data-rel-values="subjects_b">{% for v in picker.selected.subjects_b %}<input type="hidden" name="subjects_b" value="{{ v }}">{% endfor %}</div>
+            <div data-rel-values="lessons_b">{% for v in picker.selected.lessons_b %}<input type="hidden" name="lessons_b" value="{{ v }}">{% endfor %}</div>
+            {% for e in form.lessons_b.errors %}<div class="error">{{ e }}</div>{% endfor %}{% for e in form.subjects_b.errors %}<div class="error">{{ e }}</div>{% endfor %}
+          </div>
+          <div class="form-row rel-filter" data-rel-filter="classes"><input type="hidden" name="classes" disabled data-anchor>
+            <button type="button" class="btn btn-sm" data-rel-open="classes">Değiştir: Sınıflar</button><div class="rel-chips" data-rel-chips="classes"></div>
+            <div data-rel-values="classes">{% for v in picker.selected.classes %}<input type="hidden" name="classes" value="{{ v }}">{% endfor %}</div>
+            {% for e in form.classes.errors %}<div class="error">{{ e }}</div>{% endfor %}
+          </div>
+          <div class="form-row rel-filter" data-rel-filter="teachers"><input type="hidden" name="teachers" disabled data-anchor>
+            <button type="button" class="btn btn-sm" data-rel-open="teachers" data-rel-teacher-label>Değiştir: Öğretmenler</button><div class="rel-chips" data-rel-chips="teachers"></div>
+            <div data-rel-values="teachers">{% for v in picker.selected.teachers %}<input type="hidden" name="teachers" value="{{ v }}">{% endfor %}</div>
+            {% for e in form.teachers.errors %}<div class="error">{{ e }}</div>{% endfor %}
+          </div>
+          <div class="form-row rel-filter" data-rel-filter="classrooms" data-rel-show="rooms"><input type="hidden" name="classrooms" disabled data-anchor>
+            <button type="button" class="btn btn-sm" data-rel-open="classrooms">Değiştir: Derslikler</button><div class="rel-chips" data-rel-chips="classrooms"></div>
+            <div data-rel-values="classrooms">{% for v in picker.selected.classrooms %}<input type="hidden" name="classrooms" value="{{ v }}">{% endfor %}</div>
+            {% for e in form.classrooms.errors %}<div class="error">{{ e }}</div>{% endfor %}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    {# 4. Zaman haritası #}
+    <section class="rel-sec" data-rel-show="map">
+      <div class="rel-icon rel-icon-map"><svg viewBox="0 0 40 40"><rect x="5" y="7" width="30" height="26" rx="3" fill="none" stroke-width="2"/><path d="M5 15h30M15 7v26M25 7v26" fill="none" stroke-width="2"/><path d="M8 22l2 2 4-4M18 28l2 2 4-4" fill="none" stroke-width="2.4"/></svg></div>
+      <div class="rel-body">
+        <div class="form-row form-row-wide" data-map-row="time_map">
+          <span class="label" data-rel-map-label>Zaman haritası</span>
+          <div class="avail" data-time-map>{{ form.time_map }}<div class="avail-grid"></div></div>
+          <div class="rel-map-tools"><button type="button" class="btn btn-sm" data-map-all>Tümü</button><button type="button" class="btn btn-sm" data-map-none>Hiçbiri</button><button type="button" class="btn btn-sm" data-map-invert>Tersine çevir</button><span class="subtle small">Gün ya da saat başlığı tüm satırı/sütunu değiştirir; basılı tutup sürükleyerek boyayabilirsiniz.</span></div>
+          {% for e in form.time_map.errors %}<div class="error">{{ e }}</div>{% endfor %}
+        </div>
+        <div class="form-row form-row-wide" data-map-row="time_map_b" data-rel-show="map-b">
+          <span class="label">B tarafı zaman haritası <span class="subtle small">(boş = A haritası)</span></span>
+          <div class="avail" data-time-map>{{ form.time_map_b }}<div class="avail-grid"></div></div>
+          <div class="rel-map-tools"><button type="button" class="btn btn-sm" data-map-all>Tümü</button><button type="button" class="btn btn-sm" data-map-none>Hiçbiri</button><button type="button" class="btn btn-sm" data-map-invert>Tersine çevir</button></div>
+        </div>
+      </div>
+    </section>
+
+    {# 5. Önem, ad, not #}
+    <section class="rel-sec">
+      <div class="rel-icon rel-icon-weight"><svg viewBox="0 0 40 40"><circle cx="20" cy="20" r="15" fill="none" stroke-width="3"/><path d="M20 29V12M13 18l7-7 7 7" fill="none" stroke-width="3"/></svg></div>
+      <div class="rel-body">
+        <div class="form-row">
+          <span class="label">Planlamadaki önemi</span>
+          <div class="rel-importance">
+            {% for value, label in form.fields.importance.choices %}
+              <label class="rel-imp rel-imp-{{ value }}"><input type="radio" name="importance" value="{{ value }}"{% if form.importance.value == value %} checked{% endif %}>
+                <span><i>{% if value == "strict" %}!{% elif value == "high" %}↑{% elif value == "normal" %}•{% else %}↓{% endif %}</i><b>{{ label }}</b><small>{% if value == "strict" %}mutlaka sağlanır{% elif value == "high" %}güçlü tercih{% elif value == "normal" %}tercih{% else %}zayıf tercih{% endif %}</small></span></label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="rel-inline">
+          <div class="form-row" style="flex:2">
+            <label class="label" for="id_name">Ad <span class="subtle">(boşsa otomatik)</span></label>{{ form.name }}
+            {% for e in form.name.errors %}<div class="error">{{ e }}</div>{% endfor %}
+          </div>
+          <div class="form-row" style="flex:2">
+            <label class="label" for="id_note">Not</label>{{ form.note }}
+          </div>
+          <div class="form-row form-check" style="align-self:flex-end"><label class="check">{{ form.active }} <span>Etkin</span></label></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  {# Seçici penceresi (adı olmayan kutular: formun değerlerine karışmaz) #}
+  <dialog class="rel-picker" data-rel-picker>
+    <div class="rel-picker-head"><h2 data-rp-title>Seç</h2><button type="button" class="btn btn-ghost btn-sm" data-rp-close aria-label="Kapat">✕</button></div>
+    <div class="rel-picker-tools">
+      <input type="search" class="input input-sm" placeholder="Ara…" data-rp-search>
+      <button type="button" class="btn btn-sm" data-rp-all>Görünenlerin hepsi</button>
+      <button type="button" class="btn btn-sm" data-rp-none>Temizle</button>
+      <label class="check small" data-rp-only-wrap><input type="checkbox" data-rp-only> <span>Yalnızca seçilenler</span></label>
+    </div>
+    <div class="rel-picker-hint subtle small" data-rp-hint></div>
+    <div class="rel-picker-list" data-rp-list></div>
+    <div class="rel-picker-foot"><span class="subtle small" data-rp-count></span><button type="button" class="btn" data-rp-close>Vazgeç</button><button type="button" class="btn btn-primary" data-rp-ok>Tamam</button></div>
+  </dialog>
+</form>
+{% if obj %}
+  <form method="post" action="{% url 'timetable:data_delete' school.pk entity.slug obj.pk %}" id="delete-form" hidden data-confirm="Kart ilişkisi silinsin mi?">{% csrf_token %}</form>
+{% endif %}
+{% endblock %}
+{% block scripts %}{{ block.super }}<script src="{% asset 'timetable/relationship.js' %}"></script>{% endblock %}

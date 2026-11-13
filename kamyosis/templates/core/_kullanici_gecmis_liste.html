@@ -1,0 +1,13 @@
+<ul class="ky-gecmis">
+  {% for e in kayitlar %}
+  <li>
+    <span class="ky-gecmis-ikon {% if e.is_addition %}ekle{% endif %}"><i class="bi bi-{% if e.is_addition %}person-plus{% elif 'Parola' in e.metin %}key{% elif 'Yetki' in e.metin %}shield{% elif 'doğrulama' in e.metin or 'cihaz' in e.metin or 'kilid' in e.metin or 'oturum' in e.metin %}shield-lock{% else %}pencil{% endif %}"></i></span>
+    <div class="ky-gecmis-metin">
+      {% if not tek_hesap %}<a href="{% url 'core:kullanici' e.object_id %}" class="fw-semibold">{{ e.object_repr }}</a> · {% endif %}<span>{{ e.metin }}</span>
+      <div class="small text-secondary">{{ e.action_time|date:"d.m.Y H:i" }} · {{ e.user.username }}{% if e.panelden %} · Yönetim Paneli{% endif %}</div>
+    </div>
+  </li>
+  {% empty %}
+  <li class="text-secondary small py-3 justify-content-center">Henüz kayıt yok.</li>
+  {% endfor %}
+</ul>

@@ -1,0 +1,27 @@
+{% load assets %}<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Doğrulama kodu · Ders Programı</title>
+  <link href="{% asset 'timetable/app.css' %}" rel="stylesheet">
+  {% include "timetable/theme_init.html" %}
+</head>
+<body class="login-page">
+  <main class="login-card panel">
+    <div class="brand login-brand"><span class="brand-mark">{% include "timetable/icon.html" with name="grid" %}</span> Ders Programı</div>
+    <h1>Doğrulama kodu</h1>
+    <p class="subtle">{{ username }} hesabında iki adımlı giriş açık. Telefonunuzdaki doğrulama uygulamasında görünen 6 haneli kodu girin.</p>
+    {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+    <form method="post">
+      {% csrf_token %}
+      <label class="label" for="id_code">Kod</label>
+      <input class="input otp-input" type="text" name="code" id="id_code" inputmode="numeric" autocomplete="one-time-code"
+             autofocus required maxlength="20" placeholder="123456">
+      <button class="btn btn-primary" style="width:100%;margin-top:16px;justify-content:center">Doğrula</button>
+    </form>
+    <p class="subtle small" style="margin-bottom:0">Telefonunuz yanınızda değilse kurtarma kodlarınızdan birini (ör. <code>A1B2C3-D4E5F6</code>) yazabilirsiniz.
+      · <a href="{% url 'timetable:login' %}">Başka hesapla gir</a></p>
+  </main>
+</body>
+</html>

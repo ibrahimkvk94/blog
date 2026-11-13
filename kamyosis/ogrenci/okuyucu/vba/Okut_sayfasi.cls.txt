@@ -1,0 +1,25 @@
+Option Explicit
+' "Okut" sayfasinin kod modulu. Okuyucu kodu OkutmaHucresi'ne yazip Enter'a basinca calisir.
+
+Private Sub Worksheet_Change(ByVal Target As Range)
+    Dim giris As Range, metin As String
+    On Error GoTo Cik
+    Set giris = ThisWorkbook.Names("OkutmaHucresi").RefersToRange
+    If Intersect(Target, giris) Is Nothing Then Exit Sub
+    metin = CStr(giris.Value)
+    If Len(Trim$(metin)) = 0 Then Exit Sub
+
+    Application.EnableEvents = False
+    On Error GoTo Son
+    giris.Value = ""
+    KodIsle metin
+Son:
+    If Err.Number <> 0 Then MsgBox Err.Description, vbExclamation
+    Application.EnableEvents = True
+    OkutmayaHazirla
+Cik:
+End Sub
+
+Private Sub Worksheet_Activate()
+    OkutmayaHazirla
+End Sub

@@ -1,0 +1,5 @@
+<ul class="nav nav-pills yk-sekmeler mb-3 d-print-none">
+  <li class="nav-item"><a class="nav-link {% if sekme == 'liste' %}active{% endif %}" href="{% url 'personel:liste' %}"><i class="bi bi-person-vcard me-1"></i>Personel kartları</a></li>
+  <li class="nav-item"><a class="nav-link {% if sekme == 'teskilat' %}active{% endif %}" href="{% url 'personel:teskilat' %}"><i class="bi bi-diagram-3 me-1"></i>Teşkilat şeması</a></li>
+  {% if yonetici %}<li class="nav-item"><a class="nav-link {% if sekme == 'alanlar' %}active{% endif %}" href="{% url 'personel:alanlar' %}"><i class="bi bi-ui-checks me-1"></i>Kart alanları</a></li>{% endif %}
+</ul>

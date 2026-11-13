@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ t.ad }}{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">{{ t.ad|truncatechars:40 }}</li>{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/sinav-takvimi.css' %}?v=5">
+{% include "sinavtakvimi/_sekmeler.html" %}
+<div class="st-sayfa" id="stSayfa" data-benim="{{ benim_bolum }}">
+
+  <section class="st-kapak">
+    <div class="st-kapak-metin">
+      <div class="st-ust-etiket"><i class="bi bi-calendar2-week"></i>Sınav İcrası · Sınav Takvimi
+        {% if not t.yayinda %}<span class="st-onizleme"><i class="bi bi-eye-slash"></i>Önizleme · henüz yayında değil</span>{% endif %}
+      </div>
+      <h1>{{ t.ad }}</h1>
+      <p class="st-aralik">
+        {% if ozet.ilk %}<i class="bi bi-calendar-range"></i>{{ ozet.ilk|date:"j F" }} – {{ ozet.son|date:"j F Y" }}{% endif %}
+        {% if t.aciklama %}<span class="st-nokta">·</span>{{ t.aciklama }}{% endif %}
+      </p>
+    </div>
+    <div class="st-sayilar">
+      <div class="st-sayi"><b>{{ ozet.sinav }}</b><span>sınav</span></div>
+      <div class="st-sayi"><b>{{ ozet.gun }}</b><span>gün</span></div>
+      <div class="st-sayi"><b>{{ ozet.program }}</b><span>program</span></div>
+      {% if kalan.durum == "once" %}<div class="st-sayi vurgu"><b>{{ kalan.gun }}</b><span>gün kaldı</span></div>
+      {% elif kalan.durum == "suruyor" %}<div class="st-sayi vurgu"><b><i class="bi bi-broadcast"></i></b><span>sınavlar sürüyor</span></div>
+      {% elif kalan.durum == "bitti" %}<div class="st-sayi"><b><i class="bi bi-check2-all"></i></b><span>tamamlandı</span></div>{% endif %}
+    </div>
+  </section>
+
+  {% if duzenleyebilir %}
+  <div class="st-yonetim d-print-none">
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      {% if t.yayinda %}
+        <span class="durum-rozet durum-kullanimda"><i class="bi bi-broadcast me-1"></i>Yayında</span>
+        <span class="small text-secondary">{{ t.yayin_zamani|date:"d.m.Y H:i" }}{% if t.yayinlayan %} · {{ t.yayinlayan }}{% endif %}</span>
+      {% else %}
+        <span class="durum-rozet durum-planlandi">Yayında değil</span>
+        <span class="small text-secondary">Yalnız yetkililer görüyor.</span>
+      {% endif %}
+      <div class="ms-auto d-flex flex-wrap gap-2">
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#stAdForm"><i class="bi bi-pencil me-1"></i>Adı / açıklama</button>
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'sinavtakvimi:yukle' %}?takvim={{ t.pk }}"><i class="bi bi-arrow-repeat me-1"></i>Excel'den yenile</a>
+        {% if not t.yayinda %}
+        <form method="post" action="{% url 'sinavtakvimi:sil' t.pk %}" onsubmit="return confirm('Bu plan silinsin mi?')">{% csrf_token %}
+          <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1"></i>Sil</button></form>
+        {% endif %}
+        <form method="post" action="{% url 'sinavtakvimi:yayin' t.pk %}" class="d-flex align-items-center gap-2"
+              {% if t.yayinda %}onsubmit="return confirm('Yayından kaldırılsın mı? Herkes artık göremez.')"{% endif %}>{% csrf_token %}
+          {% if t.yayinda %}
+            <button class="btn btn-sm btn-outline-danger" name="islem" value="kaldir"><i class="bi bi-eye-slash me-1"></i>Yayından kaldır</button>
+          {% else %}
+            <label class="form-check-label small"><input class="form-check-input me-1" type="checkbox" name="bildir" value="1" checked>Herkese bildirim gönder</label>
+            <button class="btn btn-sm btn-primary" name="islem" value="yayinla"><i class="bi bi-broadcast me-1"></i>Yayınla</button>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+    <form method="post" action="{% url 'sinavtakvimi:duzenle' t.pk %}" class="collapse mt-3" id="stAdForm">{% csrf_token %}
+      <div class="row g-2 align-items-end">
+        <div class="col-md-6"><label class="form-label small mb-1">Ad</label><input class="form-control form-control-sm" name="ad" value="{{ t.ad }}" maxlength="200" required></div>
+        <div class="col-md-4"><label class="form-label small mb-1">Açıklama (isteğe bağlı)</label><input class="form-control form-control-sm" name="aciklama" value="{{ t.aciklama }}" maxlength="300" placeholder="ör. Salon bilgisi ayrıca duyurulacaktır"></div>
+        <div class="col-md-2"><button class="btn btn-sm btn-primary w-100">Kaydet</button></div>
+      </div>
+    </form>
+    {% if cakismalar %}
+    <div class="alert alert-secondary small mt-3 mb-0">
+      <i class="bi bi-info-circle me-1"></i><strong>Bilgi:</strong> aynı oturumda birden çok sınavı olan program var (ör. kredi tamamlama dersi). Yalnız yetkililer görür; plan olduğu gibi yayınlanır.
+      {% for g in cakismalar %}{% with s=g.0 %}<div>{{ s.tarih|date:"j F" }} {{ s.baslangic|time:"H.i" }} · {{ s.bolum }} {{ s.sinif }}. sınıf: {% for x in g %}{{ x.kod }} {{ x.ders }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>{% endwith %}{% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="st-arac d-print-none" id="stArac">
+    <div class="st-arac-satir">
+      <div class="st-programlar" role="group" aria-label="Program">
+        <button type="button" class="st-cip secili" data-program="">Tüm programlar</button>
+        {% for p in programlar %}<button type="button" class="st-cip" data-program="{{ p.kod }}" title="{{ p.ad }}">{{ p.kod }}</button>{% endfor %}
+      </div>
+    </div>
+    <div class="st-arac-satir">
+      <div class="btn-group btn-group-sm st-sinif-sec" role="group" aria-label="Sınıf">
+        <button type="button" class="btn btn-outline-secondary active" data-sinif="">Her iki sınıf</button>
+        {% for s in siniflar %}<button type="button" class="btn btn-outline-secondary" data-sinif="{{ s }}">{{ s }}. sınıf</button>{% endfor %}
+      </div>
+      <div class="st-ara"><i class="bi bi-search"></i><input type="search" id="stAra" placeholder="Ders adı ya da kodu ara" aria-label="Ders ara"></div>
+      <div class="btn-group btn-group-sm st-gorunum" role="group" aria-label="Görünüm">
+        <button type="button" class="btn btn-outline-secondary active" data-gorunum="gunler"><i class="bi bi-calendar-week me-1"></i>Günler</button>
+        <button type="button" class="btn btn-outline-secondary" data-gorunum="tablo"><i class="bi bi-grid-3x3 me-1"></i>Program tablosu</button>
+      </div>
+      <div class="ms-auto d-flex gap-2">
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'sinavtakvimi:excel' t.pk %}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer me-1"></i>Yazdır</button>
+      </div>
+    </div>
+    <div class="st-sonuc" id="stSonuc" aria-live="polite"></div>
+  </div>
+
+  <div id="stGunler" class="st-gunler">
+    {% for g in gunler %}
+    <article class="st-gun{% if g.bugun %} bugun{% elif g.gecti %} gecti{% endif %}" data-gun>
+      <header class="st-gun-bas">
+        <div class="st-tarih"><span class="st-tarih-no">{{ g.gun_no }}</span><span class="st-tarih-ay">{{ g.ay }}</span></div>
+        <div class="st-gun-metin">
+          <div class="st-gun-adi">{{ g.gun_adi }}
+            {% if g.bugun %}<span class="st-rozet bugun">Bugün</span>{% elif g.yarin %}<span class="st-rozet yarin">Yarın</span>{% elif g.gecti %}<span class="st-rozet gecti"><i class="bi bi-check2"></i>Tamamlandı</span>{% endif %}
+          </div>
+          <div class="st-gun-sayi"><span data-gun-sayi>{{ g.sinav_sayisi }}</span> sınav</div>
+        </div>
+      </header>
+      <div class="st-yuvalar">
+        {% for o in g.yuvalar %}
+        {% if o.bos %}
+        <section class="st-oturum bos" aria-hidden="true"><div class="st-saat"><i class="bi bi-clock"></i>{{ o.saat }}</div><div class="st-yok">Sınav yok</div></section>
+        {% else %}
+        <section class="st-oturum" data-oturum>
+          <div class="st-saat"><i class="bi bi-clock"></i>{{ o.saat }}{% for s in o.siniflar %}<span class="st-sinif s{{ s }}">{{ s }}. sınıf</span>{% endfor %}</div>
+          <ul class="st-kartlar">
+            {% for k in o.kartlar %}
+            <li class="st-kart tur-{{ k.tur_sinifi }}" data-sinif="{{ k.sinif|default_if_none:'' }}" data-bolumler=" {{ k.bolumler|join:' ' }} " data-ara="{{ k.ara }}">
+              <div class="st-ders">{{ k.ad }}</div>
+              <div class="st-kart-alt">
+                <span class="st-kod">{{ k.kod }}</span>
+                <span class="st-tur">{{ k.tur }}</span>
+              </div>
+              {% if k.bolumler %}<div class="st-progs">{% for b in k.bolumler %}<span data-p="{{ b }}">{{ b }}</span>{% endfor %}</div>{% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+          <div class="st-yok" hidden>Sınav yok</div>
+        </section>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+
+  <div id="stTablo" class="st-tablo-kap kart" hidden>
+    <div class="table-responsive">
+      <table class="st-tablo">
+        <thead>
+          <tr>
+            <th rowspan="2" class="st-yapiskan">Program</th>
+            {% for gb in gun_basliklari %}<th colspan="{{ gb.genislik }}" class="st-tg gun-ilk{% if gb.g.bugun %} bugun{% endif %}">{{ gb.g.gun_no }} {{ gb.g.ay }}<small>{{ gb.g.gun_adi }}</small></th>{% endfor %}
+          </tr>
+          <tr>{% for o in oturum_basliklari %}<th class="st-to{% if o.gun_ilk %} gun-ilk{% endif %}">{{ o.bas|time:"H.i" }}</th>{% endfor %}</tr>
+        </thead>
+        <tbody>
+          {% for r in tablo %}
+          <tr data-bolum="{{ r.bolum }}" data-sinif="{{ r.sinif }}">
+            <th class="st-yapiskan"><span class="st-tablo-prog">{{ r.bolum }}</span><span class="st-sinif s{{ r.sinif }}">{{ r.sinif }}. sınıf</span><small>{{ r.bolum_adi }}</small></th>
+            {% for h in r.hucreler %}<td class="{% if h.gun_ilk %}gun-ilk{% endif %}{% if h.gecti %} gecti{% endif %}{% if h.bugun %} bugun{% endif %}">{% for x in h.sinavlar %}<span class="st-hucre tur-{{ x.tur_sinifi }}" data-ara="{{ x.ad|lower }} {{ x.kod|lower }}" title="{{ x.ad }} · {{ x.tur }}"><b>{{ x.kod }}</b><small>{{ x.ad }}</small></span>{% endfor %}</td>{% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="st-bos d-print-none" id="stBos" hidden><i class="bi bi-search"></i>Seçime uyan sınav yok.</div>
+
+  <div class="st-lejant">
+    <span><i class="st-lejant-kutu tur-mt"></i>%100 MT</span>
+    <span><i class="st-lejant-kutu tur-cs"></i>%100 ÇS</span>
+    <span><i class="st-lejant-kutu tur-uyg"></i>Uygulama + MT / ÇS</span>
+    <span class="text-secondary">Sınav türleri plandaki gibi yazılmıştır.</span>
+  </div>
+</div>
+<script src="{% static 'js/sinav-takvimi.js' %}?v=1"></script>
+{% endblock %}

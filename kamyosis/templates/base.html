@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="tr" data-bs-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ sistem_adi }}{% endblock %} · {{ kurum_adi }}</title>
+  {% load static %}
+  <link rel="icon" href="{% static 'img/favicon.ico' %}" sizes="any">
+  <link rel="icon" type="image/png" href="{% static 'img/favicon.png' %}">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css">
+  <link rel="stylesheet" href="{% static 'css/kamyosis.css' %}?v=49">
+  <link rel="stylesheet" href="{% static 'css/kamyosis-koyu.css' %}?v=16">
+  <script>
+    /* Tema: kullanıcının seçimi (açık / koyu) ya da sistem tercihi; sayfa çizilmeden uygulanır. Ders Programı
+       modülüyle aynı anahtar ("theme") kullanılır, iki taraf birlikte değişir. */
+    (function () {
+      var r = document.documentElement, p = null;
+      try { p = localStorage.getItem("theme"); } catch (e) {}
+      var koyu = p ? p === "dark" : !!(window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
+      r.setAttribute("data-bs-theme", koyu ? "dark" : "light");
+    })();
+    /* Çerçevede açılmış bir KAMYOSİS sayfası (ör. oturum düşüp girişe yönlenen modül sayfası) ana pencereye çıkar;
+       sol menü daraltma tercihi sayfa çizilmeden uygulanır (titreme olmasın). */
+    try { if (window.top !== window.self && window.top.location.origin === location.origin) window.top.location.replace(location.href); } catch (e) {}
+    try { if (localStorage.getItem("kenar-dar") === "1") document.documentElement.classList.add("kenar-dar"); } catch (e) {}
+  </script>
+  <script type="speculationrules">
+  {"prefetch": [{"where": {"and": [{"href_matches": "/*"},
+     {"not": {"selector_matches": "a[href*='excel'], a[href*='/rapor/'], a[href*='/hesap/'], a[href*='/yonetim/'], a[download], a[target], [data-onyukleme='yok']"}}]},
+   "eagerness": "moderate"}]}
+  </script>
+</head>
+<body>
+{% block body %}
+<div class="uygulama">
+  <aside class="offcanvas-lg offcanvas-start kenar" tabindex="-1" id="kenarCubugu" aria-labelledby="kenarBaslik">
+    <div class="kenar-ust">
+      <a href="{% url 'core:panel' %}" class="marka" id="kenarBaslik">
+        <img src="{% static 'img/logo_beyaz.png' %}" class="marka-logo" alt="">
+        <span>
+          <span class="marka-ad">{{ sistem_adi }}</span>
+          <span class="marka-alt">{{ kurum_adi }}</span>
+        </span>
+      </a>
+      <button type="button" class="btn-close btn-close-white d-lg-none" data-bs-dismiss="offcanvas" data-bs-target="#kenarCubugu" aria-label="Kapat"></button>
+    </div>
+    <nav class="kenar-menu">
+      <ul>
+        <li><a class="nav-link {% if request.resolver_match.view_name == 'core:panel' %}active{% endif %}" href="{% url 'core:panel' %}"><i class="bi bi-house"></i><span>Ana Sayfa</span></a></li>
+        {% if user.personel_id %}<li><a class="nav-link {% if request.resolver_match.view_name == 'takip:derslerim' %}active{% endif %}" href="{% url 'takip:derslerim' %}"><i class="bi bi-calendar-check"></i><span>Derslerim</span></a></li>{% endif %}
+        {% include "partials/menu_dugum.html" with dugumler=acik_sayfalar %}
+      </ul>
+      <div class="menu-ara" role="search" title="Menüde ara (/)">
+        <i class="bi bi-search" aria-hidden="true"></i>
+        <input type="search" id="menuAra" placeholder="Menüde ara…" aria-label="Menüde ara" autocomplete="off" spellcheck="false" enterkeyhint="go">
+        <kbd aria-hidden="true">/</kbd>
+      </div>
+      <p class="menu-ara-yok" id="menuAraYok" hidden>Eşleşen sayfa yok.</p>
+      {% if menu or acik_sayfalar %}
+      <div id="kisayolBolumu" data-url="{% url 'core:kisayol_degistir' 0 %}">{% include "partials/kisayol_listesi.html" %}</div>
+      {% if menu %}
+      <div class="menu-baslik">Birimler</div>
+      <ul>
+        {% include "partials/menu_dugum.html" with dugumler=menu %}
+      </ul>
+      {% endif %}
+      {% endif %}
+      {% if user.is_superuser or is_listesi_sahibi %}
+      <div class="menu-baslik">Sistem</div>
+      <ul>
+        {% if is_listesi_sahibi %}<li><a class="nav-link {% if request.resolver_match.namespace == 'isler' %}active{% endif %}" href="{% url 'isler:liste' %}"><i class="bi bi-list-check"></i><span>İş listesi</span></a></li>{% endif %}
+        {% if user.is_superuser %}
+        <li><a class="nav-link {% if request.resolver_match.url_name == 'istatistikler' %}active{% endif %}" href="{% url 'core:istatistikler' %}"><i class="bi bi-bar-chart-line"></i><span>İstatistikler</span></a></li>
+        <li><a class="nav-link {% if request.resolver_match.url_name == 'bolum_kisayollari' or request.resolver_match.url_name|slice:':9' == 'kullanici' %}active{% endif %}" href="{% url 'core:kullanicilar' %}"><i class="bi bi-people"></i><span>Kullanıcılar ve yetkiler</span></a></li>
+        <li><a class="nav-link" href="{% url 'admin:index' %}"><i class="bi bi-gear"></i><span>Yönetim Paneli</span></a></li>
+        {% endif %}
+      </ul>
+      {% endif %}
+    </nav>
+    <script>
+    /* Sol menü sayfadan sayfaya aynı kalır: açılan dallar ve kaydırma yeri hatırlanır. */
+    (function () {
+      var k = document.getElementById("kenarCubugu"), acik = [];
+      try { acik = JSON.parse(localStorage.getItem("kenar-acik") || "[]"); } catch (e) {}
+      acik.forEach(function (id) {
+        var u = document.getElementById(id), a = k.querySelector('[href="#' + id + '"]');
+        if (!u || !a) return;
+        u.classList.add("show"); a.classList.remove("collapsed"); a.setAttribute("aria-expanded", "true");
+      });
+      try { var y = sessionStorage.getItem("kenar-kaydir"); if (y) k.scrollTop = +y; } catch (e) {}
+      addEventListener("pagehide", function () { try { sessionStorage.setItem("kenar-kaydir", k.scrollTop); } catch (e) {} });
+      function kaydet() {
+        var ids = [].map.call(k.querySelectorAll(".kenar-menu ul.collapse.show"), function (u) { return u.id; });
+        try { localStorage.setItem("kenar-acik", JSON.stringify(ids)); } catch (e) {}
+      }
+      k.addEventListener("shown.bs.collapse", kaydet);
+      k.addEventListener("hidden.bs.collapse", kaydet);
+      // daraltılmış menüde: simgenin üzerine gelince adı görünsün; dala basınca menü genişlesin
+      k.querySelectorAll(".nav-link").forEach(function (a) { var t = a.querySelector("span"); if (t && !a.title) a.title = t.textContent.trim(); });
+      k.addEventListener("click", function (e) {
+        var a = e.target.closest('[data-bs-toggle="collapse"]');
+        if (a && document.documentElement.classList.contains("kenar-dar") && !k.classList.contains("gezinti")) { window.kenarDaralt(false); }
+      }, true);
+    })();
+    </script>
+  </aside>
+
+  <div class="icerik-alani">
+    <header class="ust-cubuk">
+      <button class="btn btn-link text-body d-lg-none p-0 me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#kenarCubugu" aria-controls="kenarCubugu" aria-label="Menüyü aç">
+        <i class="bi bi-list fs-3"></i>
+      </button>
+      <button type="button" class="btn btn-light kenar-dugme d-none d-lg-inline-flex" id="kenarDugmesi" title="Sol menüyü daralt / genişlet" aria-label="Sol menüyü daralt / genişlet" aria-controls="kenarCubugu" onclick="kenarDaralt()"><i class="bi bi-layout-sidebar-inset"></i></button>
+      <button type="button" id="geriDugmesi" class="btn btn-light geri-btn" title="Önceki sayfaya dön" aria-label="Geri" hidden><i class="bi bi-arrow-left"></i><span class="d-none d-sm-inline ms-1">Geri</span></button>
+      <nav aria-label="breadcrumb" class="flex-grow-1 min-w-0">
+        <ol class="breadcrumb mb-0 text-truncate">
+          <li class="breadcrumb-item"><a href="{% url 'core:panel' %}" title="Ana Sayfa"><i class="bi bi-house"></i></a></li>
+          {% for y in yol %}
+            {% if forloop.first and yol|length > 2 %}
+              <li class="breadcrumb-item"><span title="{% for z in yol %}{{ z.ad }}{% if not forloop.last %} › {% endif %}{% endfor %}">…</span></li>
+            {% endif %}
+            {% if forloop.revcounter <= 2 %}
+              {% if forloop.last and not breadcrumb_ek %}
+                <li class="breadcrumb-item active" aria-current="page">{{ y.ad }}</li>
+              {% else %}
+                <li class="breadcrumb-item"><a href="{{ y.get_absolute_url }}">{{ y.ad }}</a></li>
+              {% endif %}
+            {% endif %}
+          {% endfor %}
+          {% block breadcrumb_ek %}{% endblock %}
+        </ol>
+      </nav>
+      <button type="button" class="btn btn-light tema-dugme" onclick="temaDegistir()" title="Koyu / açık tema" aria-label="Koyu / açık tema"><i class="bi bi-moon-stars tema-ay"></i><i class="bi bi-sun tema-gunes"></i></button>
+      <div class="dropdown bildirim-dropdown">
+        <button type="button" id="bildirimZili" class="btn btn-light bildirim-zil" data-bs-toggle="dropdown" data-bs-auto-close="outside"
+                aria-expanded="false" title="Bildirimler" aria-label="Bildirimler" data-son="{{ bildirim_son|default:0 }}"
+                data-durum="{% url 'bildirim:durum' %}" data-liste="{% url 'bildirim:liste' %}" data-ayarlar="{% url 'bildirim:ayarlar' %}"
+                data-tercih="{% url 'bildirim:tercih' %}" data-okundu="{% url 'bildirim:okundu' %}">
+          <i class="bi bi-bell"></i><span class="bildirim-rozet"{% if not bildirim_okunmamis %} hidden{% endif %}>{% if bildirim_okunmamis > 99 %}99+{% else %}{{ bildirim_okunmamis }}{% endif %}</span>
+        </button>
+        <div class="dropdown-menu dropdown-menu-end bildirim-panel" id="bildirimPaneli"><div class="bildirim-bos">Yükleniyor…</div></div>
+      </div>
+      <div class="dropdown">
+        <button class="btn btn-light kullanici-btn dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+          <span class="avatar">{{ user.username|slice:":1"|upper }}</span>
+          <span class="d-none d-sm-inline">{{ user }}</span>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+          <li><h6 class="dropdown-header">{{ user.bolum|default:"Bölüm atanmamış" }}</h6></li>
+          <li><a class="dropdown-item" href="{% url 'parola_degistir' %}"><i class="bi bi-key me-2"></i>Parola değiştir</a></li>
+          <li><a class="dropdown-item" href="{% url 'iki_adim' %}"><i class="bi bi-shield-lock me-2"></i>İki adımlı doğrulama</a></li>
+          <li><hr class="dropdown-divider"></li>
+          <li><h6 class="dropdown-header">Tema</h6></li>
+          <li class="px-3 pb-2"><div class="btn-group btn-group-sm w-100" role="group" aria-label="Tema">
+            <button type="button" class="btn btn-outline-secondary" data-tema-sec="light"><i class="bi bi-sun me-1"></i>Açık</button>
+            <button type="button" class="btn btn-outline-secondary" data-tema-sec="dark"><i class="bi bi-moon-stars me-1"></i>Koyu</button>
+            <button type="button" class="btn btn-outline-secondary" data-tema-sec="" title="Cihazın ayarına uyar"><i class="bi bi-circle-half me-1"></i>Sistem</button>
+          </div></li>
+          <li><hr class="dropdown-divider"></li>
+          <li>
+            <form method="post" action="{% url 'logout' %}">{% csrf_token %}
+              <button class="dropdown-item text-danger"><i class="bi bi-box-arrow-right me-2"></i>Çıkış</button>
+            </form>
+          </li>
+        </ul>
+      </div>
+    </header>
+
+    <main class="icerik{% block icerik_sinifi %}{% endblock %}">
+      {% for m in messages %}
+        <div class="alert alert-{% if m.tags == 'error' %}danger{% else %}{{ m.tags|default:'info' }}{% endif %} alert-dismissible fade show" role="alert">
+          {{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Kapat"></button>
+        </div>
+      {% endfor %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+<div class="bildirim-yigin" id="bildirimYigini" aria-live="polite"></div>
+{% endblock %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+/* Sol menü daralt / genişlet (tercih saklanır). Ders Programı ve Sınav Planlama bağlantıları KAMYOSİS'in içinde,
+   sağ panelde açılır; sol menü yerinde kalır. */
+/* Tema: düğme açık ↔ koyu değiştirir; menüdeki "Sistem" seçimi cihaz ayarına bırakır. Ders Programı çerçevesi de
+   aynı anahtarı ("theme") dinler. */
+(function () {
+  var r = document.documentElement, mq = window.matchMedia && matchMedia("(prefers-color-scheme: dark)");
+  function oku() { try { return localStorage.getItem("theme"); } catch (e) { return null; } }
+  function uygula() {
+    var p = oku();
+    r.setAttribute("data-bs-theme", (p ? p === "dark" : !!(mq && mq.matches)) ? "dark" : "light");
+    document.querySelectorAll("[data-tema-sec]").forEach(function (b) { b.classList.toggle("active", (b.dataset.temaSec || null) === p); });
+  }
+  function kaydet(p) { try { if (p) localStorage.setItem("theme", p); else localStorage.removeItem("theme"); } catch (e) {} uygula(); }
+  window.temaDegistir = function () { kaydet(r.getAttribute("data-bs-theme") === "dark" ? "light" : "dark"); };
+  document.querySelectorAll("[data-tema-sec]").forEach(function (b) { b.addEventListener("click", function (e) { e.stopPropagation(); kaydet(b.dataset.temaSec); }); });
+  if (mq && mq.addEventListener) mq.addEventListener("change", uygula);
+  addEventListener("storage", function (e) { if (e.key === "theme") uygula(); });
+  uygula();
+})();
+/* Daraltılmış sol menü: üzerine gelince menü (içeriği itmeden) açılır, ayrılınca yeniden daralır. */
+(function () {
+  var k = document.getElementById("kenarCubugu"), r = document.documentElement, zaman;
+  if (!k || !window.matchMedia) return;
+  var genis = matchMedia("(min-width: 992px) and (hover: hover)");
+  function ac() { if (genis.matches && r.classList.contains("kenar-dar")) k.classList.add("gezinti"); }
+  function kapa() { k.classList.remove("gezinti"); }
+  k.addEventListener("mouseenter", function () { clearTimeout(zaman); zaman = setTimeout(ac, 160); });
+  k.addEventListener("mouseleave", function () { clearTimeout(zaman); zaman = setTimeout(kapa, 220); });
+  k.addEventListener("focusin", ac);
+  k.addEventListener("focusout", function (e) { if (!k.contains(e.relatedTarget)) kapa(); });
+})();
+window.kenarDaralt = function (dar) {
+  var r = document.documentElement;
+  dar = typeof dar === "boolean" ? dar : !r.classList.contains("kenar-dar");
+  r.classList.toggle("kenar-dar", dar);
+  try { localStorage.setItem("kenar-dar", dar ? "1" : "0"); } catch (e) {}
+};
+(function () {
+  var cerceve = "{% url 'dersprogrami_kopru:cerceve' %}";
+  document.querySelectorAll('a[href^="/ders-programi/"], a[href^="/ders-programi-kopru/sinavlar/"]').forEach(function (a) {
+    if (!a.target) a.setAttribute("href", cerceve + "?u=" + encodeURIComponent(a.getAttribute("href")));
+  });
+})();
+</script>
+<script src="{% static 'js/parola_goster.js' %}?v=1"></script>
+<script src="{% static 'js/anlik_arama.js' %}?v=1"></script>
+<script src="{% static 'js/menu_ara.js' %}?v=1"></script>
+<script src="{% static 'js/kisayol.js' %}?v=1"></script>
+<script src="{% static 'js/bildirim.js' %}?v=1"></script>
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+<script>
+/* Tüm seçim kutularında yazarak arama. Türkçe harfler (İ/ı/ş/ğ/ü/ö/ç) sadeleştirilerek karşılaştırılır.
+   Bir kutuda istenmiyorsa: data-arama="yok". */
+(function () {
+  if (!window.TomSelect) return;
+  const sade = s => (s || '').replace(/İ/g, 'i').replace(/I/g, 'ı').toLocaleLowerCase('tr')
+    .replace(/ı/g, 'i').replace(/ş/g, 's').replace(/ğ/g, 'g').replace(/ü/g, 'u').replace(/ö/g, 'o').replace(/ç/g, 'c')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  window.kamyosisAramaKutusu = function (el) {
+    if (el.tomselect || el.dataset.arama === 'yok' || el.multiple && el.size > 1) return;
+    new TomSelect(el, {
+      create: false, allowEmptyOption: true, maxOptions: null, dropdownParent: 'body',
+      searchField: [], sortField: [{field: '$order'}],
+      score: function (arama) {
+        const aranan = sade(arama).split(/\s+/).filter(Boolean);
+        return item => {
+          const metin = sade(item.text);
+          return aranan.every(p => metin.includes(p)) ? 1 : 0;
+        };
+      },
+      render: { no_results: () => '<div class="no-results px-2 py-1 text-secondary">Sonuç yok</div>' },
+      onDropdownOpen: function () { this.setTextboxValue(''); this.refreshOptions(false); },
+    });
+  };
+  document.querySelectorAll('select.form-select').forEach(window.kamyosisAramaKutusu);
+})();
+</script>
+<script>
+/* Sıralanabilir tablolar: <table class="siralanabilir"> içinde <th data-sirala> başlığına tıklanınca sıralanır
+   (tekrar tıklama ters çevirir). Hücrenin data-deger'i varsa o, yoksa metni; sayıysa sayı olarak karşılaştırılır. */
+(function () {
+  document.querySelectorAll('table.siralanabilir').forEach(tablo => {
+    const govde = tablo.tBodies[0];
+    if (!govde) return;
+    tablo.querySelectorAll('th[data-sirala]').forEach(th => {
+      th.classList.add('sirala-baslik');
+      th.title = th.title || 'Sıralamak için tıklayın';
+      th.addEventListener('click', () => {
+        const sutun = [...th.parentNode.children].indexOf(th);
+        const artan = th.dataset.yon !== 'artan';
+        tablo.querySelectorAll('th[data-sirala]').forEach(h => { delete h.dataset.yon; });
+        th.dataset.yon = artan ? 'artan' : 'azalan';
+        const deger = satir => {
+          const h = satir.children[sutun];
+          return h ? (h.dataset.deger !== undefined ? h.dataset.deger : h.textContent.trim()) : '';
+        };
+        const satirlar = [...govde.rows].filter(r => r.children.length > 1);
+        satirlar.sort((a, b) => {
+          const x = deger(a), y = deger(b), nx = parseFloat(x.replace(',', '.')), ny = parseFloat(y.replace(',', '.'));
+          const f = !isNaN(nx) && !isNaN(ny) ? nx - ny : x.localeCompare(y, 'tr');
+          return artan ? f : -f;
+        });
+        satirlar.forEach(r => govde.appendChild(r));
+      });
+    });
+  });
+})();
+</script>
+<script>
+/* Geri düğmesi: sayfa geçmişini oturum boyunca tutar; düzenleme formlarını atlar,
+   geçmiş yoksa konum satırındaki bir üst sayfaya gider. */
+(function () {
+  const dugme = document.getElementById('geriDugmesi');
+  if (!dugme) return;
+  const ANAHTAR = 'kamyosis-gecmis', ATLA = /\/(duzenle|yeni|parola)\/?$/;
+  const su = location.pathname + location.search;
+  const oku = () => { try { return JSON.parse(sessionStorage.getItem(ANAHTAR)) || []; } catch (e) { return []; } };
+  const yaz = g => { try { sessionStorage.setItem(ANAHTAR, JSON.stringify(g.slice(-30))); } catch (e) {} };
+  let gecmis = oku();
+  if (!ATLA.test(location.pathname)) {
+    if (gecmis.at(-1) === su) { /* yenileme */ }
+    else if (gecmis.at(-2) === su) { gecmis.pop(); }  /* tarayıcının geri tuşu */
+    else { gecmis.push(su); }
+    yaz(gecmis);
+  }
+  const ust = [...document.querySelectorAll('.breadcrumb a')].at(-1);
+  if (location.pathname === '/') return;
+  dugme.hidden = false;
+  dugme.addEventListener('click', () => {
+    let g = oku();
+    while (g.length && g.at(-1) === su) g.pop();
+    const onceki = g.at(-1);
+    yaz(g);
+    location.href = onceki || (ust ? ust.href : '/');
+  });
+})();
+</script>
+</body>
+</html>

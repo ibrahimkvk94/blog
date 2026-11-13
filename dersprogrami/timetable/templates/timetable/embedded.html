@@ -1,0 +1,26 @@
+{% load assets %}{% comment %}
+Gömülü sayfa iskeleti (?gomulu=1): kenar çubuğu, şerit ve üst çubuk olmadan yalnızca içerik. Başka bir sayfanın
+penceresinde (iframe) açılan kayıt düzenleyicileri bunu kullanır. Bağlantılar ve sayfayı değiştiren formlar
+pencerenin içinde değil, ana sayfada açılır (base target).
+{% endcomment %}<!doctype html>
+<html lang="tr" class="embedded">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Ders Programı{% endblock %} · Ders Programı</title>
+  <base target="_top">
+  <link href="{% asset 'timetable/app.css' %}" rel="stylesheet">
+  {% include "timetable/theme_init.html" %}
+  {% block head %}{% endblock %}
+</head>
+<body class="embedded">
+<main class="content">
+  {% for message in messages %}
+    <div class="alert alert-{{ message.tags|default:'info' }}">{{ message }}</div>
+  {% endfor %}
+  {% block content %}{% endblock %}
+</main>
+<div class="toast-wrap" id="toasts"></div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,171 @@
+{% extends "timetable/base.html" %}
+{% block title %}Etkinlik ve telafi{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:institution_detail' school.institution_id %}">{{ school.institution }}</a> / <a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a>{% endblock %}
+{% block heading %}<h1>Etkinlik ve telafi</h1>{% endblock %}
+{% block content %}
+<p class="page-lead">Haftalık programın üstüne tek seferlik kayıtlar: <b>telafi dersi</b> için herkesin ve bir dersliğin boş olduğu saatler önerilir; <b>derslik / etkinlik</b> ayırırken o saatin dersleri ve diğer etkinliklerle çakışma denetlenir. Kayıtlar öğretmenin “Programım” sayfasında ve telefon takviminde görünür.</p>
+{% if not timetable %}<div class="alert alert-warning">Yayında ya da üretilmiş program yok; çakışmalar yalnızca diğer etkinliklere göre denetlenir.</div>{% endif %}
+
+<div class="ev-grid">
+  <div class="panel">
+    <div class="panel-head"><h2>Telafi dersi planla</h2></div>
+    <form class="panel-body" method="get">
+      <input type="hidden" name="action" value="suggest">
+      <div class="form-row">
+        <label class="label" for="ev-ders">Telafisi yapılacak dersler <span class="subtle small">(karma grup için birden çok kısım seçin)</span></label>
+        <input class="input" type="search" placeholder="Süz: ders kodu, kısım, öğretmen…" data-filter="#ev-ders" style="margin-bottom:6px">
+        <select class="select" id="ev-ders" name="ders" multiple size="8">
+          {% for id, label in lesson_options %}<option value="{{ id }}" {% if id in makeup.lessons %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+      </div>
+      <details class="form-row" {% if makeup.classes or makeup.groups or makeup.students_text or makeup.teacher %}open{% endif %}>
+        <summary class="label">Karma grup: ek sınıf, grup, öğrenci ya da başka öğretmen</summary>
+        <div class="ev-two">
+          <div><label class="label">Ek sınıflar / kısımlar</label>
+            <select class="select" name="sinif" multiple size="5">{% for c in classes %}<option value="{{ c.pk }}" {% if c.pk in makeup.classes %}selected{% endif %}>{{ c.short|default:c.name }}</option>{% endfor %}</select></div>
+          <div><label class="label">Ek gruplar</label>
+            <select class="select" name="grup" multiple size="5">{% for g in groups %}<option value="{{ g.pk }}" {% if g.pk in makeup.groups %}selected{% endif %}>{{ g }}</option>{% empty %}<option disabled>Grup yok</option>{% endfor %}</select></div>
+        </div>
+        <label class="label" style="margin-top:8px">Ek öğrenciler <span class="subtle small">(numaralar; satır, virgül ya da boşlukla)</span></label>
+        <textarea class="input" name="ogrenciler" rows="2" placeholder="ör. 2401001, 2401017">{{ makeup.students_text }}</textarea>
+        {% if missing_students %}<div class="subtle small" style="color:var(--danger)">Bulunamayan numaralar: {{ missing_students|join:", " }}</div>{% endif %}
+        <label class="label" style="margin-top:8px">Öğretmen <span class="subtle small">(boş: dersin öğretmeni)</span></label>
+        <select class="select" name="ogretmen"><option value="">Dersin öğretmeni</option>{% for t in teachers %}<option value="{{ t.pk }}" {% if makeup.teacher == t.pk|stringformat:"d" %}selected{% endif %}>{{ t.full_name }}</option>{% endfor %}</select>
+      </details>
+      <div class="ev-three">
+        <div><label class="label">Süre (saat)</label><input class="input" type="number" name="sure" min="1" max="{{ periods|length }}" value="{{ makeup.length }}" placeholder="Kart uzunluğu"></div>
+        <div><label class="label">Aranacak ilk gün</label><input class="input" type="date" name="ilk" value="{% if makeup.from %}{{ makeup.from }}{% else %}{{ default_from|date:'Y-m-d' }}{% endif %}"></div>
+        <div><label class="label">Son gün</label><input class="input" type="date" name="son" value="{% if makeup.to %}{{ makeup.to }}{% else %}{{ default_to|date:'Y-m-d' }}{% endif %}"></div>
+      </div>
+      <div class="ev-two">
+        <div><label class="label">Telafi edilen tarih <span class="subtle small">(isteğe bağlı)</span></label><input class="input" type="date" name="telafi_tarihi" value="{{ makeup.missed }}"></div>
+        <div><label class="label">Başlık <span class="subtle small">(boş: “Telafi: ders”)</span></label><input class="input" name="baslik" value="{{ makeup.title }}"></div>
+      </div>
+      <label class="check" style="margin-top:8px"><input type="checkbox" name="hafta_sonu" value="1" {% if makeup.weekend %}checked{% endif %}> <span>Hafta sonunu da ara <span class="subtle small">(ders günü olmayan günler; dolu programlarda telafi genelde cumartesi yapılır)</span></span></label>
+      <button class="btn btn-primary" style="margin-top:10px">{% include "timetable/icon.html" with name="search" %} Uygun saatleri bul</button>
+    </form>
+    {% if suggestions %}
+      <div class="panel-body" style="border-top:1px solid var(--border)">
+        <h3 style="margin:0 0 8px">Uygun saatler</h3>
+        <table class="table ev-table">
+          <thead><tr><th>Tarih</th><th>Saat</th><th>Derslik</th><th></th></tr></thead>
+          <tbody>
+          {% for s in suggestions %}
+            <tr>
+              <td><b>{{ s.date|date:"d.m.Y" }}</b> <span class="subtle small">{{ s.day_name }}</span></td>
+              <td>{{ s.label }} <span class="subtle small">{{ s.times }}</span>{% if s.note %}<div class="subtle small">{{ s.note }}</div>{% endif %}</td>
+              <td colspan="2">
+                <form method="post" class="ev-save">{% csrf_token %}
+                  <input type="hidden" name="action" value="save_makeup">
+                  {% for id in makeup.lessons %}<input type="hidden" name="ders" value="{{ id }}">{% endfor %}
+                  {% for id in makeup.classes %}<input type="hidden" name="sinif" value="{{ id }}">{% endfor %}
+                  {% for id in makeup.groups %}<input type="hidden" name="grup" value="{{ id }}">{% endfor %}
+                  <input type="hidden" name="ogrenciler" value="{{ makeup.students_text }}">
+                  <input type="hidden" name="ogretmen" value="{{ makeup.teacher }}">
+                  <input type="hidden" name="sure" value="{{ makeup.length }}">
+                  <input type="hidden" name="telafi_tarihi" value="{{ makeup.missed }}">
+                  <input type="hidden" name="baslik" value="{{ makeup.title }}">
+                  {% if makeup.weekend %}<input type="hidden" name="hafta_sonu" value="1">{% endif %}
+                  <input type="hidden" name="tarih" value="{{ s.date|date:'Y-m-d' }}">
+                  <input type="hidden" name="saat" value="{{ s.period }}">
+                  {% if s.rooms %}<select class="select" name="derslik">{% for r in s.rooms %}<option value="{{ r.pk }}">{{ r.name }}{% if r.capacity %} ({{ r.capacity }}){% endif %}</option>{% endfor %}</select>
+                  {% else %}<span class="subtle small">derslik gerekmiyor</span>{% endif %}
+                  <button class="btn btn-sm btn-primary">Kaydet</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Derslik / etkinlik ayır</h2></div>
+    <form class="panel-body" method="post">{% csrf_token %}
+      <div class="form-row"><label class="label">Başlık</label><input class="input" name="r_baslik" value="{{ reserve.title }}" placeholder="ör. Bölüm toplantısı, seminer, ara sınav"></div>
+      <div class="ev-three">
+        <div><label class="label">Tarih</label><input class="input" type="date" name="r_tarih" value="{{ reserve.date|default:'' }}" required></div>
+        <div><label class="label">Başlangıç</label>
+          <select class="select" name="r_saat">{% for p in periods %}<option value="{{ p.index }}" {% if reserve.period == p.index|stringformat:"d" %}selected{% endif %}>{{ p.index|add:1 }}. saat{% if p.start_time %} · {{ p.start_time|time:"H:i" }}{% endif %}</option>{% endfor %}</select></div>
+        <div><label class="label">Süre (saat)</label><input class="input" type="number" name="r_sure" min="1" max="{{ periods|length }}" value="{{ reserve.length|default:'1' }}"></div>
+      </div>
+      <div class="ev-two">
+        <div><label class="label">Derslikler</label>
+          <select class="select" name="r_derslik" multiple size="5">{% for r in rooms %}<option value="{{ r.pk }}" {% if r.pk in reserve.rooms %}selected{% endif %}>{{ r.name }}{% if r.capacity %} ({{ r.capacity }}){% endif %}</option>{% endfor %}</select></div>
+        <div><label class="label">Katılan öğretmenler</label>
+          <select class="select" name="r_ogretmen" multiple size="5">{% for t in teachers %}<option value="{{ t.pk }}" {% if t.pk in reserve.teachers %}selected{% endif %}>{{ t.full_name }}</option>{% endfor %}</select></div>
+      </div>
+      <div class="form-row"><label class="label">Katılan sınıflar <span class="subtle small">(isteğe bağlı)</span></label>
+        <select class="select" name="r_sinif" multiple size="4">{% for c in classes %}<option value="{{ c.pk }}" {% if c.pk in reserve.classes %}selected{% endif %}>{{ c.short|default:c.name }}</option>{% endfor %}</select></div>
+      <div class="form-row"><label class="label">Not</label><input class="input" name="r_not" value="{{ reserve.note }}"></div>
+      {% if reserve_conflicts %}
+        <div class="alert alert-warning"><b>Çakışmalar</b><ul style="margin:6px 0 0 18px">{% for c in reserve_conflicts|slice:":12" %}<li>{{ c }}</li>{% endfor %}</ul>
+          <label class="small" style="display:flex;gap:6px;align-items:center;margin-top:6px"><input type="checkbox" name="zorla" value="1"> Yine de kaydet</label></div>
+      {% endif %}
+      {% if free_rooms is not None %}
+        <div class="alert alert-info"><b>Bu saatte boş derslikler ({{ free_rooms|length }})</b>
+          <div class="small" style="margin-top:4px">{% for r in free_rooms %}{{ r.name }}{% if r.capacity %} ({{ r.capacity }}){% endif %}{% if not forloop.last %} · {% endif %}{% empty %}Boş derslik yok.{% endfor %}</div></div>
+      {% endif %}
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" name="action" value="free_rooms" formnovalidate>{% include "timetable/icon.html" with name="door" %} Boş derslikleri göster</button>
+        <button class="btn btn-primary" name="action" value="reserve">{% include "timetable/icon.html" with name="check" %} Kaydet</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:18px">
+  <div class="panel-head">
+    <h2>Kayıtlar</h2>
+    <form method="get" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <input class="input" type="date" name="baslangic" value="{{ start|date:'Y-m-d' }}" style="height:32px">
+      <span class="subtle">–</span>
+      <input class="input" type="date" name="bitis" value="{{ end|date:'Y-m-d' }}" style="height:32px">
+      <button class="btn btn-sm">Göster</button>
+    </form>
+  </div>
+  <div class="panel-body" style="overflow-x:auto">
+    <table class="table">
+      <thead><tr><th>Tarih</th><th>Saat</th><th>Tür</th><th>Başlık</th><th>Katılımcılar</th><th>Öğretmen</th><th>Derslik</th><th></th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td><b>{{ r.event.date|date:"d.m.Y" }}</b> <span class="subtle small">{{ r.day_name }}</span></td>
+          <td>{{ r.event.periods_label }} <span class="subtle small">{{ r.times }}</span></td>
+          <td><span class="pill {% if r.event.kind == 'telafi' %}warn{% endif %}">{{ r.event.get_kind_display }}</span></td>
+          <td>{{ r.event.title }}{% if r.event.missed_date %}<div class="subtle small">{{ r.event.missed_date|date:"d.m.Y" }} tarihli dersin telafisi</div>{% endif %}{% if r.event.note %}<div class="subtle small">{{ r.event.note }}</div>{% endif %}</td>
+          <td>{{ r.who|default:"–" }}</td>
+          <td>{{ r.teachers|default:"–" }}</td>
+          <td>{{ r.rooms|default:"–" }}</td>
+          <td><form method="post" onsubmit="return confirm('Kayıt silinsin mi?')">{% csrf_token %}<input type="hidden" name="action" value="delete"><input type="hidden" name="etkinlik" value="{{ r.event.pk }}"><button class="btn btn-sm btn-danger">Sil</button></form></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="8" class="subtle">Bu aralıkta kayıt yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+  .ev-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 18px; align-items: start; }
+  .ev-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+  .ev-three { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 8px; }
+  .ev-save { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .ev-save .select { max-width: 220px; }
+  details.form-row summary { cursor: pointer; }
+  .ev-grid select[multiple] { height: auto; min-height: 7.5em; padding: 4px; }
+  #ev-ders { min-height: 12em; }
+</style>
+<script>
+  document.querySelectorAll("[data-filter]").forEach((input) => {
+    const select = document.querySelector(input.dataset.filter);
+    input.addEventListener("input", () => {
+      const q = input.value.toLocaleLowerCase("tr");
+      Array.from(select.options).forEach((o) => { o.hidden = q && !o.selected && !o.text.toLocaleLowerCase("tr").includes(q); });
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Ders Programı{% endblock %}
+{% block icerik_sinifi %} icerik-cerceve{% endblock %}
+{% block content %}
+<iframe id="dpCerceve" class="dp-cerceve" src="{{ u }}" title="Ders Programı"></iframe>
+<script>
+/* Çerçevedeki sayfa değişince adres çubuğu ve sekme başlığı onu izler (yenileyince aynı sayfa açılır). */
+(function () {
+  var f = document.getElementById("dpCerceve");
+  f.addEventListener("load", function () {
+    try {
+      var l = f.contentWindow.location;
+      if (l.pathname.indexOf("/ders-programi") !== 0) return;
+      history.replaceState(history.state, "", "?u=" + encodeURIComponent(l.pathname + l.search + l.hash));
+      if (f.contentDocument && f.contentDocument.title) document.title = f.contentDocument.title;
+    } catch (e) {}
+  });
+})();
+</script>
+{% endblock %}

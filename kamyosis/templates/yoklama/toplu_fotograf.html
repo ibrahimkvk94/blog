@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Toplu fotoğraf · Personel yoklaması{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Toplu fotoğraf yükleme</h1>
+    <p class="text-secondary mb-0">{{ fotolu }} / {{ toplam }} personelin fotoğrafı var.</p>
+  </div>
+</div>
+{% include "yoklama/_sekmeler.html" with sekme="foto" %}
+<div class="row g-3">
+  <div class="col-12 col-lg-6">
+    <div class="kart p-3">
+      <ol class="small mb-3 ps-3">
+        <li>Fotoğrafları bir klasörde toplayın; her dosyanın adı personelin <strong>sicil numarası</strong> (ya da T.C. kimlik numarası) olsun, ör. <span class="font-monospace">2015-0412.jpg</span>.</li>
+        <li>Klasörü sağ tık → “Sıkıştırılmış (zip) klasöre gönder” ile zip yapın ve aşağıdan yükleyin.</li>
+        <li>Fotoğraflar 600 piksele küçültülür, konum gibi gömülü bilgiler silinir; aynı kişinin eski fotoğrafı değiştirilir.</li>
+      </ol>
+      <form method="post" enctype="multipart/form-data" class="d-flex flex-wrap gap-2">
+        {% csrf_token %}
+        <input type="file" class="form-control" name="dosya" accept=".zip" required style="max-width:340px">
+        <button class="btn btn-primary"><i class="bi bi-upload me-1"></i>Yükle</button>
+      </form>
+    </div>
+  </div>
+  {% if sonuc %}
+  <div class="col-12 col-lg-6">
+    <div class="kart p-3">
+      <h2 class="h6 fw-bold">Sonuç</h2>
+      <p class="mb-2"><span class="durum-rozet durum-kullanimda">{{ sonuc.yuklenen|length }} yüklendi</span>
+        {% if sonuc.eslesmeyen %}<span class="durum-rozet durum-sirada">{{ sonuc.eslesmeyen|length }} eşleşmedi</span>{% endif %}
+        {% if sonuc.hatali %}<span class="durum-rozet durum-eksik">{{ sonuc.hatali|length }} hatalı</span>{% endif %}</p>
+      {% if sonuc.eslesmeyen %}<div class="small mb-2"><strong>Eşleşmeyen dosyalar</strong> (sicil / T.C. no bulunamadı ya da birden çok kişiye uydu): {{ sonuc.eslesmeyen|join:", " }}</div>{% endif %}
+      {% if sonuc.hatali %}<div class="small text-danger"><strong>Hatalı:</strong> {{ sonuc.hatali|join:", " }}</div>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Haftalık program{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Haftalık program</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>{% if secili %}{{ secili }}{% else %}Haftalık program{% endif %}{% if tur == 'kisim' and secili.tur != 'normal' %} <span class="durum-rozet durum-sirada align-middle">{{ secili.get_tur_display }}</span>{% endif %}</h1>
+    <p class="text-secondary mb-0">
+      {{ surum.ad }} ·
+      {% if surum.durum == 'yayinda' %}<span class="durum-rozet durum-kullanimda">Yayında</span>{% elif surum.durum == 'taslak' %}<span class="durum-rozet durum-sirada">Taslak</span>{% else %}<span class="durum-rozet durum-planlandi">Arşiv</span>{% endif %}
+      · haftada {{ toplam_saat }} ders saati
+    </p>
+  </div>
+  <button class="btn btn-outline-secondary d-print-none" onclick="window.print()"><i class="bi bi-printer me-1"></i>Yazdır</button>
+</div>
+
+<form method="get" class="kart p-3 mb-3 d-print-none" id="secimFormu">
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-md-auto">
+      <div class="btn-group w-100" role="group" aria-label="Görünüm">
+        <input type="radio" class="btn-check" name="tur" id="turKisim" value="kisim" {% if tur == 'kisim' %}checked{% endif %} onchange="this.form.id.value='';this.form.submit()">
+        <label class="btn btn-outline-primary" for="turKisim"><i class="bi bi-people me-1"></i>Kısım</label>
+        <input type="radio" class="btn-check" name="tur" id="turOgretmen" value="ogretmen" {% if tur == 'ogretmen' %}checked{% endif %} onchange="this.form.id.value='';this.form.submit()">
+        <label class="btn btn-outline-primary" for="turOgretmen"><i class="bi bi-person me-1"></i>Öğretmen</label>
+        <input type="radio" class="btn-check" name="tur" id="turDerslik" value="derslik" {% if tur == 'derslik' %}checked{% endif %} onchange="this.form.id.value='';this.form.submit()">
+        <label class="btn btn-outline-primary" for="turDerslik"><i class="bi bi-door-open me-1"></i>Derslik</label>
+      </div>
+    </div>
+    <div class="col-12 col-md">
+      <label class="visually-hidden" for="secimId">Seçim</label>
+      <select class="form-select" name="id" id="secimId" onchange="this.form.submit()">
+        {% if tur == 'kisim' %}
+          {% for k in kisimlar %}<option value="{{ k.pk }}" {% if k == secili %}selected{% endif %}>{{ k.kod }} · {{ k.ad }}{% if k.tur != 'normal' %} · {{ k.get_tur_display }}{% elif k.sinif %} · {{ k.sinif }}. sınıf{% endif %}</option>{% endfor %}
+        {% elif tur == 'ogretmen' %}
+          {% for o in ogretmenler %}<option value="{{ o.pk }}" {% if o == secili %}selected{% endif %}>{{ o }}{% if not o.personel_id %} (eşleşmedi){% endif %}</option>{% endfor %}
+        {% else %}
+          {% for d in derslikler %}<option value="{{ d.pk }}" {% if d == secili %}selected{% endif %}>{{ d.ad }}</option>{% endfor %}
+        {% endif %}
+      </select>
+    </div>
+    <div class="col-12 col-md-3">
+      <label class="visually-hidden" for="surumSec">Sürüm</label>
+      <select class="form-select" name="surum" id="surumSec" onchange="this.form.submit()">
+        {% for s in surumler %}<option value="{{ s.pk }}" {% if s == surum %}selected{% endif %}>{{ s.ad }} ({{ s.get_durum_display|lower }})</option>{% endfor %}
+      </select>
+    </div>
+  </div>
+</form>
+
+<div class="kart program-kap">
+  <div class="table-responsive">
+    <table class="table program-tablo mb-0">
+      <thead>
+        <tr>
+          <th class="saat-kolon">Saat</th>
+          {% for no, ad in gunler %}<th>{{ ad }}</th>{% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for s, hucre_listesi in satirlar %}
+        <tr>
+          <th class="saat-kolon">
+            <span class="saat-no">{{ s.no }}</span>
+            {% if s.baslangic %}<span class="saat-aralik">{{ s.baslangic|time:"H:i" }}–{{ s.bitis|time:"H:i" }}</span>{% endif %}
+          </th>
+          {% for liste in hucre_listesi %}
+          <td>
+            {% for h in liste %}
+            <div class="program-hucre" style="background:{{ h.zemin }};border-left-color:{{ h.kenar }}" title="{{ h.haftalik_ders.ders.kod }} {{ h.haftalik_ders.ders.ad }}">
+              <div class="ph-kod">{{ h.haftalik_ders.ders.kod }}{% for g in h.haftalik_ders.gruplar.all %} <span class="ph-grup">{{ g.ad }}</span>{% endfor %}</div>
+              <div class="ph-ad">{{ h.haftalik_ders.ders.ad }}</div>
+              <div class="ph-alt">
+                {% if tur != 'kisim' %}{% for k in h.haftalik_ders.kisimlar.all %}<span><i class="bi bi-people"></i>{{ k.kod }}</span>{% endfor %}{% endif %}
+                {% if tur != 'ogretmen' %}{% for o in h.haftalik_ders.ogretmenler.all %}<span><i class="bi bi-person"></i>{{ o }}</span>{% endfor %}{% endif %}
+                {% if tur != 'derslik' and h.derslik %}<span><i class="bi bi-door-open"></i>{{ h.derslik }}</span>{% endif %}
+              </div>
+            </div>
+            {% endfor %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

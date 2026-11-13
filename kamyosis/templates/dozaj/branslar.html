@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Branşlar · Dozajmatik{% endblock %}
+{% block content %}
+{% include "dozaj/_ust.html" %}
+
+<div class="row g-3">
+  <div class="col-12 col-xl-8">
+    <form method="post" class="kart dz-kart">
+      {% csrf_token %}<input type="hidden" name="islem" value="kodlar">
+      <div class="dz-baslik">
+        <div>
+          <h3>Ders kodu → branş</h3>
+          <p>Her ders kodunu hangi branşın verdiği. Bir kod bütün programlarda aynı branşa yazılır.{% if eksik %} <b class="text-danger">{{ eksik }} kodun branşı seçilmedi.</b>{% endif %}</p>
+        </div>
+        {% if duzenleyebilir %}<button class="btn btn-sm btn-primary">Kaydet</button>{% endif %}
+      </div>
+      {% for onek, kodlar in gruplar %}
+      <h4 class="dz-onek">{{ onek }}</h4>
+      <div class="table-responsive">
+        <table class="dz-liste">
+          <tbody>
+          {% for k in kodlar %}
+            <tr id="k-{{ k.kod }}"{% if not k.secili %} class="eksik"{% endif %}>
+              <td class="sol dz-kod-h"><b>{{ k.kod }}</b></td>
+              <td class="sol">{{ k.ad }} <small class="text-secondary">{{ k.ds }} saat · {{ k.programlar|join:", " }}</small></td>
+              <td class="sol dz-secim">
+                {% if duzenleyebilir %}
+                <select name="kod-{{ k.kod }}" class="form-select form-select-sm" aria-label="{{ k.kod }} branşı">
+                  <option value="">— seçilmedi —</option>
+                  {% for b in tum %}<option value="{{ b.pk }}"{% if k.secili == b.pk %} selected{% endif %}>{{ b.ad }}{% if b.ad == k.oneri %} (öneri){% endif %}</option>{% endfor %}
+                </select>
+                {% else %}{% for b in tum %}{% if k.secili == b.pk %}{{ b.ad }}{% endif %}{% endfor %}{% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% empty %}
+      <p class="text-secondary">Henüz ders yok. Programlar sekmesinden öğretim programlarını yükleyin.</p>
+      {% endfor %}
+      {% if duzenleyebilir and gruplar %}<div class="dz-kaydet-cubuk"><button class="btn btn-primary">Kaydet</button></div>{% endif %}
+    </form>
+  </div>
+  <div class="col-12 col-xl-4">
+    <div class="kart dz-kart mb-3">
+      <h3>Branşlar</h3>
+      <p>Tablodaki sırayla, altında toplandıkları bölüm başlığıyla.</p>
+      <ul class="dz-brans-liste">
+        {% for b in tum %}<li><a href="{% url 'dozaj:brans' b.pk %}">{{ b.ad }}</a>{% if b.grup != b.ad or not b.hesapta %} <small class="text-secondary">{% if b.grup != b.ad %}{{ b.grup }}{% endif %}{% if not b.hesapta %} · tabloya girmez{% endif %}</small>{% endif %}</li>{% endfor %}
+      </ul>
+    </div>
+    {% if duzenleyebilir %}
+    <details class="kart dz-kart">
+      <summary>Branş ekle</summary>
+      <form method="post" class="dz-ayar-form">
+        {% csrf_token %}<input type="hidden" name="islem" value="brans_ekle">
+        <label>Branş<input name="ad" maxlength="40" class="form-control form-control-sm" required></label>
+        <label>Bölüm başlığı<input name="grup" maxlength="60" class="form-control form-control-sm" placeholder="boşsa branş adı"></label>
+        <label class="dz-onay"><input type="checkbox" class="form-check-input" name="hesapta" value="1" checked> Tabloda hesaba katılır</label>
+        <button class="btn btn-sm btn-primary">Ekle</button>
+      </form>
+    </details>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

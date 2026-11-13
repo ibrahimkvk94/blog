@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Öğretim elemanları · Dozajmatik{% endblock %}
+{% block content %}
+{% include "dozaj/_ust.html" %}
+
+<div class="kart dz-kart mb-3">
+  <div class="dz-baslik">
+    <div>
+      <h3>Öğretim elemanlarının branşı ve kadrosu</h3>
+      <p>Branş ve kadro personel kartından önerilir (bölüm, kartındaki branş yazısı, rütbe). Öneri yanlışsa buradan seçin; seçim yalnız {{ yil.ad }} planı için geçerlidir.
+        <b>{{ ozet.branslu }}</b> kişi sayılıyor{% if ozet.branssiz %}, <a href="?durum=branssiz"><b class="text-danger">{{ ozet.branssiz }}</b> derse girebilir kişinin branşı belli değil</a>{% endif %}.</p>
+    </div>
+  </div>
+  <form method="get" class="dz-suzgec">
+    <label>Bölüm
+      <select name="bolum" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">Bütün bölümler</option>
+        {% for b in bolumler %}<option value="{{ b.pk }}"{% if secili == b.pk|stringformat:"s" %} selected{% endif %}>{{ b.ad }}</option>{% endfor %}
+        <option value="yok"{% if secili == "yok" %} selected{% endif %}>Bölümü olmayanlar (idari)</option>
+      </select>
+    </label>
+    <label>Gösterilen
+      <select name="durum" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">Derse girebilenler ve branşı olanlar</option>
+        <option value="branssiz"{% if durum == "branssiz" %} selected{% endif %}>Yalnız branşı belli olmayanlar</option>
+        <option value="hepsi"{% if durum == "hepsi" %} selected{% endif %}>Bütün aktif personel</option>
+      </select>
+    </label>
+    <noscript><button class="btn btn-sm btn-outline-primary">Göster</button></noscript>
+  </form>
+</div>
+
+<form method="post" class="kart dz-kart">
+  {% csrf_token %}<input type="hidden" name="bolum" value="{{ secili }}"><input type="hidden" name="durum" value="{{ durum }}">
+  <div class="table-responsive">
+    <table class="dz-liste dz-kisi-tablo">
+      <thead><tr><th class="sol">Ad soyad</th><th class="sol">Rütbe / unvan</th><th class="sol">Bölüm</th><th class="sol">Branş</th><th class="sol">Kadro</th></tr></thead>
+      <tbody>
+      {% for k in kisiler %}{% with p=k.personel %}
+        <tr{% if not k.brans %} class="eksik"{% endif %}>
+          <td class="sol"><a href="{% url 'personel:detay' p.pk %}">{{ p.ad_soyad }}</a>{% if not p.derse_girebilir %} <small class="text-secondary">derse girmiyor (kart)</small>{% endif %}</td>
+          <td class="sol">{{ p.rutbe|default:"" }}{% if p.rutbe and p.unvan %} · {% endif %}{{ p.unvan|default:"" }}</td>
+          <td class="sol">{{ p.bolum|default:"—" }}</td>
+          <td class="sol">
+            {% if duzenleyebilir %}
+            <select name="b-{{ p.pk }}" class="form-select form-select-sm" aria-label="{{ p.ad_soyad }} branşı">
+              <option value="">{% if k.oneri %}Öneri: {{ k.oneri.ad }}{% else %}— branş yok —{% endif %}</option>
+              <option value="yok"{% if k.ayar.brans_yok %} selected{% endif %}>Derse girmiyor</option>
+              {% for b in tum %}<option value="{{ b.pk }}"{% if k.ayar.brans_id == b.pk %} selected{% endif %}>{{ b.ad }}</option>{% endfor %}
+            </select>
+            {% else %}{{ k.brans.ad|default:"—" }}{% endif %}
+          </td>
+          <td class="sol">
+            {% if duzenleyebilir %}
+            <select name="k-{{ p.pk }}" class="form-select form-select-sm" aria-label="{{ p.ad_soyad }} kadrosu">
+              <option value="">Otomatik{% if not k.ayar.kadro %}: {{ k.kadro_kisa }}{% endif %}</option>
+              {% for kod, ad in kadrolar %}<option value="{{ kod }}"{% if k.ayar.kadro == kod %} selected{% endif %}>{{ ad }}</option>{% endfor %}
+            </select>
+            {% else %}{{ k.kadro_kisa }}{% endif %}
+          </td>
+        </tr>
+      {% endwith %}{% empty %}
+        <tr><td colspan="5" class="text-secondary py-3">Bu süzgeçte kimse yok.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if duzenleyebilir and kisiler %}<div class="dz-kaydet-cubuk"><button class="btn btn-primary">Kaydet</button></div>{% endif %}
+</form>
+{% endblock %}

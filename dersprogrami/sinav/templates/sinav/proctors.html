@@ -1,0 +1,62 @@
+{% extends "timetable/base.html" %}
+{% load assets %}
+{% block title %}{{ period.name }} – gözetmenler{% endblock %}
+{% block crumbs %}<a href="{% url 'sinav:home' %}">Sınav Planlama</a> / <a href="{% url 'sinav:periods' school.pk %}">{{ school }}</a> / <a href="{% url 'sinav:period' school.pk period.pk %}">{{ period.name }}</a>{% endblock %}
+{% block heading %}<h1>Gözetmenler</h1>{% endblock %}
+{% block content %}
+{% include "sinav/tabs.html" with active="gozetmen" %}
+<p class="page-lead" style="margin-top:14px">Gözetmenlik {{ pool }} öğretmene dağıtılır (muaflar hariç). {% if period.use_availability %}Öğretmenin ders programındaki <b>yasak</b> saatleri, sınav gününün hafta gününde oturumla çakışan ders saatlerine eşlenerek kapalı sayılır.{% else %}Ders programı müsaitliği kullanılmıyor (dönem ayarı).{% endif %} Ayrıca sınav dönemine özel gelemeyeceği gün ve oturumlar aşağıdan işaretlenir.</p>
+
+<div class="grid-2">
+  <form method="post" class="panel"{% if can.veri %} data-ex-autosave{% endif %}>{% csrf_token %}<input type="hidden" name="action" value="exempt">
+    <div class="panel-head ex-toolbar"><h2>Öğretmenler</h2>
+      <input type="search" class="input input-sm" placeholder="Öğretmen ara…" data-ex-filter="#ex-teachers tbody" style="max-width:220px">
+      {% if departments %}<select class="select select-sm" data-ex-group="#ex-teachers tbody" aria-label="Bölüm" style="max-width:150px"><option value="">Tüm bölümler</option>{% for d in departments %}<option value="{{ d }}">{{ d }}</option>{% endfor %}</select>{% endif %}
+      {% if can.veri %}<span class="subtle small" data-ex-autosave-status>Değişiklikler anında kaydedilir</span>{% endif %}
+    </div>
+    <div class="panel-body flush table-wrap" style="max-height:70vh;overflow:auto">
+      <table class="table table-compact ex-sortable" id="ex-teachers">
+        <thead><tr><th data-sort>Öğretmen</th>{% if departments %}<th data-sort>Bölüm</th>{% endif %}<th data-sort>Muaf</th>{% if period.duty_roles %}{% for code, name in role_names %}<th data-sort title="{{ name }} olabilir">{{ code }}</th>{% endfor %}{% endif %}<th class="num" data-sort title="Kapalı oturum (müsaitlik + işaretlenen)">Kapalı</th><th class="num" data-sort title="Mümkünse görev verilmesin">?</th><th class="num" data-sort>Görev</th></tr></thead>
+        <tbody>
+          {% for r in rows %}
+            <tr data-search="{{ r.teacher.full_name|fold }} {{ r.teacher.department|fold }}" data-group="{{ r.teacher.department }}"{% if selected and selected.pk == r.teacher.pk %} class="ex-selected"{% endif %}>
+              <td data-value="{{ r.teacher.last_name }} {{ r.teacher.first_name }}"><a href="?ogretmen={{ r.teacher.pk }}">{{ r.teacher.full_name }}</a></td>
+              {% if departments %}<td>{{ r.teacher.department }}</td>{% endif %}
+              <td data-value="{{ r.exempt|yesno:'1,0' }}" data-teacher="{{ r.teacher.pk }}"><input type="checkbox" name="exempt" value="{{ r.teacher.pk }}" data-ex-row-exempt{% if r.exempt %} checked{% endif %} aria-label="Gözetmenlikten muaf"{% if not can.veri %} disabled{% endif %}></td>
+              {% if period.duty_roles %}{% for code, name in role_names %}<td data-value="{% if code in r.roles %}1{% else %}0{% endif %}"><input type="checkbox" name="role-{{ r.teacher.pk }}-{{ code }}" value="1" data-ex-role="{{ code }}"{% if code in r.roles %} checked{% endif %} aria-label="{{ name }}"{% if not can.veri %} disabled{% endif %}></td>{% endfor %}{% endif %}
+              <td class="num" data-value="{{ r.blocked }}">{% if r.blocked %}{{ r.blocked }}{% else %}<span class="subtle">–</span>{% endif %}</td>
+              <td class="num" data-value="{{ r.soft }}">{% if r.soft %}{{ r.soft }}{% else %}<span class="subtle">–</span>{% endif %}</td>
+              <td class="num" data-value="{{ r.load }}">{% if r.load %}<b>{{ r.load }}</b>{% else %}<span class="subtle">–</span>{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </form>
+
+  <div class="panel">
+    {% if selected %}
+      <div class="panel-head"><h2>{{ selected.full_name }}</h2><span class="subtle small">gelemeyeceği oturumlar</span></div>
+      <div class="panel-body">
+        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="blocks"><input type="hidden" name="teacher" value="{{ selected.pk }}">
+          <div class="table-wrap"><table class="table table-compact ex-block-grid">
+            <thead><tr><th>Gün</th>{% for t in sessions %}<th>{{ t }}</th>{% endfor %}</tr></thead>
+            <tbody>
+              {% for row in grid %}
+                <tr><th class="nowrap">{{ row.date|date:"d.m" }} <span class="subtle small">{{ row.day }}</span></th>
+                  {% for c in row.cells %}<td class="{% if c.auto and not c.on %}ex-auto{% endif %}"><label class="ex-cell"><input type="checkbox" name="block" value="{{ c.value }}"{% if c.on %} checked{% endif %}{% if not can.veri %} disabled{% endif %}>{% if c.auto and not c.on %}<span class="subtle small" title="Ders programı müsaitliğinden kapalı">DP</span>{% elif c.soft and not c.on %}<span class="subtle small" title="Mümkünse görev verilmesin">?</span>{% endif %}</label></td>{% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table></div>
+          <p class="subtle small">“DP” = ders programındaki yasak saatten kapalı (burada değiştirilmez; öğretmenin müsaitliğinden ya da dönem ayarından kapatılır). “?” = mümkünse görev verilmesin (gerekirse verilir).</p>
+          {% if can.veri %}<button class="btn btn-primary">Kaydet</button>{% endif %}
+        </form>
+      </div>
+    {% else %}
+      <div class="panel-body"><p class="subtle">Sınav döneminde gelemeyeceği gün ve oturumları işaretlemek için soldan bir öğretmen seçin.</p></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{% asset 'sinav/exams.js' %}"></script>{% endblock %}

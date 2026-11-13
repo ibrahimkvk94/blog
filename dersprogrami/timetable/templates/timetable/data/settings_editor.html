@@ -1,0 +1,104 @@
+{% extends "timetable/data/editor_base.html" %}
+{% block title %}Program ayarları ve ders saatleri{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / Veri{% endblock %}
+{% block heading %}<h1>Program ayarları ve ders saatleri</h1>{% endblock %}
+{% block editor_class %} single{% endblock %}
+{% block navigator %}{% endblock %}
+{% block avatar %}{% include "timetable/icon.html" with name="home" %}{% endblock %}
+{% block record_kind %}Program{% endblock %}
+{% block record_title %}{{ school.name }}{% endblock %}
+{% block save_new %}{% endblock %}
+{% block editor_body %}
+<form method="post" class="data-form rec-form" id="settings-form" novalidate>
+  {% csrf_token %}
+  <div class="alert alert-error" data-non-field{% if not form.non_field_errors and not formset.non_form_errors %} hidden{% endif %}>{{ form.non_field_errors|join:" " }} {{ formset.non_form_errors|join:" " }}</div>
+  {% include "timetable/data/sections.html" %}
+  <div class="rec-panel" data-tab-panel="saatler">
+    <section class="fsec fsec-wide">
+      <div class="fsec-head">
+        <div><h3>Ders saatleri</h3><p>Saatler listedeki sırayla numaralanır; saat biçimi 24 saat (08:20). “Ardından uzun ara” işaretli saatin ardından blok dersler bölünmez. Bir saati silmek, o saate yerleşmiş kartları mevcut programlarda geçersiz kılar; programı yeniden üretin.</p></div>
+        <button type="button" class="btn btn-sm" data-add-period>{% include "timetable/icon.html" with name="plus" %} Saat ekle</button>
+      </div>
+      <div class="fsec-body">
+        {{ formset.management_form }}
+        <table class="table period-table">
+          <thead><tr><th style="width:44px">#</th><th>Ad</th><th style="width:130px">Başlangıç</th><th style="width:130px">Bitiş</th><th title="Ardından uzun teneffüs ya da öğle arası: blok dersler bu aranın üzerinden geçemez">Ardından uzun ara</th><th class="num">Sil</th></tr></thead>
+          <tbody data-period-rows>
+            {% for f in formset %}
+              <tr>
+                <td class="subtle">{{ forloop.counter }}</td>
+                <td><div class="form-row">{{ f.id }}{{ f.name }}</div></td>
+                <td><div class="form-row">{{ f.start_time }}</div></td>
+                <td><div class="form-row">{{ f.end_time }}</div></td>
+                <td>{{ f.long_break_after }}</td>
+                <td class="num">{{ f.DELETE }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <template id="period-template"><tr><td class="subtle">+</td><td><div class="form-row">{{ formset.empty_form.id }}{{ formset.empty_form.name }}</div></td><td><div class="form-row">{{ formset.empty_form.start_time }}</div></td><td><div class="form-row">{{ formset.empty_form.end_time }}</div></td><td>{{ formset.empty_form.long_break_after }}</td><td class="num">{{ formset.empty_form.DELETE }}</td></tr></template>
+      </div>
+    </section>
+  </div>
+  <div class="rec-panel" data-tab-panel="saatler">
+    <section class="fsec fsec-wide">
+      <div class="fsec-head">
+        <div><h3>Günlere göre farklı saatler</h3><p>Bir günün zil saatleri farklıysa (ör. Cuma kısaltılmış dersler) o günün kutularını doldurun; boş kutular yukarıdaki varsayılan saati kullanır. Çözücü yalnızca ders sırasına bakar; bu saatler çıktılarda, ÜYBS aktarımında, vekâlet ve web yayınında gösterilir. Yeni eklenen saatler kaydedildikten sonra burada görünür.</p></div>
+      </div>
+      <div class="fsec-body table-wrap">
+        <table class="table day-times" data-day-times>
+          <thead>
+            <tr><th>Saat</th><th class="subtle">Varsayılan</th>{% for d in day_grid.days %}<th>{{ d }}
+              <div class="dt-tools"><button type="button" class="btn btn-sm btn-ghost" data-dt-fill="{{ forloop.counter0 }}" title="Varsayılan saatleri bu güne yaz, sonra değiştirin">Varsayılanı yaz</button><button type="button" class="btn btn-sm btn-ghost" data-dt-clear="{{ forloop.counter0 }}" title="Bu gün varsayılan saatleri kullansın">Temizle</button></div></th>{% endfor %}</tr>
+          </thead>
+          <tbody>
+            {% for r in day_grid.rows %}
+              <tr data-default-start="{{ r.default.0 }}" data-default-end="{{ r.default.1 }}">
+                <th>{{ r.index }}.</th>
+                <td class="subtle nowrap">{{ r.default.0 }}–{{ r.default.1 }}</td>
+                {% for c in r.cells %}
+                  <td><div class="form-row dt-cell{% if c.start %} on{% endif %}" data-day="{{ c.day }}">
+                    <input class="input input-sm" name="gs-{{ r.pk }}-{{ c.day }}-start" value="{{ c.start }}" placeholder="{{ r.default.0 }}" inputmode="numeric" maxlength="5" aria-label="{{ r.index }}. saat başlangıç">
+                    <input class="input input-sm" name="gs-{{ r.pk }}-{{ c.day }}-end" value="{{ c.end }}" placeholder="{{ r.default.1 }}" inputmode="numeric" maxlength="5" aria-label="{{ r.index }}. saat bitiş">
+                  </div></td>
+                {% endfor %}
+              </tr>
+            {% empty %}<tr><td colspan="9" class="subtle">Önce ders saati ekleyip kaydedin.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+  <div class="rec-panel" data-tab-panel="kapali">{% include "timetable/data/availability.html" %}</div>
+</form>
+{% if can.programlar %}
+  <form method="post" action="{% url 'timetable:program_delete' school.pk %}" class="danger-zone" data-tab-panel="program" onsubmit="return confirm('Program, tüm verisi ve sürümleriyle silinsin mi?')">
+    {% csrf_token %}
+    <div><b>Programı sil</b><div class="subtle small">Sınıflar, öğretmenler, dersler ve tüm sürümler silinir. Onay için program adını yazın.</div></div>
+    <div class="dialog-row"><input class="input" name="confirm" placeholder="{{ school.name }}" required><button class="btn btn-danger">Sil</button></div>
+  </form>
+{% endif %}
+{% endblock %}
+{% block scripts %}{{ block.super }}
+<script>
+(function () {
+  const table = document.querySelector("[data-day-times]");
+  if (!table) return;
+  const cells = (day) => [...table.querySelectorAll('.dt-cell[data-day="' + day + '"]')];
+  const mark = (cell) => cell.classList.toggle("on", [...cell.querySelectorAll("input")].some((i) => i.value.trim()));
+  table.addEventListener("input", (e) => { const c = e.target.closest(".dt-cell"); if (c) mark(c); });
+  table.addEventListener("click", (e) => {
+    const fill = e.target.closest("[data-dt-fill]"), clear = e.target.closest("[data-dt-clear]");
+    if (!fill && !clear) return;
+    cells((fill || clear).dataset.dtFill || (fill || clear).dataset.dtClear).forEach((c) => {
+      const row = c.closest("tr");
+      const [s, e2] = c.querySelectorAll("input");
+      s.value = fill ? row.dataset.defaultStart : "";
+      e2.value = fill ? row.dataset.defaultEnd : "";
+      mark(c);
+    });
+    table.dispatchEvent(new Event("input", { bubbles: true }));  // kaydedilmemiş değişiklik
+  });
+})();
+</script>
+{% endblock %}

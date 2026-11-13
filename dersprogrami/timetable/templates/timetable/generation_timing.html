@@ -1,0 +1,24 @@
+<p class="subtle small" data-strict-timing hidden>Katı: süreyi boş bırakırsanız otomatik çalışır. Kolay programlar saniyeler içinde biter; zor programlarda Gen2 turları ile gün komşuluğu (2–3 günün bütün dersleri birlikte yeniden dizilir) dönüşümlü çalışır. Sıfır ihlale inince ceza da aynı yöntemle düşürülür (ceza 2 dakika düşmezse ya da 10 dakika dolunca biter). En çok 60 dakika; 15 dakika boyunca ihlal azalmazsa en iyi taslak kaydedilir. Bir sayı yazarsanız o süre üst sınır olur.</p>
+<script>
+  (function () {
+    const form = document.currentScript.closest("form");
+    const input = form.querySelector('[name="time_limit"]');
+    const strictHelp = form.querySelector('[data-strict-timing]');
+    let previous = null;
+    // Katı: boş = otomatik süre; diğer modlar sabit süreyle çalışır.
+    const times = {strict: input.value, relaxed: "60"};
+    function sync() {
+      const selected = form.querySelector('[name="mode"]:checked')?.value;
+      const mode = selected in times ? selected : "strict";
+      if (mode !== previous) {
+        if (previous !== null) times[previous] = input.value;
+        input.value = times[mode];
+      }
+      input.placeholder = mode === "strict" ? "Otomatik" : "";
+      if (strictHelp) strictHelp.hidden = mode !== "strict";
+      previous = mode;
+    }
+    form.querySelectorAll('[name="mode"]').forEach(radio => radio.addEventListener("change", sync));
+    sync();
+  })();
+</script>

@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% load static yoklama_etiketleri %}
+{% block title %}{{ p.ad_soyad }} · Personel yoklaması{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">{{ p.ad_soyad }}</li>{% endblock %}
+{% block content %}
+
+{# ---- bilgi kartı ---- #}
+<div class="kart yk-profil mb-3">
+  <div class="d-flex flex-wrap gap-4 align-items-start">
+    <div class="text-center">
+      {% include "yoklama/_foto.html" with p=p buyuk=True %}
+      {% if foto_yukleyebilir %}
+      <div class="mt-2 d-print-none">
+        <form method="post" action="{% url 'yoklama:fotograf_yukle' p.pk %}" enctype="multipart/form-data" class="d-inline" id="fotoFormu">
+          {% csrf_token %}
+          <label class="btn btn-sm btn-outline-light" title="Fotoğraf yükle"><i class="bi bi-camera"></i><input type="file" name="fotograf" accept="image/*" hidden onchange="this.form.submit()"></label>
+        </form>
+        {% if p.fotograf %}<form method="post" action="{% url 'yoklama:fotograf_yukle' p.pk %}" class="d-inline" onsubmit="return confirm('Fotoğraf kaldırılsın mı?')">{% csrf_token %}<input type="hidden" name="islem" value="kaldir"><button class="btn btn-sm btn-outline-light" title="Fotoğrafı kaldır"><i class="bi bi-trash"></i></button></form>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+    {% isaretler p as isaret_listesi %}
+    {% if isaret_listesi %}
+    <div class="yk-isaretler" aria-label="Rütbe, sınıf ve unvan işaretleri">
+      {% for svg, etiket in isaret_listesi %}<figure>{{ svg }}<figcaption>{{ etiket }}</figcaption></figure>{% endfor %}
+    </div>
+    {% endif %}
+    <div class="flex-grow-1 min-w-0">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <div class="ad">{{ p.ad_soyad }}</div>
+        {% if not p.aktif %}<span class="badge text-bg-secondary">Pasif</span>{% endif %}
+      </div>
+      <div class="kunye">{{ p.kunye|default:"" }}</div>
+      <div class="mt-2">
+        <span class="small text-uppercase" style="letter-spacing:.06em;color:#9fb3cc;font-weight:600">Bugün</span>
+        <div class="d-flex flex-wrap gap-2 mt-1">
+          {% for k in bugun_durum.kayitlar %}<span class="yk-cip" style="--renk: {{ k.tur.renk }}"><span class="yk-nokta"></span>{{ k.tur.ad }} <span class="saat">{{ k.aralik_metni }}</span></span>
+          {% empty %}<span class="yk-mevcut"><i class="bi bi-check-circle-fill"></i>Mevcut</span>{% endfor %}
+        </div>
+      </div>
+      <dl>
+        <div><dt>Bölüm</dt><dd>{{ p.bolum|default:"–" }}</dd></div>
+        <div><dt>Sicil no</dt><dd>{{ p.sicil|default:"–" }}</dd></div>
+        <div><dt>Rütbe</dt><dd>{{ p.rutbe|default:"–" }}</dd></div>
+        <div><dt>Sınıf</dt><dd>{{ p.sinif|default:"–" }}</dd></div>
+        <div><dt>Unvan</dt><dd>{{ p.unvan|default:"–" }}</dd></div>
+      </dl>
+    </div>
+    {% if yil_ozeti %}
+    <div class="ms-lg-auto" style="min-width:220px">
+      <div class="small text-uppercase mb-2" style="letter-spacing:.06em;color:#9fb3cc;font-weight:600">{{ yil }} yılı</div>
+      <div class="d-grid gap-2">
+        {% for o in yil_ozeti %}{% include "yoklama/_hak_satiri.html" with o=o koyu=True %}{% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  {# ---- yoklama girişi ---- #}
+  {% if girebilir %}
+  <div class="col-12 col-xl-6">
+    <div class="kart h-100">
+      <div class="yardim-satiri"><i class="bi bi-plus-circle"></i> Yeni kayıt</div>
+      <form method="post" class="p-3">
+        {% csrf_token %}
+        <input type="hidden" name="geri" value="{{ geri }}">
+        {% if ilk_giris %}<div class="small text-secondary mb-2"><i class="bi bi-info-circle me-1"></i>En erken {{ ilk_giris|date:"d.m.Y" }} tarihinden başlayan kayıt girilebilir (bugüne ait kayıtlar 09:00'a kadar; geçmiş günler ve kesinleşen günler idari işler yetkilisinde).</div>{% endif %}
+        {% include "yoklama/_kayit_formu.html" with onek="k" %}
+        <div class="d-flex justify-content-end mt-3"><button class="btn btn-primary"><i class="bi bi-check2 me-1"></i>Kaydet</button></div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="col-12 {% if girebilir %}col-xl-6{% endif %}">
+    <div class="kart mb-3">
+      <div class="yardim-satiri"><i class="bi bi-calendar-event"></i> Süren ve yaklaşan kayıtlar</div>
+      <ul class="yk-zaman-cizgisi">
+        {% for k in gelecek %}
+        <li>
+          <span class="yk-cip" style="--renk: {{ k.tur.renk }}"><span class="yk-nokta"></span>{{ k.tur.ad }}</span>
+          <span class="aralik">{{ k.aralik_metni }}</span>
+          {% if k.aciklama %}<span class="small">{{ k.aciklama }}</span>{% endif %}
+          <span class="meta ms-auto">{{ k.olusturan|default:"–" }} · {{ k.olusturma|date:"d.m.Y H:i" }}</span>
+          {% if girebilir %}{% if k.pk in kilitli %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'yoklama:kayit' k.pk %}?geri={{ geri|urlencode }}" title="Kilitli: yalnız idari işler yetkilisi değiştirebilir"><i class="bi bi-lock"></i></a>{% else %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'yoklama:kayit' k.pk %}?geri={{ geri|urlencode }}" title="Düzenle"><i class="bi bi-pencil"></i></a>{% endif %}{% endif %}
+        </li>
+        {% empty %}
+        <li class="text-secondary small">Süren ya da yaklaşan kayıt yok.</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <div class="kart">
+      <div class="yardim-satiri d-flex align-items-center gap-2"><i class="bi bi-archive"></i> Geçmiş kayıtlar
+        <form method="get" class="ms-auto"><select class="form-select form-select-sm" name="yil" onchange="this.form.submit()" aria-label="Yıl" data-arama="yok">{% for yl in yillar %}<option value="{{ yl }}" {% if yl == yil %}selected{% endif %}>{{ yl }}</option>{% endfor %}</select></form>
+      </div>
+      <ul class="yk-zaman-cizgisi">
+        {% for k in gecmis %}
+        <li>
+          <span class="yk-cip" style="--renk: {{ k.tur.renk }}"><span class="yk-nokta"></span>{{ k.tur.ad }}</span>
+          <span class="aralik">{{ k.aralik_metni }}</span>
+          {% if k.aciklama %}<span class="small">{{ k.aciklama }}</span>{% endif %}
+          <span class="meta ms-auto">{{ k.olusturan|default:"–" }}</span>
+          {% if girebilir %}{% if k.pk in kilitli %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'yoklama:kayit' k.pk %}?geri={{ geri|urlencode }}" title="Kilitli: yalnız idari işler yetkilisi değiştirebilir"><i class="bi bi-lock"></i></a>{% else %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'yoklama:kayit' k.pk %}?geri={{ geri|urlencode }}" title="Düzenle"><i class="bi bi-pencil"></i></a>{% endif %}{% endif %}
+        </li>
+        {% empty %}
+        <li class="text-secondary small">{{ yil }} yılında geçmiş kayıt yok.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+
+{% if islemler %}
+<div class="kart mt-3">
+  <div class="yardim-satiri"><i class="bi bi-clock-history"></i> Bu personelde yapılan son değişiklikler</div>
+  <ul class="list-unstyled mb-0 small">
+    {% for i in islemler %}<li class="px-3 py-2 border-bottom d-flex flex-wrap gap-2"><span class="text-secondary">{{ i.zaman|date:"d.m.Y H:i" }}</span><span class="yk-gecmis-islem {% if i.islem == 'sil' %}text-danger{% elif i.islem == 'ekle' %}text-success{% else %}text-primary{% endif %}">{{ i.get_islem_display }}</span><span>{{ i.ozet }}</span><span class="text-secondary ms-auto">{{ i.kullanici|default:"–" }}{% if i.onay_sonrasi %} · <span class="text-warning-emphasis">yoklama verildikten sonra</span>{% endif %}</span></li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+<script src="{% static 'js/yoklama.js' %}?v=6" defer></script>
+{% endblock %}

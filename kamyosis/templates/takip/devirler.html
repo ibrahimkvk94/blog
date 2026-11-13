@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Devir talepleri{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item"><a href="{% url 'takip:gunluk' %}">Ders takibi</a></li><li class="breadcrumb-item active" aria-current="page">Devir talepleri</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Devir talepleri</h1>
+    <p class="text-secondary mb-0">Talep → Onay (Ders Planları yöneticisi) → Kesin (Plan Program yöneticisi)</p>
+  </div>
+</div>
+
+<ul class="nav nav-pills mb-3 flex-nowrap overflow-auto">
+  {% for kod, ad, sayi in sekmeler %}
+  <li class="nav-item"><a class="nav-link text-nowrap {% if sekme == kod %}active{% endif %}" href="?durum={{ kod }}">{{ ad }} <span class="badge {% if sekme == kod %}text-bg-light{% else %}text-bg-secondary{% endif %}">{{ sayi }}</span></a></li>
+  {% endfor %}
+</ul>
+
+{% for blok, talepler in gruplar %}
+{% with t=talepler.0 %}
+<div class="kart mb-3">
+  <div class="p-3 border-bottom d-flex flex-wrap gap-3 align-items-start">
+    <div class="flex-grow-1">
+      <div class="fw-semibold">
+        {{ t.kayit.ogretmen }} <i class="bi bi-arrow-right mx-1"></i> {{ t.yeni_personel.ad_soyad }}
+        <span class="durum-rozet {% if t.durum == 'kesin' %}durum-kullanimda{% elif t.durum == 'onay' or t.durum == 'talep' %}durum-sirada{% else %}durum-planlandi{% endif %} ms-1">{{ t.get_durum_display }}</span>
+      </div>
+      <div class="small text-secondary">{{ talepler|length }} ders · {{ t.isteyen }} · {{ t.istek_zamani|date:"d.m.Y H:i" }}</div>
+      <div class="small mt-1"><strong>Gerekçe:</strong> {{ t.gerekce }}</div>
+      {% if t.karar_notu %}<div class="small mt-1"><strong>Son karar</strong> ({{ t.karar_veren }}, {{ t.karar_zamani|date:"d.m.Y H:i" }}): {{ t.karar_notu }}</div>{% endif %}
+    </div>
+    {% if t.durum == 'talep' and y.onay or t.durum == 'onay' and y.onay or t.durum == 'onay' and y.kesin or t.durum == 'kesin' and y.kesin %}
+    <form method="post" action="{% url 'takip:devir_karar' blok %}" class="karar-formu">
+      {% csrf_token %}
+      <input type="hidden" name="geri" value="{{ request.get_full_path }}">
+      <input type="text" name="not" class="form-control form-control-sm mb-2" placeholder="Karar gerekçesi (zorunlu)" required aria-label="Karar gerekçesi">
+      <div class="d-flex flex-wrap gap-1 justify-content-end">
+        {% if t.durum == 'talep' and y.onay %}<button name="islem" value="onayla" class="btn btn-sm btn-success">Onayla</button>{% endif %}
+        {% if t.durum == 'onay' and y.kesin %}<button name="islem" value="kesinlestir" class="btn btn-sm btn-primary">Kesinleştir</button>{% endif %}
+        {% if t.durum == 'talep' and y.onay or t.durum == 'onay' and y.onay %}<button name="islem" value="iade" class="btn btn-sm btn-outline-danger">İade et</button>{% endif %}
+        {% if t.durum == 'kesin' and y.kesin %}<button name="islem" value="iptal" class="btn btn-sm btn-outline-danger">İptal et</button>{% endif %}
+      </div>
+    </form>
+    {% endif %}
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0">
+      <tbody>
+      {% for d in talepler %}
+        <tr>
+          <td class="ps-3 text-nowrap">{{ d.kayit.tarih|date:"d.m.Y D" }}</td>
+          <td>{{ d.kayit.hucre.saat }}. saat</td>
+          <td>{% for k in d.kayit.hucre.haftalik_ders.kisimlar.all %}{{ k.kod }}{% endfor %}</td>
+          <td>{{ d.kayit.hucre.haftalik_ders.ders.kod }} <span class="text-secondary d-none d-md-inline">{{ d.kayit.hucre.haftalik_ders.ders.ad|truncatechars:40 }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endwith %}
+{% empty %}
+<div class="kart p-5 text-center text-secondary">Bu durumda talep yok.</div>
+{% endfor %}
+{% endblock %}

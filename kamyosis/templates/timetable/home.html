@@ -1,0 +1,30 @@
+{% extends "timetable/base.html" %}
+{# KAMYOSİS: araclar/dersprogrami/sablon_uyarla.py ile modülün home.html dosyasından üretildi; elle değiştirmeyin. #}
+{% block title %}Ana sayfa{% endblock %}
+{% block heading %}<h1>Ana sayfa</h1>{% endblock %}
+{% block actions %}
+  {% if False %}<a class="btn">{% include "timetable/icon.html" with name="users" %} Merkez paneli</a>{% endif %}
+{% endblock %}
+{% block content %}
+<p class="page-lead">Çalışmak istediğiniz modülü seçin. Kurum, program, sınıf, öğretmen, derslik ve ders bilgileri bütün modüllerde ortaktır; bir kez girilir.</p>
+<div class="module-cards">
+  {% for c in cards %}
+    <section class="panel module-card">
+      <a class="module-card-head" href="{{ c.url }}">
+        <span class="module-icon">{% include "timetable/icon.html" with name=c.module.icon %}</span>
+        <span><h2>{{ c.module.title }}</h2><span class="subtle small">{{ c.count }} program</span></span>
+      </a>
+      <p class="subtle">{{ c.module.description }}</p>
+      {% if c.programs %}
+        <div class="module-programs">
+          {% for p in c.programs %}<a class="chip" href="{{ p.url }}" title="{{ p.school.institution }}">{{ p.school.name }}</a>{% endfor %}
+          {% if c.count > c.programs|length %}<a class="chip" href="{{ c.url }}">+{{ c.count|add:"-6" }} program</a>{% endif %}
+        </div>
+      {% endif %}
+      <a class="btn btn-primary" href="{{ c.url }}">Modülü aç</a>
+    </section>
+  {% empty %}
+    <div class="panel"><div class="panel-body subtle">Henüz bir kuruma eklenmediniz. Kurum yöneticinizden hesabınıza yetki vermesini isteyin.</div></div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -19,15 +19,16 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # See https://docs.djangoproject.com/en/1.10/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = '***KALDIRILDI***'
+# Gizli değerler depoda tutulmaz; ortam değişkenlerinden okunur.
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'yerel-gelistirme-anahtari-yayinda-kullanmayin')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', '1') == '1'
 
 EMAIL_HOST ="smtp.gmail.com"
 EMAIL_PORT =465
-EMAIL_HOST_USER ='ibrahimkvk94@gmail.com'
-EMAIL_HOST_PASSWORD="***KALDIRILDI***"
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'ibrahimkvk94@gmail.com')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 EMAIL_USE_TLS = False
 EMAIL_USE_SSL = True
 SERVER_EMAIL = 'ibrahimkvk94@gmail.com'
@@ -160,7 +161,9 @@ CKEDITOR_CONFIGS = {
 }
 
 
-RECAPTCHA_PUBLIC_KEY = '***KALDIRILDI***'
-RECAPTCHA_PRIVATE_KEY = '***KALDIRILDI***'
+# Tanımlı değilse django-recaptcha kendi deneme anahtarlarını kullanır.
+if os.environ.get('RECAPTCHA_PUBLIC_KEY'):
+    RECAPTCHA_PUBLIC_KEY = os.environ['RECAPTCHA_PUBLIC_KEY']
+    RECAPTCHA_PRIVATE_KEY = os.environ.get('RECAPTCHA_PRIVATE_KEY', '')
 NOCAPTCHA = True
 

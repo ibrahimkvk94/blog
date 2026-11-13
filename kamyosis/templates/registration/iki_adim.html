@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}İki adımlı doğrulama{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>İki adımlı doğrulama</h1>
+    <p class="text-secondary mb-0">Girişte parolanın yanında telefonunuzdaki authenticator uygulamasının ürettiği kod da sorulur. İsteğe bağlıdır; istediğiniz zaman açıp kapatabilirsiniz.</p>
+  </div>
+</div>
+
+{% if yeni_yedekler %}
+<div class="kart p-3 mb-3 border border-warning">
+  <h2 class="h6 fw-bold"><i class="bi bi-life-preserver me-1"></i>Yedek kodlarınız (yalnızca bir kez gösterilir)</h2>
+  <p class="small text-secondary">Telefonunuzu kaybederseniz bu kodlardan biriyle giriş yapabilirsiniz; her kod bir kez geçer. Yazdırıp ya da not alıp güvenli bir yerde saklayın.</p>
+  <div class="row row-cols-2 row-cols-md-5 g-2 font-monospace fs-6">
+    {% for k in yeni_yedekler %}<div class="col"><span class="d-block border rounded text-center py-1">{{ k }}</span></div>{% endfor %}
+  </div>
+  <button class="btn btn-sm btn-outline-secondary mt-3 d-print-none" onclick="window.print()"><i class="bi bi-printer me-1"></i>Yazdır</button>
+</div>
+{% endif %}
+
+{% if kayit %}
+<div class="kart p-3 mb-3">
+  <p class="mb-2"><span class="durum-rozet durum-kullanimda">Açık</span>
+    <span class="small text-secondary ms-2">açılış {{ kayit.acilis|date:"d.m.Y H:i" }} · son kullanım {{ kayit.son_kullanim|date:"d.m.Y H:i"|default:"–" }} · {{ kayit.kalan_yedek }} yedek kod</span></p>
+  <p class="small text-secondary mb-3">Kapatmak ya da yedek kodları yenilemek için parolanızı ve uygulamadaki güncel kodu girin.</p>
+  <form method="post" class="row g-2 align-items-end" autocomplete="off">
+    {% csrf_token %}
+    <div class="col-12 col-md-4"><label class="form-label small text-secondary" for="parola">Parola</label><input type="password" class="form-control" id="parola" name="parola" autocomplete="current-password" required></div>
+    <div class="col-12 col-md-3"><label class="form-label small text-secondary" for="kod">Uygulamadaki kod</label><input type="text" class="form-control" id="kod" name="kod" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required></div>
+    <div class="col-12 col-md-5 d-flex gap-2">
+      <button class="btn btn-outline-primary" name="islem" value="yedek"><i class="bi bi-arrow-repeat me-1"></i>Yedek kodları yenile</button>
+      <button class="btn btn-outline-danger" name="islem" value="kapat" onclick="return confirm('İki adımlı doğrulama kapatılsın mı? Girişte yalnızca parola sorulur.')"><i class="bi bi-shield-x me-1"></i>Kapat</button>
+    </div>
+  </form>
+</div>
+{% elif gizli %}
+<div class="kart p-3 mb-3">
+  <div class="row g-4 align-items-center">
+    <div class="col-md-auto text-center">{{ karekod|safe }}</div>
+    <div class="col-md">
+      <ol class="small mb-3 ps-3">
+        <li>Telefonunuza <strong>Google Authenticator</strong>, <strong>Microsoft Authenticator</strong> ya da benzeri bir uygulama kurun.</li>
+        <li>Uygulamada “hesap ekle / karekod tara” deyip yandaki karekodu okutun. Okutamazsanız anahtarı elle girin: <span class="font-monospace user-select-all">{{ gizli_gruplu }}</span></li>
+        <li>Uygulamada “KAMYOSİS” altında görünen 6 haneli kodu aşağıya yazıp onaylayın.</li>
+      </ol>
+      <form method="post" class="d-flex flex-wrap gap-2" autocomplete="off">
+        {% csrf_token %}
+        <input type="text" class="form-control" style="max-width:160px" name="kod" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 haneli kod" aria-label="Doğrulama kodu" autofocus required>
+        <button class="btn btn-primary" name="islem" value="onayla"><i class="bi bi-check2 me-1"></i>Onayla ve aç</button>
+        <button class="btn btn-outline-secondary" name="islem" value="vazgec" formnovalidate>Vazgeç</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="kart p-3 mb-3">
+  <p class="mb-2"><span class="durum-rozet durum-planlandi">Kapalı</span> <span class="small text-secondary ms-2">Girişte yalnızca parola soruluyor.</span></p>
+  <p class="small text-secondary">Açtığınızda, parolanız başkasının eline geçse bile telefonunuz olmadan hesabınıza girilemez. Sistem kurum ağı dışından erişime açıldığında özellikle yönetici hesapları için önerilir.</p>
+  <form method="post">{% csrf_token %}<button class="btn btn-primary" name="islem" value="baslat"><i class="bi bi-shield-lock me-1"></i>İki adımlı doğrulamayı aç</button></form>
+</div>
+{% endif %}
+
+<div class="kart p-3 mb-3">
+  <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+    <h2 class="h6 fw-bold mb-0 me-auto"><i class="bi bi-laptop me-1"></i>Güvenilir cihazlar</h2>
+    {% if cihazlar %}<form method="post">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" name="islem" value="cihazlar_kaldir" onclick="return confirm('Tüm cihazların güveni kaldırılsın mı? Hepsinde bir sonraki girişte kod sorulur.')"><i class="bi bi-x-circle me-1"></i>Tümünün güvenini kaldır</button></form>{% endif %}
+  </div>
+  <p class="small text-secondary">Kod ekranında “Bu cihaza güven” dediğiniz tarayıcılarda, güveni kaldırana dek yalnızca parola sorulur. Parolanızı değiştirdiğinizde tüm güvenler kendiliğinden kalkar.</p>
+  {% if cihazlar %}
+  <ul class="list-group">
+    {% for c in cihazlar %}
+    <li class="list-group-item d-flex flex-wrap align-items-center gap-2">
+      <span class="me-auto"><i class="bi bi-display me-1 text-secondary"></i>{{ c.ad|default:"Cihaz" }}{% if bu_cihaz and bu_cihaz.pk == c.pk %} <span class="durum-rozet durum-kullanimda">bu cihaz</span>{% endif %}
+        <span class="d-block small text-secondary">güvenildi {{ c.olusturma|date:"d.m.Y H:i" }} · son giriş {{ c.son_kullanim|date:"d.m.Y H:i"|default:"–" }}</span></span>
+      <form method="post">{% csrf_token %}<input type="hidden" name="pk" value="{{ c.pk }}"><button class="btn btn-sm btn-outline-secondary" name="islem" value="cihaz_kaldir"><i class="bi bi-x-lg me-1"></i>Güveni kaldır</button></form>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}<p class="small mb-0"><span class="durum-rozet durum-planlandi">Yok</span> <span class="text-secondary ms-1">Güvenilir cihazınız yok.</span></p>{% endif %}
+</div>
+{% endblock %}

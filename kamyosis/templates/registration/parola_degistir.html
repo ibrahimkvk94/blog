@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Parola değiştir{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Parola değiştir</li>{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-8 col-lg-6">
+    <div class="sayfa-baslik"><h1>Parola değiştir</h1></div>
+    {% if user.parola_degismeli %}
+      <div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2"></i>Devam etmeden önce size verilen geçici parolayı değiştirmeniz gerekiyor.</div>
+    {% endif %}
+    <form method="post" class="kart p-4" novalidate>
+      {% csrf_token %}
+      {% for f in form %}
+      <div class="mb-3">
+        <label class="form-label" for="{{ f.id_for_label }}">{{ f.label }}</label>
+        <input type="password" name="{{ f.html_name }}" id="{{ f.id_for_label }}" class="form-control {% if f.errors %}is-invalid{% endif %}" autocomplete="{% if f.name == 'old_password' %}current-password{% else %}new-password{% endif %}" required>
+        {% for e in f.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+        {% if f.name == 'new_password1' %}<div class="form-text">En az 8 karakter; sadece rakamlardan oluşmamalı ve kolay tahmin edilmemeli.</div>{% endif %}
+      </div>
+      {% endfor %}
+      <button class="btn btn-primary"><i class="bi bi-key me-1"></i>Parolayı değiştir</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

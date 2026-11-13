@@ -1,0 +1,383 @@
+/* KAMYOSİS koyu tema. Bu dosya araclar/koyu_tema.py ile üretilir; elle değişiklik yalnız bu başlık bölümüne. */
+[data-bs-theme="dark"] {
+  --km-zemin: #0d141d;
+  --km-kenarlik: #263445;
+  --km-yuzey: #141d29;
+  --km-yuzey-2: #1a2533;
+  --bs-body-bg: #0d141d;
+  --bs-body-color: #d5dde7;
+  --bs-secondary-color: #94a3b8;
+  --bs-tertiary-bg: #1a2533;
+  --bs-border-color: #263445;
+  --bs-link-color: #8fb4dc;
+  --bs-link-color-rgb: 143, 180, 220;
+  --bs-link-hover-color: #b5cfea;
+  --bs-primary: #5b8cc0;
+  --bs-primary-rgb: 91, 140, 192;
+  color-scheme: dark;
+}
+[data-bs-theme="dark"] body { background: var(--km-zemin); color: var(--bs-body-color); }
+[data-bs-theme="dark"] .btn-light, [data-bs-theme="dark"] .geri-btn {
+  --bs-btn-bg: #1a2533; --bs-btn-border-color: #2c3b4f; --bs-btn-color: #d5dde7;
+  --bs-btn-hover-bg: #223044; --bs-btn-hover-border-color: #3a4c63; --bs-btn-hover-color: #fff;
+  --bs-btn-active-bg: #2a3a50; --bs-btn-active-border-color: #3a4c63; --bs-btn-active-color: #fff; }
+[data-bs-theme="dark"] .btn-outline-primary { --bs-btn-color: #8fb4dc; --bs-btn-border-color: #4a77a6; --bs-btn-hover-color: #fff; }
+[data-bs-theme="dark"] .btn-outline-secondary { --bs-btn-color: #b8c4d2; --bs-btn-border-color: #3a4c63; }
+[data-bs-theme="dark"] .bg-white, [data-bs-theme="dark"] .bg-light { background-color: var(--km-yuzey) !important; }
+[data-bs-theme="dark"] .text-dark { color: #e2e8f0 !important; }
+[data-bs-theme="dark"] .text-bg-light { background-color: #223044 !important; color: #d5dde7 !important; }
+[data-bs-theme="dark"] .table-light { --bs-table-bg: #1a2533; --bs-table-color: #d5dde7; --bs-table-border-color: #263445; }
+[data-bs-theme="dark"] .table { --bs-table-color: #d5dde7; --bs-table-border-color: #263445; }
+[data-bs-theme="dark"] .table-active, [data-bs-theme="dark"] .table-hover > tbody > tr:hover > * { --bs-table-bg-state: rgba(143, 180, 220, .08); }
+[data-bs-theme="dark"] .alert-warning { --bs-alert-bg: #2b2210; --bs-alert-color: #f5d68a; --bs-alert-border-color: #5a4515; }
+[data-bs-theme="dark"] .alert-info { --bs-alert-bg: #0f2433; --bs-alert-color: #9fd3f0; --bs-alert-border-color: #1d4660; }
+[data-bs-theme="dark"] .alert-success { --bs-alert-bg: #0f2a1b; --bs-alert-color: #9ee6b8; --bs-alert-border-color: #1d5233; }
+[data-bs-theme="dark"] .alert-danger { --bs-alert-bg: #2f1214; --bs-alert-color: #f6a7a7; --bs-alert-border-color: #5c2226; }
+[data-bs-theme="dark"] .alert-secondary { --bs-alert-bg: #1a2533; --bs-alert-color: #c3cdd9; --bs-alert-border-color: #2c3b4f; }
+[data-bs-theme="dark"] .yk-cip { background: color-mix(in srgb, var(--renk) 22%, #0d141d); border-color: color-mix(in srgb, var(--renk) 50%, #0d141d);
+  color: color-mix(in srgb, var(--renk) 55%, #fff); }
+[data-bs-theme="dark"] .yk-profil .yk-cip { background: rgba(255, 255, 255, .95); color: var(--renk); }
+[data-bs-theme="dark"] .yk-hucre.kismi { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--renk) 35%, #0d141d) 0 5px, #0d141d 5px 10px); }
+[data-bs-theme="dark"] .yk-kagit { box-shadow: 0 0 0 1px #263445, 0 8px 28px rgba(0, 0, 0, .5); }
+[data-bs-theme="dark"] .ts-control, [data-bs-theme="dark"] .ts-dropdown { background: #141d29; color: #d5dde7; border-color: #2c3b4f; }
+[data-bs-theme="dark"] .ts-control input { color: #d5dde7; }
+[data-bs-theme="dark"] .ts-dropdown .active { background: #223044; color: #fff; }
+[data-bs-theme="dark"] .dp-cerceve { background: #0d141d; }
+[data-bs-theme="dark"] .tk-mudurluk { box-shadow: 0 0 0 1px #c9a227, 0 6px 18px rgba(0, 0, 0, .4); }
+[data-bs-theme="dark"] .bolum-baslik .bi, [data-bs-theme="dark"] .birim-ikon, [data-bs-theme="dark"] .org-dal-baslik .bi { color: #8fb4dc; }
+/* sol menü: koyu temada lacivert yerine zeminle uyumlu koyu gri-lacivert, altın vurgu kalır */
+[data-bs-theme="dark"] .kenar, [data-bs-theme="dark"] .kenar.offcanvas-lg,
+[data-bs-theme="dark"] .kenar.offcanvas-lg .kenar-ust { background-color: #0a1119 !important; }
+[data-bs-theme="dark"] .kenar { border-right: 1px solid #1b2634; color: #c9d4e2; }
+[data-bs-theme="dark"] .kenar-ust { border-bottom-color: #1b2634; }
+[data-bs-theme="dark"] .kenar .nav-link { color: #c9d4e2; }
+[data-bs-theme="dark"] .kenar .nav-link:hover { background: rgba(143, 180, 220, .08); color: #fff; }
+[data-bs-theme="dark"] .kenar .nav-link.active { background: #172231; color: #fff; }
+[data-bs-theme="dark"] .kenar-menu ul ul { border-left-color: #1b2634; }
+[data-bs-theme="dark"] .menu-baslik, [data-bs-theme="dark"] .menu-ipucu { color: #7d8ea3; }
+[data-bs-theme="dark"] .menu-ara input { background: #111a25; border-color: #1f2c3c; }
+[data-bs-theme="dark"] .menu-ara input:focus { background: #142030; }
+html[data-bs-theme="dark"].kenar-dar .kenar.gezinti { box-shadow: 8px 0 28px rgba(0, 0, 0, .6); }
+[data-bs-theme="dark"] .nav-pills .nav-link:not(.active) { color: #b5cfea; }
+[data-bs-theme="dark"] .nav-pills .nav-link:not(.active):hover { color: #fff; background: rgba(143, 180, 220, .08); }
+[data-bs-theme="dark"] .bildirim-ikon.mor { background: #2a2147; color: #c4b5fd; }
+[data-bs-theme="dark"] .bildirim-ikon.sari { background: #3a2c0c; color: #fcd34d; }
+[data-bs-theme="dark"] .bildirim-ikon.yesil { background: #0f2e1c; color: #86efac; }
+[data-bs-theme="dark"] .bildirim-ikon.mavi { background: #142a4a; color: #93c5fd; }
+[data-bs-theme="dark"] .bildirim-ikon.turuncu { background: #3a1f0c; color: #fdba74; }
+[data-bs-theme="dark"] .bildirim-ikon.gri { background: #223044; color: #cbd5e1; }
+[data-bs-theme="dark"] .bildirim-rozet { border-color: #1a2533; }
+[data-bs-theme="dark"] .bildirim-nokta { background: #8fb4dc; }
+
+/* ---- aşağısı otomatik üretilir ---- */
+[data-bs-theme="dark"] .pn { --pn-mevcut: #3a4a5f; --pn-iz: #1c2838; --pn-izgara: #223044; --pn-yazi: #e2e8f0; --pn-soluk: #94a3b8;
+  --pn-zemin: #111922; --pn-k1: #1d3550; --pn-k2: #254c78; --pn-k3: #3068a3; --pn-k4: #5a90c9; --pn-k5: #9cc2ea; --pn-k-yazi: #0d141d;
+  --pn-subay: #8fb8e6; --pn-astsubay: #2f8f9f; --pn-sivil: #e0bd4a; --pn-lacivert: #6f9fd3; --pn-camgobegi: #2aa3bd; }
+[data-bs-theme="dark"] .pn-ipucu { background: #e2e8f0; color: #0f172a; }
+
+[data-bs-theme="dark"] body { color: #cfd8e4; }
+[data-bs-theme="dark"] .page-link { color: #b0cbe5; }
+[data-bs-theme="dark"] .ust-cubuk { background: #111922; }
+[data-bs-theme="dark"] .breadcrumb a { color: #a0abbb; }
+[data-bs-theme="dark"] .kullanici-btn { background: #111922; }
+[data-bs-theme="dark"] .sayfa-baslik h1 { color: #d2daef; }
+[data-bs-theme="dark"] .bolum-baslik { color: #c2ccdb; }
+[data-bs-theme="dark"] .kart { background: #111922; }
+[data-bs-theme="dark"] .kart .table thead th { color: #a0abbb; background: #171c21; }
+[data-bs-theme="dark"] a .istatistik:hover { border-color: #3e4854; }
+[data-bs-theme="dark"] .istatistik-ikon { background: #1c2129; color: #b0cbe5; }
+[data-bs-theme="dark"] .istatistik-deger { color: #d2daef; }
+[data-bs-theme="dark"] .istatistik-ad { color: #a0abbb; }
+[data-bs-theme="dark"] .birim-kart:hover { border-color: #3e4854; }
+[data-bs-theme="dark"] .birim-ikon { background: #1c2129; }
+[data-bs-theme="dark"] .birim-ad { color: #d2daef; }
+[data-bs-theme="dark"] .birim-alt { color: #a0abbb; }
+[data-bs-theme="dark"] .durum-kullanimda { background: #163220; color: #b8ebcb; }
+[data-bs-theme="dark"] .durum-sirada { background: #3b3417; color: #e7c2ac; }
+[data-bs-theme="dark"] .durum-planlandi { background: #191f25; color: #bac4d1; }
+[data-bs-theme="dark"] .bilgi-listesi dt { color: #a0abbb; }
+[data-bs-theme="dark"] .program-tablo thead th { color: #a0abbb; background: #171c21; }
+[data-bs-theme="dark"] .program-tablo .saat-kolon { background: #171c21; }
+[data-bs-theme="dark"] .saat-no { color: #d2daef; }
+[data-bs-theme="dark"] .saat-aralik { color: #a0abbb; }
+[data-bs-theme="dark"] .program-tablo tbody tr:nth-child(6) td, [data-bs-theme="dark"] .program-tablo tbody tr:nth-child(6) th { border-bottom: 2px dashed #304053; }
+[data-bs-theme="dark"] .ph-kod { color: #d2daef; }
+[data-bs-theme="dark"] .ph-grup { background: rgba(13, 20, 29, .7); }
+[data-bs-theme="dark"] .ph-ad { color: #c2ccdb; }
+[data-bs-theme="dark"] .ph-alt { color: #bac4d1; }
+[data-bs-theme="dark"] .durum-eksik { background: #301414; color: #e5a5a5; }
+[data-bs-theme="dark"] .islem-cubugu { background: #111922; }
+[data-bs-theme="dark"] .gorev-eksik { background: #291212; border-color: #542525; color: #e5a5a5; }
+[data-bs-theme="dark"] .gorev-bekliyor { background: #2d2711; border-color: #64582c; color: #e7c2ac; }
+[data-bs-theme="dark"] .gorev-tamam { background: #14291a; border-color: #2c553a; color: #b8ebcb; }
+[data-bs-theme="dark"] .renk-aciklama { color: #a0abbb; }
+[data-bs-theme="dark"] .yardim-satiri { color: #a0abbb; background: #171c21; }
+[data-bs-theme="dark"] .org-dallar { border-top: 2px solid #304053; }
+[data-bs-theme="dark"] .org-dallar::before { border-left: 2px solid #304053; }
+[data-bs-theme="dark"] .org-dal-baslik { color: #d2daef; }
+[data-bs-theme="dark"] .org-liste { border-left: 2px solid #333a42; }
+[data-bs-theme="dark"] .org-liste li::before { border-top: 2px solid #333a42; }
+[data-bs-theme="dark"] .org-dugum { color: #c2ccdb; }
+[data-bs-theme="dark"] .org-dugum:hover { background: #191f25; color: #d2daef; }
+[data-bs-theme="dark"] .org-dugum .bi { color: #a0abbb; }
+[data-bs-theme="dark"] .org-ara { color: #d2daef; }
+[data-bs-theme="dark"] .nobet-baslik { color: #cfd8e4; }
+[data-bs-theme="dark"] .nobet-mavi { background: #142233; }
+[data-bs-theme="dark"] .nobet-turuncu { background: #362714; }
+[data-bs-theme="dark"] .nobet-yesil { background: #163220; }
+[data-bs-theme="dark"] .nobet-kirmizi { background: #301414; }
+[data-bs-theme="dark"] .nobet-sari { background: #3d3a18; }
+[data-bs-theme="dark"] .nobet-gri { background: #191f25; }
+[data-bs-theme="dark"] .nobet-etiket { background: rgba(13, 20, 29, .75); }
+[data-bs-theme="dark"] .nobet-etiket.nobet-eksik { background: #3a1717; color: #e5a5a5; }
+[data-bs-theme="dark"] .nobet-liste li { border-bottom: 1px dashed #2b3646; }
+[data-bs-theme="dark"] .nobet-yil { color: #a0abbb; }
+[data-bs-theme="dark"] .puantaj-hucre { background: #191f25; color: #c2ccdb; }
+[data-bs-theme="dark"] .puantaj-yatili { background: #3b3417; color: #e7c2ac; }
+[data-bs-theme="dark"] .yil-tablo thead th { background: #171c21; }
+[data-bs-theme="dark"] .yil-tablo .yil-ad { background: #111922; }
+[data-bs-theme="dark"] .yil-tablo thead .yil-ad { background: #171c21; }
+[data-bs-theme="dark"] .yil-tablo tr.table-light .yil-ad { background: #182029; }
+[data-bs-theme="dark"] .yil-duzenle:hover, [data-bs-theme="dark"] .yil-duzenle:focus { background: #1c2129; }
+[data-bs-theme="dark"] .geri-btn { background: #111922; color: #c2ccdb; }
+[data-bs-theme="dark"] .geri-btn:hover { background: #1c2129; color: #cfd8e4; border-color: #3e4854; }
+[data-bs-theme="dark"] .ts-dropdown .active { background: #1c2129; color: #cfd8e4; }
+[data-bs-theme="dark"] .yil-engel { background: #301414; color: #e5a5a5; }
+[data-bs-theme="dark"] .nd-grup { background: #182029; }
+[data-bs-theme="dark"] .nd-btn { color: #a0abbb; }
+[data-bs-theme="dark"] .nd-btn:not(:disabled):hover { background: #111922; color: #cfd8e4; }
+[data-bs-theme="dark"] .nd-sayac { background: #111922; color: #c2ccdb; }
+[data-bs-theme="dark"] .nd-sayac:hover { border-color: #3e4854; color: #cfd8e4; }
+[data-bs-theme="dark"] .nd-sayac.nd-tutar .bi { color: #a3e4bb; }
+[data-bs-theme="dark"] .nd-sirala:hover .bi, [data-bs-theme="dark"] .nd-sirala.aktif .bi { color: #b0cbe5; }
+[data-bs-theme="dark"] .nd-sirala.aktif { color: #cfd8e4; }
+[data-bs-theme="dark"] .mz-izgara th { color: #bac4d1; }
+[data-bs-theme="dark"] .mz-duzenle .mz-baslik:hover { background: #1c2129; }
+[data-bs-theme="dark"] .mz-hucre { background: #14291a; }
+[data-bs-theme="dark"] .mz-hucre.mz-no, [data-bs-theme="dark"] .mz-ornek.mz-no { background: #301414; border-color: #5c2a2a; color: #e19999; }
+[data-bs-theme="dark"] .mz-hucre.mz-maybe, [data-bs-theme="dark"] .mz-ornek.mz-maybe { background: #3b3417; color: #e7c2ac; }
+[data-bs-theme="dark"] .mz-ornek { background: #14291a; color: #b8ebcb; }
+[data-bs-theme="dark"] .nd-sayac.mz-mazeretsiz i { color: #a3e4bb; }
+[data-bs-theme="dark"] .mz-ozet-sayi { color: #a0abbb; }
+[data-bs-theme="dark"] .kart .yb-tablo thead th.yb-grup { color: #b9cde8; border-bottom: 2px solid #3a4149; }
+[data-bs-theme="dark"] .yb-baslik:hover { background: #1c2129; }
+[data-bs-theme="dark"] .yb-seviye-sabit { color: #a0abbb; }
+[data-bs-theme="dark"] .yb-hucre { border: 1px solid #5c2a2a; background: #291212; color: #e19999; }
+[data-bs-theme="dark"] th.sirala-baslik:hover { color: var(--bs-primary, #b9cde8); }
+[data-bs-theme="dark"] .yk-sayi-kart .deger { color: #d2daef; }
+[data-bs-theme="dark"] .yk-sayi-kart .etiket { color: #a0abbb; }
+[data-bs-theme="dark"] .yk-cip { background: color-mix(in srgb, var(--renk) 12%, #111922); border: 1px solid color-mix(in srgb, var(--renk) 35%, #243242); }
+[data-bs-theme="dark"] .yk-mevcut { color: #afe8c4; }
+[data-bs-theme="dark"] .yk-foto { background: #1a2432; border: 2px solid #243242; }
+[data-bs-theme="dark"] .yk-kisi .ad { color: #d2daef; }
+[data-bs-theme="dark"] .yk-kisi .kunye { color: #a0abbb; }
+[data-bs-theme="dark"] a.yk-kisi:hover .ad { color: #a6c4e1; }
+[data-bs-theme="dark"] .yk-onay-verildi { background: #14291a; border-color: #2c553a; color: #b8ebcb; }
+[data-bs-theme="dark"] .yk-onay-bekliyor { background: #2d2711; border-color: #64582c; color: #e7c2ac; }
+[data-bs-theme="dark"] .yk-onay-degisti { background: #2c2011; border-color: #5c4428; color: #e6b7a7; }
+[data-bs-theme="dark"] .yk-tur-dugme { background: #111922; }
+[data-bs-theme="dark"] .yk-zaman-cizgisi .meta { color: #a0abbb; }
+[data-bs-theme="dark"] .yk-takvim th, [data-bs-theme="dark"] .yk-takvim td { border-right: 1px solid #31383e; }
+[data-bs-theme="dark"] .yk-takvim thead th { background: #171c21; color: #bac4d1; }
+[data-bs-theme="dark"] .yk-takvim thead th.hs { color: #e4bea1; }
+[data-bs-theme="dark"] .yk-takvim thead th.bugun { background: #1c2129; color: #b9cde8; }
+[data-bs-theme="dark"] .yk-takvim .kisi-hucre { background: #111922; }
+[data-bs-theme="dark"] .yk-takvim thead .kisi-hucre { background: #171c21; }
+[data-bs-theme="dark"] .yk-takvim .ozet-satir td, [data-bs-theme="dark"] .yk-takvim .ozet-satir th { background: #171c21; color: #c2ccdb; }
+[data-bs-theme="dark"] .yk-grup-sayi { background: #111922; border: 1px solid #333a42; }
+[data-bs-theme="dark"] .yk-grup-sayi .sayi { color: #b9cde8; }
+[data-bs-theme="dark"] .yk-grup-sayi .ad { color: #bac4d1; }
+[data-bs-theme="dark"] .tk-kol { background: #111922; border: 1px solid #333a42; }
+[data-bs-theme="dark"] .tk-sube { border: 1px solid #595034; background: #2d2811; }
+[data-bs-theme="dark"] .tk-sube-bas { color: #ede2c1; }
+[data-bs-theme="dark"] .tk-alt { color: #a0abbb; }
+[data-bs-theme="dark"] .tk-kisim { background: #1b2026; color: #b9cde8; border: 1px solid #363c45; }
+[data-bs-theme="dark"] .tk-bolum { background: #2d2811; border: 1px solid #595034; color: #f0e8cb; }
+[data-bs-theme="dark"] .dp-cerceve { background: #111922; }
+[data-bs-theme="dark"] .yk-zincir { color: #a0abbb; }
+[data-bs-theme="dark"] .yk-zincir a { color: #a6c4e1; }
+[data-bs-theme="dark"] .yk-zincir strong { color: #b9cde8; }
+[data-bs-theme="dark"] .yk-grup-baslik { color: #a0abbb; }
+[data-bs-theme="dark"] .yk-grup-baslik a:hover { color: #b9cde8; }
+[data-bs-theme="dark"] .yk-birim-kutu { background: #111922; border: 1px solid #333a42; color: #cdd6e5; }
+[data-bs-theme="dark"] .yk-birim-kutu:hover { color: #cdd6e5; }
+[data-bs-theme="dark"] .yk-birim-kutu.bos { background: #171c21; }
+[data-bs-theme="dark"] .yk-birim-kutu .sayilar { color: #bac4d1; }
+[data-bs-theme="dark"] .yk-birim-kutu .sayilar .m { color: #afe8c4; }
+[data-bs-theme="dark"] .yk-birim-kutu .cubuk { background: #301414; }
+[data-bs-theme="dark"] .pk-arama .bi { color: #a0abbb; }
+[data-bs-theme="dark"] .pk-ozet > * { background: #111922; border: 1px solid #333a42; color: #bac4d1; }
+[data-bs-theme="dark"] .pk-ozet a:hover { color: #b9cde8; }
+[data-bs-theme="dark"] .pk-kart { background: #111922; border: 1px solid #333a42; color: #cdd6e5; }
+[data-bs-theme="dark"] .pk-kart:hover { color: #cdd6e5; }
+[data-bs-theme="dark"] .pk-kart .pk-kunye { color: #a0abbb; }
+[data-bs-theme="dark"] .pk-kart .pk-gorev { color: #b9cde8; }
+[data-bs-theme="dark"] .pk-eksik { background: #3b3417; color: #e7c2ac; }
+[data-bs-theme="dark"] .pk-tam { background: #163220; color: #b8ebcb; }
+[data-bs-theme="dark"] .yk-hak-kalan { color: var(--bs-secondary-color, #a0abbb); }
+[data-bs-theme="dark"] .sp-sinav { border-bottom: 1px dashed var(--bs-border-color, #2b3c4f); }
+[data-bs-theme="dark"] .sl-simdi-durum.musait { color: #a3e4bb; }
+[data-bs-theme="dark"] .sl-cip { color: color-mix(in srgb, var(--renk) 80%, #ededed); }
+[data-bs-theme="dark"] .sl-anlik.musait { color: #a3e4bb; }
+[data-bs-theme="dark"] .sl-musait-ozet span { color: #afe8c4; }
+[data-bs-theme="dark"] .sl-musait-ozet span.dolu { color: #e19999; }
+[data-bs-theme="dark"] .sl-bos span { color: color-mix(in srgb, #a3e4bb 75%, var(--bs-body-color)); }
+[data-bs-theme="dark"] .sl-blok { color: color-mix(in srgb, var(--renk) 75%, #ededed); }
+[data-bs-theme="dark"] .sl-blok:hover { color: color-mix(in srgb, var(--renk) 85%, #ededed); }
+[data-bs-theme="dark"] .is-durum.yapiliyor { color: #a6c4e1; }
+[data-bs-theme="dark"] .is-durum.bekliyor { color: #e4bea1; }
+[data-bs-theme="dark"] .is-durum.tamam { color: #afe8c4; }
+[data-bs-theme="dark"] .is-notlar li.claude .kim { color: #e6cda9; }
+[data-bs-theme="dark"] .ky-sekmeler .nav-link { color: #bac4d1; }
+[data-bs-theme="dark"] .ky-sekmeler .nav-link.active { color: #b9cde8; }
+[data-bs-theme="dark"] .ky-ozet-kutu { background: #111922; }
+[data-bs-theme="dark"] .ky-ozet-kutu b { color: #d2daef; }
+[data-bs-theme="dark"] .ky-ozet-kutu b small { color: #a0abbb; }
+[data-bs-theme="dark"] .ky-ozet-kutu span { color: #a0abbb; }
+[data-bs-theme="dark"] .ky-ara { background: #171c21; }
+[data-bs-theme="dark"] .ky-ara:focus-within { background: #111922; }
+[data-bs-theme="dark"] .ky-ara i { color: #a0abbb; }
+[data-bs-theme="dark"] .ky-cip { background: #111922; color: #c2ccdb; }
+[data-bs-theme="dark"] .ky-cip span { background: #1b2026; color: #bac4d1; }
+[data-bs-theme="dark"] .ky-cip.aktif span { background: rgba(13, 20, 29, .25); }
+[data-bs-theme="dark"] .ky-lejant { color: #bac4d1; }
+[data-bs-theme="dark"] .ky-lejant-not { color: #a0abbb; }
+[data-bs-theme="dark"] .ky-tablo th, [data-bs-theme="dark"] .ky-tablo td { border-bottom: 1px solid #283848; background: #111922; }
+[data-bs-theme="dark"] .ky-tablo thead th { background: #171c21; }
+[data-bs-theme="dark"] .ky-tablo th.ky-grup { color: #b9cde8; border-left: 1px solid #333a42; }
+[data-bs-theme="dark"] .ky-tablo .ky-sabit { border-right: 1px solid #333a42; }
+[data-bs-theme="dark"] .ky-tablo thead .ky-sabit-bas { color: #bac4d1; }
+[data-bs-theme="dark"] .ky-modul-dugme { color: #c2ccdb; }
+[data-bs-theme="dark"] .ky-modul-dugme i { color: #a6c4e1; }
+[data-bs-theme="dark"] .ky-modul-dugme:hover, [data-bs-theme="dark"] .ky-modul-dugme[aria-expanded="true"] { background: #1c2129; }
+[data-bs-theme="dark"] .ky-tablo tbody tr:hover th, [data-bs-theme="dark"] .ky-tablo tbody tr:hover td { background: #161d23; }
+[data-bs-theme="dark"] .ky-kisi:hover .ky-kisi-ad { color: #a6c4e1; }
+[data-bs-theme="dark"] .ky-kisi-alt { color: #a0abbb; }
+[data-bs-theme="dark"] .ky-kisi-alt code { color: #e9dab3; }
+[data-bs-theme="dark"] .ky-hucre { border: 1px solid #333a42; background: #171c21; }
+[data-bs-theme="dark"] .ky-hucre.s1 { background: #142531; border-color: #2e5467; color: #aad1e6; }
+[data-bs-theme="dark"] .ky-hucre.s2 { background: #163220; border-color: #346245; color: #afe8c4; }
+[data-bs-theme="dark"] .ky-gecmis li { border-bottom: 1px dashed #333a42; }
+[data-bs-theme="dark"] .ky-gecmis-ikon { background: #1b2026; color: #a6c4e1; }
+[data-bs-theme="dark"] .ky-gecmis-ikon.ekle { background: #163220; color: #afe8c4; }
+[data-bs-theme="dark"] .ky-profil-bas { background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--renk) 85%, #111922) 0%, var(--renk) 45%, #0f1f33 100%); }
+[data-bs-theme="dark"] .ky-tur-rozet { background: rgba(13, 20, 29, .16); }
+[data-bs-theme="dark"] .ky-profil-bas .ky-durum { background: rgba(13, 20, 29, .12); }
+[data-bs-theme="dark"] .ky-durum { background: #171c21; color: #c2ccdb; }
+[data-bs-theme="dark"] .ky-yetki-grup { color: #b9cde8; }
+[data-bs-theme="dark"] .ky-yetki-satir:hover { background: #161d23; }
+[data-bs-theme="dark"] .ky-yetki-satir.degisti { background: #2d2711; }
+[data-bs-theme="dark"] .ky-yetki-ad > i { color: #a6c4e1; }
+[data-bs-theme="dark"] .ky-miras-rozet { color: #a0abbb; }
+[data-bs-theme="dark"] .ky-seg { border: 1px solid #353c44; background: #171c21; }
+[data-bs-theme="dark"] .ky-seg label { color: #bac4d1; }
+[data-bs-theme="dark"] .ky-seg label:hover { background: #1c2129; }
+[data-bs-theme="dark"] .ky-guv { border-bottom: 1px dashed #333a42; }
+[data-bs-theme="dark"] .ky-guv span { color: #a0abbb; }
+[data-bs-theme="dark"] .ky-tur-secim label { background: #111922; }
+[data-bs-theme="dark"] .ky-tur-secim label span { color: #a0abbb; }
+[data-bs-theme="dark"] .ky-tam { color: #e9dab3; background: linear-gradient(90deg, #373017, #312a13 60%, transparent); border: 1px solid #5a5034; }
+[data-bs-theme="dark"] .pn-rozet { background: #1a2432; color: #bac4d1; }
+[data-bs-theme="dark"] .pn-sayi { background: #111922; }
+[data-bs-theme="dark"] .pn-uyari { color: #e4bea1; }
+[data-bs-theme="dark"] .pn-tamam { color: #afe8c4; }
+[data-bs-theme="dark"] .pn-salon .bi { color: #afe8c4; }
+[data-bs-theme="dark"] .pn-salon.dolu .bi { color: #e199b7; }
+[data-bs-theme="dark"] .dz-kart > p, [data-bs-theme="dark"] .dz-baslik p { color: #a0abbb; }
+[data-bs-theme="dark"] .dz-lejant { color: #a0abbb; }
+[data-bs-theme="dark"] .dz-kare.uyari { background: #341818; border: 1px solid #593131; }
+[data-bs-theme="dark"] .dz-not { color: #a0abbb; }
+[data-bs-theme="dark"] .dz-tablo th, [data-bs-theme="dark"] .dz-tablo td { border-bottom: 1px solid #323840; border-right: 1px solid #30363e; }
+[data-bs-theme="dark"] .dz-tablo thead th { background: #171d24; color: #c2ccdb; }
+[data-bs-theme="dark"] .dz-tablo tbody th.sol a:hover { color: #a6c4e1; }
+[data-bs-theme="dark"] .dz-tablo .dz-grup { color: #bac4d1; background: #161a21; }
+[data-bs-theme="dark"] .dz-tablo tr.grup-ilk > * { border-top: 2px solid #2c3b51; }
+[data-bs-theme="dark"] .dz-tablo td.uyari, [data-bs-theme="dark"] .dz-ozet .uyari { background: #2f1515; color: #e4a2a2; }
+[data-bs-theme="dark"] .dz-tablo tfoot td, [data-bs-theme="dark"] .dz-tablo tfoot th { background: #171d24; border-top: 2px solid #304053; }
+[data-bs-theme="dark"] .dz-donem { color: #a0abbb; }
+[data-bs-theme="dark"] .dz-ayar-form label { color: #a0abbb; }
+[data-bs-theme="dark"] .dz-ozet > div { background: #111922; }
+[data-bs-theme="dark"] .dz-ozet span { color: #a0abbb; }
+[data-bs-theme="dark"] .dz-liste th, [data-bs-theme="dark"] .dz-liste td { border-bottom: 1px solid #283848; }
+[data-bs-theme="dark"] .dz-liste thead th { color: #bac4d1; background: #171c21; }
+[data-bs-theme="dark"] .dz-liste tfoot th, [data-bs-theme="dark"] .dz-liste tfoot td { background: #171c21; }
+[data-bs-theme="dark"] .dz-ad-kutu:hover, [data-bs-theme="dark"] .dz-ad-kutu:focus { border-color: #304053; }
+[data-bs-theme="dark"] .dz-kaydet-cubuk { background: linear-gradient(transparent, var(--km-zemin, #151c27) 35%); }
+[data-bs-theme="dark"] .dz-ekle label { color: #a0abbb; }
+[data-bs-theme="dark"] .dz-onek { color: #bac4d1; }
+[data-bs-theme="dark"] .dz-kadro { background: #1a2432; color: #c2ccdb; }
+[data-bs-theme="dark"] .dz-kadro.k-sb { background: #1c2530; color: #b9cde8; }
+[data-bs-theme="dark"] .dz-kadro.k-asb { background: #1f3032; color: #b7e2ea; }
+[data-bs-theme="dark"] .dz-kadro.k-sivil { background: #39331d; color: #ebddb8; }
+[data-bs-theme="dark"] .dz-kadro.k-yedek { background: #231b2c; color: #bea8e4; }
+[data-bs-theme="dark"] .dz-suzgec label { color: #a0abbb; }
+[data-bs-theme="dark"] .mp-satir > label { color: #a0abbb; }
+[data-bs-theme="dark"] .mp-saatler { color: #a0abbb; }
+[data-bs-theme="dark"] .mp-cip { border: 1px solid #304053; background: #111922; color: #c2ccdb; }
+[data-bs-theme="dark"] .mp-kategoriler legend { color: #a0abbb; }
+[data-bs-theme="dark"] .mp-sayi { background: #111922; }
+[data-bs-theme="dark"] .mp-sayi b { color: #d2daef; }
+[data-bs-theme="dark"] .mp-sayi b small { color: #a0abbb; }
+[data-bs-theme="dark"] .mp-sayi span { color: #a0abbb; }
+[data-bs-theme="dark"] .mp-sayi.ana { background: #14291a; }
+[data-bs-theme="dark"] .mp-sayi.ana b { color: #afe8c4; }
+[data-bs-theme="dark"] .mp-grup-ad { color: #bac4d1; border-bottom: 1px solid #333a42; }
+[data-bs-theme="dark"] .mp-tablo td { border-bottom: 1px solid #2e373f; }
+[data-bs-theme="dark"] .mp-kat { background: #1a2432; color: #c2ccdb; }
+[data-bs-theme="dark"] .mp-kat.k-subay { background: #1c2530; color: #b9cde8; }
+[data-bs-theme="dark"] .mp-kat.k-astsubay { background: #1f3032; color: #b7e2ea; }
+[data-bs-theme="dark"] .mp-kat.k-akademik { background: #39331d; color: #ebddb8; }
+[data-bs-theme="dark"] .mp-kat.k-memur { background: #231b2c; color: #bea8e4; }
+[data-bs-theme="dark"] .mp-mesgul li { border-bottom: 1px solid #2e373f; }
+[data-bs-theme="dark"] .mp-neden { color: #a0abbb; }
+[data-bs-theme="dark"] .mp-neden.n-izin i { color: #e19999; }
+[data-bs-theme="dark"] .mp-neden.n-ders i { color: #a6c4e1; }
+[data-bs-theme="dark"] .mp-neden.n-sinav i { color: #e4bea1; }
+[data-bs-theme="dark"] .mp-not { color: #a0abbb; }
+[data-bs-theme="dark"] .yk-tur-dugme.secili .yk-nokta { background: #111922; }
+[data-bs-theme="dark"] .ts-dropdown .optgroup-header { color: #a0abbb; }
+[data-bs-theme="dark"] .yk-hazir-saat { background: #111922; }
+[data-bs-theme="dark"] .mz-durum-kutu { background: #111922; }
+[data-bs-theme="dark"] .mz-durum-kutu span { color: #a0abbb; }
+[data-bs-theme="dark"] .mz-durum-kutu.eksik { border-color: #5c2a2a; background: #291212; }
+[data-bs-theme="dark"] .mz-durum-kutu.eksik b { color: #e19999; }
+[data-bs-theme="dark"] .mz-durum-kutu.tamam { border-color: #346245; background: #14291a; }
+[data-bs-theme="dark"] .mz-durum-kutu.tamam b { color: #afe8c4; }
+[data-bs-theme="dark"] .mz-tablo th, [data-bs-theme="dark"] .mz-tablo td { background: #111922; }
+[data-bs-theme="dark"] .mz-tablo thead th { background: #171c21; color: #bac4d1; }
+[data-bs-theme="dark"] .mz-tablo .mz-gun { border-bottom: 1px solid #333a42; }
+[data-bs-theme="dark"] .mz-tablo .mz-gun-bas { border-left: 2px solid #333a42; }
+[data-bs-theme="dark"] .mz-tablo .mz-kisi, [data-bs-theme="dark"] .mz-tablo .mz-kisi-bas { border-right: 1px solid #333a42; }
+[data-bs-theme="dark"] .mz-tablo .mz-aciklama-bas { border-left: 2px solid #333a42; }
+[data-bs-theme="dark"] .mz-tablo .mz-aciklama { border-left: 2px solid #333a42; }
+[data-bs-theme="dark"] .mz-tablo tbody tr:hover th, [data-bs-theme="dark"] .mz-tablo tbody tr:hover td { background: #171c21; }
+[data-bs-theme="dark"] .vk-baslik { color: #c2ccdb; }
+[data-bs-theme="dark"] .vk-kart { background: #111922; }
+[data-bs-theme="dark"] .vk-rozet { background: #163220; color: #b8ebcb; }
+[data-bs-theme="dark"] .vk-rozet.vk-son { background: #3b3417; color: #e7c2ac; }
+[data-bs-theme="dark"] .vk-rozet.vk-bekliyor { background: #142233; color: #9cace2; }
+[data-bs-theme="dark"] .vk-rozet.vk-acik { background: #18132d; }
+[data-bs-theme="dark"] .vk-kisi small { color: #a0abbb; }
+[data-bs-theme="dark"] .vk-alt { color: #a0abbb; }
+[data-bs-theme="dark"] .vk-izin-cip { border: 1px solid #322859; background: #14102a; }
+[data-bs-theme="dark"] .vk-izin-cip:hover { background: #18132d; }
+[data-bs-theme="dark"] .durum-rozet.vk-d-baslayacak { background: #142233; color: #9cace2; }
+[data-bs-theme="dark"] .vk-not { background: #3b3417; color: #e7c2ac; }
+[data-bs-theme="dark"] .vk-not-vekil { background: #131a31; color: #9e9ae1; border-color: #252f55; }
+[data-bs-theme="dark"] .bildirim-baglanti { color: #b0cbe5; }
+[data-bs-theme="dark"] .bildirim-ayar-dugme { color: #bac4d1; }
+[data-bs-theme="dark"] .bildirim-ayar-dugme:hover { background: #1b2026; color: #cfd8e4; }
+[data-bs-theme="dark"] .bildirim-gun { color: #a0abbb; }
+[data-bs-theme="dark"] .bildirim-satir { border-top: 1px solid #2e373f; }
+[data-bs-theme="dark"] .bildirim-satir:hover { background: #181d23; }
+[data-bs-theme="dark"] .bildirim-satir.okunmamis { background: #161d26; }
+[data-bs-theme="dark"] .bildirim-baslik { color: #cfd8e4; }
+[data-bs-theme="dark"] .bildirim-metin { color: #bac4d1; }
+[data-bs-theme="dark"] .bildirim-bos { color: #a0abbb; }
+[data-bs-theme="dark"] .bildirim-alt { color: #a0abbb; }
+[data-bs-theme="dark"] .bildirim-ayar { border-top: 1px solid #2e373f; }
+[data-bs-theme="dark"] .bildirim-tost { background: #111922; }
+[data-bs-theme="dark"] .bildirim-tost-alt { color: #a0abbb; }
+[data-bs-theme="dark"] .bildirim-tost-alt a { color: #b0cbe5; }
+[data-bs-theme="dark"] .bildirim-tost-alt button { color: #a0abbb; }
+[data-bs-theme="dark"] .bildirim-tost-alt button:hover { color: #cfd8e4; }

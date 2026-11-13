@@ -1,0 +1,160 @@
+{% extends "timetable/base.html" %}
+{% block title %}Kalite karnesi · {{ timetable.name }}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{{ grid_url }}">{{ timetable.name }}</a>{% endblock %}
+{% block heading %}<h1>Kalite karnesi</h1>{% endblock %}
+{% block actions %}
+  <div class="seg">
+    <a class="btn{% if kind == 'ogretmen' %} btn-primary{% endif %}" href="?tur=ogretmen">Öğretmenler</a>
+    <a class="btn{% if kind == 'sinif' %} btn-primary{% endif %}" href="?tur=sinif">Sınıflar</a>
+  </div>
+  <a class="btn" href="{% url 'timetable:program_compare' timetable.pk %}">{% include "timetable/icon.html" with name="columns" %} Başka programla karşılaştır</a>
+  {% if can.program %}<a class="btn" href="{% url 'timetable:school_improve' timetable.pk %}">{% include "timetable/icon.html" with name="wand" %} Bütün okulu iyileştir</a>{% endif %}
+{% endblock %}
+{% block content %}
+{% with s=data.summary %}
+<div class="q-summary">
+  <div class="q-card q-score"><span>Toplam ceza puanı</span><b>{{ s.score }}</b><small>{{ s.count }} {% if kind == "ogretmen" %}öğretmen{% else %}sınıf{% endif %} · küçük olan iyi</small></div>
+  <div class="q-card"><span>Boşluk saati</span><b>{{ s.gaps }}</b><small>{{ s.with_gaps }} kişide</small></div>
+  {% if kind == "ogretmen" %}
+    <div class="q-card"><span>Tek ders için gelinen gün</span><b>{{ s.single_days }}</b><small>okula yalnızca 1 saat için gelinen günler</small></div>
+    <div class="q-card"><span>Gereğinden fazla gün</span><b>{{ s.extra_days }}</b><small>ders saati daha az güne sığabilirken</small></div>
+  {% else %}
+    <div class="q-card"><span>Geç başlanan gün</span><b>{{ s.late_days }}</b><small>günün ilk saati boş</small></div>
+  {% endif %}
+  <a class="q-card" href="{% url 'timetable:pending' timetable.pk %}"><span>Yerleşmemiş saat</span><b>{{ s.unplaced }}</b><small>nedenleri ve çözüm yolları →</small></a>
+  <div class="q-card q-levels">
+    <span>Dağılım</span>
+    <div class="q-bar">
+      {% if s.levels.iyi %}<i class="lv-iyi" style="flex:{{ s.levels.iyi }}" title="İyi: {{ s.levels.iyi }}"></i>{% endif %}
+      {% if s.levels.orta %}<i class="lv-orta" style="flex:{{ s.levels.orta }}" title="Orta: {{ s.levels.orta }}"></i>{% endif %}
+      {% if s.levels.kotu %}<i class="lv-kotu" style="flex:{{ s.levels.kotu }}" title="Kötü: {{ s.levels.kotu }}"></i>{% endif %}
+    </div>
+    <small><b class="t-iyi">{{ s.levels.iyi }}</b> iyi · <b class="t-orta">{{ s.levels.orta }}</b> orta · <b class="t-kotu">{{ s.levels.kotu }}</b> kötü</small>
+  </div>
+</div>
+{% endwith %}
+
+<form method="post" id="q-form">
+  {% csrf_token %}
+  <input type="hidden" name="tur" value="{{ kind }}">
+  <div class="q-toolbar">
+    <input class="input" type="search" placeholder="Ara…" data-q-search>
+    <div class="seg-radio" data-q-level>
+      <label><input type="radio" name="seviye" value="" checked> Tümü</label>
+      <label><input type="radio" name="seviye" value="kotu"> Kötü</label>
+      <label><input type="radio" name="seviye" value="orta"> Orta</label>
+      <label><input type="radio" name="seviye" value="iyi"> İyi</label>
+    </div>
+    {% if can.program %}
+      <div class="q-improve">
+        <span class="subtle small" data-q-count>0 seçili</span>
+        <button type="button" class="btn btn-sm" data-q-worst title="Boşluk ve gün sorunu en çok olan 10 kişi (bekleyen kartlar iyileştirmeyle çözülmez)">En sorunlu 10'u seç</button>
+        <label class="small">En fazla <input class="input input-sm q-num" type="number" name="en_fazla" value="12" min="2" max="60"> ders oynat</label>
+        <label class="small">Süre <input class="input input-sm q-num" type="number" name="sure" value="30" min="10" max="120"> sn</label>
+        <button class="btn btn-primary" data-q-run disabled>{% include "timetable/icon.html" with name="wand" %} Seçilenleri iyileştir</button>
+      </div>
+    {% endif %}
+  </div>
+
+  <div class="panel">
+    <div class="table-wrap">
+      <table class="table q-table" data-q-table>
+        <thead><tr>
+          {% if can.program %}<th class="q-check"><input type="checkbox" data-q-all aria-label="Görünenlerin tümünü seç"></th>{% endif %}
+          <th data-sort="name">{% if kind == "ogretmen" %}Öğretmen{% else %}Sınıf{% endif %}</th>
+          <th data-sort="score" class="num">Puan</th>
+          <th data-sort="hours" class="num">Saat</th>
+          <th data-sort="days" class="num">Gün</th>
+          <th data-sort="gaps" class="num">Boşluk</th>
+          {% if kind == "ogretmen" %}<th data-sort="single_days" class="num">Tek saatlik gün</th><th data-sort="extra_days" class="num">Fazla gün</th>{% else %}<th data-sort="late_days" class="num">Geç başlama</th>{% endif %}
+          <th data-sort="unplaced" class="num">Bekleyen</th>
+          <th data-sort="hard" class="num">İhlal</th>
+          <th></th>
+        </tr></thead>
+        <tbody>
+          {% for r in data.rows %}
+            <tr data-level="{{ r.level }}" data-name="{{ r.name|fold }} {{ r.sub|fold }}"
+                data-score="{{ r.score }}" data-fixable="{{ r.fixable }}" data-hours="{{ r.hours }}" data-days="{{ r.days }}" data-gaps="{{ r.gaps }}"
+                data-single_days="{{ r.single_days }}" data-extra_days="{{ r.extra_days }}" data-late_days="{{ r.late_days }}"
+                data-unplaced="{{ r.unplaced }}" data-hard="{{ r.hard }}">
+              {% if can.program %}<td class="q-check"><input type="checkbox" name="secim" value="{{ r.id }}" aria-label="{{ r.name }} seç"></td>{% endif %}
+              <td><b>{{ r.name }}</b>{% if r.sub %}<div class="subtle small">{{ r.sub }}</div>{% endif %}</td>
+              <td class="num"><span class="q-pill lv-{{ r.level }}">{{ r.score }}</span></td>
+              <td class="num">{{ r.hours }}</td>
+              <td class="num">{{ r.days }}</td>
+              <td class="num">{% if r.gaps %}<b>{{ r.gaps }}</b>{% if r.max_gaps > 1 %} <span class="subtle small">(günde ≤{{ r.max_gaps }})</span>{% endif %}{% else %}<span class="subtle">0</span>{% endif %}</td>
+              {% if kind == "ogretmen" %}
+                <td class="num">{% if r.single_days %}<b>{{ r.single_days }}</b>{% else %}<span class="subtle">0</span>{% endif %}</td>
+                <td class="num">{% if r.extra_days %}<b>{{ r.extra_days }}</b>{% else %}<span class="subtle">0</span>{% endif %}</td>
+              {% else %}
+                <td class="num">{% if r.late_days %}<b>{{ r.late_days }}</b>{% else %}<span class="subtle">0</span>{% endif %}</td>
+              {% endif %}
+              <td class="num">{% if r.unplaced %}<span class="bad"><b>{{ r.unplaced }}</b></span>{% else %}<span class="subtle">0</span>{% endif %}</td>
+              <td class="num">{% if r.hard or r.soft %}<span class="bad" title="{{ r.issues|join:'&#10;' }}"><b>{{ r.hard }}</b>{% if r.soft %}+{{ r.soft }}{% endif %}</span>{% else %}<span class="subtle">0</span>{% endif %}</td>
+              <td class="num nowrap"><a class="btn btn-sm" href="{{ grid_url }}?tur={{ kind }}&ara={{ r.search|urlencode }}">Görünümde aç</a></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="11" class="empty">Programda yerleşmiş ders yok.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</form>
+<p class="subtle small">Puan: boşluk saati × {{ weights.gaps }}, tek ders için gelinen gün × {{ weights.single_days }}, gereğinden fazla gün × {{ weights.extra_days }}, geç başlanan gün × {{ weights.late_days }}, bekleyen saat × {{ weights.unplaced }}, kesin ihlal × {{ weights.hard }}, tercih ihlali × {{ weights.soft }}. 0–3 iyi, 4–10 orta, üstü kötü. <b>İyileştir</b> seçilenlerin boşluklarını ve okula geldiği gün sayısını en az ders oynatarak azaltan bir öneri hazırlar; öneri çözüm merkezinde önizlenir, uygulanırsa geri alınabilir.</p>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const table = document.querySelector("[data-q-table]");
+  if (!table) return;
+  const body = table.tBodies[0];
+  const rows = [...body.querySelectorAll("tr[data-level]")];
+  const search = document.querySelector("[data-q-search]");
+  const levelBox = document.querySelector("[data-q-level]");
+  const count = document.querySelector("[data-q-count]");
+  const run = document.querySelector("[data-q-run]");
+  const filter = () => {
+    const q = search.value.trim().toLocaleLowerCase("tr").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ı/g, "i");
+    const level = levelBox.querySelector("input:checked").value;
+    rows.forEach((r) => { r.hidden = (q && !r.dataset.name.includes(q)) || (level && r.dataset.level !== level); });
+  };
+  search.addEventListener("input", filter);
+  levelBox.addEventListener("change", filter);
+  // Başlığa tıklayınca sırala (ikinci tık ters)
+  let sortKey = "score", dir = -1;
+  table.tHead.addEventListener("click", (e) => {
+    const th = e.target.closest("th[data-sort]");
+    if (!th) return;
+    const key = th.dataset.sort;
+    dir = key === sortKey ? -dir : (key === "name" ? 1 : -1);
+    sortKey = key;
+    rows.sort((a, b) => key === "name" ? dir * a.dataset.name.localeCompare(b.dataset.name, "tr") : dir * (Number(a.dataset[key]) - Number(b.dataset[key])));
+    rows.forEach((r) => body.appendChild(r));
+    table.querySelectorAll("th[data-sort]").forEach((h) => h.classList.toggle("sorted", h === th));
+  });
+  // Seçim ve iyileştirme
+  const boxes = () => rows.map((r) => r.querySelector("input[name=secim]")).filter(Boolean);
+  const update = () => {
+    const n = boxes().filter((b) => b.checked).length;
+    if (count) count.textContent = n + " seçili";
+    if (run) run.disabled = n === 0;
+  };
+  table.addEventListener("change", update);
+  const all = document.querySelector("[data-q-all]");
+  if (all) all.addEventListener("change", () => { rows.forEach((r) => { const b = r.querySelector("input[name=secim]"); if (b && !r.hidden) b.checked = all.checked; }); update(); });
+  const worst = document.querySelector("[data-q-worst]");
+  if (worst) worst.addEventListener("click", () => {
+    boxes().forEach((b) => { b.checked = false; });
+    [...rows].filter((r) => Number(r.dataset.fixable) > 0).sort((a, b) => Number(b.dataset.fixable) - Number(a.dataset.fixable)).slice(0, 10).forEach((r) => { r.querySelector("input[name=secim]").checked = true; });
+    update();
+  });
+  document.getElementById("q-form").addEventListener("submit", () => {
+    const secs = document.querySelector("[name=sure]").value;
+    run.disabled = true;
+    run.textContent = "Hesaplanıyor… (en fazla " + secs + " sn)";
+  });
+  update();
+})();
+</script>
+{% endblock %}

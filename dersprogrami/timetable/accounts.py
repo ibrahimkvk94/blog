@@ -1,0 +1,464 @@
+"""Merkez paneli, okul kullanıcıları ve hesap ayarları (çok okullu yapı)."""
+
+import time
+
+from django import forms
+from django.contrib import messages
+from django.contrib.auth import login as auth_login, update_session_auth_hash
+from django.contrib.auth import views as auth_views
+from django.contrib.auth.decorators import login_not_required
+from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib.auth import get_user_model
+User = get_user_model()  # KAMYOSİS: özel kullanıcı modeli
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
+from django.db import transaction
+from django.db.models import Count, Q
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.views.decorators.cache import never_cache
+from django.views.decorators.debug import sensitive_post_parameters
+from django.views.decorators.http import require_POST
+
+from . import modules, two_factor
+from .access import account_is_local, client_ip, grantable, institution_permissions
+from .counts import related_count
+from .data_views import default_periods
+from .models import AuditLog, Institution, Membership, School
+from .views import _nav
+
+M = Membership
+
+
+class NewUserForm(forms.Form):
+    username = forms.CharField(label="Kullanıcı adı", max_length=150)
+    first_name = forms.CharField(label="Ad", max_length=150, required=False)
+    last_name = forms.CharField(label="Soyad", max_length=150, required=False)
+    password = forms.CharField(label="Parola", widget=forms.PasswordInput, required=False,
+                               help_text="Var olan bir kullanıcıyı eklerken boş bırakın.")
+
+    def __init__(self, *args, choices=(), **kwargs):
+        super().__init__(*args, **kwargs)
+        # Tüm yetkiler kabul edilir; verenin sahip olmadığı yetkiler kayıtta süzülür (_create_or_attach).
+        self.fields["permissions"] = forms.MultipleChoiceField(
+            label="Yetkiler", choices=M.PERMISSIONS, required=False, widget=forms.CheckboxSelectMultiple
+        )
+        for name, field in self.fields.items():
+            if not isinstance(field.widget, forms.CheckboxSelectMultiple):
+                field.widget.attrs["class"] = "input"
+
+
+def _perm_choices(allowed):
+    return [(key, label) for key, label in M.PERMISSIONS if key in allowed and key != M.VIEW]
+
+
+def _create_or_attach(form, institution, granter, allowed, programs=(), module_keys=()):
+    """Formdaki kullanıcıyı oluşturur ya da var olanı okula ekler. Dönüş: (membership, hata)."""
+    data = form.cleaned_data
+    username = data["username"].strip()
+    perms = [p for p in data["permissions"] if p in allowed]
+    user = User.objects.filter(username=username).first()
+    if user is None:
+        if not data["password"]:
+            return None, "Yeni kullanıcı için parola girin."
+        try:
+            validate_password(data["password"])
+        except ValidationError as exc:
+            return None, " ".join(exc.messages)
+        user = User.objects.create_user(username, password=data["password"],
+                                        first_name=data["first_name"], last_name=data["last_name"])
+    elif M.objects.filter(user=user, institution=institution).exists():
+        return None, f"{username} zaten bu kurumun kullanıcısı."
+    elif user.is_superuser:
+        return None, "Merkez yönetici kurum kullanıcısı olarak eklenemez."
+    elif not granter.is_superuser and not account_is_local(user, institution):
+        # Başka kurumun hesabını kendi kurumuna bağlayıp parolasını sıfırlamanın önü kesilir.
+        return None, (f"{username} kullanıcı adı başka bir kurumda kullanılıyor. Var olan bu hesabı yalnızca merkez "
+                      "yönetici ekleyebilir; yeni kullanıcı için başka bir ad seçin.")
+    membership = M.objects.create(user=user, institution=institution, permissions=perms, granted_by=granter,
+                                  modules=list(module_keys))
+    if programs:
+        membership.programs.set(programs)
+    return membership, None
+
+
+def _can_manage(request, institution, membership):
+    """Başkasının yetkisini yalnızca, onun yetkileri kendi yetkilerinin alt kümesiyse değiştirebilir."""
+    if request.user.is_superuser:
+        return True
+    if membership.user_id == request.user.id or membership.user.is_superuser:
+        return False
+    if not membership.perms <= institution_permissions(request.user, institution):
+        return False
+    return modules.allowed_keys(membership) <= _own_modules(request, institution)
+
+
+def _own_modules(request, institution):
+    if request.user.is_superuser:
+        return set(modules.keys())
+    own = M.objects.filter(user=request.user, institution=institution).first()
+    return modules.allowed_keys(own) if own else set()
+
+
+def _selected_modules(request, institution):
+    """Seçilen modüller (hiçbiri = tümü). Modülleri kısıtlı kullanıcı yalnızca kendi modüllerini verebilir;
+    hiçbirini seçmezse "tümü" yerine kendi modülleri yazılır (yetki devri kuralı)."""
+    own = _own_modules(request, institution)
+    chosen = [k for k in modules.keys() if k in request.POST.getlist("modules") and k in own]
+    if not chosen and own != set(modules.keys()):
+        chosen = [k for k in modules.keys() if k in own]
+    return chosen
+
+
+def _selected_programs(request, institution):
+    ids = [int(x) for x in request.POST.getlist("programs") if str(x).isdigit()]
+    return list(institution.programs.filter(pk__in=ids))
+
+
+def school_users(request, pk):
+    """Eski adres: programın kurumunun kullanıcı sayfasına yönlendirir."""
+    school = get_object_or_404(School, pk=pk)
+    return redirect("timetable:institution_users", pk=school.institution_id)
+
+
+def institution_users(request, pk):
+    institution = get_object_or_404(Institution, pk=pk)
+    allowed = grantable(request.user, institution)
+    choices = _perm_choices(allowed)
+    form = NewUserForm(request.POST or None, choices=choices)
+    if request.method == "POST":
+        action = request.POST.get("action", "add")
+        if action == "add":
+            if form.is_valid():
+                membership, error = _create_or_attach(
+                    form, institution, request.user, allowed, _selected_programs(request, institution),
+                    _selected_modules(request, institution),
+                )
+                if error:
+                    messages.error(request, error)
+                else:
+                    messages.success(request, f"{membership.user.username} eklendi.")
+                    return redirect("timetable:institution_users", pk=institution.pk)
+        else:
+            membership = get_object_or_404(M, pk=request.POST.get("membership"), institution=institution)
+            if not _can_manage(request, institution, membership):
+                messages.error(request, "Bu kullanıcının yetkilerini değiştiremezsiniz (kendiniz ya da sizden yetkili).")
+            elif action == "update":
+                membership.permissions = [p for p in request.POST.getlist("permissions") if p in allowed]
+                membership.modules = _selected_modules(request, institution)
+                membership.save(update_fields=["permissions", "modules"])
+                membership.programs.set(_selected_programs(request, institution))
+                messages.success(request, f"{membership.user.username} yetkileri güncellendi.")
+            elif action == "remove":
+                membership.delete()
+                messages.info(request, f"{membership.user.username} kurumdan çıkarıldı.")
+            elif action == "password":
+                user = membership.user
+                if user.memberships.exclude(institution=institution).exists() and not request.user.is_superuser:
+                    messages.error(request, "Başka kurumlarda da kayıtlı kullanıcının parolasını yalnızca merkez değiştirebilir.")
+                else:
+                    try:
+                        validate_password(request.POST.get("password", ""), user)
+                    except ValidationError as exc:
+                        messages.error(request, " ".join(exc.messages))
+                    else:
+                        user.set_password(request.POST["password"])
+                        user.save(update_fields=["password"])
+                        messages.success(request, f"{user.username} parolası değiştirildi.")
+            elif action == "two_factor_reset":
+                user = membership.user
+                if user.memberships.exclude(institution=institution).exists() and not request.user.is_superuser:
+                    messages.error(request, "Başka kurumlarda da kayıtlı kullanıcının iki adımlı girişini yalnızca merkez kaldırabilir.")
+                else:
+                    two_factor.disable(user)
+                    messages.success(request, f"{user.username} için iki adımlı giriş kaldırıldı; yalnızca parolayla girecek.")
+            return redirect("timetable:institution_users", pk=institution.pk)
+    members = []
+    secured = set(two_factor.TwoFactor.objects.filter(user__memberships__institution=institution, confirmed_at__isnull=False)
+                  .values_list("user_id", flat=True))
+    for m in institution.memberships.select_related("user", "granted_by").prefetch_related("programs"):
+        members.append({"m": m, "manageable": _can_manage(request, institution, m), "two_factor": m.user_id in secured,
+                        "program_ids": [p.pk for p in m.programs.all()],
+                        "module_titles": [title for key, title in modules.choices() if key in (m.modules or [])]})
+    return render(request, "timetable/users.html", {
+        "institution": institution, "nav": "users", "form": form, "members": members, "choices": choices,
+        "programs": list(institution.programs.order_by("name")),
+        "module_choices": [(k, title) for k, title in modules.choices() if k in _own_modules(request, institution)],
+    })
+
+
+def central(request):
+    """Merkez paneli: tüm kurumlar, kurum ekleme ve kurum yöneticisi atama."""
+    schools = Institution.objects.annotate(
+        n_users=related_count(Membership, "institution"), n_programs=related_count(School, "institution"),
+    ).order_by("name")
+    users = User.objects.annotate(n_schools=Count("memberships")).order_by("-is_superuser", "username")
+    form = NewUserForm(choices=_perm_choices(set(M.ALL)), initial={"permissions": M.ALL})
+    return render(request, "timetable/central.html", {"schools": schools, "users": users, "form": form, "nav": "central"})
+
+
+@require_POST
+def central_school_new(request):
+    name = (request.POST.get("school_name") or "").strip()
+    form = NewUserForm(request.POST, choices=_perm_choices(set(M.ALL)))
+    if not name:
+        messages.error(request, "Okul adı girin.")
+        return redirect("timetable:central")
+    with transaction.atomic():
+        school = Institution.objects.create(name=name[:200])
+        program_name = (request.POST.get("program_name") or "").strip()
+        if program_name:
+            default_periods(School.objects.create(institution=school, name=program_name[:200]))
+        if form.is_valid() and form.cleaned_data["username"].strip():
+            membership, error = _create_or_attach(form, school, request.user, set(M.ALL))
+            if error:
+                transaction.set_rollback(True)
+                messages.error(request, error)
+                return redirect("timetable:central")
+            messages.success(request, f"{school} oluşturuldu; yönetici: {membership.user.username}.")
+        else:
+            messages.success(request, f"{school} oluşturuldu.")
+    return redirect("timetable:central")
+
+
+class LoginView(auth_views.LoginView):
+    """Parola doğruysa ve kullanıcı iki adımlı girişi açtıysa oturum açılmaz: kod sayfasına geçilir."""
+
+    template_name = "timetable/login.html"
+    redirect_authenticated_user = True
+
+    def form_valid(self, form):
+        user = form.get_user()
+        if not two_factor.is_enabled(user):
+            return super().form_valid(form)
+        self.request.session[two_factor.PENDING] = {
+            "user": user.pk, "backend": user.backend, "next": self.get_success_url(), "at": time.time(), "tries": 0}
+        return redirect("timetable:login_verify")
+
+
+@login_not_required
+@sensitive_post_parameters()
+@never_cache
+def login_verify(request):
+    pending = request.session.get(two_factor.PENDING)
+    user = None
+    if pending and time.time() - pending.get("at", 0) <= two_factor.PENDING_SECONDS:
+        user = User.objects.filter(pk=pending.get("user"), is_active=True).first()
+    record = two_factor.device(user) if user else None
+    if record is None:
+        request.session.pop(two_factor.PENDING, None)
+        if pending:
+            messages.error(request, "Doğrulama süresi doldu; lütfen yeniden giriş yapın.")
+        return redirect("timetable:login")
+    error = ""
+    if request.method == "POST":
+        how = two_factor.verify(record, request.POST.get("code"))
+        if how:
+            del request.session[two_factor.PENDING]
+            auth_login(request, user, backend=pending["backend"])
+            if how == "recovery":
+                messages.warning(request, f"Bir kurtarma kodu kullandınız; {len(record.recovery_codes)} kod kaldı. "
+                                          "Hesabım sayfasından yenilerini alabilirsiniz.")
+            return redirect(pending["next"])
+        AuditLog.objects.create(user=user, username=user.get_username(), action="Hatalı doğrulama kodu", ip=client_ip(request))
+        pending["tries"] += 1
+        if pending["tries"] >= two_factor.MAX_TRIES:
+            del request.session[two_factor.PENDING]
+            messages.error(request, "Çok fazla hatalı kod girildi; lütfen yeniden giriş yapın.")
+            return redirect("timetable:login")
+        request.session[two_factor.PENDING] = pending
+        error = "Kod hatalı ya da süresi geçmiş. Uygulamadaki güncel kodu girin."
+    return render(request, "timetable/login_verify.html", {"error": error, "username": user.get_username()})
+
+
+def account(request):
+    form = PasswordChangeForm(request.user, request.POST or None)
+    for field in form.fields.values():
+        field.widget.attrs["class"] = "input"
+    if request.method == "POST" and form.is_valid():
+        user = form.save()
+        update_session_auth_hash(request, user)
+        messages.success(request, "Parolanız değiştirildi.")
+        return redirect("timetable:account")
+    memberships = request.user.memberships.select_related("institution").prefetch_related("programs")
+    record = two_factor.device(request.user)
+    setup = None if record else two_factor.setup_record(request.user)
+    return render(request, "timetable/account.html", {
+        "form": form, "memberships": memberships, "nav": "account",
+        "two_factor": record, "recovery_left": len(record.recovery_codes) if record else 0,
+        "setup": setup and {"qr": two_factor.qr_svg(setup), "secret": two_factor.spaced_secret(setup)},
+        "recovery_codes": request.session.pop("two_factor_codes", None),
+    })
+
+
+@require_POST
+@sensitive_post_parameters()
+def account_two_factor(request):
+    """Hesabım → İki adımlı giriş: kur / doğrula / vazgeç / kurtarma kodlarını yenile / kapat."""
+    action = request.POST.get("action")
+    user = request.user
+    record = two_factor.device(user)
+    if action == "start" and record is None:
+        two_factor.start_setup(user)
+    elif action == "cancel" and record is None:
+        two_factor.disable(user)
+    elif action == "confirm" and record is None:
+        setup = two_factor.setup_record(user)
+        codes = setup and two_factor.confirm_setup(setup, request.POST.get("code"))
+        if codes:
+            request.session["two_factor_codes"] = codes
+            AuditLog.objects.create(user=user, username=user.get_username(), action="İki adımlı girişi açtı", ip=client_ip(request))
+            messages.success(request, "İki adımlı giriş açıldı. Bundan sonra girişte uygulamadaki kod da sorulacak.")
+        else:
+            messages.error(request, "Kod doğrulanamadı. Uygulamadaki güncel 6 haneli kodu girin (telefonun saati doğru olmalı).")
+    elif action in ("disable", "recovery") and record is not None:
+        if not user.check_password(request.POST.get("password", "")):
+            messages.error(request, "Parola hatalı.")
+        elif action == "disable":
+            two_factor.disable(user)
+            AuditLog.objects.create(user=user, username=user.get_username(), action="İki adımlı girişi kapattı", ip=client_ip(request))
+            messages.info(request, "İki adımlı giriş kapatıldı; girişte yalnızca parola sorulacak.")
+        else:
+            request.session["two_factor_codes"] = two_factor.new_recovery_codes(record)
+            messages.success(request, "Yeni kurtarma kodları oluşturuldu; eskileri artık geçmez.")
+    return redirect(reverse("timetable:account") + "#iki-adimli")
+
+
+def _audit_page(request, qs, context):
+    from django.core.paginator import Paginator
+
+    q = (request.GET.get("q") or "").strip()
+    user = (request.GET.get("kullanici") or "").strip()
+    program = request.GET.get("program") or ""
+    start, end = request.GET.get("bas") or "", request.GET.get("bit") or ""
+    if q:
+        qs = qs.filter(Q(action__icontains=q) | Q(detail__icontains=q) | Q(program_name__icontains=q))
+    if user:
+        qs = qs.filter(username__iexact=user)
+    if program.isdigit():
+        qs = qs.filter(school_id=program)
+    if start:
+        qs = qs.filter(created_at__date__gte=start)
+    if end:
+        qs = qs.filter(created_at__date__lte=end)
+    page = Paginator(qs, 100).get_page(request.GET.get("sayfa"))
+    usernames = sorted(set(qs.values_list("username", flat=True)))
+    query = request.GET.copy()
+    query.pop("sayfa", None)
+    return render(request, "timetable/audit.html", {
+        **context, "page": page, "usernames": usernames, "filters": {"q": q, "kullanici": user, "program": program, "bas": start, "bit": end},
+        "query": query.urlencode(),
+    })
+
+
+def institution_log(request, pk):
+    from .models import AuditLog
+
+    institution = get_object_or_404(Institution, pk=pk)
+    qs = AuditLog.objects.filter(institution=institution)
+    return _audit_page(request, qs, {"institution": institution, "nav": "audit", "programs": institution.programs.order_by("name")})
+
+
+def central_log(request):
+    from .models import AuditLog
+
+    return _audit_page(request, AuditLog.objects.all(), {"nav": "central", "central": True})
+
+
+def backups(request):
+    """Merkez → Yedekler: şimdi yedek al, indir, sil."""
+    from django.http import FileResponse, Http404
+
+    from . import backup
+
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if action == "delete":
+            path = backup.path_of(request.POST.get("name"))
+            if path:
+                path.unlink()
+                messages.info(request, f"{path.name} silindi.")
+        elif action == "upload":
+            try:
+                path = backup.save_upload(request.FILES["dosya"]) if "dosya" in request.FILES else None
+            except ValueError as exc:
+                messages.error(request, str(exc))
+            else:
+                if path:
+                    messages.success(request, f"Yedek dosyası alındı: {path.name}. Geri yüklemek için listeden seçin.")
+        elif action == "restore":
+            path = backup.path_of(request.POST.get("name"))
+            if path is None or request.POST.get("onay", "").strip().upper() != "GERİ YÜKLE":
+                messages.error(request, "Geri yükleme için yedeği seçip onay kutusuna GERİ YÜKLE yazın.")
+                return redirect("timetable:backups")
+            try:
+                safety = backup.restore(path)
+            except Exception as exc:  # bozuk ya da uyumsuz yedek: veritabanı değişmez
+                messages.error(request, f"Geri yüklenemedi, veriler değişmedi: {exc}")
+                return redirect("timetable:backups")
+            # Oturumlar da silindi: giriş sayfasına
+            return redirect(reverse("timetable:login") + f"?geri_yuklendi={path.name}&guvenlik={safety.name}")
+        else:
+            path = backup.create()
+            messages.success(request, f"Yedek alındı: {path.name}")
+        return redirect("timetable:backups")
+    name = request.GET.get("indir")
+    if name:
+        path = backup.path_of(name)
+        if path is None:
+            raise Http404
+        return FileResponse(open(path, "rb"), as_attachment=True, filename=path.name)
+    from django.conf import settings
+
+    return render(request, "timetable/backups.html", {
+        "items": backup.listing(), "nav": "central", "keep": settings.BACKUP_KEEP, "dir": str(backup.directory()),
+    })
+
+
+def system_update(request):
+    """Merkez → Sistem güncelleme: yeni sürümü denetle, önce yedek alıp indir, sunucuyu yeniden başlat."""
+    from django.http import JsonResponse
+
+    from . import backup, updater
+    from .models import ImproveJob, Timetable
+
+    if request.GET.get("durum"):  # yeniden başlatma sırasında sayfanın yokladığı sürüm bilgisi
+        now = updater.current()
+        return JsonResponse({"head": now["hash"] if now else ""})
+    supervised = updater.supervised()
+    git_ok = updater.is_git()
+    running = Timetable.objects.filter(status=Timetable.RUNNING).count() + ImproveJob.objects.filter(
+        status__in=[ImproveJob.QUEUED, ImproveJob.RUNNING]).count()
+    if request.method == "POST":
+        action = request.POST.get("action")
+        if not supervised:
+            messages.error(request, "Bu kurulum sayfadan yeniden başlatılamıyor; aşağıdaki açıklamaya bakın.")
+            return redirect("timetable:system_update")
+        if running and request.POST.get("zorla") != "1":
+            messages.error(request, f"Şu an {running} üretim / iyileştirme çalışıyor; yeniden başlatma onları keser. "
+                                    "Bitmesini bekleyin ya da yine de devam etmek için kutuyu işaretleyin.")
+            return redirect("timetable:system_update")
+        before = (updater.current() or {}).get("hash", "")
+        if action == "guncelle":
+            try:
+                saved = backup.create()
+            except Exception as exc:  # yedek alınamazsa güncellemeye girişilmez
+                messages.error(request, f"Önce yedek alınamadı, güncelleme yapılmadı: {exc}")
+                return redirect("timetable:system_update")
+            ok, message = updater.pull()
+            if not ok:
+                messages.error(request, f"{message} (Yedek alındı: {saved.name})")
+                return redirect("timetable:system_update")
+            if (updater.current() or {}).get("hash", "") == before:
+                messages.info(request, f"Zaten en son sürüm kullanılıyor. (Yedek alındı: {saved.name})")
+                return redirect("timetable:system_update")
+        elif action != "yeniden_baslat":
+            return redirect("timetable:system_update")
+        updater.request_restart(before)
+        return render(request, "timetable/system_restart.html", {"before": before})
+    check = updater.check() if git_ok and request.GET.get("denetle") else None
+    return render(request, "timetable/system_update.html", {
+        "supervised": supervised, "git_ok": git_ok, "current": updater.current() if git_ok else None,
+        "changes": updater.local_changes() if git_ok else [], "check": check, "running": running,
+        "last": updater.last_result(),
+    })

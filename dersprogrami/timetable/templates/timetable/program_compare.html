@@ -1,0 +1,132 @@
+{% extends "timetable/base.html" %}
+{% block title %}Program karşılaştırma · {{ timetable.name }}{% endblock %}
+{% block crumbs %}<a href="{% url 'timetable:school_detail' school.pk %}">{{ school }}</a> / <a href="{{ grid_url }}">{{ timetable.name }}</a>{% endblock %}
+{% block heading %}<h1>Program karşılaştırma</h1>{% endblock %}
+{% block actions %}
+  <a class="btn" href="{% url 'timetable:quality' timetable.pk %}">{% include "timetable/icon.html" with name="gauge" %} Kalite karnesi</a>
+  {% if data %}<a class="btn" href="?diger={{ other.pk }}&esik={{ threshold }}&excel=1">{% include "timetable/icon.html" with name="download" %} Excel</a>{% endif %}
+{% endblock %}
+{% block content %}
+<form method="get" class="cmp-pick panel">
+  <div class="cmp-side"><span class="subtle small">Bu program</span><b>{{ timetable.name }}</b><small class="subtle">{{ timetable.get_status_display }} · {{ timetable.created_at|date:"d.m.Y H:i" }}</small></div>
+  <span class="cmp-vs">karşı</span>
+  <label class="cmp-side"><span class="subtle small">Karşılaştırılan program</span>
+    <select class="input" name="diger" onchange="this.form.submit()"{% if not others %} disabled{% endif %}>
+      {% if others and not other %}<option value="" selected>— Program seçin —</option>{% endif %}
+      {% for t in others %}<option value="{{ t.pk }}"{% if other and t.pk == other.pk %} selected{% endif %}>{{ t.name }} · {{ t.created_at|date:"d.m.Y H:i" }}</option>{% empty %}<option>Başka program yok</option>{% endfor %}
+    </select>
+  </label>
+  <label class="cmp-thr small">Çok boşluk eşiği <input class="input input-sm q-num" type="number" name="esik" value="{{ threshold }}" min="0" max="30"> saat</label>
+  <button class="btn btn-sm">Karşılaştır</button>
+</form>
+
+{% if not data %}
+  <div class="panel"><div class="panel-body empty">{% if others %}Karşılaştırmak için bir program seçin.{% else %}Bu okulda karşılaştırılacak başka program yok. aSc'den bir program içe aktarın ya da yeni bir program üretin.{% endif %}</div></div>
+{% else %}
+<div class="cmp-head{% if data.verdict == 'a' %} win{% elif data.verdict == 'b' %} lose{% endif %}">
+  <div>
+    <h2 data-cmp-headline>{{ data.headline }}</h2>
+    <p>{{ data.detail }} Karşılaştırılan: <b>{{ other.name }}</b>.</p>
+  </div>
+  {% if data.critical and data.critical.better == "b" %}
+    <div class="alert alert-warning"><span>Dikkat: <b>{{ data.critical.label|lower }}</b> ölçütünde karşılaştırılan program daha iyi ({{ data.critical.b }} / bu programda {{ data.critical.a }}). Bu ölçüt programın kullanılabilirliğini belirler.</span></div>
+  {% elif data.critical %}
+    <div class="alert alert-success"><span><b>{{ data.critical.label }}</b> ölçütünde bu program daha iyi ({{ data.critical.a }} / karşılaştırılanda {{ data.critical.b }}).</span></div>
+  {% endif %}
+</div>
+
+<div class="panel">
+  <div class="table-wrap">
+    <table class="table cmp-summary">
+      <thead><tr><th>Ölçüt</th><th class="num">Bu program</th><th class="num">Karşılaştırılan</th><th class="num">Fark</th><th>Daha iyi</th></tr></thead>
+      <tbody>
+        {% for m in data.summary %}
+          <tr data-metric="{{ m.key }}">
+            <td><b>{{ m.label }}</b><div class="subtle small">{{ m.hint }}</div></td>
+            <td class="num{% if m.better == 'a' %} cmp-win{% elif m.better == 'b' %} cmp-lose{% endif %}">{{ m.a }}</td>
+            <td class="num{% if m.better == 'b' %} cmp-win{% elif m.better == 'a' %} cmp-lose{% endif %}">{{ m.b }}</td>
+            <td class="num">{% if m.delta > 0 %}<span class="cmp-d up">+{{ m.delta }}</span>{% elif m.delta < 0 %}<span class="cmp-d down">{{ m.delta }}</span>{% else %}<span class="subtle">0</span>{% endif %}</td>
+            <td>{% if m.better == "a" %}<span class="cmp-tag win">Bu program</span>{% elif m.better == "b" %}<span class="cmp-tag lose">Karşılaştırılan</span>{% else %}<span class="subtle">Eşit</span>{% endif %}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="q-toolbar cmp-toolbar">
+  <div class="seg" data-cmp-tabs>
+    <button type="button" class="btn btn-primary" data-tab="ogretmen">Öğretmenler ({{ data.ogretmen|length }})</button>
+    <button type="button" class="btn" data-tab="sinif">Sınıflar ({{ data.sinif|length }})</button>
+  </div>
+  <input class="input" type="search" placeholder="Ara…" data-cmp-search>
+  <div class="seg-radio" data-cmp-filter>
+    <label><input type="radio" name="durum" value="" checked> Tümü</label>
+    <label><input type="radio" name="durum" value="kotu"> Yalnız kötüleşenler</label>
+    <label><input type="radio" name="durum" value="iyi"> Yalnız iyileşenler</label>
+    <label><input type="radio" name="durum" value="degisen"> Değişenler</label>
+  </div>
+  <span class="subtle small" data-cmp-count></span>
+</div>
+
+{% include "timetable/program_compare_table.html" with kind="ogretmen" pairs=data.ogretmen columns=data.teacher_columns counts=data.teacher_counts label="Öğretmen" %}
+{% include "timetable/program_compare_table.html" with kind="sinif" pairs=data.sinif columns=data.class_columns counts=data.class_counts label="Sınıf" hidden=True %}
+
+<p class="subtle small">Bütün ölçütlerde küçük değer daha iyidir. Hücrelerde <b>bu program → karşılaştırılan</b> değer, altında fark (bu − karşılaştırılan) yazar: <span class="cmp-d up">+</span> bu programda daha kötü, <span class="cmp-d down">−</span> daha iyi. "Kötüleşen / iyileşen" kalite puanına göredir. Geç saat: saatleri girilmişse 16.00 ve sonrası başlayan, girilmemişse günün son saatleri. Kesin ihlaller bugünkü verilere ve kurallara göre yeniden denetlenir; aSc'den gelen program, aktarımdan sonra değişen kurallar yüzünden ihlalli görünebilir.</p>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  const fold = (s) => s.toLocaleLowerCase("tr").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ı/g, "i");
+  const tables = [...document.querySelectorAll("[data-cmp-table]")];
+  if (!tables.length) return;
+  const search = document.querySelector("[data-cmp-search]");
+  const filterBox = document.querySelector("[data-cmp-filter]");
+  const count = document.querySelector("[data-cmp-count]");
+  const current = () => tables.find((t) => !t.closest("[data-cmp-panel]").hidden);
+  const filter = () => {
+    const q = fold(search.value.trim());
+    const state = filterBox.querySelector("input:checked").value;
+    const table = current();
+    const rows = [...table.tBodies[0].querySelectorAll("tr[data-status]")];
+    let shown = 0;
+    rows.forEach((r) => {
+      const ok = (!q || r.dataset.name.includes(q)) && (!state || (state === "degisen" ? r.dataset.changed === "1" : r.dataset.status === state));
+      r.hidden = !ok;
+      if (ok) shown += 1;
+    });
+    count.textContent = shown + " / " + rows.length + " satır";
+  };
+  search.addEventListener("input", filter);
+  filterBox.addEventListener("change", filter);
+  document.querySelector("[data-cmp-tabs]").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-tab]");
+    if (!btn) return;
+    document.querySelectorAll("[data-cmp-tabs] [data-tab]").forEach((b) => b.classList.toggle("btn-primary", b === btn));
+    document.querySelectorAll("[data-cmp-panel]").forEach((p) => { p.hidden = p.dataset.cmpPanel !== btn.dataset.tab; });
+    filter();
+  });
+  // Başlığa tıklayınca farka göre sırala (ikinci tık ters); ad sütunu alfabetik
+  tables.forEach((table) => {
+    const body = table.tBodies[0];
+    let sortKey = "score", dir = -1;
+    table.tHead.addEventListener("click", (e) => {
+      const th = e.target.closest("th[data-sort]");
+      if (!th) return;
+      const key = th.dataset.sort;
+      dir = key === sortKey ? -dir : (key === "name" ? 1 : -1);
+      sortKey = key;
+      const rows = [...body.querySelectorAll("tr[data-status]")];
+      const attr = "d-" + key;
+      rows.sort((a, b) => key === "name"
+        ? dir * a.dataset.name.localeCompare(b.dataset.name, "tr")
+        : dir * (Number(a.getAttribute("data-" + attr)) - Number(b.getAttribute("data-" + attr))) || a.dataset.name.localeCompare(b.dataset.name, "tr"));
+      rows.forEach((r) => body.appendChild(r));
+      table.querySelectorAll("th[data-sort]").forEach((h) => h.classList.toggle("sorted", h === th));
+    });
+  });
+  filter();
+})();
+</script>
+{% endblock %}

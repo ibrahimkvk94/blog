@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Program sürümleri{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Program sürümleri</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Program sürümleri</h1>
+    <p class="text-secondary mb-0">Her aSc yüklemesi taslak olarak gelir; kontrol edip geçerlilik tarihleriyle yayınlarsınız.</p>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-xl-4">
+    <form method="post" enctype="multipart/form-data" class="kart p-4" novalidate>
+      {% csrf_token %}
+      <h2 class="h6 text-secondary text-uppercase mb-3"><i class="bi bi-cloud-arrow-up me-1"></i>Yeni program yükle</h2>
+      {% for f in form %}
+      <div class="mb-3">
+        <label class="form-label" for="{{ f.id_for_label }}">{{ f.label }}</label>
+        {{ f }}
+        {% for e in f.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+        {% if f.help_text %}<div class="form-text">{{ f.help_text }}</div>{% endif %}
+      </div>
+      {% endfor %}
+      <button class="btn btn-primary w-100" id="yukleBtn"><i class="bi bi-upload me-1"></i>Yükle</button>
+    </form>
+  </div>
+  <div class="col-12 col-xl-8">
+    <div class="kart">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead><tr><th>Sürüm</th><th>Durum</th><th class="d-none d-md-table-cell">Geçerlilik</th><th class="d-none d-lg-table-cell">Yüklenme</th><th class="text-end">Ders saati</th></tr></thead>
+          <tbody>
+          {% for s in liste %}
+            <tr>
+              <td>
+                <a href="{% url 'program:surum' s.pk %}" class="fw-semibold text-decoration-none">{{ s.ad }}</a>
+                {% if s == gecerli %}<span class="badge text-bg-primary ms-1">Bugün geçerli</span>{% endif %}
+                <div class="small text-secondary">{{ s.kaynak_dosya }}</div>
+              </td>
+              <td>
+                {% if s.durum == 'yayinda' %}<span class="durum-rozet durum-kullanimda">Yayında</span>
+                {% elif s.durum == 'taslak' %}<span class="durum-rozet durum-sirada">Taslak</span>
+                {% else %}<span class="durum-rozet durum-planlandi">Arşiv</span>{% endif %}
+              </td>
+              <td class="d-none d-md-table-cell small">{% if s.baslangic %}{{ s.baslangic|date:"d.m.Y" }} – {{ s.bitis|date:"d.m.Y"|default:"…" }}{% else %}–{% endif %}</td>
+              <td class="d-none d-lg-table-cell small">{{ s.yukleme_zamani|date:"d.m.Y H:i" }}<div class="text-secondary">{{ s.yukleyen|default:"komut satırı" }}</div></td>
+              <td class="text-end">{{ s.hucre_sayisi }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5" class="text-center text-secondary py-5">Henüz program yüklenmedi.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  document.querySelector('#yukleBtn').closest('form').addEventListener('submit', function () {
+    const b = document.querySelector('#yukleBtn');
+    b.disabled = true;
+    b.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Yükleniyor…';
+  });
+</script>
+{% endblock %}

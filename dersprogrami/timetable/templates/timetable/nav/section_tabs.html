@@ -1,0 +1,1 @@
+{% if group %}<nav class="subnav" aria-label="{{ group.title }}">{% for i in group.items %}<a href="{{ i.url }}" class="{% if i.active %}active{% endif %}">{{ i.label }}{% if i.badge %} <span class="nav-badge">{{ i.badge }}</span>{% endif %}</a>{% endfor %}</nav>{% endif %}

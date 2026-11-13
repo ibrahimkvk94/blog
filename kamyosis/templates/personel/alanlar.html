@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Kart alanları · Personel kartları{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Kart alanları</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Kart alanları</h1>
+    <p class="text-secondary mb-0">Personel kartındaki ek bilgiler (telefon, adres, kan grubu …). Yalnız yöneticiler görür ve doldurur. Dolu alan silinemez; “kullanımda” işareti kaldırılınca karttan gizlenir, bilgi korunur.</p>
+  </div>
+</div>
+{% include "personel/_sekmeler.html" %}
+<div class="row g-3">
+  <div class="col-12 col-xl-7">
+    <div class="kart">
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead><tr><th>Alan</th><th>Kart başlığı</th><th>Tür</th><th class="text-end">Dolu</th><th>Durum</th><th></th></tr></thead>
+          <tbody>
+          {% for a in alanlar %}
+            <tr {% if duzenlenen == a %}class="table-active"{% endif %}>
+              <td class="fw-semibold">{{ a.ad }}{% if a.onemli %} <span class="durum-rozet durum-sirada ms-1">boşsa eksik</span>{% endif %}{% if a.secenekler %}<div class="small text-secondary fw-normal">{{ a.secenekler }}</div>{% endif %}</td>
+              <td>{{ a.grup }}</td>
+              <td class="small">{{ a.get_tur_display }}</td>
+              <td class="text-end">{{ a.dolu }}</td>
+              <td>{% if a.aktif %}<span class="durum-rozet durum-kullanimda">Kullanımda</span>{% else %}<span class="durum-rozet durum-planlandi">Gizli</span>{% endif %}</td>
+              <td class="text-end text-nowrap">
+                <a class="btn btn-sm btn-outline-secondary" href="?duzenle={{ a.pk }}" title="Düzenle"><i class="bi bi-pencil"></i></a>
+                {% if not a.dolu %}<form method="post" class="d-inline" onsubmit="return confirm('“{{ a.ad|escapejs }}” silinsin mi?')">{% csrf_token %}<input type="hidden" name="islem" value="sil"><input type="hidden" name="pk" value="{{ a.pk }}"><button class="btn btn-sm btn-outline-danger" title="Sil"><i class="bi bi-trash"></i></button></form>{% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6" class="text-center text-secondary py-5">Henüz alan yok.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-xl-5">
+    <div class="kart p-3">
+      <h2 class="h6 fw-bold mb-3">{% if duzenlenen %}“{{ duzenlenen.ad }}” alanını düzenle{% else %}Yeni alan{% endif %}</h2>
+      <form method="post">
+        {% csrf_token %}
+        {% if duzenlenen %}<input type="hidden" name="pk" value="{{ duzenlenen.pk }}">{% endif %}
+        {% if form.non_field_errors %}<div class="alert alert-danger py-2">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+        <div class="row g-2">
+          {% for f in form %}{% if f.name != 'aktif' %}
+          <div class="{% if f.name == 'sira' %}col-4{% elif f.name == 'secenekler' %}col-12{% else %}col-12 col-sm-6{% endif %}">
+            <label class="form-label small text-secondary" for="{{ f.id_for_label }}">{{ f.label }}</label>{{ f }}
+            {% if f.help_text %}<div class="form-text">{{ f.help_text }}</div>{% endif %}
+            {% for e in f.errors %}<div class="small text-danger">{{ e }}</div>{% endfor %}
+          </div>
+          {% endif %}{% endfor %}
+          <div class="col-8 d-flex align-items-end"><div class="form-check mb-2">{{ form.aktif }} <label class="form-check-label" for="{{ form.aktif.id_for_label }}">Kullanımda</label></div></div>
+        </div>
+        <div class="d-flex gap-2 mt-3">
+          <button class="btn btn-primary"><i class="bi bi-check2 me-1"></i>Kaydet</button>
+          {% if duzenlenen %}<a class="btn btn-outline-secondary" href="{% url 'personel:alanlar' %}">Vazgeç</a>{% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

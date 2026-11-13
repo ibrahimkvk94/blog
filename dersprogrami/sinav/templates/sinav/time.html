@@ -1,0 +1,1 @@
+{% for t in period.session_times %}{% if forloop.counter0 == pl.session %}{{ t }}{% endif %}{% endfor %}{% if pl.exam.duration > 1 %} ({{ pl.exam.duration }} ot.){% endif %}

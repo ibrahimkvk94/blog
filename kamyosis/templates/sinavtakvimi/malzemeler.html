@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Sınav İcrası · Malzeme ve süre{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Malzeme ve Süre</li>{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{% static 'css/sinav-takvimi.css' %}?v=5">
+{% include "sinavtakvimi/_sekmeler.html" %}
+{% if not t %}
+<div class="kart text-center text-secondary py-5"><i class="bi bi-calculator d-block fs-3 mb-2"></i>Henüz yayınlanan sınav planı yok. Plan yayınlanınca dersler burada listelenir.</div>
+{% else %}
+<div class="st-sayfa sx-sayfa" id="mzSayfa" data-benim="{{ benim }}" data-benim-program="{{ benim_program|yesno:'1,' }}"
+     data-kaydet="{% url 'sinavtakvimi:malzeme_kaydet' t.pk %}" data-excel="{% url 'sinavtakvimi:malzeme_excel' t.pk %}">
+  {% csrf_token %}
+  <div class="sx-ust">
+    <div>
+      <div class="fw-semibold">{{ t.ad }}{% if not t.yayinda %} <span class="durum-rozet durum-planlandi ms-1">Yayında değil</span>{% endif %}</div>
+      <div class="small text-secondary">
+        Satırlar sınav planından gelir. Her bölüm kendi programının ya da verdiği dersin <b>malzemesini</b> ve <b>sınav süresini (dk)</b> girer; değişiklik anında kaydedilir. İkisi de girilen satır tamamlanmış sayılır.
+        {% if yetki.hepsi %}Siz tüm satırları girebilirsiniz.{% elif girebilen %}Sizin girebileceğiniz <b>{{ girebilen }}</b> satır var.{% else %}Bu listede girebileceğiniz satır yok; yalnız görüntüleyebilirsiniz.{% endif %}
+      </div>
+    </div>
+    {% if takvimler|length > 1 %}
+    <form method="get" class="ms-auto"><select class="form-select form-select-sm" onchange="location.href=this.value">
+      {% for x in takvimler %}<option value="{% url 'sinavtakvimi:malzemeler_takvim' x.pk %}"{% if x.pk == t.pk %} selected{% endif %}>{{ x.ad }}{% if not x.yayinda %} (yayında değil){% endif %}</option>{% endfor %}
+    </select></form>
+    {% endif %}
+  </div>
+
+  <div class="sx-ilerleme" aria-label="Programlara göre girilen">
+    <div class="sx-ilerleme-bas"><span>Girilen</span><b id="mzToplam">{{ girilen }}/{{ satirlar|length }}</b></div>
+    {% for p in ilerleme %}
+    <button type="button" class="sx-pk" data-program-sec="{{ p.kod }}" title="{{ p.ad }}">
+      <span class="sx-pk-kod">{{ p.kod }}</span>
+      <span class="sx-bar"><i style="width:{% widthratio p.girilen p.toplam 100 %}%"></i></span>
+      <span class="sx-pk-sayi" data-ilerleme="{{ p.kod }}" data-toplam="{{ p.toplam }}">{{ p.girilen }}/{{ p.toplam }}</span>
+    </button>
+    {% endfor %}
+  </div>
+
+  <div class="st-arac d-print-none" id="mzArac">
+    <div class="st-arac-satir">
+      <span class="sx-etiket">Sınavın yapılacağı program</span>
+      <div class="st-programlar" role="group" aria-label="Program">
+        <button type="button" class="st-cip secili" data-program="">Tümü</button>
+        {% for p in programlar %}<button type="button" class="st-cip" data-program="{{ p }}">{{ p }}</button>{% endfor %}
+      </div>
+    </div>
+    <div class="st-arac-satir">
+      <label class="sx-etiket" for="mzDersBolum">Dersi veren bölüm</label>
+      <select class="form-select form-select-sm sx-secim" id="mzDersBolum" autocomplete="off">
+        <option value="">Tümü</option>
+        {% for kod, ad in ders_bolumleri %}<option value="{{ kod }}">{{ ad }}</option>{% endfor %}
+      </select>
+      <div class="btn-group btn-group-sm" role="group" aria-label="Sınıf">
+        <button type="button" class="btn btn-outline-secondary active" data-sinif-sec="">Her iki sınıf</button>
+        <button type="button" class="btn btn-outline-secondary" data-sinif-sec="1">1. sınıf</button>
+        <button type="button" class="btn btn-outline-secondary" data-sinif-sec="2">2. sınıf</button>
+      </div>
+      <div class="btn-group btn-group-sm" role="group" aria-label="Durum">
+        <button type="button" class="btn btn-outline-secondary active" data-durum="">Tümü</button>
+        <button type="button" class="btn btn-outline-secondary" data-durum="0">Girilmemiş</button>
+        <button type="button" class="btn btn-outline-secondary" data-durum="1">Girilmiş</button>
+      </div>
+      {% if girebilen and not yetki.hepsi %}
+      <label class="form-check-label small sx-benim"><input class="form-check-input me-1" type="checkbox" id="mzBenim">Yalnız girebileceklerim</label>
+      {% endif %}
+      <div class="st-ara"><i class="bi bi-search"></i><input type="search" id="mzAra" autocomplete="off" placeholder="Ders adı ya da kodu ara" aria-label="Ders ara"></div>
+      {% if yonetici %}<button type="button" class="btn btn-sm btn-outline-danger ms-auto" data-bs-toggle="modal" data-bs-target="#mzSifirla"><i class="bi bi-eraser me-1"></i>Sıfırla</button>{% endif %}
+      <a class="btn btn-sm btn-outline-secondary{% if not yonetici %} ms-auto{% endif %}" id="mzExcel" href="{% url 'sinavtakvimi:malzeme_excel' t.pk %}"><i class="bi bi-file-earmark-excel me-1"></i>Excel</a>
+    </div>
+    <div class="st-sonuc" id="mzSonuc" aria-live="polite"></div>
+  </div>
+
+  <div class="kart sx-tablo-kap">
+    <div class="table-responsive">
+      <table class="table align-middle mb-0 sx-tablo">
+        <thead><tr><th class="text-end">#</th><th>Sınav</th><th>Sınıf</th><th>Ders</th><th>Program</th><th class="sx-malzeme-bas">Kullanılacak malzeme</th><th class="sx-sure-bas">Süre (dk)</th></tr></thead>
+        <tbody>
+        {% for r in satirlar %}
+          <tr data-kod="{{ r.kod }}" data-program="{{ r.bolum }}" data-ders-bolum="{{ r.ders_bolumu }}" data-sinif="{{ r.sinif|default_if_none:'' }}"
+              data-girildi="{{ r.girildi|yesno:'1,0' }}" data-girebilir="{{ r.girebilir|yesno:'1,0' }}" data-ara="{{ r.ad|lower }} {{ r.kod|lower }}">
+            <td class="text-end text-secondary small">{{ r.no }}</td>
+            <td class="text-nowrap small">{{ r.satir.tarih|date:"j M" }} <span class="text-secondary">{{ r.satir.tarih|date:"D" }}</span><div class="text-secondary">{{ r.satir.baslangic|time:"H.i" }}</div></td>
+            <td><span class="st-sinif s{{ r.sinif }}">{{ r.sinif }}. sınıf</span></td>
+            <td class="sx-ders"><div class="fw-semibold">{{ r.ad }}</div><div class="small text-secondary"><span class="st-kod">{{ r.kod }}</span> · {{ r.ders_bolumu_adi }}</div></td>
+            <td><span class="sx-prog" title="{{ r.bolum_adi }}">{{ r.bolum }}</span><div class="small text-secondary d-none d-xl-block">{{ r.bolum_adi }}</div></td>
+            <td class="sx-malzeme">
+              {% if r.girebilir %}
+              <div class="sx-giris">
+                {% for s, ad in malzeme_secenekleri %}<button type="button" class="sx-sec{% if s in r.secimler %} secili{% endif %}" data-s="{{ s }}" aria-pressed="{% if s in r.secimler %}true{% else %}false{% endif %}">{{ ad }}</button>{% endfor %}
+                <button type="button" class="sx-sec sx-yok{% if r.yok %} secili{% endif %}" data-s="yok" aria-pressed="{{ r.yok|yesno:'true,false' }}">Yok</button>
+                <input type="text" class="sx-diger" maxlength="120" value="{{ r.diger }}" placeholder="Diğer…" aria-label="Diğer malzeme">
+                <span class="sx-durum" aria-live="polite"></span>
+              </div>
+              <button type="button" class="sx-hepsi" hidden title="Bu dersin girebildiğiniz tüm programlarına aynı malzemeyi yaz"><i class="bi bi-copy me-1"></i>Bu dersin tüm programlarına uygula</button>
+              {% else %}
+              <span class="sx-metin">{% if r.metin %}{{ r.metin }}{% else %}<span class="sx-girilmedi">Girilmedi</span>{% endif %}</span>
+              {% endif %}
+            </td>
+            <td class="sx-sure">
+              {% if r.girebilir %}
+              <input type="number" class="sx-sure-gir{% if r.sure and r.oturum_dk and r.sure > r.oturum_dk %} asim{% endif %}" min="5" max="300" step="5" inputmode="numeric"
+                     value="{{ r.sure|default_if_none:'' }}" data-oturum="{{ r.oturum_dk|default_if_none:'' }}" aria-label="Sınav süresi (dakika)"
+                     title="{% if r.oturum_dk %}Oturum {{ r.oturum_dk }} dk{% endif %}"><span class="sx-dk">dk</span>
+              {% elif r.sure %}{{ r.sure }} dk{% else %}<span class="sx-girilmedi">Girilmedi</span>{% endif %}
+              {% if r.oturum_dk %}<div class="sx-oturum">oturum {{ r.oturum_dk }} dk</div>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="st-bos" id="mzBos" hidden><i class="bi bi-search"></i>Seçime uyan satır yok.</div>
+</div>
+{% if yonetici %}
+<div class="modal fade" id="mzSifirla" tabindex="-1" aria-labelledby="mzSifirlaBaslik" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <form class="modal-content" method="post" action="{% url 'sinavtakvimi:malzeme_sifirla' t.pk %}" id="mzSifirlaFormu">
+      {% csrf_token %}
+      <div class="modal-header">
+        <h2 class="modal-title fs-5" id="mzSifirlaBaslik"><i class="bi bi-eraser me-1 text-danger"></i>Malzeme ve süre · sıfırla</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Kapat"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-secondary">Seçilen satırlardaki malzeme ve süre girişleri silinir; satırlar “girilmemiş” olur. İşlemden önce veritabanının yedeği alınır.</p>
+        <div class="form-check mb-2"><input class="form-check-input" type="radio" name="kapsam" value="program" id="mkProgram" checked>
+          <label class="form-check-label" for="mkProgram">Sınavın yapılacağı program</label></div>
+        <select class="form-select form-select-sm mb-3 ms-4 w-auto" name="program" data-kapsam="program" aria-label="Program">
+          {% for p in ilerleme %}<option value="{{ p.kod }}">{{ p.kod }} · {{ p.ad }}</option>{% endfor %}
+        </select>
+        <div class="form-check mb-2"><input class="form-check-input" type="radio" name="kapsam" value="ders_bolumu" id="mkDersBolum">
+          <label class="form-check-label" for="mkDersBolum">Dersi veren bölüm</label></div>
+        <select class="form-select form-select-sm mb-3 ms-4 w-auto" name="ders_bolumu" data-kapsam="ders_bolumu" aria-label="Dersi veren bölüm" disabled>
+          {% for kod, ad in ders_bolumleri %}<option value="{{ kod }}">{{ ad }}</option>{% endfor %}
+        </select>
+        <div class="form-check mb-2"><input class="form-check-input" type="radio" name="kapsam" value="kod" id="mkDers">
+          <label class="form-check-label" for="mkDers">Tek ders (tüm programlarıyla)</label></div>
+        <select class="form-select form-select-sm mb-3 ms-4 w-auto" name="kod" data-kapsam="kod" aria-label="Ders" disabled>
+          {% for kod, ad in dersler %}<option value="{{ kod }}">{{ kod }} · {{ ad }}</option>{% endfor %}
+        </select>
+        <div class="form-check"><input class="form-check-input" type="radio" name="kapsam" value="tumu" id="mkTumu">
+          <label class="form-check-label text-danger fw-semibold" for="mkTumu">Planın tüm girişleri</label></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Vazgeç</button>
+        <button class="btn btn-danger"><i class="bi bi-eraser me-1"></i>Sıfırla</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+(function () {
+  var f = document.getElementById("mzSifirlaFormu");
+  function esitle() {
+    var k = f.querySelector("[name=kapsam]:checked").value;
+    f.querySelectorAll("[data-kapsam]").forEach(function (s) { s.disabled = s.dataset.kapsam !== k; });
+  }
+  f.querySelectorAll("[name=kapsam]").forEach(function (r) { r.addEventListener("change", esitle); });
+  f.addEventListener("submit", function (e) {
+    var k = f.querySelector("[name=kapsam]:checked").value, ne = "Planın TÜM malzeme ve süre girişleri";
+    if (k !== "tumu") { var s = f.querySelector("[data-kapsam=" + k + "]"); ne = s.options[s.selectedIndex].text + " için girilen malzeme ve süreler"; }
+    if (!confirm(ne + " silinecek. Emin misiniz?")) e.preventDefault();
+  });
+  esitle();
+})();
+</script>
+{% endif %}
+<script src="{% static 'js/sinav-malzeme.js' %}?v=3"></script>
+{% endif %}
+{% endblock %}

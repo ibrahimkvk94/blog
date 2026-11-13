@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Bölüm yetkileri{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Bölüm yetkileri</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Bölüm yetkileri</h1>
+    <p class="text-secondary mb-0">Bölüm hesaplarının menüde hangi modülleri göreceği. Her bölüm yalnızca kendi bölümünün kayıtlarını görür.</p>
+  </div>
+</div>
+
+<form method="post" id="ybForm">
+  {% csrf_token %}
+  <div class="kart">
+    <div class="islem-cubugu d-flex flex-wrap align-items-center gap-2 p-2 border-bottom">
+      <span class="small text-secondary ms-2 me-auto" id="ybDurum">Değişiklik yok</span>
+      <button class="btn btn-sm btn-primary" id="ybKaydet" disabled><i class="bi bi-check2"></i> Kaydet</button>
+    </div>
+    <div class="yardim-satiri"><i class="bi bi-info-circle"></i> Hücreye tıklayınca <strong>✓ görür</strong> / <strong>✗ görmez</strong> olur. Bölüm adına ya da modül adına tıklamak tüm satırı ya da sütunu değiştirir. Sütundaki seçim o modülde <strong>Görür</strong> (yalnızca bakar) mı <strong>Düzenler</strong> mi olduğunu belirler.</div>
+    <div class="table-responsive">
+      <table class="table align-middle mb-0 yb-tablo">
+        <thead>
+          <tr>
+            <th rowspan="2" class="align-bottom">Bölüm</th>
+            {% for g in gruplar %}<th colspan="{{ g.sayi }}" class="text-center yb-grup">{{ g.grup.ad|default:"" }}</th>{% endfor %}
+          </tr>
+          <tr>
+            {% for m in moduller %}
+            <th class="text-center">
+              <button type="button" class="yb-baslik" data-sutun="{{ m.pk }}" title="Tüm bölümler için aç/kapat"><i class="bi bi-{{ m.ikon }}"></i> {{ m.ad }}</button>
+              {% if m.yalniz_gorur %}<div class="yb-seviye-sabit" title="Bölüm hesapları bu modülde değişiklik yapamaz">Görür</div>
+              {% else %}<select class="form-select form-select-sm yb-seviye" name="seviye_{{ m.pk }}" aria-label="{{ m.ad }} yetki seviyesi">
+                {% for k, ad in seviyeler %}<option value="{{ k }}" {% if k == m.seviye %}selected{% endif %}>{{ ad }}</option>{% endfor %}
+              </select>{% endif %}
+            </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in satirlar %}
+          <tr>
+            <th>
+              <button type="button" class="yb-baslik text-start" data-satir="{{ s.bolum.pk }}" title="Bu bölüm için tümünü aç/kapat">
+                <span class="fw-semibold">{{ s.bolum.kod }}</span> <span class="fw-normal">{{ s.bolum.ad }}</span>
+              </button>
+              <div class="small text-secondary fw-normal ps-2">{% for u in s.hesaplar %}{{ u.username }}{% if not forloop.last %}, {% endif %}{% endfor %}</div>
+            </th>
+            {% for h in s.hucreler %}
+            <td class="text-center">
+              <input type="checkbox" class="btn-check yb-kutu" name="h" value="{{ s.bolum.pk }}-{{ h.modul.pk }}" id="h{{ s.bolum.pk }}-{{ h.modul.pk }}" data-satir="{{ s.bolum.pk }}" data-sutun="{{ h.modul.pk }}" {% if h.gorur %}checked{% endif %} autocomplete="off">
+              <label class="yb-hucre {% if h.fark %}yb-fark{% endif %}" for="h{{ s.bolum.pk }}-{{ h.modul.pk }}" aria-label="{{ s.bolum.kod }} – {{ h.modul.ad }}" {% if h.fark %}title="Bu bölümün hesapları arasında fark var; kaydedince hepsi aynı olur"{% endif %}></label>
+            </td>
+            {% endfor %}
+          </tr>
+          {% empty %}
+          <tr><td colspan="{{ moduller|length|add:1 }}" class="text-center text-secondary py-5">Bölüm hesabı yok.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</form>
+
+<div class="small text-secondary mt-3">
+  <i class="bi bi-info-circle me-1"></i>Tabloda yalnızca bölüm hesapları var; "tüm bölümler" yetkisi olan yönetici hesapları Yönetim Paneli → Kullanıcılar'dan düzenlenir.
+  {% if hesapsiz %}Hesabı olmayan bölümler: {% for b in hesapsiz %}{{ b.kod }}{% if not forloop.last %}, {% endif %}{% endfor %}.{% endif %}
+  Henüz kullanımda olmayan modüller hazır olunca buraya sütun olarak eklenir.
+</div>
+
+<script>
+(function () {
+  const form = document.getElementById('ybForm');
+  const kutular = Array.from(form.querySelectorAll('.yb-kutu'));
+  const secimler = Array.from(form.querySelectorAll('.yb-seviye'));
+  const ilk = new Map(kutular.map(k => [k, k.checked]).concat(secimler.map(s => [s, s.value])));
+  let kaydediliyor = false;
+  function guncelle() {
+    const n = Array.from(ilk).filter(([el, v]) => (el.type === 'checkbox' ? el.checked : el.value) !== v).length;
+    document.getElementById('ybDurum').textContent = n ? n + ' kaydedilmemiş değişiklik' : 'Değişiklik yok';
+    document.getElementById('ybKaydet').disabled = n === 0;
+  }
+  function topla(liste) {
+    const ac = !liste.every(k => k.checked);
+    liste.forEach(k => { k.checked = ac; });
+    guncelle();
+  }
+  form.querySelectorAll('.yb-baslik[data-satir]').forEach(b => b.addEventListener('click', () =>
+    topla(kutular.filter(k => k.dataset.satir === b.dataset.satir))));
+  form.querySelectorAll('.yb-baslik[data-sutun]').forEach(b => b.addEventListener('click', () =>
+    topla(kutular.filter(k => k.dataset.sutun === b.dataset.sutun))));
+  kutular.concat(secimler).forEach(el => el.addEventListener('change', guncelle));
+  form.addEventListener('submit', () => { kaydediliyor = true; });
+  window.addEventListener('beforeunload', e => {
+    if (!kaydediliyor && !document.getElementById('ybKaydet').disabled) { e.preventDefault(); e.returnValue = ''; }
+  });
+})();
+</script>
+{% endblock %}

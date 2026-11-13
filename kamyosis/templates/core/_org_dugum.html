@@ -1,0 +1,13 @@
+{% if dugumler %}
+<ul class="org-liste">
+  {% for d in dugumler %}
+  <li>
+    <a href="{{ d.get_absolute_url }}" class="org-dugum {% if d.menu_cocuklar %}org-ara{% endif %}">
+      <i class="bi bi-{{ d.ikon }}"></i><span>{{ d.ad }}</span>
+      {% if not d.menu_cocuklar and d.durum != 'kullanimda' %}<span class="durum-rozet durum-{{ d.durum }} ms-auto">{{ d.get_durum_display }}</span>{% endif %}
+    </a>
+    {% include "core/_org_dugum.html" with dugumler=d.menu_cocuklar %}
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}

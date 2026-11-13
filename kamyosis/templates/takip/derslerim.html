@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Derslerim{% endblock %}
+{% block breadcrumb_ek %}<li class="breadcrumb-item active" aria-current="page">Derslerim</li>{% endblock %}
+{% block content %}
+<div class="sayfa-baslik">
+  <div>
+    <h1>Derslerim</h1>
+    <p class="text-secondary mb-0">{{ y.personel.ad_soyad }} · {{ pazartesi|date:"d.m.Y" }} haftası · {{ toplam }} ders{% if yapilan %} · {{ yapilan }} yapıldı{% endif %}</p>
+  </div>
+  <div class="btn-group">
+    <a class="btn btn-outline-secondary" href="?tarih={{ onceki|date:'Y-m-d' }}"><i class="bi bi-chevron-left"></i> Önceki hafta</a>
+    <a class="btn btn-outline-secondary" href="?">Bu hafta</a>
+    <a class="btn btn-outline-secondary" href="?tarih={{ sonraki|date:'Y-m-d' }}">Sonraki hafta <i class="bi bi-chevron-right"></i></a>
+  </div>
+</div>
+
+{% for gun, liste in gunler.items %}
+<div class="kart mb-3">
+  <div class="d-flex align-items-center gap-2 px-3 py-2 border-bottom bg-light-subtle">
+    <span class="fw-semibold">{{ gun|date:"l, d F" }}</span>
+    {% if gun == bugun %}<span class="badge text-bg-primary">Bugün</span>{% endif %}
+  </div>
+  <div class="table-responsive">
+    <table class="table align-middle mb-0">
+      <tbody>
+      {% for s in liste %}
+        <tr>
+          <td class="text-nowrap" style="width:70px"><strong>{{ s.hucre.saat }}.</strong> saat</td>
+          <td><span class="fw-semibold">{{ s.hucre.haftalik_ders.ders.kod }}</span> {{ s.hucre.haftalik_ders.ders.ad }}</td>
+          <td class="text-nowrap">{% for k in s.hucre.haftalik_ders.kisimlar.all %}{{ k.kod }}{% endfor %}</td>
+          <td class="d-none d-md-table-cell small">{{ s.hucre.derslik|default:"" }}</td>
+          <td class="text-end">{% include "takip/_durum.html" %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% empty %}
+<div class="kart p-5 text-center text-secondary">Bu hafta için dersiniz görünmüyor.</div>
+{% endfor %}
+{% endblock %}

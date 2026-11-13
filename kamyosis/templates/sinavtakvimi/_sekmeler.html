@@ -1,0 +1,15 @@
+{% comment %}Sınav İcrası sayfasının üstü: başlık ve sekmeler (ilk sekme Sınav Takvimi). Değişkenler: sekme, sekmeler{% endcomment %}
+<div class="sayfa-baslik mb-3 d-print-none">
+  <div class="d-flex align-items-center gap-3">
+    <span class="birim-ikon buyuk"><i class="bi bi-clipboard2-check"></i></span>
+    <div>
+      <h1>Sınav İcrası</h1>
+      <p class="text-secondary mb-0">{{ alt_baslik|default:"Sınav takvimi ve sınavların yürütülmesi." }}</p>
+    </div>
+  </div>
+</div>
+<ul class="nav nav-tabs ky-sekmeler mb-3 d-print-none">
+  {% for kod, ad, ikon, adres in sekmeler %}
+  <li class="nav-item"><a class="nav-link{% if sekme == kod %} active{% endif %}" href="{% url adres %}"><i class="bi bi-{{ ikon }} me-1"></i>{{ ad }}</a></li>
+  {% endfor %}
+</ul>
